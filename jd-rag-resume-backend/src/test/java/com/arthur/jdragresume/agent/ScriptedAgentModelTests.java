@@ -41,7 +41,27 @@ class ScriptedAgentModelTests {
         assertEquals(List.of("list_resumes", "rank_jobs_for_resume", "search_resume_evidence"), calls);
     }
 
+    @Test
+    void rejectionIsReportedToTheUserWithoutTheModelFacingInstruction() {
+        AgentLoop.Outcome paused = run("帮我分析最合适的职位");
+        // Paused turns end with the assistant message whose write call awaits a decision.
+        String pendingId = paused.transcript().get(paused.transcript().size() - 1).toolCalls().get(0).id();
+        TranscriptPolicy.Approval rejection = new TranscriptPolicy.Approval(pendingId, false);
+
+        AgentLoop.Outcome outcome = loop().run(new TranscriptPolicy(properties).normalize(paused.transcript(), rejection),
+                rejection, new AgentToolContext(new AppUser()), (event, payload) -> { }, () -> false);
+
+        String answer = outcome.transcript().get(outcome.transcript().size() - 1).content();
+        assertTrue(answer.contains("你拒绝了这次操作"), answer);
+        assertTrue(!answer.contains("不要重试"), answer);
+    }
+
     private AgentLoop.Outcome run(String question) {
+        return loop().run(new TranscriptPolicy(properties).normalize(List.of(AgentMessage.user(question)), null),
+                null, new AgentToolContext(new AppUser()), (event, payload) -> { }, () -> false);
+    }
+
+    private AgentLoop loop() {
         AgentToolRegistry registry = new AgentToolRegistry(List.of(
                 tool("list_resumes", false, Map.of("total", 1, "resumes", List.of(Map.of("resumeId", 3, "title", "陈思远简历")))),
                 tool("rank_jobs_for_resume", false, Map.of("resumeId", 3, "matches",
@@ -49,9 +69,7 @@ class ScriptedAgentModelTests {
                 tool("search_resume_evidence", false, Map.of("threshold", 0.72, "kept", List.of(Map.of("chunkIndex", 0)), "filteredCount", 2)),
                 tool("start_analysis", true, Map.of("analysisId", 1))
         ));
-        AgentLoop loop = new AgentLoop(new ScriptedAgentModel(objectMapper), registry, objectMapper, properties, System::currentTimeMillis);
-        return loop.run(new TranscriptPolicy(properties).normalize(List.of(AgentMessage.user(question)), null),
-                null, new AgentToolContext(new AppUser()), (event, payload) -> { }, () -> false);
+        return new AgentLoop(new ScriptedAgentModel(objectMapper), registry, objectMapper, properties, System::currentTimeMillis);
     }
 
     private AgentTool tool(String name, boolean write, Object result) {

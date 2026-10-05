@@ -88,10 +88,12 @@ public class ScriptedAgentModel implements AgentModel {
                     .append(data.path("filteredCount").asInt()).append(" 段被过滤。\n");
         }
         if (started != null) {
-            if (failed(started)) {
+            if ("USER_REJECTED".equals(started.path("error").path("code").asText())) {
+                text.append("你拒绝了这次操作，没有发起完整分析。");
+            } else if (failed(started)) {
                 text.append("完整分析未发起：").append(errorMessage(started));
             } else {
-                text.append("已发起完整分析，报告生成后会显示在下方。");
+                text.append("已发起完整分析，进度和报告链接见上方卡片。");
             }
         } else {
             text.append("需要完整的匹配报告的话，对我说“帮我分析第一个职位”。");
