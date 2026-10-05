@@ -10,16 +10,17 @@ import {
   type User,
 } from "../lib/api";
 import { BackendStatus } from "./BackendStatus";
-import { WorkspaceNav } from "./WorkspaceNav";
+import { WorkspaceNav, type WorkspaceView } from "./WorkspaceNav";
 
 type Props = {
   children: ReactNode;
   title: string;
   eyebrow?: string;
   actions?: ReactNode;
+  activeView?: WorkspaceView;
 };
 
-export function AppChrome({ children, title, eyebrow = "RESUME LENS", actions }: Props) {
+export function AppChrome({ children, title, eyebrow = "RESUME LENS", actions, activeView }: Props) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
 
@@ -41,7 +42,7 @@ export function AppChrome({ children, title, eyebrow = "RESUME LENS", actions }:
 
   return (
     <div className="app-shell refined-workspace">
-      <WorkspaceNav user={user} onLogout={logout} />
+      <WorkspaceNav user={user} active={activeView} onLogout={logout} />
       <main className="workspace">
         <header className="topbar">
           <div>
