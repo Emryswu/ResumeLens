@@ -253,8 +253,8 @@ sequenceDiagram
 - **不可信数据**：职位正文可能来自网页抓取。所有工具结果都放在 `untrusted_data` 字段里，system prompt 明确说明这部分是数据，不是指令。真正兜底的是上面的确认闸。
 - **`search_resume_evidence` 只接受「简历 × JD」**：0.72 阈值是在 JD 查询上校准的，自由文本查询超出了校准范围，所以不开放。
 - **对话由前端持有，服务端无状态**：在开始流式输出之前，服务端会校验角色（system prompt 只能由服务端注入）、`tool_call_id` 与调用的配对、approval 是否对应当前挂起的调用；有调用挂起时又来了新问题，会自动补一条「未确认」的结果。用户可以自己伪造一条调用 `start_analysis` 的 assistant 消息再附上 approval，但这**不构成越权**：它和直接调用 `POST /api/analysis-histories/ai` 走的是同一个 service、同样的配额与限流。
-- **身份与线程**：service 都从 `SecurityContextHolder` 取当前用户，所以 agent 线程池外包了一层 `DelegatingSecurityContextAsyncTaskExecutor`。SSE 结束时会有一次 ASYNC 回程，JWT 过滤器（`OncePerRequestFilter`）不会处理它，因此安全链对 `DispatcherType.ASYNC` 放行；否则会往已经提交的响应里写 401。这两处都做过红绿自证。
-- **止损**：每人 10 分钟最多 20 轮（先限流再入队，队列满返回 503）；`SseEmitter` 超时 120 秒（Tomcat 默认的 30 秒短于单轮预算）；客户端断开后不再继续调用模型。
+- **身份与线程**：service 都从 `SecurityContextHolder` 取当前用户，所以 agent 线程池外包了一层 `DelegatingSecurityContextAsyncTaskExecutor`。SSE 结束时会有一次 ASYNC 回程，JWT 过滤器（`OncePerRequestFilter`）不会处理它，所以过滤器认证成功后会把 context 存进请求级的 `RequestAttributeSecurityContextRepository`，回程从那里恢复身份并照常鉴权，不需要对 ASYNC 放行；否则回程是匿名的，会往已经提交的响应里写 401。这两处都做过红绿自证。
+- **止损**：每人 10 分钟最多 20 轮（先限流再入队，队列满返回 503；对话记录不合法、模型未配置在限流之前就拒绝，不消耗配额）；`SseEmitter` 超时 120 秒（Tomcat 默认的 30 秒短于单轮预算），单轮 90 秒预算和它从同一时刻算起，排队时间也计入；客户端断开后不再继续调用模型。
 - **mock 模式**：`AI_MOCK_ENABLED=true` 时由脚本模型按固定流程出牌，驱动的是**真实的**循环、工具和确认闸，回答里会标注「演示模式」，可以离线完整演示。
 
 **局限（如实说明）**
@@ -434,7 +434,7 @@ node --experimental-strip-types --test tests/report-export.test.ts
 | POST | `/api/analysis-histories/ai` | 异步启动 AI 匹配（立即返回 PENDING；超限 429） |
 | GET | `/api/analysis-histories` / `{id}` | 历史与轮询（列表 `size` 最大 50） |
 | DELETE | `/api/analysis-histories/{id}` | 删除记录 |
-| POST | `/api/agent/chat` | AI 助手一轮对话，返回 SSE（`step` / `note` / `confirmation_required` / `message` / `error` / `done`）；对话记录不合法 400，限流 429，队列满 503 |
+| POST | `/api/agent/chat` | AI 助手一轮对话，返回 SSE（`step` / `note` / `confirmation_required` / `message` / `error` / `done`）；对话记录不合法 400，限流 429，模型未配置或队列满 503 |
 
 统一响应：`{ success, code, message, data }`。
 
