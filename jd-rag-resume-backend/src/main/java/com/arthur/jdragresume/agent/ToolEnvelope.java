@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.agent;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -13,16 +14,16 @@ final class ToolEnvelope {
     private ToolEnvelope() {
     }
 
-    static String ok(ObjectMapper objectMapper, String tool, Object data, int maxChars) {
+    /** {@code dataJson} is {@code data.toString()}, passed in because the caller needs it too. */
+    static String ok(String tool, JsonNode data, String dataJson, int maxChars) {
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         root.put("tool", tool);
         root.put("ok", true);
-        String dataJson = toJson(objectMapper, data);
         if (dataJson.length() > maxChars) {
             root.put("truncated", true);
             root.put("untrusted_data", dataJson.substring(0, maxChars));
         } else {
-            root.set("untrusted_data", objectMapper.valueToTree(data));
+            root.set("untrusted_data", data);
         }
         return root.toString();
     }
@@ -37,10 +38,10 @@ final class ToolEnvelope {
         return root.toString();
     }
 
-    static String toJson(ObjectMapper objectMapper, Object data) {
+    static JsonNode toTree(ObjectMapper objectMapper, Object data) {
         try {
-            return objectMapper.writeValueAsString(data);
-        } catch (Exception ex) {
+            return objectMapper.valueToTree(data);
+        } catch (IllegalArgumentException ex) {
             throw new IllegalStateException("tool result is not serializable", ex);
         }
     }

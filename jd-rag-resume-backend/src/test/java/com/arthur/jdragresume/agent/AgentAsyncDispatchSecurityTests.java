@@ -32,8 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Runs the real security filter chain around the SSE endpoint. An SSE response finishes
- * with an ASYNC dispatch of the same request; the JWT filter does not run on it, so it must
- * not be subjected to authorization again.
+ * with an ASYNC dispatch of the same request. The JWT filter skips that dispatch, so it is
+ * authorized only through the context the filter saved in the request-scoped repository;
+ * without that it arrives anonymous and is rejected after the response was committed.
  */
 @WebMvcTest(controllers = AgentController.class)
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, SecurityProblemSupport.class, JwtService.class,

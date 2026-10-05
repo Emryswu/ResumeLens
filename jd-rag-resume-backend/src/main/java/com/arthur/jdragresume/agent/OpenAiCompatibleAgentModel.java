@@ -6,8 +6,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /** Function calling over the OpenAI-compatible chat-completions endpoint already used for analysis. */
@@ -16,6 +18,11 @@ public class OpenAiCompatibleAgentModel implements AgentModel {
 
     public OpenAiCompatibleAgentModel(AiClient aiClient) {
         this.aiClient = aiClient;
+    }
+
+    @Override
+    public void requireReady() {
+        aiClient.validateConfig();
     }
 
     @Override
@@ -39,6 +46,7 @@ public class OpenAiCompatibleAgentModel implements AgentModel {
         String content = contentNode.isTextual() && !contentNode.asText().isBlank() ? contentNode.asText() : null;
 
         List<AgentMessage.ToolCall> calls = new ArrayList<>();
+        Set<String> ids = new HashSet<>();
         for (JsonNode call : message.path("tool_calls")) {
             JsonNode function = call.path("function");
             String name = function.path("name").asText("");
@@ -48,8 +56,13 @@ public class OpenAiCompatibleAgentModel implements AgentModel {
             JsonNode arguments = function.path("arguments");
             // The spec says a JSON-encoded string; some compatible providers send an object.
             String argumentsJson = arguments.isTextual() ? arguments.asText() : arguments.isMissingNode() ? "{}" : arguments.toString();
+            // The transcript policy rejects duplicate ids within one message, so never produce one.
             String id = call.path("id").asText("");
-            calls.add(AgentMessage.ToolCall.of(id.isBlank() ? "call_" + UUID.randomUUID() : id, name, argumentsJson));
+            if (id.isBlank() || !ids.add(id)) {
+                id = "call_" + UUID.randomUUID();
+                ids.add(id);
+            }
+            calls.add(AgentMessage.ToolCall.of(id, name, argumentsJson));
         }
         if (content == null && calls.isEmpty()) {
             throw new BusinessException("AI_RESPONSE_EMPTY", "AI response has neither content nor tool calls");

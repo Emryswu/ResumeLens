@@ -12,6 +12,10 @@ import java.util.List;
 public interface AgentModel {
     Reply next(String systemPrompt, List<AgentMessage> transcript, List<ToolDefinition> tools, Duration timeout);
 
+    /** Throws when the model cannot be called at all, so the request is refused before a stream opens. */
+    default void requireReady() {
+    }
+
     record ToolDefinition(String name, String description, JsonNode parameters) {
     }
 

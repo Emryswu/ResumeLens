@@ -51,9 +51,11 @@ public class AgentChatService {
      * stream opens, so the client gets a plain JSON error with a meaningful status.
      */
     public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval) {
+        long acceptedAt = System.currentTimeMillis();
         AppUser user = currentUserService.getCurrentUser();
         TranscriptPolicy.Normalized normalized = transcriptPolicy.normalize(messages, approval);
-        // Invalid transcripts above do not cost quota. A turn rejected below for a full queue
+        agentLoop.requireModelReady();
+        // Invalid transcripts and a missing model configuration above do not cost quota. A turn rejected below for a full queue
         // does: the limiter has no release, and 20 turns per window leaves room for that.
         if (!rateLimiter.tryAcquire("agent:" + user.getId(), properties.getMaxTurnsPerWindow(),
                 properties.getWindowMinutes() * 60_000)) {
@@ -67,7 +69,7 @@ public class AgentChatService {
         emitter.onError(error -> cancelled.set(true));
         AgentToolContext context = new AgentToolContext(user);
         try {
-            agentTaskExecutor.execute(() -> runTurn(emitter, cancelled, normalized, approval, context));
+            agentTaskExecutor.execute(() -> runTurn(emitter, cancelled, normalized, approval, context, acceptedAt));
         } catch (TaskRejectedException ex) {
             throw new BusinessException("AGENT_BUSY", "assistant is busy, please retry shortly");
         }
@@ -79,9 +81,10 @@ public class AgentChatService {
             AtomicBoolean cancelled,
             TranscriptPolicy.Normalized normalized,
             TranscriptPolicy.Approval approval,
-            AgentToolContext context
+            AgentToolContext context,
+            long acceptedAt
     ) {
-        long started = System.currentTimeMillis();
+        long queuedMs = System.currentTimeMillis() - acceptedAt;
         AgentEventSink sink = (event, payload) -> {
             if (cancelled.get()) {
                 throw new AgentEventSink.ClientGoneException(null);
@@ -96,9 +99,10 @@ public class AgentChatService {
             }
         };
         try {
-            AgentLoop.Outcome outcome = agentLoop.run(normalized, approval, context, sink, cancelled::get);
-            log.info("agent turn user={} state={} steps={} elapsedMs={}", context.user().getId(),
-                    outcome.state(), outcome.steps(), System.currentTimeMillis() - started);
+            // The emitter's timeout has been running since the request was accepted; so does the turn budget.
+            AgentLoop.Outcome outcome = agentLoop.run(normalized, approval, context, sink, cancelled::get, acceptedAt);
+            log.info("agent turn user={} state={} steps={} queuedMs={} elapsedMs={}", context.user().getId(),
+                    outcome.state(), outcome.steps(), queuedMs, System.currentTimeMillis() - acceptedAt);
         } catch (AgentEventSink.ClientGoneException ex) {
             log.info("agent turn user={} cancelled: client disconnected", context.user().getId());
         } catch (RuntimeException ex) {

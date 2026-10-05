@@ -233,6 +233,25 @@ class AgentLoopTests {
     }
 
     @Test
+    void timeSpentQueuedCountsAgainstTheTurnBudget() {
+        properties.setTurnTimeoutSeconds(90);
+        List<Duration> timeouts = new ArrayList<>();
+        AgentModel model = (system, transcript, tools, timeout) -> {
+            timeouts.add(timeout);
+            return AgentModel.Reply.answer("好了");
+        };
+        AgentLoop loop = new AgentLoop(model, registry(), objectMapper, properties, clock::get);
+
+        loop.run(fresh("排队了 85 秒"), null, context, new RecordingSink(), () -> false, clock.get() - 85_000);
+        RecordingSink sink = new RecordingSink();
+        AgentLoop.Outcome late = loop.run(fresh("排队了 90 秒"), null, context, sink, () -> false, clock.get() - 90_000);
+
+        assertEquals(List.of(Duration.ofSeconds(5)), timeouts, "the second turn never reaches the model");
+        assertEquals(AgentLoop.State.TIMED_OUT, late.state());
+        assertEquals("AGENT_TIMEOUT", sink.payload("error").get("code"));
+    }
+
+    @Test
     void stopsSpendingModelCallsOnceTheClientIsGone() {
         AtomicBoolean cancelled = new AtomicBoolean();
         ScriptedModel model = new ScriptedModel(

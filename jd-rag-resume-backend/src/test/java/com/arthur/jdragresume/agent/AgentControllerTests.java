@@ -3,6 +3,7 @@ package com.arthur.jdragresume.agent;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.controller.AgentController;
 import com.arthur.jdragresume.entity.AppUser;
+import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.exception.GlobalExceptionHandler;
 import com.arthur.jdragresume.security.CurrentUserService;
 import com.arthur.jdragresume.security.SlidingWindowRateLimiter;
@@ -18,6 +19,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -44,12 +46,14 @@ class AgentControllerTests {
     private AgentProperties properties;
     private AtomicInteger modelCalls;
     private TaskExecutor executor;
+    private SlidingWindowRateLimiter rateLimiter;
 
     @BeforeEach
     void setUp() {
         properties = new AgentProperties();
         modelCalls = new AtomicInteger();
         executor = new SyncTaskExecutor();
+        rateLimiter = new SlidingWindowRateLimiter();
     }
 
     @Test
@@ -127,7 +131,47 @@ class AgentControllerTests {
                 .andExpect(jsonPath("$.code").value("AGENT_BUSY"));
     }
 
+    @Test
+    void approvalWithoutADecisionFailsValidationInsteadOfCountingAsARejection() throws Exception {
+        mockMvc().perform(chat(PAUSED.formatted(",\"approval\":{\"toolCallId\":\"c2\"}")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        assertEquals(0, modelCalls.get());
+    }
+
+    @Test
+    void unconfiguredModelIsA503BeforeTheStreamOpensAndCostsNoQuota() throws Exception {
+        properties.setMaxTurnsPerWindow(1);
+        AgentModel unconfigured = new AgentModel() {
+            @Override
+            public void requireReady() {
+                throw new BusinessException("AI_NOT_CONFIGURED", "AI_API_KEY, AI_BASE_URL and AI_MODEL must be configured");
+            }
+
+            @Override
+            public Reply next(String systemPrompt, List<AgentMessage> transcript, List<ToolDefinition> tools, Duration timeout) {
+                modelCalls.incrementAndGet();
+                return Reply.answer("unreachable");
+            }
+        };
+        String body = "{\"messages\":[{\"role\":\"user\",\"content\":\"你好\"}]}";
+
+        mockMvc(unconfigured).perform(chat(body))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("AI_NOT_CONFIGURED"));
+
+        assertEquals(0, modelCalls.get());
+        mockMvc().perform(chat(body)).andExpect(request().asyncStarted());
+    }
+
     private MockMvc mockMvc() {
+        return mockMvc((system, transcript, tools, timeout) -> {
+            modelCalls.incrementAndGet();
+            return AgentModel.Reply.answer("你好呀");
+        });
+    }
+
+    private MockMvc mockMvc(AgentModel model) {
         AppUser user = new AppUser();
         ReflectionTestUtils.setField(user, "id", 1L);
         CurrentUserService currentUser = new CurrentUserService(null) {
@@ -136,13 +180,9 @@ class AgentControllerTests {
                 return user;
             }
         };
-        AgentModel model = (system, transcript, tools, timeout) -> {
-            modelCalls.incrementAndGet();
-            return AgentModel.Reply.answer("你好呀");
-        };
         AgentLoop loop = new AgentLoop(model, new AgentToolRegistry(List.of()), new ObjectMapper(), properties, System::currentTimeMillis);
         AgentChatService service = new AgentChatService(currentUser, new TranscriptPolicy(properties), loop,
-                new SlidingWindowRateLimiter(), executor, properties);
+                rateLimiter, executor, properties);
         return MockMvcBuilders.standaloneSetup(new AgentController(service))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();

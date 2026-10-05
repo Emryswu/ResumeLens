@@ -3,6 +3,7 @@ package com.arthur.jdragresume.agent;
 import com.arthur.jdragresume.agent.tool.AgentTool;
 import com.arthur.jdragresume.agent.tool.AgentToolContext;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
+import com.arthur.jdragresume.agent.tool.ToolText;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -14,6 +15,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
@@ -76,8 +78,23 @@ public class AgentLoop {
             AgentEventSink sink,
             BooleanSupplier cancelled
     ) {
+        return run(input, approval, context, sink, cancelled, clock.getAsLong());
+    }
+
+    /**
+     * {@code acceptedAtMs} is when the request was accepted, not when a pool thread picked it
+     * up: the SSE emitter's timeout started then, so the turn budget must start there too.
+     */
+    public Outcome run(
+            TranscriptPolicy.Normalized input,
+            TranscriptPolicy.Approval approval,
+            AgentToolContext context,
+            AgentEventSink sink,
+            BooleanSupplier cancelled,
+            long acceptedAtMs
+    ) {
         List<AgentMessage> transcript = new ArrayList<>(input.messages());
-        long deadline = clock.getAsLong() + properties.getTurnTimeoutSeconds() * 1000;
+        long deadline = acceptedAtMs + properties.getTurnTimeoutSeconds() * 1000;
         int steps = 0;
         try {
             if (input.pending() != null) {
@@ -137,6 +154,11 @@ public class AgentLoop {
             // Model-side failures (timeouts, provider errors). Tool failures never reach here.
             return fail(sink, transcript, steps, State.FAILED, ex.getCode(), ex.getMessage());
         }
+    }
+
+    /** Lets the request thread refuse a turn the model could never serve, before any stream opens. */
+    public void requireModelReady() {
+        model.requireReady();
     }
 
     private void resolvePending(
@@ -201,10 +223,11 @@ public class AgentLoop {
             return;
         }
         try {
-            Object data = tool.execute(prepared.arguments(), context);
-            String content = ToolEnvelope.ok(objectMapper, call.name(), data, properties.getToolResultMaxChars());
-            String preview = ToolEnvelope.toJson(objectMapper, data);
-            record(call, sink, transcript, clock.getAsLong() - started, content, true, null, preview);
+            // Serialized once: the tree goes into the envelope, its text feeds the size check and the preview.
+            JsonNode data = ToolEnvelope.toTree(objectMapper, tool.execute(prepared.arguments(), context));
+            String dataJson = data.toString();
+            String content = ToolEnvelope.ok(call.name(), data, dataJson, properties.getToolResultMaxChars());
+            record(call, sink, transcript, clock.getAsLong() - started, content, true, null, dataJson);
         } catch (RuntimeException ex) {
             ToolFailure failure = ToolFailure.of(ex, call.name());
             record(call, sink, transcript, clock.getAsLong() - started,
@@ -247,7 +270,7 @@ public class AgentLoop {
                 errorCode,
                 latencyMs,
                 content.length(),
-                clip(previewSource, properties.getResultPreviewChars())
+                Objects.requireNonNullElse(ToolText.clip(previewSource, properties.getResultPreviewChars()), "")
         ));
     }
 
@@ -259,13 +282,6 @@ public class AgentLoop {
     private Outcome done(AgentEventSink sink, State state, List<AgentMessage> transcript, int steps) {
         sink.emit("done", new DoneEvent(state, steps, List.copyOf(transcript)));
         return new Outcome(state, transcript, steps);
-    }
-
-    private static String clip(String value, int maxChars) {
-        if (value == null) {
-            return "";
-        }
-        return value.length() <= maxChars ? value : value.substring(0, maxChars) + "…";
     }
 
     public enum State {

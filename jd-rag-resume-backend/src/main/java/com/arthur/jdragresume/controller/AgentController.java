@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -46,6 +47,7 @@ public class AgentController {
     ) {
     }
 
-    public record ApprovalRequest(@NotBlank String toolCallId, boolean approved) {
+    /** {@code approved} is boxed so a missing decision is a 400, not a silent rejection. */
+    public record ApprovalRequest(@NotBlank String toolCallId, @NotNull Boolean approved) {
     }
 }
