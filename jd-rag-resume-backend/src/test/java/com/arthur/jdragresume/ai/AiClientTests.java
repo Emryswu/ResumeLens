@@ -1,5 +1,8 @@
 package com.arthur.jdragresume.ai;
 
+import com.arthur.jdragresume.agent.AgentMessage;
+import com.arthur.jdragresume.agent.AgentModel;
+import com.arthur.jdragresume.agent.OpenAiCompatibleAgentModel;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,11 +14,16 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AiClientTests {
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -56,6 +64,65 @@ class AiClientTests {
         );
 
         assertEquals("AI_RATE_LIMITED", exception.getCode());
+    }
+
+    @Test
+    void toolRoundSendsToolsWithoutJsonModeAndKeepsThinkingDisabled() throws Exception {
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        startServer(exchange -> {
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 200, "{\"choices\":[{\"message\":{\"content\":\"done\"}}]}");
+        });
+
+        JsonNode message = new AiClient(properties(), objectMapper).chatWithTools(
+                List.of(Map.of("role", "user", "content", "hi")),
+                List.of(Map.of("type", "function", "function", Map.of("name", "list_resumes"))),
+                Duration.ofSeconds(5)
+        );
+
+        assertEquals("done", message.path("content").asText());
+        JsonNode body = objectMapper.readTree(requestBody.get());
+        assertEquals("list_resumes", body.path("tools").path(0).path("function").path("name").asText());
+        assertEquals("auto", body.path("tool_choice").asText());
+        assertEquals("disabled", body.path("thinking").path("type").asText());
+        // JSON mode would force the final natural-language answer into an object.
+        assertTrue(body.path("response_format").isMissingNode());
+    }
+
+    @Test
+    void agentModelParsesToolCallsWhenContentIsNull() throws Exception {
+        startServer(exchange -> respond(exchange, 200, """
+                {"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[
+                  {"id":"call_1","type":"function","function":{"name":"list_resumes","arguments":"{\\"keyword\\":\\"java\\"}"}}
+                ]}}]}
+                """));
+
+        AgentModel.Reply reply = new OpenAiCompatibleAgentModel(new AiClient(properties(), objectMapper))
+                .next("system", List.of(AgentMessage.user("hi")), List.of(), Duration.ofSeconds(5));
+
+        assertNull(reply.content());
+        assertEquals(1, reply.toolCalls().size());
+        assertEquals("call_1", reply.toolCalls().get(0).id());
+        assertEquals("list_resumes", reply.toolCalls().get(0).name());
+        assertEquals("{\"keyword\":\"java\"}", reply.toolCalls().get(0).arguments());
+    }
+
+    @Test
+    void toolRoundHonoursTheCallersRemainingBudget() throws Exception {
+        startServer(exchange -> {
+            try {
+                Thread.sleep(1500);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+            }
+            respond(exchange, 200, "{\"choices\":[{\"message\":{\"content\":\"late\"}}]}");
+        });
+
+        // Configured per-request timeout is 5s; the loop's remaining budget (300ms) must win.
+        BusinessException exception = assertThrows(BusinessException.class, () -> new AiClient(properties(), objectMapper)
+                .chatWithTools(List.of(Map.of("role", "user", "content", "hi")), List.of(), Duration.ofMillis(300)));
+
+        assertEquals("AI_TIMEOUT", exception.getCode());
     }
 
     private AiProperties properties() {
