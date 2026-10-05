@@ -2,7 +2,6 @@ package com.arthur.jdragresume.security;
 
 import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.repository.AppUserRepository;
-import jakarta.servlet.DispatcherType;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,18 +29,14 @@ public class SecurityConfig {
         return http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Where the JWT filter saves the context, and where async/error dispatches of
+                // the same request load it from; nothing is kept across requests.
+                .securityContext(context -> context.securityContextRepository(jwtAuthenticationFilter.securityContextRepository()))
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(securityProblemSupport)
                         .accessDeniedHandler(securityProblemSupport)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // An ASYNC dispatch is the second leg of a request that was already
-                        // authorized (the agent's SSE stream completing), not a new request.
-                        // JwtAuthenticationFilter is a OncePerRequestFilter and skips async
-                        // dispatches, and STATELESS keeps no context to restore, so without
-                        // this the completed stream is rejected with a 401 written into a
-                        // response that has already been committed.
-                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/ai/status",

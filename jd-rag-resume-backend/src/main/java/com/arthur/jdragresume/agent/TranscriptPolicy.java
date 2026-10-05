@@ -3,11 +3,9 @@ package com.arthur.jdragresume.agent;
 import com.arthur.jdragresume.exception.BusinessException;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Validates and normalizes the client-held transcript before any work starts. The client
@@ -32,17 +30,19 @@ public class TranscriptPolicy {
         if (raw == null || raw.isEmpty()) {
             throw invalid("messages must not be empty");
         }
-        long rawChars = raw.stream().mapToLong(message -> message == null ? 0 : message.size()).sum();
+        // Shape first: size() walks the tool calls and must only ever see well-formed ones.
+        for (int index = 0; index < raw.size(); index++) {
+            checkShape(raw.get(index), index);
+        }
+        long rawChars = raw.stream().mapToLong(AgentMessage::size).sum();
         if (rawChars > properties.getMaxRequestChars()) {
             throw new BusinessException("AGENT_TRANSCRIPT_TOO_LARGE", "conversation is too large, please start a new one");
         }
 
         List<AgentMessage> messages = new ArrayList<>();
         Map<String, AgentMessage.ToolCall> open = new LinkedHashMap<>();
-        Set<String> seenCallIds = new HashSet<>();
         for (int index = 0; index < raw.size(); index++) {
             AgentMessage message = raw.get(index);
-            checkShape(message, index);
             if (index == 0 && !AgentMessage.USER.equals(message.role())) {
                 throw invalid("conversation must start with a user message");
             }
@@ -59,9 +59,11 @@ public class TranscriptPolicy {
                     if (!open.isEmpty()) {
                         throw invalid("message " + index + ": previous tool_calls have no results");
                     }
+                    // Ids only pair results with this message's calls (open is empty here), so they
+                    // must be unique within it; providers may restart numbering on every reply.
                     if (message.hasToolCalls()) {
                         for (AgentMessage.ToolCall call : message.toolCalls()) {
-                            if (!seenCallIds.add(call.id())) {
+                            if (open.containsKey(call.id())) {
                                 throw invalid("message " + index + ": duplicate tool_call id " + call.id());
                             }
                             open.put(call.id(), call);

@@ -73,17 +73,49 @@ class TranscriptPolicyTests {
     }
 
     @Test
-    void reusedToolCallIdsAreRejected() {
+    void duplicateIdsWithinOneAssistantMessageAreRejected() {
         List<AgentMessage> messages = List.of(
                 AgentMessage.user("hi"),
-                AgentMessage.assistant(null, List.of(call("c1", "lookup"))),
-                AgentMessage.tool("c1", "{}"),
-                AgentMessage.assistant(null, List.of(call("c1", "lookup"))),
+                AgentMessage.assistant(null, List.of(call("c1", "lookup"), call("c1", "lookup"))),
                 AgentMessage.tool("c1", "{}"),
                 AgentMessage.user("again")
         );
 
         assertEquals("AGENT_TRANSCRIPT_INVALID", code(() -> policy.normalize(messages, null)));
+    }
+
+    @Test
+    void providersThatRestartIdNumberingEveryReplyAreAccepted() {
+        // Ids only have to pair a result with a call of the preceding assistant message.
+        List<AgentMessage> messages = List.of(
+                AgentMessage.user("hi"),
+                AgentMessage.assistant(null, List.of(call("call_0", "lookup"))),
+                AgentMessage.tool("call_0", "{}"),
+                AgentMessage.assistant(null, List.of(call("call_0", "lookup"))),
+                AgentMessage.tool("call_0", "{}"),
+                AgentMessage.assistant("answer", null),
+                AgentMessage.user("again")
+        );
+
+        assertEquals(7, policy.normalize(messages, null).messages().size());
+    }
+
+    @Test
+    void malformedToolCallsAreA400NotACrash() {
+        List<AgentMessage.ToolCall> malformed = List.of(
+                new AgentMessage.ToolCall("c1", "function", null),
+                new AgentMessage.ToolCall("c1", "function", new AgentMessage.ToolFunction(null, "{}"))
+        );
+        for (AgentMessage.ToolCall call : malformed) {
+            List<AgentMessage> messages = List.of(
+                    AgentMessage.user("hi"),
+                    AgentMessage.assistant(null, List.of(call)),
+                    AgentMessage.tool("c1", "{}"),
+                    AgentMessage.user("again")
+            );
+
+            assertEquals("AGENT_TRANSCRIPT_INVALID", code(() -> policy.normalize(messages, null)));
+        }
     }
 
     @Test

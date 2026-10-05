@@ -1,10 +1,12 @@
 package com.arthur.jdragresume.agent.tool;
 
-final class ToolText {
+/** Text helpers shared by the tools and the loop's step previews. */
+public final class ToolText {
     private ToolText() {
     }
 
-    static String clip(String value, int maxChars) {
+    /** Strips, then caps at {@code maxChars} with an ellipsis; null stays null. */
+    public static String clip(String value, int maxChars) {
         if (value == null) {
             return null;
         }

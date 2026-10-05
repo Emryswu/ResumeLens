@@ -122,7 +122,8 @@ public class AiClient {
         };
     }
 
-    private void validateConfig() {
+    /** Public so callers that stream can refuse up front instead of failing mid-stream. */
+    public void validateConfig() {
         if (isBlank(aiProperties.getApiKey()) || isBlank(aiProperties.getBaseUrl()) || isBlank(aiProperties.getModel())) {
             throw new BusinessException("AI_NOT_CONFIGURED", "AI_API_KEY, AI_BASE_URL and AI_MODEL must be configured");
         }

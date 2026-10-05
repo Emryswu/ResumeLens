@@ -82,6 +82,9 @@ public final class ToolSchema {
             if (property.type().equals("integer")) {
                 if (!value.isIntegralNumber()) {
                     problems.add("'" + name + "' must be an integer");
+                } else if (!value.canConvertToLong()) {
+                    // asLong() would keep only the low 64 bits and quietly turn 2^64+1 into 1.
+                    problems.add("'" + name + "' must be between " + property.minimum() + " and " + property.maximum());
                 } else if (value.asLong() < property.minimum() || value.asLong() > property.maximum()) {
                     problems.add("'" + name + "' must be between " + property.minimum() + " and " + property.maximum());
                 }
