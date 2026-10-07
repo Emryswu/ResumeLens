@@ -1,0 +1,6 @@
+# Spring Boot's test listeners initialise Mockito for every Spring test context, even when
+# nothing is mocked. The default inline mock maker self-attaches byte-buddy-agent, which
+# fails when the Maven repository lives under a non-ASCII user directory on Windows
+# ("Error opening zip file"). The subclass mock maker needs no agent; the tests never mock
+# final classes, so nothing is lost.
+mock-maker-subclass

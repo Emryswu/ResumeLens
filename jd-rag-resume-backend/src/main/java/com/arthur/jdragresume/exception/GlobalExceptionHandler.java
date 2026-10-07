@@ -28,7 +28,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
         HttpStatus status = switch (ex.getCode()) {
             case "REFRESH_TOKEN_INVALID", "REFRESH_TOKEN_EXPIRED", "REFRESH_TOKEN_REUSED" -> HttpStatus.UNAUTHORIZED;
-            case "AUTH_RATE_LIMITED", "ANALYSIS_RATE_LIMITED", "ANALYSIS_TOO_MANY_PENDING" -> HttpStatus.TOO_MANY_REQUESTS;
+            case "AUTH_RATE_LIMITED", "ANALYSIS_RATE_LIMITED", "ANALYSIS_TOO_MANY_PENDING",
+                 "AGENT_RATE_LIMITED" -> HttpStatus.TOO_MANY_REQUESTS;
             // ACCOUNT_CONFLICT 必须与 DataIntegrityViolationException 同为 409：
             // 串行注册被应用层查重拦下、并发注册被唯一约束拦下，是同一件事的两条路径。
             // ANALYSIS_DELETE_PENDING 同理：请求本身合法，但与当前资源状态冲突。
@@ -41,7 +42,7 @@ public class GlobalExceptionHandler {
             // "please retry later" 的提示自相矛盾，也让重试与熔断策略失去依据。
             case "AI_NOT_CONFIGURED", "AI_RATE_LIMITED", "AI_SERVICE_UNAVAILABLE",
                  "RAG_EMBEDDING_FAILED", "SEMANTIC_EMBEDDING_FAILED",
-                 "RAG_RETRIEVAL_FAILED", "ANALYSIS_QUEUE_FULL" -> HttpStatus.SERVICE_UNAVAILABLE;
+                 "RAG_RETRIEVAL_FAILED", "ANALYSIS_QUEUE_FULL", "AGENT_BUSY" -> HttpStatus.SERVICE_UNAVAILABLE;
             // 落盘失败是服务端故障，不是请求有问题
             case "FILE_SAVE_FAILED" -> HttpStatus.INTERNAL_SERVER_ERROR;
             case "AI_AUTH_FAILED", "AI_BALANCE_INSUFFICIENT", "AI_REQUEST_FAILED",

@@ -29,6 +29,9 @@ public class SecurityConfig {
         return http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Where the JWT filter saves the context, and where async/error dispatches of
+                // the same request load it from; nothing is kept across requests.
+                .securityContext(context -> context.securityContextRepository(jwtAuthenticationFilter.securityContextRepository()))
                 .exceptionHandling(exception -> exception
                         .authenticationEntryPoint(securityProblemSupport)
                         .accessDeniedHandler(securityProblemSupport)
