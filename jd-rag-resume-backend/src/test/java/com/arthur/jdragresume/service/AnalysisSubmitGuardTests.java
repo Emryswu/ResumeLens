@@ -9,6 +9,7 @@ import com.arthur.jdragresume.entity.Resume;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.repository.AnalysisHistoryRepository;
 import com.arthur.jdragresume.repository.AnalysisSubmissionLogRepository;
+import com.arthur.jdragresume.repository.AnalysisSubmissionRefundRepository;
 import com.arthur.jdragresume.repository.AppUserRepository;
 import com.arthur.jdragresume.repository.JobDescriptionRepository;
 import com.arthur.jdragresume.repository.ResumeRepository;
@@ -79,6 +80,13 @@ class AnalysisSubmitGuardTests {
                             case "toString" -> "AnalysisSubmissionLogRepositoryTestDouble";
                             default -> throw new UnsupportedOperationException(method.getName());
                         });
+        AnalysisSubmissionRefundRepository refundRepository =
+                proxy(AnalysisSubmissionRefundRepository.class, (ignored, method, args) ->
+                        switch (method.getName()) {
+                            case "countRefundedSubmissions" -> state.refundedCount;
+                            case "toString" -> "AnalysisSubmissionRefundRepositoryTestDouble";
+                            default -> throw new UnsupportedOperationException(method.getName());
+                        });
         AppUserRepository userRepository = proxy(AppUserRepository.class, (ignored, method, args) ->
                 switch (method.getName()) {
                     case "findByIdForUpdate" -> Optional.of(state.user);
@@ -100,6 +108,7 @@ class AnalysisSubmitGuardTests {
         guard = new AnalysisSubmitGuard(
                 historyRepository,
                 submissionLogRepository,
+                refundRepository,
                 userRepository,
                 resumeRepository,
                 jobDescriptionRepository,
@@ -164,6 +173,39 @@ class AnalysisSubmitGuardTests {
         assertNull(state.savedSubmissionLog);
     }
 
+    @Test
+    void linksTheNewAnalysisToItsSubmissionSoItCanBeRefunded() {
+        AnalysisHistory saved = guard.admit(user, resume.getId(), job.getId()).history();
+
+        assertEquals(7L, saved.getSubmissionLogId());
+    }
+
+    @Test
+    void refundedSubmissionsDoNotCountTowardsTheWindow() {
+        state.submittedCount = 10L;
+        state.refundedCount = 1L;
+
+        AnalysisSubmitGuard.Admission admission = guard.admit(user, resume.getId(), job.getId());
+
+        assertFalse(admission.reusedPending());
+        assertNotNull(state.savedSubmissionLog);
+    }
+
+    @Test
+    void refundsCannotLiftTheHardCap() {
+        // Every one of them refunded, e.g. a resume crafted to make the model fail on purpose.
+        state.submittedCount = 20L;
+        state.refundedCount = 20L;
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> guard.admit(user, resume.getId(), job.getId())
+        );
+
+        assertEquals("ANALYSIS_RATE_LIMITED", exception.getCode());
+        assertNull(state.savedSubmissionLog);
+    }
+
     @SuppressWarnings("unchecked")
     private static <T> T proxy(Class<T> type, java.lang.reflect.InvocationHandler handler) {
         return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[]{type}, handler);
@@ -174,6 +216,7 @@ class AnalysisSubmitGuardTests {
         private AnalysisHistory existingPending;
         private long pendingCount;
         private long submittedCount;
+        private long refundedCount;
         private AnalysisHistory saved;
         private AnalysisSubmissionLog savedSubmissionLog;
     }

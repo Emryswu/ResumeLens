@@ -93,6 +93,62 @@ class AiAnalysisServiceParsingTests {
         assertEquals("AI_RESPONSE_CITATION_INVALID", exception.getCode());
     }
 
+    @Test
+    void dropsOnlyTheStrengthsWhoseCitationsDoNotHoldAndKeepsTheRest() {
+        AnalysisResultParser.ParsedAnalysis parsed = parser.parseWithAudit(
+                responseWithStrengths("Java [chunk-0]\\nKafka [chunk-7]\\nMySQL [chunk-1]\\nRedis\\nDocker [chunk-0] [chunk-x]"),
+                Set.of(0, 1)
+        );
+
+        assertEquals("Java [chunk-0]\nMySQL [chunk-1]", parsed.result().strengths());
+        assertEquals("summary", parsed.result().summary());
+        assertEquals(new BigDecimal("80"), parsed.result().matchScore());
+        AnalysisResultParser.CitationAudit audit = parsed.audit();
+        assertEquals(5, audit.strengths());
+        assertEquals(3, audit.dropped());
+        assertEquals(Set.of(7), audit.citedOutsideKept());
+        assertEquals(1, audit.uncited());
+        assertEquals(1, audit.malformed());
+    }
+
+    @Test
+    void keepsTheModelTextUntouchedWhenEveryCitationIsValid() {
+        AnalysisResultParser.ParsedAnalysis parsed = parser.parseWithAudit(
+                responseWithStrengths("Java [chunk-0]；MySQL [chunk-1]"),
+                Set.of(0, 1)
+        );
+
+        assertEquals("Java [chunk-0]；MySQL [chunk-1]", parsed.result().strengths());
+        assertEquals(0, parsed.audit().dropped());
+    }
+
+    @Test
+    void rejectsTheReportWhenEveryStrengthFailsAndReportsOnlyIds() {
+        AnalysisResultParser.CitationRejectedException exception = assertThrows(
+                AnalysisResultParser.CitationRejectedException.class,
+                () -> parser.parseWithAudit(responseWithStrengths("Java [chunk-3]\\nMySQL [chunk-4]"), Set.of(0, 1))
+        );
+
+        assertEquals("AI_RESPONSE_CITATION_INVALID", exception.getCode());
+        assertEquals(2, exception.audit().dropped());
+        assertEquals(Set.of(3, 4), exception.audit().citedOutsideKept());
+    }
+
+    @Test
+    void recordsHowUnrecognisedCitationsWereWrittenWithoutAnyResumeText() {
+        AnalysisResultParser.CitationRejectedException exception = assertThrows(
+                AnalysisResultParser.CitationRejectedException.class,
+                () -> parser.parseWithAudit(responseWithStrengths(
+                        "熟悉 Kafka [resume-chunk-12]\\n电话 13800001101 张三 (chunk 3 Zhang)\\n对账经验【证据 chunk-0】"),
+                        Set.of(0, 12))
+        );
+
+        assertEquals(
+                Set.of("[resume-chunk-N]", "(chunk N x)", "【** chunk-N】"),
+                exception.audit().unrecognizedShapes()
+        );
+    }
+
     private String responseWithStrengths(String strengths) {
         return """
                 {

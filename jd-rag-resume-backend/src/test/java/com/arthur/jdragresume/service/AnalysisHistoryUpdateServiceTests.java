@@ -2,13 +2,17 @@ package com.arthur.jdragresume.service;
 
 import com.arthur.jdragresume.entity.AnalysisHistory;
 import com.arthur.jdragresume.entity.AnalysisStatus;
+import com.arthur.jdragresume.entity.AnalysisSubmissionRefund;
 import com.arthur.jdragresume.entity.JobDescription;
 import com.arthur.jdragresume.entity.Resume;
 import com.arthur.jdragresume.repository.AnalysisHistoryRepository;
+import com.arthur.jdragresume.repository.AnalysisSubmissionRefundRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -89,7 +93,66 @@ class AnalysisHistoryUpdateServiceTests {
         return pending;
     }
 
+    @Test
+    void failIfPendingAndRefundGivesTheSubmissionBackOnce() {
+        AnalysisHistory pending = currentPending();
+        ReflectionTestUtils.setField(pending, "id", 6L);
+        pending.setSubmissionLogId(41L);
+        List<AnalysisSubmissionRefund> refunds = new ArrayList<>();
+        AnalysisHistoryUpdateService service = serviceReturning(pending, refunds);
+
+        assertTrue(service.failIfPendingAndRefund(6L, "分析结果校验未通过，请稍后重试", "AI_RESPONSE_CITATION_INVALID"));
+
+        assertEquals(AnalysisStatus.FAILED, pending.getStatus());
+        assertEquals("分析结果校验未通过，请稍后重试", pending.getSummary());
+        assertEquals(1, refunds.size());
+        assertEquals(41L, refunds.getFirst().getSubmissionLogId());
+        assertEquals("AI_RESPONSE_CITATION_INVALID", refunds.getFirst().getReason());
+        // A second failure report for the same analysis is a no-op: the row is no longer pending.
+        assertFalse(service.failIfPendingAndRefund(6L, "again", "AI_RESPONSE_PARSE_FAILED"));
+        assertEquals(1, refunds.size());
+    }
+
+    @Test
+    void failIfPendingAndRefundSkipsRowsWithoutASubmissionOrAlreadyRefunded() {
+        AnalysisHistory legacy = currentPending();
+        ReflectionTestUtils.setField(legacy, "id", 7L);
+        List<AnalysisSubmissionRefund> refunds = new ArrayList<>();
+
+        assertTrue(serviceReturning(legacy, refunds).failIfPendingAndRefund(7L, "failed", "AI_RESPONSE_PARSE_FAILED"));
+        assertEquals(AnalysisStatus.FAILED, legacy.getStatus());
+        assertTrue(refunds.isEmpty());
+
+        AnalysisHistory refundedBefore = currentPending();
+        ReflectionTestUtils.setField(refundedBefore, "id", 8L);
+        refundedBefore.setSubmissionLogId(41L);
+        AnalysisSubmissionRefund existing = new AnalysisSubmissionRefund();
+        existing.setSubmissionLogId(41L);
+        refunds.add(existing);
+
+        assertTrue(serviceReturning(refundedBefore, refunds).failIfPendingAndRefund(8L, "failed", "AI_RESPONSE_PARSE_FAILED"));
+        assertEquals(1, refunds.size());
+    }
+
+    @Test
+    void plainFailIfPendingNeverRefunds() {
+        AnalysisHistory pending = currentPending();
+        ReflectionTestUtils.setField(pending, "id", 10L);
+        pending.setSubmissionLogId(42L);
+        List<AnalysisSubmissionRefund> refunds = new ArrayList<>();
+
+        assertTrue(serviceReturning(pending, refunds).failIfPending(10L, "AI 分析失败，请稍后重试"));
+        assertTrue(refunds.isEmpty());
+    }
+
     private static AnalysisHistoryUpdateService serviceReturning(AnalysisHistory history) {
+        return serviceReturning(history, new ArrayList<>());
+    }
+
+    private static AnalysisHistoryUpdateService serviceReturning(
+            AnalysisHistory history,
+            List<AnalysisSubmissionRefund> refunds
+    ) {
         AtomicReference<AnalysisHistory> current = new AtomicReference<>(history);
         AnalysisHistoryRepository repository = proxy(AnalysisHistoryRepository.class, (ignored, method, args) -> {
             if ("findByIdForUpdate".equals(method.getName())) {
@@ -100,7 +163,20 @@ class AnalysisHistoryUpdateServiceTests {
             }
             throw new UnsupportedOperationException(method.getName());
         });
-        return new AnalysisHistoryUpdateService(repository);
+        return new AnalysisHistoryUpdateService(repository, refundRepository(refunds));
+    }
+
+    static AnalysisSubmissionRefundRepository refundRepository(List<AnalysisSubmissionRefund> refunds) {
+        return proxy(AnalysisSubmissionRefundRepository.class, (ignored, method, args) -> switch (method.getName()) {
+            case "existsBySubmissionLogId" -> refunds.stream()
+                    .anyMatch(refund -> refund.getSubmissionLogId().equals(args[0]));
+            case "save" -> {
+                refunds.add((AnalysisSubmissionRefund) args[0]);
+                yield args[0];
+            }
+            case "toString" -> "AnalysisSubmissionRefundRepositoryTestDouble";
+            default -> throw new UnsupportedOperationException(method.getName());
+        });
     }
 
     @SuppressWarnings("unchecked")

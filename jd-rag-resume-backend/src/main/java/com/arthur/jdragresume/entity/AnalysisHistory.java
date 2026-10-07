@@ -71,8 +71,20 @@ public class AnalysisHistory extends AuditableEntity {
     @Column(columnDefinition = "LONGTEXT")
     private String interviewQuestions;
 
+    /** The submission this analysis used up; null for rows created before refunds existed. */
+    @Column(name = "submission_log_id")
+    private Long submissionLogId;
+
     public Long getId() {
         return id;
+    }
+
+    public Long getSubmissionLogId() {
+        return submissionLogId;
+    }
+
+    public void setSubmissionLogId(Long submissionLogId) {
+        this.submissionLogId = submissionLogId;
     }
 
     public AppUser getUser() {

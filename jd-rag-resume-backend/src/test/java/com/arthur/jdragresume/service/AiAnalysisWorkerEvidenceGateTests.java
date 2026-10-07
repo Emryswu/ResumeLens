@@ -18,6 +18,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Proxy;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,7 +43,7 @@ class AiAnalysisWorkerEvidenceGateTests {
                 aiClient,
                 new AnalysisResultParser(new ObjectMapper()),
                 repository,
-                new AnalysisHistoryUpdateService(repository),
+                new AnalysisHistoryUpdateService(repository, AnalysisHistoryUpdateServiceTests.refundRepository(new ArrayList<>())),
                 ragService,
                 ragProperties
         );
@@ -95,7 +96,7 @@ class AiAnalysisWorkerEvidenceGateTests {
                 aiClient,
                 new AnalysisResultParser(new ObjectMapper()),
                 repository,
-                new AnalysisHistoryUpdateService(repository),
+                new AnalysisHistoryUpdateService(repository, AnalysisHistoryUpdateServiceTests.refundRepository(new ArrayList<>())),
                 ragService,
                 ragProperties
         );
@@ -107,6 +108,35 @@ class AiAnalysisWorkerEvidenceGateTests {
         assertEquals(new BigDecimal("82.50"), history.getMatchScore());
         assertTrue(history.getStrengths().contains("[chunk-0]"));
         assertEquals("Java 证据与岗位相关。", history.getSummary());
+    }
+
+    @Test
+    void evidenceHeadersInThePromptUseTheSameTokenTheParserAccepts() {
+        AnalysisHistory history = pendingHistory();
+        AnalysisHistoryRepository repository = historyRepository(history);
+        CountingAiClient aiClient = new CountingAiClient("""
+                {"matchScore": 80, "strengths": "具备 Java 项目证据。[chunk-3]", "summary": "ok"}
+                """);
+        RagProperties ragProperties = new RagProperties();
+        RetrievedChunk evidence = new RetrievedChunk(3, "Java Spring Boot 项目", 0.82, 0.80, true, "kept", "项目",
+                List.of("Java"));
+        AiAnalysisWorker worker = new AiAnalysisWorker(
+                aiClient,
+                new AnalysisResultParser(new ObjectMapper()),
+                repository,
+                new AnalysisHistoryUpdateService(repository, AnalysisHistoryUpdateServiceTests.refundRepository(new ArrayList<>())),
+                new StubRagService(ragProperties, List.of(evidence),
+                        new HardSkillCoverage(List.of("Java"), List.of("Java"), List.of())),
+                ragProperties
+        );
+
+        worker.process(history.getId());
+
+        // A model that copies the header verbatim must end up with a citation the parser accepts.
+        assertTrue(aiClient.lastUserPrompt().contains("\n[chunk-3] similarity="), aiClient.lastUserPrompt());
+        assertTrue(!aiClient.lastUserPrompt().contains("resume-chunk"), aiClient.lastUserPrompt());
+        assertTrue(aiClient.lastSystemPrompt().contains("[chunk-N]"));
+        assertEquals(AnalysisStatus.COMPLETED, history.getStatus());
     }
 
     private static AnalysisHistory pendingHistory() {
@@ -157,6 +187,8 @@ class AiAnalysisWorkerEvidenceGateTests {
     private static final class CountingAiClient extends AiClient {
         private final AtomicInteger calls = new AtomicInteger();
         private final String response;
+        private String lastSystemPrompt;
+        private String lastUserPrompt;
 
         private CountingAiClient(String response) {
             super(new AiProperties(), new ObjectMapper());
@@ -166,6 +198,8 @@ class AiAnalysisWorkerEvidenceGateTests {
         @Override
         public String chat(String systemPrompt, String userPrompt) {
             calls.incrementAndGet();
+            lastSystemPrompt = systemPrompt;
+            lastUserPrompt = userPrompt;
             if (response == null) {
                 throw new AssertionError("LLM must not be called for zero evidence");
             }
@@ -174,6 +208,14 @@ class AiAnalysisWorkerEvidenceGateTests {
 
         int calls() {
             return calls.get();
+        }
+
+        String lastSystemPrompt() {
+            return lastSystemPrompt;
+        }
+
+        String lastUserPrompt() {
+            return lastUserPrompt;
         }
     }
 

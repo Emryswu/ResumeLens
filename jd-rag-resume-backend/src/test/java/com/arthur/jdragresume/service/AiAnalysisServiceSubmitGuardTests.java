@@ -116,10 +116,10 @@ class AiAnalysisServiceSubmitGuardTests {
         private boolean reusedPending;
         private BusinessException failure;
 
-        // admit() 已被完全覆盖，父类依赖一律不使用；第二个参数为新增的
-        // AnalysisSubmissionLogRepository。
+        // admit() 已被完全覆盖，父类依赖一律不使用；第二、三个参数为
+        // AnalysisSubmissionLogRepository 与 AnalysisSubmissionRefundRepository。
         private RecordingGuard() {
-            super(null, null, null, null, null, 2, 10, 10);
+            super(null, null, null, null, null, null, 2, 10, 10);
         }
 
         @Override

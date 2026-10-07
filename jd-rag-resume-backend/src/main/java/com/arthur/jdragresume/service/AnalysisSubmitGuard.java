@@ -9,6 +9,7 @@ import com.arthur.jdragresume.entity.Resume;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.repository.AnalysisHistoryRepository;
 import com.arthur.jdragresume.repository.AnalysisSubmissionLogRepository;
+import com.arthur.jdragresume.repository.AnalysisSubmissionRefundRepository;
 import com.arthur.jdragresume.repository.AppUserRepository;
 import com.arthur.jdragresume.repository.JobDescriptionRepository;
 import com.arthur.jdragresume.repository.ResumeRepository;
@@ -21,8 +22,12 @@ import java.time.LocalDateTime;
 
 @Service
 public class AnalysisSubmitGuard {
+    /** All submissions in the window, refunded or not, may not exceed this many times the normal limit. */
+    static final int HARD_CAP_MULTIPLIER = 2;
+
     private final AnalysisHistoryRepository analysisHistoryRepository;
     private final AnalysisSubmissionLogRepository analysisSubmissionLogRepository;
+    private final AnalysisSubmissionRefundRepository analysisSubmissionRefundRepository;
     private final AppUserRepository appUserRepository;
     private final ResumeRepository resumeRepository;
     private final JobDescriptionRepository jobDescriptionRepository;
@@ -33,6 +38,7 @@ public class AnalysisSubmitGuard {
     public AnalysisSubmitGuard(
             AnalysisHistoryRepository analysisHistoryRepository,
             AnalysisSubmissionLogRepository analysisSubmissionLogRepository,
+            AnalysisSubmissionRefundRepository analysisSubmissionRefundRepository,
             AppUserRepository appUserRepository,
             ResumeRepository resumeRepository,
             JobDescriptionRepository jobDescriptionRepository,
@@ -42,6 +48,7 @@ public class AnalysisSubmitGuard {
     ) {
         this.analysisHistoryRepository = analysisHistoryRepository;
         this.analysisSubmissionLogRepository = analysisSubmissionLogRepository;
+        this.analysisSubmissionRefundRepository = analysisSubmissionRefundRepository;
         this.appUserRepository = appUserRepository;
         this.resumeRepository = resumeRepository;
         this.jobDescriptionRepository = jobDescriptionRepository;
@@ -95,10 +102,15 @@ public class AnalysisSubmitGuard {
 
         // 限流计数取自只追加的 analysis_submission_log，而不是可被用户删除的
         // analysis_history；否则「删历史 → 重提」就能把窗口内的计数清掉。
+        // 因模型输出不合规而失败的提交会被退还，不占计数；但退还过的也算进一道
+        // 更高的硬上限，否则在简历里写注入文字故意让模型输出不合规，就能无限调用模型。
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(submitWindowMinutes);
         long submitted = analysisSubmissionLogRepository
                 .countByUser_IdAndCreatedAtAfter(lockedUser.getId(), cutoff);
-        if (submitted >= maxSubmitsPerWindow) {
+        long refunded = analysisSubmissionRefundRepository
+                .countRefundedSubmissions(lockedUser.getId(), cutoff);
+        if (submitted - refunded >= maxSubmitsPerWindow
+                || submitted >= (long) maxSubmitsPerWindow * HARD_CAP_MULTIPLIER) {
             throw new BusinessException(
                     "ANALYSIS_RATE_LIMITED",
                     "too many analysis requests, please retry later"
@@ -107,9 +119,10 @@ public class AnalysisSubmitGuard {
 
         AnalysisSubmissionLog submissionLog = new AnalysisSubmissionLog();
         submissionLog.setUser(lockedUser);
-        analysisSubmissionLogRepository.save(submissionLog);
+        submissionLog = analysisSubmissionLogRepository.save(submissionLog);
 
         AnalysisHistory history = new AnalysisHistory();
+        history.setSubmissionLogId(submissionLog.getId());
         history.setUser(lockedUser);
         history.setResume(resume);
         history.setJobDescription(jobDescription);
