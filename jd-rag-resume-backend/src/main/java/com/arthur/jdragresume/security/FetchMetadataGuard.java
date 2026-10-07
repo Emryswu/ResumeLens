@@ -1,11 +1,20 @@
 package com.arthur.jdragresume.security;
 
+import com.arthur.jdragresume.common.ApiResponse;
 import com.arthur.jdragresume.exception.BusinessException;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.web.filter.OncePerRequestFilter;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -13,13 +22,20 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * CSRF defence for the endpoints that read or write the refresh cookie.
+ * CSRF defence for everything under {@code /api/auth}, where the refresh cookie lives.
  *
  * <p>Everything else authenticates with a Bearer header, which a browser never
  * attaches on its own. register / login / refresh / logout are different: the
  * refresh cookie rides along automatically. {@code SameSite=Lax} keeps cross-site
  * POSTs out, but it is decided per <em>site</em> (registrable domain), so a page on
  * a sibling subdomain is same-site and its POST still carries the cookie.
+ *
+ * <p>It is a filter mapped onto the path (see {@link SecurityConfig}), not a call each
+ * endpoint has to remember, so an endpoint added under {@code /api/auth} is covered the
+ * moment it exists. It runs ahead of Spring Security and the controller: a rejected
+ * request is never parsed, never spends rate-limit budget and never reaches a service.
+ * Every method is checked, not only writes, because {@code SameSite=Lax} still sends
+ * the cookie on a cross-site top-level GET.
  *
  * <ol>
  *   <li>{@code Sec-Fetch-Site} present: only {@code same-origin} (our own frontend)
@@ -38,19 +54,38 @@ import java.util.stream.Collectors;
  * {@code Sec-Fetch-Mode} is never consulted: Node's fetch in the BFF adds
  * {@code sec-fetch-mode: cors} on its own when forwarding.
  */
-@Component
-public class FetchMetadataGuard {
+public class FetchMetadataGuard extends OncePerRequestFilter {
 
-    public static final String SITE_HEADER = "Sec-Fetch-Site";
-    public static final String ORIGIN_HEADER = "Origin";
+    private static final String SITE_HEADER = "Sec-Fetch-Site";
+    private static final String ORIGIN_HEADER = "Origin";
 
     private final Set<String> trustedOrigins;
+    private final ObjectMapper objectMapper;
 
-    public FetchMetadataGuard(@Value("${app.security.trusted-origins}") List<String> trustedOrigins) {
+    public FetchMetadataGuard(List<String> trustedOrigins, ObjectMapper objectMapper) {
         this.trustedOrigins = trustedOrigins.stream()
                 .map(FetchMetadataGuard::normalise)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toUnmodifiableSet());
+        this.objectMapper = objectMapper;
+    }
+
+    @Override
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
+        try {
+            requireSameOrigin(request.getHeader(SITE_HEADER), request.getHeader(ORIGIN_HEADER));
+        } catch (BusinessException blocked) {
+            response.setStatus(HttpStatus.FORBIDDEN.value());
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+            objectMapper.writeValue(response.getWriter(), ApiResponse.error(blocked.getCode(), blocked.getMessage()));
+            return;
+        }
+        filterChain.doFilter(request, response);
     }
 
     public void requireSameOrigin(String secFetchSite, String origin) {

@@ -35,8 +35,6 @@ public class GlobalExceptionHandler {
             // ANALYSIS_DELETE_PENDING 同理：请求本身合法，但与当前资源状态冲突。
             case "ANALYSIS_ALREADY_PENDING", "ANALYSIS_DELETE_PENDING", "ACCOUNT_CONFLICT",
                  "SEMANTIC_EMBEDDING_STALE" -> HttpStatus.CONFLICT;
-            // 跨站 / 同站不同源的写请求：身份也许有效，但请求不是本站页面发起的。
-            case "CROSS_SITE_REQUEST_BLOCKED" -> HttpStatus.FORBIDDEN;
             case "AI_TIMEOUT" -> HttpStatus.GATEWAY_TIMEOUT;
             // 队列满是服务端暂时容纳不下，客户端应当稍后重试；落到 400 会与
             // "please retry later" 的提示自相矛盾，也让重试与熔断策略失去依据。
