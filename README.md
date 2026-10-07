@@ -36,7 +36,7 @@
 
 ![RAG 检索证据链](docs/screenshots/05-rag-evidence.png)
 
-**AI 助手 · 工具调用时间线**：模型自己决定先读简历列表、再给职位库排序、最后对第一名检索简历证据；每一步的参数与耗时都展示出来，回答里的表格与加粗按 Markdown 渲染。以下三张由真实 DeepSeek（`deepseek-flash`）驱动，详见 [AI 助手](#ai-助手tool-calling-agent)。
+**AI 助手 · 工具调用时间线**：模型自己决定先读简历列表、再给职位库排序，然后读取第一名的职位详情并检索简历证据；每一步的参数与耗时都展示出来，回答里的表格与加粗按 Markdown 渲染。以下三张由真实 DeepSeek（`deepseek-flash`）驱动，详见 [AI 助手](#ai-助手tool-calling-agent)。
 
 ![AI 助手工具调用时间线](docs/screenshots/06-assistant-timeline.png)
 
