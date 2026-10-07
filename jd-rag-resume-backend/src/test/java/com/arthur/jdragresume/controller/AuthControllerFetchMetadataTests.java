@@ -15,6 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -50,10 +51,12 @@ class AuthControllerFetchMetadataTests {
     void setUp() {
         authService = new RecordingAuthService();
         rateLimiter = new RecordingRateLimiter();
+        // 防护不在 controller 里，而是挂在 /api/auth/* 上的过滤器，与 SecurityConfig 同一路径。
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new AuthController(authService, new JwtProperties(), rateLimiter,
-                        new FetchMetadataGuard(List.of("http://localhost:3000")), 20, 15, 8, 30))
+                .standaloneSetup(new AuthController(authService, new JwtProperties(), rateLimiter, 20, 15, 8, 30))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .addFilter(new FetchMetadataGuard(List.of("http://localhost:3000"),
+                        Jackson2ObjectMapperBuilder.json().build()), "/api/auth/*")
                 .build();
     }
 

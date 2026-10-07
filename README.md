@@ -50,7 +50,7 @@
 ## 功能一览
 
 - **账号**：注册 / 登录、BCrypt 密码、JWT 无状态鉴权、按用户隔离数据；登录/注册有基础频率限制
-- **CSRF**：业务接口走 Bearer 头，浏览器不会自动携带；只有 register/login/refresh/logout 靠 refresh cookie。`SameSite=Lax` 按「站点」判断，兄弟子域（same-site 但不同源）的 POST 仍会带上 cookie，所以另加 Fetch Metadata 校验，BFF（所有写请求）与后端（这四个接口，且在消耗限流额度之前）用同一条规则：有 `Sec-Fetch-Site` 时只放行 `same-origin`/`none`；旧浏览器不发该头但一定带 `Origin`，此时**完整 origin**（协议、主机、端口）必须在可信列表里，`Origin: null` 一律拒绝；两个头都没有才视为非浏览器客户端。可信列表来自环境变量 `TRUSTED_ORIGINS`（逗号分隔，前后端共用）；后端默认 `http://localhost:3000,http://127.0.0.1:3000`，BFF 未配置时取请求自身的 origin。**部署在终止 TLS 的反向代理后面时必须把它设成对外的 https origin**，否则 BFF 看到的是内网地址
+- **CSRF**：业务接口走 Bearer 头，浏览器不会自动携带；只有 register/login/refresh/logout 靠 refresh cookie。`SameSite=Lax` 按「站点」判断，兄弟子域（same-site 但不同源）的 POST 仍会带上 cookie，所以另加 Fetch Metadata 校验，BFF（所有写请求）与后端（挂在 `/api/auth/**` 上的过滤器，该路径下新增的接口自动纳入，在进入 controller、消耗限流额度之前）用同一条规则：有 `Sec-Fetch-Site` 时只放行 `same-origin`/`none`；旧浏览器不发该头但一定带 `Origin`，此时**完整 origin**（协议、主机、端口）必须在可信列表里，`Origin: null` 一律拒绝；两个头都没有才视为非浏览器客户端。可信列表来自环境变量 `TRUSTED_ORIGINS`（逗号分隔，前后端共用）；后端默认 `http://localhost:3000,http://127.0.0.1:3000`，BFF 未配置时取请求自身的 origin。**部署在终止 TLS 的反向代理后面时必须把它设成对外的 https origin**，否则 BFF 看到的是内网地址
 - **简历**：文本创建或文件上传（每用户最多 30 份、已存文件合计 200MB）、列表检索、编辑、删除（含上传文件与 Lucene 向量清理）
 - **职位 JD**：创建、编辑、删除、**JSON 批量导入**（前端入口 + `POST /api/job-descriptions/import`，每用户最多 200 条）
 - **BOSS 浏览器扩展**：点击后以 `activeTab` 临时读取当前 JD、允许提交前校正、选择已存简历并在扩展内查看分析；优先按稳定岗位 ID 查重，缺失时使用完整岗位内容指纹（见 [`browser-extension/`](browser-extension/)）

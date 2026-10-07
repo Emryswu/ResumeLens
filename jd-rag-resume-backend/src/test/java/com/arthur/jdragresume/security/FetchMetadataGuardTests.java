@@ -1,6 +1,7 @@
 package com.arthur.jdragresume.security;
 
 import com.arthur.jdragresume.exception.BusinessException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -10,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class FetchMetadataGuardTests {
-    private final FetchMetadataGuard guard = new FetchMetadataGuard(List.of("http://localhost:3000"));
+    private final FetchMetadataGuard guard = new FetchMetadataGuard(List.of("http://localhost:3000"), new ObjectMapper());
 
     @Test
     void fetchMetadataDecidesWhenPresentRegardlessOfOrigin() {
@@ -44,7 +45,7 @@ class FetchMetadataGuardTests {
 
     @Test
     void defaultPortsNormaliseOnBothSides() {
-        FetchMetadataGuard https = new FetchMetadataGuard(List.of("https://app.example.com:443"));
+        FetchMetadataGuard https = new FetchMetadataGuard(List.of("https://app.example.com:443"), new ObjectMapper());
         assertDoesNotThrow(() -> https.requireSameOrigin(null, "https://app.example.com"));
         assertEquals("http://example.com", FetchMetadataGuard.normalise("http://Example.com:80"));
     }
