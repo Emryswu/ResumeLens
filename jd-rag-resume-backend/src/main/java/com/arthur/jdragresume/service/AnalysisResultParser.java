@@ -2,6 +2,8 @@ package com.arthur.jdragresume.service;
 
 import com.arthur.jdragresume.dto.analysis.AiAnalysisResult;
 import com.arthur.jdragresume.exception.BusinessException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.io.JsonEOFException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -45,15 +47,26 @@ public class AnalysisResultParser {
      * never resume text, so it can go into the server log.
      */
     ParsedAnalysis parseWithAudit(String text, Set<Integer> keptChunkIndexes) {
-        AiAnalysisResult result;
+        String json = stripMarkdownFence(text == null ? "" : text);
+        JsonNode root;
         try {
-            JsonNode root = objectMapper.readTree(stripMarkdownFence(text));
-            result = new AiAnalysisResult(parseScore(root.path("matchScore")), normalize(root.path("strengths")),
-                    normalize(root.path("missingSkills")), normalize(root.path("improvementSuggestions")),
-                    normalize(root.path("interviewQuestions")), normalize(root.path("summary")));
+            root = objectMapper.readTree(json);
+        } catch (JsonEOFException ex) {
+            throw new ResponseParseException(ParseFailure.TRUNCATED_JSON);
+        } catch (JsonProcessingException ex) {
+            // Cut off right after a comma, Jackson reports a plain parse error, but at the very end of the input.
+            boolean atEnd = ex.getLocation() != null && ex.getLocation().getCharOffset() >= json.length();
+            throw new ResponseParseException(atEnd ? ParseFailure.TRUNCATED_JSON : ParseFailure.MALFORMED_JSON);
         } catch (Exception ex) {
-            throw new BusinessException("AI_RESPONSE_PARSE_FAILED", "AI response is not valid analysis JSON");
+            throw new ResponseParseException(ParseFailure.MALFORMED_JSON);
         }
+        if (root == null || !root.isObject()) {
+            throw new ResponseParseException(ParseFailure.NOT_AN_OBJECT);
+        }
+        AiAnalysisResult result = new AiAnalysisResult(parseScore(root.path("matchScore")),
+                normalize(root.path("strengths")), normalize(root.path("missingSkills")),
+                normalize(root.path("improvementSuggestions")), normalize(root.path("interviewQuestions")),
+                normalize(root.path("summary")));
         String strengths = result.strengths();
         if (strengths == null || strengths.isBlank()) {
             return new ParsedAnalysis(result, CitationAudit.EMPTY);
@@ -195,11 +208,42 @@ public class AnalysisResultParser {
         }
     }
 
+    /** Which part of the reply could not be read. Names only: safe to log, carries none of the model's text. */
+    enum ParseFailure {
+        /** The JSON stops mid-way, typically a reply cut off at max_tokens. */
+        TRUNCATED_JSON,
+        /** Not JSON at all, or JSON with a syntax error before its end. */
+        MALFORMED_JSON,
+        /** Valid JSON, but an array, string or number instead of the analysis object. */
+        NOT_AN_OBJECT,
+        MISSING_SCORE,
+        /** matchScore present but not a number, e.g. "96分" or "高". */
+        INVALID_SCORE
+    }
+
+    /** The reply is not usable analysis JSON; {@link #failure()} says which part failed. */
+    static final class ResponseParseException extends BusinessException {
+        private final ParseFailure failure;
+
+        ResponseParseException(ParseFailure failure) {
+            super("AI_RESPONSE_PARSE_FAILED", "AI response is not valid analysis JSON");
+            this.failure = failure;
+        }
+
+        ParseFailure failure() {
+            return failure;
+        }
+    }
+
     private BigDecimal parseScore(JsonNode node) {
         if (node.isNumber()) return node.decimalValue();
-        String value = node.asText("").replace("%", "").trim();
-        if (value.isEmpty()) throw new IllegalArgumentException("matchScore is missing");
-        return new BigDecimal(value);
+        String value = node.isMissingNode() || node.isNull() ? "" : node.asText("").replace("%", "").trim();
+        if (value.isEmpty()) throw new ResponseParseException(ParseFailure.MISSING_SCORE);
+        try {
+            return new BigDecimal(value);
+        } catch (NumberFormatException ex) {
+            throw new ResponseParseException(ParseFailure.INVALID_SCORE);
+        }
     }
 
     private String normalize(JsonNode node) {

@@ -196,14 +196,14 @@ class AiAnalysisWorkerEvidenceGateTests {
         }
 
         @Override
-        public String chat(String systemPrompt, String userPrompt) {
+        public Completion complete(String systemPrompt, String userPrompt) {
             calls.incrementAndGet();
             lastSystemPrompt = systemPrompt;
             lastUserPrompt = userPrompt;
             if (response == null) {
                 throw new AssertionError("LLM must not be called for zero evidence");
             }
-            return response;
+            return new Completion(response, "stop", null, null);
         }
 
         int calls() {
