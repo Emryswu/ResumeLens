@@ -285,7 +285,7 @@ $env:AI_MOCK_ENABLED = "true"
 
 启动脚本会依次从显式的 `-JavaPath`、`JAVA_HOME`、`PATH` 查找 `java.exe`；需要指定独立 JDK 时可运行 `.\start-backend-background.ps1 -JavaPath 'D:\Java\jdk-21\bin\java.exe'`。
 
-首次启动会加载 `models/gte-multilingual-base-int8/`；若缺失，启动脚本会从固定的 Hugging Face revision `2edbf5e672aab465f9ed4c154a8b61791c082c69` 下载 tokenizer 与 ONNX 模型，并在落盘前校验 SHA256。已有文件若校验不通过，脚本会拒绝启动并提示删除后重新下载（不会自行删除该文件），避免模型静默漂移导致检索结果与已校准的阈值不再对应。
+首次启动会加载 `models/gte-multilingual-base-int8/`；若缺失，启动脚本会从固定的 Hugging Face revision `2edbf5e672aab465f9ed4c154a8b61791c082c69` 下载 tokenizer 与 ONNX 模型，并在落盘前校验 SHA256。已有文件若校验不通过，脚本会拒绝启动并提示删除后重新下载（不会自行删除该文件），避免模型静默漂移导致检索结果与已校准的阈值不再对应。已设置 `RAG_EMBEDDING_TOKENIZER_URI` / `RAG_EMBEDDING_MODEL_URI` 时（例如在另一个 worktree 里复用已下载的模型），脚本不再下载或检查对应的本地文件；后端加载时仍按 `RAG_EMBEDDING_TOKENIZER_SHA256` / `RAG_EMBEDDING_MODEL_SHA256`（默认即上述固定值）校验。
 
 运行测试：
 

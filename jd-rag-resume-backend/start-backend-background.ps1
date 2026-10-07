@@ -122,19 +122,25 @@ $ragModelDirectory = Join-Path $PSScriptRoot 'models\gte-multilingual-base-int8'
 $ragTokenizerPath = Join-Path $ragModelDirectory 'tokenizer.json'
 $ragModelPath = Join-Path $ragModelDirectory 'model_int8.onnx'
 $ragModelRevision = '2edbf5e672aab465f9ed4c154a8b61791c082c69'
-Save-RemoteFile `
-    -Uri "https://huggingface.co/onnx-community/gte-multilingual-base/resolve/$ragModelRevision/tokenizer.json" `
-    -Destination $ragTokenizerPath `
-    -ExpectedSha256 '3a56def25aa40facc030ea8b0b87f3688e4b3c39eb8b45d5702b3a1300fe2a20'
-Save-RemoteFile `
-    -Uri "https://huggingface.co/onnx-community/gte-multilingual-base/resolve/$ragModelRevision/onnx/model_int8.onnx" `
-    -Destination $ragModelPath `
-    -ExpectedSha256 'ab2bd164ebd8ca9003dc49a981b611e849b5d326f504c8873ba76e07fa6c0082'
+# An explicit RAG_EMBEDDING_*_URI already says where the asset lives, so the local copy is neither
+# downloaded nor checked here; the backend still verifies the configured SHA256 when it loads it.
 if ([string]::IsNullOrWhiteSpace($env:RAG_EMBEDDING_TOKENIZER_URI)) {
+    Save-RemoteFile `
+        -Uri "https://huggingface.co/onnx-community/gte-multilingual-base/resolve/$ragModelRevision/tokenizer.json" `
+        -Destination $ragTokenizerPath `
+        -ExpectedSha256 '3a56def25aa40facc030ea8b0b87f3688e4b3c39eb8b45d5702b3a1300fe2a20'
     $env:RAG_EMBEDDING_TOKENIZER_URI = ([Uri]$ragTokenizerPath).AbsoluteUri
+} else {
+    Write-Host "Using RAG_EMBEDDING_TOKENIZER_URI=$env:RAG_EMBEDDING_TOKENIZER_URI"
 }
 if ([string]::IsNullOrWhiteSpace($env:RAG_EMBEDDING_MODEL_URI)) {
+    Save-RemoteFile `
+        -Uri "https://huggingface.co/onnx-community/gte-multilingual-base/resolve/$ragModelRevision/onnx/model_int8.onnx" `
+        -Destination $ragModelPath `
+        -ExpectedSha256 'ab2bd164ebd8ca9003dc49a981b611e849b5d326f504c8873ba76e07fa6c0082'
     $env:RAG_EMBEDDING_MODEL_URI = ([Uri]$ragModelPath).AbsoluteUri
+} else {
+    Write-Host "Using RAG_EMBEDDING_MODEL_URI=$env:RAG_EMBEDDING_MODEL_URI"
 }
 
 if ([string]::IsNullOrWhiteSpace($env:AI_BASE_URL)) {
