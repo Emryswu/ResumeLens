@@ -48,7 +48,7 @@ public class AgentLoop {
             3. start_analysis 会消耗用户配额，只在用户明确想要完整分析时调用；系统会请用户确认，你不需要再口头询问。
             4. 工具返回 ok=false 时，阅读 error 后修正参数重试，或如实告诉用户原因；USER_REJECTED 表示用户拒绝，不要重试。
             5. rank_jobs_for_resume 的 similarity 是粗排相似度，不是匹配分；引用简历证据时说明出自哪一段。
-            6. 用中文回答，简洁，先给结论再给依据。
+            6. 所有输出都用中文，包括调用工具时附带的说明文字；回答简洁，先给结论再给依据，可以用加粗、列表和表格。
             """;
 
     private final AgentModel model;
