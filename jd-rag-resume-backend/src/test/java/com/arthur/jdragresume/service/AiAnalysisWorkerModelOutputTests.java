@@ -15,6 +15,9 @@ import com.arthur.jdragresume.rag.RetrievedChunk;
 import com.arthur.jdragresume.repository.AnalysisHistoryRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Proxy;
@@ -28,11 +31,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** What the worker does with model output that does not fully hold up, and what the user gets to see. */
+@ExtendWith(OutputCaptureExtension.class)
 class AiAnalysisWorkerModelOutputTests {
     private static final long SUBMISSION_LOG_ID = 41L;
 
     private final AnalysisHistory history = pendingHistory();
     private final List<AnalysisSubmissionRefund> refunds = new ArrayList<>();
+    private String finishReason = "stop";
+    private Integer completionTokens = 400;
 
     @Test
     void partiallyInvalidCitationsAreDroppedAndTheReportStillCompletes() {
@@ -63,6 +69,37 @@ class AiAnalysisWorkerModelOutputTests {
         assertEquals("分析结果校验未通过，请稍后重试", history.getSummary());
         assertEquals(1, refunds.size());
         assertEquals("AI_RESPONSE_PARSE_FAILED", refunds.getFirst().getReason());
+    }
+
+    @Test
+    void aReplyCutOffAtMaxTokensIsLoggedWithItsFinishReasonAndFailureButNoText(CapturedOutput output) {
+        finishReason = "length";
+        completionTokens = AiClient.ANALYSIS_MAX_TOKENS;
+        run(() -> "{\"matchScore\": 80, \"strengths\": \"候选人张三 电话 13800001101，熟悉 Ja");
+
+        assertEquals(AnalysisStatus.FAILED, history.getStatus());
+        assertEquals("分析结果校验未通过，请稍后重试", history.getSummary());
+        assertEquals("AI_RESPONSE_PARSE_FAILED", refunds.getFirst().getReason());
+        assertTrue(lineWith(output, "AI analysis 11 completion finishReason=length promptTokens=1800 "
+                + "completionTokens=1200 maxTokens=1200 contentChars=").contains(" WARN "), output.getOut());
+        assertTrue(output.getOut().contains("AI analysis 11 rejected: model response is not valid analysis JSON: "
+                + "failure=TRUNCATED_JSON"), output.getOut());
+        assertFalse(output.getOut().contains("13800001101"));
+        assertFalse(output.getOut().contains("张三"));
+    }
+
+    @Test
+    void aCompleteReplyIsLoggedAtInfoWithItsUsage(CapturedOutput output) {
+        run(() -> response("具备 Java 项目证据。[chunk-0]"));
+
+        assertEquals(AnalysisStatus.COMPLETED, history.getStatus());
+        assertTrue(lineWith(output, "AI analysis 11 completion finishReason=stop promptTokens=1800 "
+                + "completionTokens=400 maxTokens=1200 contentChars=").contains(" INFO "), output.getOut());
+    }
+
+    private static String lineWith(CapturedOutput output, String fragment) {
+        return output.getOut().lines().filter(line -> line.contains(fragment)).findFirst()
+                .orElseThrow(() -> new AssertionError("no log line with: " + fragment + "\n" + output.getOut()));
     }
 
     @Test
@@ -97,8 +134,8 @@ class AiAnalysisWorkerModelOutputTests {
         AiAnalysisWorker worker = new AiAnalysisWorker(
                 new AiClient(new AiProperties(), new ObjectMapper()) {
                     @Override
-                    public String chat(String systemPrompt, String userPrompt) {
-                        return modelReply.get();
+                    public Completion complete(String systemPrompt, String userPrompt) {
+                        return new Completion(modelReply.get(), finishReason, 1800, completionTokens);
                     }
                 },
                 new AnalysisResultParser(new ObjectMapper()),

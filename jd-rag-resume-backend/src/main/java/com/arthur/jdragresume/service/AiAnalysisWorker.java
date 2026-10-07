@@ -97,8 +97,20 @@ public class AiAnalysisWorker {
             // Ids, lengths and a digest only: enough to tell whether two runs sent the model the same input.
             log.info("AI analysis {} prompt keptChunks={} promptSha256={} promptChars={}", historyId, keptIds,
                     sha256Prefix(systemPrompt + "\n" + userPrompt), systemPrompt.length() + userPrompt.length());
-            AnalysisResultParser.ParsedAnalysis parsed = resultParser.parseWithAudit(
-                    aiClient.chat(systemPrompt, userPrompt), keptIds);
+            AiClient.Completion completion = aiClient.complete(systemPrompt, userPrompt);
+            // Provider bookkeeping and a length only, never the reply itself. finishReason=length means the reply
+            // was cut off at maxTokens, which is the first thing to check when the JSON does not parse.
+            boolean stoppedEarly = completion.finishReason() != null && !"stop".equals(completion.finishReason());
+            String completionLog = "AI analysis {} completion finishReason={} promptTokens={} completionTokens={} "
+                    + "maxTokens={} contentChars={}";
+            Object[] completionArgs = {historyId, completion.finishReason(), completion.promptTokens(),
+                    completion.completionTokens(), AiClient.ANALYSIS_MAX_TOKENS, completion.content().length()};
+            if (stoppedEarly) {
+                log.warn(completionLog, completionArgs);
+            } else {
+                log.info(completionLog, completionArgs);
+            }
+            AnalysisResultParser.ParsedAnalysis parsed = resultParser.parseWithAudit(completion.content(), keptIds);
             AnalysisResultParser.CitationAudit audit = parsed.audit();
             if (audit.dropped() > 0) {
                 log.warn("AI analysis {} dropped {} of {} strengths: citedOutsideKept={} uncited={} malformed={} "
@@ -132,7 +144,10 @@ public class AiAnalysisWorker {
         } catch (Throwable ex) {
             if (ex instanceof BusinessException business && "AI_RESPONSE_PARSE_FAILED".equals(business.getCode())) {
                 // Not the user's doing: the model answered with something that is not the analysis JSON.
-                log.warn("AI analysis {} rejected: model response is not valid analysis JSON", historyId);
+                Object failure = ex instanceof AnalysisResultParser.ResponseParseException parse
+                        ? parse.failure() : "UNKNOWN";
+                log.warn("AI analysis {} rejected: model response is not valid analysis JSON: failure={}",
+                        historyId, failure);
                 historyUpdateService.failIfPendingAndRefund(historyId, VALIDATION_FAILED_SUMMARY, business.getCode());
                 return;
             }

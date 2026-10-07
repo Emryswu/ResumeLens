@@ -29,9 +29,22 @@ public class AiClient {
                 .build();
     }
 
+    public static final int ANALYSIS_MAX_TOKENS = 1200;
+
+    /**
+     * An analysis reply plus the provider's bookkeeping about it. {@code finishReason} "length" means the reply was
+     * cut off at {@link #ANALYSIS_MAX_TOKENS}; the token counts are null when the provider does not report usage.
+     */
+    public record Completion(String content, String finishReason, Integer promptTokens, Integer completionTokens) {
+    }
+
     public String chat(String systemPrompt, String userPrompt) {
+        return complete(systemPrompt, userPrompt).content();
+    }
+
+    public Completion complete(String systemPrompt, String userPrompt) {
         if (aiProperties.isMockEnabled()) {
-            return mockAnalysisResponse();
+            return new Completion(mockAnalysisResponse(), "stop", null, null);
         }
         validateConfig();
         Map<String, Object> body = Map.of(
@@ -39,17 +52,26 @@ public class AiClient {
                 "temperature", 0.2,
                 "thinking", Map.of("type", "disabled"),
                 "response_format", Map.of("type", "json_object"),
-                "max_tokens", 1200,
+                "max_tokens", ANALYSIS_MAX_TOKENS,
                 "messages", List.of(
                         Map.of("role", "system", "content", systemPrompt),
                         Map.of("role", "user", "content", userPrompt)
                 )
         );
-        JsonNode content = send(body, timeout()).path("content");
+        JsonNode response = post(body, timeout());
+        JsonNode choice = response.path("choices").path(0);
+        String finishReason = choice.path("finish_reason").isTextual() ? choice.path("finish_reason").asText() : null;
+        JsonNode content = choice.path("message").path("content");
         if (content.isMissingNode() || content.asText().isBlank()) {
-            throw new BusinessException("AI_RESPONSE_EMPTY", "AI response content is empty");
+            throw new BusinessException("AI_RESPONSE_EMPTY", "AI response content is empty (finish_reason=" + finishReason + ")");
         }
-        return content.asText();
+        JsonNode usage = response.path("usage");
+        return new Completion(content.asText(), finishReason, intOrNull(usage.path("prompt_tokens")),
+                intOrNull(usage.path("completion_tokens")));
+    }
+
+    private static Integer intOrNull(JsonNode node) {
+        return node.canConvertToInt() ? node.asInt() : null;
     }
 
     /**
@@ -78,6 +100,10 @@ public class AiClient {
     }
 
     private JsonNode send(Map<String, Object> body, Duration requestTimeout) {
+        return post(body, requestTimeout).path("choices").path(0).path("message");
+    }
+
+    private JsonNode post(Map<String, Object> body, Duration requestTimeout) {
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(resolveChatCompletionsUrl()))
@@ -91,7 +117,7 @@ public class AiClient {
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
                 throw providerException(response.statusCode());
             }
-            return objectMapper.readTree(response.body()).path("choices").path(0).path("message");
+            return objectMapper.readTree(response.body());
         } catch (BusinessException ex) {
             throw ex;
         } catch (HttpTimeoutException ex) {

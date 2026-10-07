@@ -64,6 +64,33 @@ class AiAnalysisServiceParsingTests {
     }
 
     @Test
+    void tellsApartTheWaysAReplyCanFailToBeAnalysisJson() {
+        assertFailure(AnalysisResultParser.ParseFailure.TRUNCATED_JSON,
+                "{\"matchScore\": 80, \"strengths\": \"熟悉 Java [chunk-0]");
+        assertFailure(AnalysisResultParser.ParseFailure.TRUNCATED_JSON, "```json\n{\"matchScore\": 80,");
+        assertFailure(AnalysisResultParser.ParseFailure.TRUNCATED_JSON, "{\"matchScore\": 80");
+        assertFailure(AnalysisResultParser.ParseFailure.MALFORMED_JSON, "抱歉，我无法完成这个请求。");
+        assertFailure(AnalysisResultParser.ParseFailure.MALFORMED_JSON, "{\"matchScore\": 80,, \"summary\": \"x\"}");
+        assertFailure(AnalysisResultParser.ParseFailure.NOT_AN_OBJECT, "[\"Java [chunk-0]\"]");
+        assertFailure(AnalysisResultParser.ParseFailure.NOT_AN_OBJECT, "   ");
+        assertFailure(AnalysisResultParser.ParseFailure.MISSING_SCORE, "{\"summary\":\"missing score\"}");
+        assertFailure(AnalysisResultParser.ParseFailure.MISSING_SCORE, "{\"matchScore\": null}");
+        assertFailure(AnalysisResultParser.ParseFailure.INVALID_SCORE, "{\"matchScore\": \"96分\"}");
+        assertFailure(AnalysisResultParser.ParseFailure.INVALID_SCORE, "{\"matchScore\": \"高\"}");
+    }
+
+    private void assertFailure(AnalysisResultParser.ParseFailure expected, String reply) {
+        AnalysisResultParser.ResponseParseException exception = assertThrows(
+                AnalysisResultParser.ResponseParseException.class,
+                () -> parser.parse(reply, Set.of(0)),
+                reply
+        );
+        assertEquals(expected, exception.failure(), reply);
+        // The refund path keys on this code; the new detail must not change it.
+        assertEquals("AI_RESPONSE_PARSE_FAILED", exception.getCode());
+    }
+
+    @Test
     void rejectsStrengthWithoutCitation() {
         BusinessException exception = assertThrows(
                 BusinessException.class,

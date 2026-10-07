@@ -55,6 +55,52 @@ class AiClientTests {
     }
 
     @Test
+    void analysisCompletionCarriesTheFinishReasonAndTokenUsage() throws Exception {
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        startServer(exchange -> {
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 200, """
+                    {"choices":[{"message":{"content":"{\\"matchScore\\": 8"},"finish_reason":"length"}],
+                     "usage":{"prompt_tokens":1834,"completion_tokens":1200,"total_tokens":3034}}
+                    """);
+        });
+
+        AiClient.Completion completion = new AiClient(properties(), objectMapper).complete("system", "user");
+
+        assertEquals("{\"matchScore\": 8", completion.content());
+        assertEquals("length", completion.finishReason());
+        assertEquals(1834, completion.promptTokens());
+        assertEquals(1200, completion.completionTokens());
+        assertEquals(AiClient.ANALYSIS_MAX_TOKENS, objectMapper.readTree(requestBody.get()).path("max_tokens").asInt());
+    }
+
+    @Test
+    void analysisCompletionToleratesAProviderThatReportsNoUsage() throws Exception {
+        startServer(exchange -> respond(exchange, 200, "{\"choices\":[{\"message\":{\"content\":\"ok\"}}]}"));
+
+        AiClient.Completion completion = new AiClient(properties(), objectMapper).complete("system", "user");
+
+        assertEquals("ok", completion.content());
+        assertNull(completion.finishReason());
+        assertNull(completion.promptTokens());
+        assertNull(completion.completionTokens());
+    }
+
+    @Test
+    void anEmptyReplyNamesItsFinishReason() throws Exception {
+        startServer(exchange -> respond(exchange, 200,
+                "{\"choices\":[{\"message\":{\"content\":\"\"},\"finish_reason\":\"length\"}]}"));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> new AiClient(properties(), objectMapper).complete("system", "user")
+        );
+
+        assertEquals("AI_RESPONSE_EMPTY", exception.getCode());
+        assertTrue(exception.getMessage().contains("finish_reason=length"), exception.getMessage());
+    }
+
+    @Test
     void mapsProviderRateLimitToStableErrorCode() throws Exception {
         startServer(exchange -> respond(exchange, 429, "{\"error\":{\"message\":\"rate limited\"}}"));
 
