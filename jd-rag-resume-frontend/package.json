@@ -9,7 +9,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "node --experimental-strip-types --test tests/report-export.test.ts tests/bff-csrf.test.ts tests/job-import.test.ts tests/auth-client.test.ts tests/preview-evidence.test.ts tests/resume-upload.test.ts tests/analysis-poll.test.ts tests/semantic-ranking.test.ts tests/extension-bridge.test.ts tests/requirement-coverage.test.ts tests/detail-delete.test.ts tests/workspace-bookmarks.test.ts tests/report-draft-retry.test.ts tests/workspace-css-scope.test.ts && npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "node --experimental-strip-types --test tests/report-export.test.ts tests/bff-csrf.test.ts tests/job-import.test.ts tests/auth-client.test.ts tests/preview-evidence.test.ts tests/resume-upload.test.ts tests/analysis-poll.test.ts tests/semantic-ranking.test.ts tests/extension-bridge.test.ts tests/requirement-coverage.test.ts tests/detail-delete.test.ts tests/workspace-bookmarks.test.ts tests/report-draft-retry.test.ts tests/workspace-css-scope.test.ts tests/agent-stream.test.ts tests/agent-markdown.test.ts && npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
   "dependencies": {

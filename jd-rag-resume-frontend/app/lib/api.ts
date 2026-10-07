@@ -228,13 +228,62 @@ export async function apiRequest<T>(
   init: RequestInit = {},
   options: ApiRequestOptions = {},
 ): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "application/json");
+  const response = await authorizedFetch(path, { ...init, headers }, options);
+  if (response.status === 204) {
+    return undefined as T;
+  }
+  const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
+  if (!response.ok || !payload?.success) {
+    throw new ApiError(
+      payload?.code || `HTTP_${response.status}`,
+      payload?.message || `请求失败（${response.status}）`,
+      response.status,
+    );
+  }
+  return payload.data;
+}
+
+/**
+ * POSTs JSON and returns the response body as a stream (Server-Sent Events).
+ * Shares token handling and 401 recovery with apiRequest. Rejections happen
+ * before the stream opens and arrive as the usual JSON envelope, so the status
+ * is checked before anything is read as SSE.
+ */
+export async function apiStream(
+  path: string,
+  body: unknown,
+  signal?: AbortSignal,
+): Promise<ReadableStream<Uint8Array>> {
+  const headers = new Headers({ Accept: "text/event-stream, application/json" });
+  const response = await authorizedFetch(path, { method: "POST", headers, body: JSON.stringify(body), signal });
+  if (!response.ok || !response.body) {
+    const payload = (await response.json().catch(() => null)) as ApiEnvelope<unknown> | null;
+    throw new ApiError(
+      payload?.code || `HTTP_${response.status}`,
+      payload?.message || `请求失败（${response.status}）`,
+      response.status,
+    );
+  }
+  return response.body;
+}
+
+/**
+ * Sends with the current access token and recovers from a 401 once. Returns the
+ * final Response unread; callers decide how to parse it.
+ */
+async function authorizedFetch(
+  path: string,
+  init: RequestInit,
+  options: ApiRequestOptions = {},
+): Promise<Response> {
   if (logoutPromise) await logoutPromise;
   const startsExplicitSession = options.auth === false && /^\/api\/auth\/(?:login|register)$/.test(path);
   if (startsExplicitSession && refreshPromise) {
     await refreshPromise;
   }
   const headers = new Headers(init.headers);
-  headers.set("Accept", "application/json");
   const requestAccessToken = accessToken;
   // Captured together with the token: a 401 is only ever retried while this
   // still matches, so a stale request can never borrow another account's token.
@@ -269,7 +318,7 @@ export async function apiRequest<T>(
     let ownedSessionId = requestAuthSessionId;
     if (options.retryAuth !== false) {
       if (requestAccessToken && requestAccessToken !== accessToken) {
-        return apiRequest<T>(path, init, { ...options, retryAuth: false });
+        return authorizedFetch(path, init, { ...options, retryAuth: false });
       }
       const clearsBeforeRefresh = refreshFailureClears;
       const session = await refreshSession();
@@ -284,23 +333,12 @@ export async function apiRequest<T>(
       }
       ownedSessionId = authSessionId;
       if (session) {
-        return apiRequest<T>(path, init, { ...options, retryAuth: false });
+        return authorizedFetch(path, init, { ...options, retryAuth: false });
       }
     }
     notifyAuthExpired(ownedSessionId);
   }
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
-  if (!response.ok || !payload?.success) {
-    throw new ApiError(
-      payload?.code || `HTTP_${response.status}`,
-      payload?.message || `请求失败（${response.status}）`,
-      response.status,
-    );
-  }
-  return payload.data;
+  return response;
 }
 
 async function requestSession(path: string): Promise<AuthResponse> {

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { User } from "../lib/api";
 
-export type WorkspaceView = "match" | "resumes" | "jobs" | "saved" | "history";
+export type WorkspaceView = "match" | "resumes" | "jobs" | "saved" | "history" | "assistant";
 
 export function WorkspaceNav({ user, active, onLogout, onNavigate }: {
   user: User | null;
@@ -26,7 +26,10 @@ export function WorkspaceNav({ user, active, onLogout, onNavigate }: {
           onNavigate(view);
         }
       }}>{label}</Link>,
-    )}</nav>
+    )}
+    {/* A separate route, not a hash view: kept out of `links` so onNavigate never intercepts it. */}
+    <Link href="/assistant" aria-current={active === "assistant" ? "page" : undefined}>AI 助手</Link>
+    </nav>
     <div className="workspace-account"><span className="account-name">{user?.displayName || user?.username || "个人"}的工作空间</span>
       <span className="avatar" aria-hidden="true">{(user?.displayName || user?.username || "A").slice(0, 1).toUpperCase()}</span>
       <button className="ghost" type="button" onClick={onLogout}>退出</button>
