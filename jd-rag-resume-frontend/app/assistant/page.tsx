@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, KeyboardEvent, useEffect, useReducer, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { AppChrome } from "../components/AppChrome";
+import { parseAgentMarkdown, type MdInline } from "../agent-markdown";
 import {
   agentChatReducer,
   initialAgentChatState,
@@ -245,7 +246,8 @@ function TurnView({ turn, live, pending, analysis, onDecide, disabled }: {
         </ol>
       )}
 
-      {turn.notes.map((note, index) => <p key={index} className="assistant-note">{note}</p>)}
+      {/* Text the model writes next to its tool calls; before a confirmation it often carries the actual conclusion. */}
+      {turn.notes.map((note, index) => <AgentMarkdown key={index} className="assistant-note" text={note} />)}
 
       {turn.confirmation && (
         <ConfirmationCard
@@ -259,7 +261,7 @@ function TurnView({ turn, live, pending, analysis, onDecide, disabled }: {
 
       {turn.analysisId && <AnalysisStatus analysisId={turn.analysisId} analysis={analysis} />}
 
-      {turn.answer && <div className="assistant-answer">{turn.answer}</div>}
+      {turn.answer && <AgentMarkdown className="assistant-answer" text={turn.answer} />}
       {turn.error && <div className="assistant-error">{ERROR_COPY[turn.error.code] ?? turn.error.message}</div>}
     </li>
   );
@@ -336,6 +338,57 @@ function AnalysisStatus({ analysisId, analysis }: { analysisId: number; analysis
       </span>
       <Link className="ghost compact" href={href}>查看完整报告</Link>
     </div>
+  );
+}
+
+function AgentMarkdown({ text, className }: { text: string; className: string }) {
+  const blocks = useMemo(() => parseAgentMarkdown(text), [text]);
+  return (
+    <div className={`${className} agent-md`}>
+      {blocks.map((block, index) => {
+        switch (block.type) {
+          case "paragraph":
+            return (
+              <p key={index}>
+                {block.lines.map((line, lineIndex) => (
+                  <span key={lineIndex}>{lineIndex > 0 && <br />}<Inline parts={line} /></span>
+                ))}
+              </p>
+            );
+          case "heading":
+            return <p key={index} className={`agent-md-heading level-${block.level}`}><Inline parts={block.content} /></p>;
+          case "list": {
+            const items = block.items.map((item, itemIndex) => <li key={itemIndex}><Inline parts={item} /></li>);
+            return block.ordered ? <ol key={index} start={block.start}>{items}</ol> : <ul key={index}>{items}</ul>;
+          }
+          case "table":
+            return (
+              <div key={index} className="agent-md-table">
+                <table>
+                  <thead>
+                    <tr>{block.header.map((cell, cellIndex) => <th key={cellIndex}><Inline parts={cell} /></th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {block.rows.map((row, rowIndex) => (
+                      <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}><Inline parts={cell} /></td>)}</tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          case "code":
+            return <pre key={index}><code>{block.text}</code></pre>;
+        }
+      })}
+    </div>
+  );
+}
+
+function Inline({ parts }: { parts: MdInline[] }) {
+  return parts.map((part, index) =>
+    part.type === "strong" ? <strong key={index}>{part.text}</strong>
+      : part.type === "code" ? <code key={index}>{part.text}</code>
+        : part.text,
   );
 }
 

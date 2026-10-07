@@ -544,8 +544,23 @@ button.history-row:hover { background: #f5f8f4; }
 .assistant-turns { display: grid; gap: 18px; margin: 0; padding: 0; list-style: none; }
 .assistant-turn { display: grid; gap: 10px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); min-width: 0; }
 .assistant-question { justify-self: end; max-width: 85%; padding: 9px 13px; border-radius: 12px 12px 2px 12px; color: white; background: var(--navy); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.assistant-answer { padding: 12px 14px; border-radius: 12px; background: #f7f5ef; border: 1px solid #e8ebe6; color: var(--ink); font-size: 13px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
-.assistant-note { margin: 0; color: var(--muted); font-size: 12px; font-style: italic; }
+.assistant-answer { padding: 12px 14px; border-radius: 12px; background: #f7f5ef; border: 1px solid #e8ebe6; color: var(--ink); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; min-width: 0; }
+.assistant-note { padding-left: 12px; border-left: 2px solid var(--line); color: #3d5254; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; min-width: 0; }
+.agent-md > * { margin: 0; }
+.agent-md > * + * { margin-top: 8px; }
+.agent-md ul, .agent-md ol { padding-left: 22px; }
+.agent-md li + li { margin-top: 2px; }
+.agent-md strong { font-weight: 700; color: var(--ink); }
+.agent-md code { padding: 1px 5px; border-radius: 5px; background: #eef1ed; font-size: 12px; }
+.agent-md pre { padding: 10px 12px; border-radius: 10px; background: #f8faf8; border: 1px solid #e8ebe6; overflow-x: auto; white-space: pre; }
+.agent-md pre code { padding: 0; background: none; }
+.agent-md-heading { font-weight: 700; color: var(--ink); }
+.agent-md-heading.level-1, .agent-md-heading.level-2 { font-size: 14px; }
+.agent-md-table { max-width: 100%; overflow-x: auto; }
+.agent-md-table table { border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+.agent-md-table th, .agent-md-table td { padding: 6px 10px; border: 1px solid #e3e7e2; text-align: left; }
+.agent-md-table th { background: #eef1ed; color: #3d5254; font-weight: 700; }
+.agent-md-table td { background: var(--panel); }
 .assistant-error { padding: 10px 12px; border-radius: 12px; color: #a74438; border: 1px solid #ffd7d0; background: #fff7f5; font-size: 12px; }
 .agent-timeline { display: grid; gap: 4px; margin: 0; padding: 0 0 0 4px; list-style: none; border-left: 2px solid var(--line); }
 .agent-step { position: relative; padding-left: 12px; font-size: 12px; color: #3d5254; min-width: 0; }
