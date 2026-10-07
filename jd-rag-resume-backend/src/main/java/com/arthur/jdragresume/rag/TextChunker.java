@@ -4,7 +4,10 @@ import com.arthur.jdragresume.exception.BusinessException;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Component
@@ -26,7 +29,7 @@ public class TextChunker {
 
         int chunkSize = Math.max(160, properties.getChunkSize());
         int overlap = Math.max(0, Math.min(properties.getChunkOverlap(), chunkSize / 2));
-        String normalized = text.replace("\r\n", "\n").replace('\r', '\n').trim();
+        String normalized = normalize(text);
         List<String> chunks = new ArrayList<>();
         int start = 0;
 
@@ -49,6 +52,54 @@ public class TextChunker {
             start = Math.max(start + 1, end - overlap);
         }
         return chunks;
+    }
+
+    /**
+     * Every section a chunk covers, in document order, e.g. "工作经历/项目". The section already open where the
+     * chunk starts comes from the headers before it in the full text; text ahead of the first header of a
+     * structured resume is "基本信息". A chunk spanning 教育背景, 专业技能 and 工作经历 used to be labelled by
+     * whichever header came first ("教育"), even when it was mostly work experience.
+     * Falls back to {@link #detectSection} when the chunk cannot be located in the document.
+     */
+    static String describeSections(String document, String chunk) {
+        if (chunk == null || chunk.isBlank() || document == null) {
+            return detectSection(chunk);
+        }
+        String normalized = normalize(document);
+        int start = normalized.indexOf(chunk);
+        if (start < 0) {
+            return detectSection(chunk);
+        }
+
+        Set<String> sections = new LinkedHashSet<>();
+        Matcher inside = SECTION_HINT.matcher(chunk);
+        int firstHeader = inside.find() ? inside.start(1) : chunk.length();
+        if (!chunk.substring(0, firstHeader).isBlank()) {
+            String open = lastSectionBefore(normalized, start);
+            if (open != null) {
+                sections.add(open);
+            } else if (SECTION_HINT.matcher(normalized).find()) {
+                sections.add("基本信息");
+            }
+        }
+        inside.reset();
+        while (inside.find()) {
+            sections.add(normalizeSection(inside.group(1)));
+        }
+        return sections.isEmpty() ? detectSection(chunk) : String.join("/", sections);
+    }
+
+    private static String lastSectionBefore(String document, int end) {
+        Matcher matcher = SECTION_HINT.matcher(document).region(0, end).useAnchoringBounds(false);
+        String last = null;
+        while (matcher.find()) {
+            last = normalizeSection(matcher.group(1));
+        }
+        return last;
+    }
+
+    private static String normalize(String text) {
+        return text.replace("\r\n", "\n").replace('\r', '\n').trim();
     }
 
     static String detectSection(String chunk) {

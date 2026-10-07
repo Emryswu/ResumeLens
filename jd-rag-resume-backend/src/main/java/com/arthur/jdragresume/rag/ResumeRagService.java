@@ -84,7 +84,7 @@ public class ResumeRagService {
                         chunk.getContent(),
                         raw,
                         boosted,
-                        TextChunker.detectSection(chunk.getContent()),
+                        TextChunker.describeSections(resume.getRawText(), chunk.getContent()),
                         boostHits
                 ));
             }
