@@ -87,17 +87,46 @@ class AiClientTests {
     }
 
     @Test
-    void anEmptyReplyNamesItsFinishReason() throws Exception {
+    void anEmptyAnalysisReplyIsReturnedWithItsUsageInsteadOfThrown() throws Exception {
+        startServer(exchange -> respond(exchange, 200, """
+                {"choices":[{"message":{"content":""},"finish_reason":"stop"}],
+                 "usage":{"prompt_tokens":1624,"completion_tokens":0}}
+                """));
+
+        AiClient.Completion completion = new AiClient(properties(), objectMapper).complete("system", "user");
+
+        assertEquals("", completion.content());
+        assertEquals("stop", completion.finishReason());
+        assertEquals(0, completion.completionTokens());
+    }
+
+    @Test
+    void aNullContentIsAnEmptyReplyNotTheWordNull() throws Exception {
+        startServer(exchange -> respond(exchange, 200,
+                "{\"choices\":[{\"message\":{\"content\":null},\"finish_reason\":\"stop\"}]}"));
+
+        assertEquals("", new AiClient(properties(), objectMapper).complete("system", "user").content());
+    }
+
+    @Test
+    void chatStillRejectsAnEmptyReplyAndNamesItsFinishReason() throws Exception {
         startServer(exchange -> respond(exchange, 200,
                 "{\"choices\":[{\"message\":{\"content\":\"\"},\"finish_reason\":\"length\"}]}"));
 
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> new AiClient(properties(), objectMapper).complete("system", "user")
+                () -> new AiClient(properties(), objectMapper).chat("system", "user")
         );
 
         assertEquals("AI_RESPONSE_EMPTY", exception.getCode());
         assertTrue(exception.getMessage().contains("finish_reason=length"), exception.getMessage());
+    }
+
+    @Test
+    void analysisBudgetLeavesRoomForAFullReport() {
+        // Measured 2026-10-07 with deepseek-flash: complete reports used 1109-1112 completion tokens and 8 of 10
+        // replies hit the old 1200 limit (finish_reason=length). Keep well above that.
+        assertTrue(AiClient.ANALYSIS_MAX_TOKENS >= 2 * 1200, "max_tokens=" + AiClient.ANALYSIS_MAX_TOKENS);
     }
 
     @Test

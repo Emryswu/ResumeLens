@@ -80,8 +80,9 @@ class AiAnalysisWorkerModelOutputTests {
         assertEquals(AnalysisStatus.FAILED, history.getStatus());
         assertEquals("分析结果校验未通过，请稍后重试", history.getSummary());
         assertEquals("AI_RESPONSE_PARSE_FAILED", refunds.getFirst().getReason());
-        assertTrue(lineWith(output, "AI analysis 11 completion finishReason=length promptTokens=1800 "
-                + "completionTokens=1200 maxTokens=1200 contentChars=").contains(" WARN "), output.getOut());
+        assertTrue(lineWith(output, "AI analysis 11 completion finishReason=length promptTokens=1800 completionTokens="
+                + AiClient.ANALYSIS_MAX_TOKENS + " maxTokens=" + AiClient.ANALYSIS_MAX_TOKENS + " contentChars=")
+                .contains(" WARN "), output.getOut());
         assertTrue(output.getOut().contains("AI analysis 11 rejected: model response is not valid analysis JSON: "
                 + "failure=TRUNCATED_JSON"), output.getOut());
         assertFalse(output.getOut().contains("13800001101"));
@@ -94,7 +95,24 @@ class AiAnalysisWorkerModelOutputTests {
 
         assertEquals(AnalysisStatus.COMPLETED, history.getStatus());
         assertTrue(lineWith(output, "AI analysis 11 completion finishReason=stop promptTokens=1800 "
-                + "completionTokens=400 maxTokens=1200 contentChars=").contains(" INFO "), output.getOut());
+                + "completionTokens=400 maxTokens=" + AiClient.ANALYSIS_MAX_TOKENS + " contentChars=")
+                .contains(" INFO "), output.getOut());
+    }
+
+    @Test
+    void anEmptyReplyIsTreatedLikeAnyOtherUnusableModelOutput(CapturedOutput output) {
+        completionTokens = 0;
+        run(() -> "");
+
+        assertEquals(AnalysisStatus.FAILED, history.getStatus());
+        assertEquals("分析结果校验未通过，请稍后重试", history.getSummary());
+        assertEquals(1, refunds.size());
+        assertEquals("AI_RESPONSE_EMPTY", refunds.getFirst().getReason());
+        // The usage line still comes out, because the client hands the empty reply back instead of throwing.
+        assertTrue(output.getOut().contains("AI analysis 11 completion finishReason=stop promptTokens=1800 "
+                + "completionTokens=0 maxTokens=" + AiClient.ANALYSIS_MAX_TOKENS + " contentChars=0"), output.getOut());
+        assertTrue(output.getOut().contains("failure=EMPTY_RESPONSE"), output.getOut());
+        assertFalse(output.getOut().contains("Async AI analysis 11 failed"), output.getOut());
     }
 
     private static String lineWith(CapturedOutput output, String fragment) {

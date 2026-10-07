@@ -29,17 +29,27 @@ public class AiClient {
                 .build();
     }
 
-    public static final int ANALYSIS_MAX_TOKENS = 1200;
+    /**
+     * A complete report measured 1100-1200 completion tokens with deepseek-flash, so the former 1200 cut most replies
+     * off mid-JSON (finish_reason=length). 3000 leaves room for the longest reports seen so far.
+     */
+    public static final int ANALYSIS_MAX_TOKENS = 3000;
 
     /**
-     * An analysis reply plus the provider's bookkeeping about it. {@code finishReason} "length" means the reply was
-     * cut off at {@link #ANALYSIS_MAX_TOKENS}; the token counts are null when the provider does not report usage.
+     * An analysis reply plus the provider's bookkeeping about it. {@code content} is empty, never null, when the
+     * provider sent no text; {@code finishReason} "length" means the reply was cut off at {@link #ANALYSIS_MAX_TOKENS};
+     * the token counts are null when the provider does not report usage.
      */
     public record Completion(String content, String finishReason, Integer promptTokens, Integer completionTokens) {
     }
 
     public String chat(String systemPrompt, String userPrompt) {
-        return complete(systemPrompt, userPrompt).content();
+        Completion completion = complete(systemPrompt, userPrompt);
+        if (completion.content().isBlank()) {
+            throw new BusinessException("AI_RESPONSE_EMPTY",
+                    "AI response content is empty (finish_reason=" + completion.finishReason() + ")");
+        }
+        return completion.content();
     }
 
     public Completion complete(String systemPrompt, String userPrompt) {
@@ -61,13 +71,12 @@ public class AiClient {
         JsonNode response = post(body, timeout());
         JsonNode choice = response.path("choices").path(0);
         String finishReason = choice.path("finish_reason").isTextual() ? choice.path("finish_reason").asText() : null;
+        // An empty reply is returned, not thrown, so the caller still logs its usage and treats it as model output.
+        // Only a JSON string counts as text: a null content must not turn into the four characters "null".
         JsonNode content = choice.path("message").path("content");
-        if (content.isMissingNode() || content.asText().isBlank()) {
-            throw new BusinessException("AI_RESPONSE_EMPTY", "AI response content is empty (finish_reason=" + finishReason + ")");
-        }
         JsonNode usage = response.path("usage");
-        return new Completion(content.asText(), finishReason, intOrNull(usage.path("prompt_tokens")),
-                intOrNull(usage.path("completion_tokens")));
+        return new Completion(content.isTextual() ? content.asText() : "", finishReason,
+                intOrNull(usage.path("prompt_tokens")), intOrNull(usage.path("completion_tokens")));
     }
 
     private static Integer intOrNull(JsonNode node) {

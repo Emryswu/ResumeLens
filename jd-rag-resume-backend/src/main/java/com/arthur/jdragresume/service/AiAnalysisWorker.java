@@ -6,7 +6,6 @@ import com.arthur.jdragresume.entity.AnalysisHistory;
 import com.arthur.jdragresume.entity.AnalysisStatus;
 import com.arthur.jdragresume.entity.JobDescription;
 import com.arthur.jdragresume.entity.Resume;
-import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.rag.HardSkillCoverage;
 import com.arthur.jdragresume.rag.RagProperties;
 import com.arthur.jdragresume.rag.ResumeRagService;
@@ -141,16 +140,12 @@ public class AiAnalysisWorker {
                     historyId, audit.strengths(), audit.citedOutsideKept(), audit.uncited(), audit.malformed(),
                     audit.unrecognizedShapes());
             historyUpdateService.failIfPendingAndRefund(historyId, VALIDATION_FAILED_SUMMARY, ex.getCode());
+        } catch (AnalysisResultParser.ResponseParseException ex) {
+            // Not the user's doing: the model answered with nothing, or with something that is not the analysis JSON.
+            log.warn("AI analysis {} rejected: model response is not valid analysis JSON: failure={}",
+                    historyId, ex.failure());
+            historyUpdateService.failIfPendingAndRefund(historyId, VALIDATION_FAILED_SUMMARY, ex.getCode());
         } catch (Throwable ex) {
-            if (ex instanceof BusinessException business && "AI_RESPONSE_PARSE_FAILED".equals(business.getCode())) {
-                // Not the user's doing: the model answered with something that is not the analysis JSON.
-                Object failure = ex instanceof AnalysisResultParser.ResponseParseException parse
-                        ? parse.failure() : "UNKNOWN";
-                log.warn("AI analysis {} rejected: model response is not valid analysis JSON: failure={}",
-                        historyId, failure);
-                historyUpdateService.failIfPendingAndRefund(historyId, VALIDATION_FAILED_SUMMARY, business.getCode());
-                return;
-            }
             // Exception class and details stay in this log; the user only sees the generic summary.
             log.error("Async AI analysis {} failed", historyId, ex);
             historyUpdateService.failIfPending(historyId, GENERIC_FAILED_SUMMARY);

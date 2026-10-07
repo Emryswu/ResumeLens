@@ -47,7 +47,10 @@ public class AnalysisResultParser {
      * never resume text, so it can go into the server log.
      */
     ParsedAnalysis parseWithAudit(String text, Set<Integer> keptChunkIndexes) {
-        String json = stripMarkdownFence(text == null ? "" : text);
+        if (text == null || text.isBlank()) {
+            throw new ResponseParseException(ParseFailure.EMPTY_RESPONSE);
+        }
+        String json = stripMarkdownFence(text);
         JsonNode root;
         try {
             root = objectMapper.readTree(json);
@@ -210,6 +213,8 @@ public class AnalysisResultParser {
 
     /** Which part of the reply could not be read. Names only: safe to log, carries none of the model's text. */
     enum ParseFailure {
+        /** The provider sent no text at all; seen occasionally from DeepSeek in json_object mode. */
+        EMPTY_RESPONSE,
         /** The JSON stops mid-way, typically a reply cut off at max_tokens. */
         TRUNCATED_JSON,
         /** Not JSON at all, or JSON with a syntax error before its end. */
@@ -221,12 +226,16 @@ public class AnalysisResultParser {
         INVALID_SCORE
     }
 
-    /** The reply is not usable analysis JSON; {@link #failure()} says which part failed. */
+    /**
+     * The reply is not usable analysis JSON; {@link #failure()} says which part failed. Either way it is the model's
+     * output, not the user's input, so the worker refunds the submission; the code becomes the refund reason.
+     */
     static final class ResponseParseException extends BusinessException {
         private final ParseFailure failure;
 
         ResponseParseException(ParseFailure failure) {
-            super("AI_RESPONSE_PARSE_FAILED", "AI response is not valid analysis JSON");
+            super(failure == ParseFailure.EMPTY_RESPONSE ? "AI_RESPONSE_EMPTY" : "AI_RESPONSE_PARSE_FAILED",
+                    "AI response is not valid analysis JSON");
             this.failure = failure;
         }
 
