@@ -3,6 +3,7 @@ package com.arthur.jdragresume.repository;
 import com.arthur.jdragresume.entity.AnalysisSubmissionLog;
 import com.arthur.jdragresume.entity.AnalysisSubmissionRefund;
 import com.arthur.jdragresume.entity.AppUser;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +57,8 @@ class AnalysisSubmissionRefundMySqlTests {
     private AnalysisSubmissionRefundRepository refundRepository;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private EntityManager entityManager;
 
     private AppUser user;
     private AppUser otherUser;
@@ -119,7 +122,13 @@ class AnalysisSubmissionRefundMySqlTests {
         submission.setUser(owner);
         submission = submissionLogRepository.saveAndFlush(submission);
         // created_at is set by @PrePersist and not updatable through JPA; move it for the window test.
-        jdbcTemplate.update("update analysis_submission_log set created_at = ? where id = ?", createdAt, submission.getId());
+        // Bind through Hibernate, not JdbcTemplate: hibernate.jdbc.time_zone shifts LocalDateTime parameters,
+        // and the repository query under test is shifted the same way. A raw JDBC write is not, so on a
+        // runner whose JVM zone differs from that setting (UTC on CI) the rows would land outside the window.
+        entityManager.createNativeQuery("update analysis_submission_log set created_at = :createdAt where id = :id")
+                .setParameter("createdAt", createdAt)
+                .setParameter("id", submission.getId())
+                .executeUpdate();
         return submission;
     }
 
