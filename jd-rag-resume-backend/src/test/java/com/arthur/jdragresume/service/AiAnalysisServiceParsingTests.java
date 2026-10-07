@@ -72,7 +72,9 @@ class AiAnalysisServiceParsingTests {
         assertFailure(AnalysisResultParser.ParseFailure.MALFORMED_JSON, "抱歉，我无法完成这个请求。");
         assertFailure(AnalysisResultParser.ParseFailure.MALFORMED_JSON, "{\"matchScore\": 80,, \"summary\": \"x\"}");
         assertFailure(AnalysisResultParser.ParseFailure.NOT_AN_OBJECT, "[\"Java [chunk-0]\"]");
-        assertFailure(AnalysisResultParser.ParseFailure.NOT_AN_OBJECT, "   ");
+        assertFailure(AnalysisResultParser.ParseFailure.NOT_AN_OBJECT, "\"只有一句话\"");
+        assertFailure(AnalysisResultParser.ParseFailure.EMPTY_RESPONSE, "   ");
+        assertFailure(AnalysisResultParser.ParseFailure.EMPTY_RESPONSE, "");
         assertFailure(AnalysisResultParser.ParseFailure.MISSING_SCORE, "{\"summary\":\"missing score\"}");
         assertFailure(AnalysisResultParser.ParseFailure.MISSING_SCORE, "{\"matchScore\": null}");
         assertFailure(AnalysisResultParser.ParseFailure.INVALID_SCORE, "{\"matchScore\": \"96分\"}");
@@ -86,8 +88,9 @@ class AiAnalysisServiceParsingTests {
                 reply
         );
         assertEquals(expected, exception.failure(), reply);
-        // The refund path keys on this code; the new detail must not change it.
-        assertEquals("AI_RESPONSE_PARSE_FAILED", exception.getCode());
+        // The code is recorded as the refund reason.
+        assertEquals(expected == AnalysisResultParser.ParseFailure.EMPTY_RESPONSE
+                ? "AI_RESPONSE_EMPTY" : "AI_RESPONSE_PARSE_FAILED", exception.getCode());
     }
 
     @Test
