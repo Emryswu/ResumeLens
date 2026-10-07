@@ -37,6 +37,11 @@ import java.util.stream.Collectors;
  * Every method is checked, not only writes, because {@code SameSite=Lax} still sends
  * the cookie on a cross-site top-level GET.
  *
+ * <p>So a third-party login callback (an identity provider redirecting the browser back,
+ * which arrives as a cross-site GET, or as a cross-site POST with {@code form_post}) must
+ * not live under {@code /api/auth}, or it will be rejected here; give it its own path and
+ * protect it with the OAuth {@code state} parameter instead.
+ *
  * <ol>
  *   <li>{@code Sec-Fetch-Site} present: only {@code same-origin} (our own frontend)
  *       and {@code none} (typed or bookmarked navigation) pass. Page script cannot
