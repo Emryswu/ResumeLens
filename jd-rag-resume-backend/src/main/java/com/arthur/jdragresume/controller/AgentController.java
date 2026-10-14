@@ -48,6 +48,9 @@ public class AgentController {
     }
 
     /** {@code approved} is boxed so a missing decision is a 400, not a silent rejection. */
-    public record ApprovalRequest(@NotBlank String toolCallId, @NotNull Boolean approved) {
+    public record ApprovalRequest(
+            @NotBlank @Size(max = AgentMessage.MAX_TOOL_CALL_ID_CHARS) String toolCallId,
+            @NotNull Boolean approved
+    ) {
     }
 }

@@ -212,6 +212,64 @@ class TranscriptPolicyTests {
                 code(() -> policy.normalize(List.of(AgentMessage.user("q".repeat(4001))), null)));
     }
 
+    @Test
+    void toolIdsAndTypesCountAgainstTheRequestBudget() {
+        properties.setMaxRequestChars(200);
+        List<AgentMessage.ToolCall> calls = new ArrayList<>();
+        List<AgentMessage> messages = new ArrayList<>();
+        messages.add(AgentMessage.user("hi"));
+        for (int i = 0; i < 3; i++) calls.add(call("call_" + "x".repeat(50) + i, "lookup"));
+        messages.add(AgentMessage.assistant(null, calls));
+        calls.forEach(call -> messages.add(AgentMessage.tool(call.id(), "{}")));
+        messages.add(AgentMessage.user("again"));
+
+        assertEquals("AGENT_TRANSCRIPT_TOO_LARGE", code(() -> policy.normalize(messages, null)));
+
+        List<AgentMessage> largeType = List.of(AgentMessage.user("hi"), AgentMessage.assistant(null,
+                List.of(new AgentMessage.ToolCall("c1", "x".repeat(201), new AgentMessage.ToolFunction("lookup", "{}")))),
+                AgentMessage.tool("c1", "{}"), AgentMessage.user("again"));
+        assertEquals("AGENT_TRANSCRIPT_TOO_LARGE", code(() -> policy.normalize(largeType, null)));
+    }
+
+    @Test
+    void toolIdsAlsoCountAgainstTheCompactedTranscriptBudget() {
+        properties.setMaxTranscriptChars(200);
+        List<AgentMessage.ToolCall> calls = new ArrayList<>();
+        List<AgentMessage> messages = new ArrayList<>();
+        messages.add(AgentMessage.user("hi"));
+        for (int i = 0; i < 3; i++) calls.add(call("call_" + "x".repeat(50) + i, "lookup"));
+        messages.add(AgentMessage.assistant(null, calls));
+        calls.forEach(call -> messages.add(AgentMessage.tool(call.id(), "{}")));
+        TranscriptPolicy.Approval approval = new TranscriptPolicy.Approval(calls.getLast().id(), true);
+        messages.removeLast(); // The last call is awaiting approval, so this remains one complete user turn.
+
+        assertEquals("AGENT_TRANSCRIPT_TOO_LARGE", code(() -> policy.normalize(messages, approval)));
+    }
+
+    @Test
+    void toolIdLengthLimitPreservesUnderscoresAndHyphens() {
+        String accepted = "call_" + "x".repeat(58) + "-";
+        List<AgentMessage> valid = List.of(AgentMessage.user("hi"), AgentMessage.assistant(null,
+                List.of(call(accepted, "lookup"))), AgentMessage.tool(accepted, "{}"), AgentMessage.user("again"));
+        assertEquals(4, policy.normalize(valid, null).messages().size());
+
+        String tooLong = accepted + "x";
+        List<AgentMessage> invalid = List.of(AgentMessage.user("hi"), AgentMessage.assistant(null,
+                List.of(call(tooLong, "lookup"))), AgentMessage.tool(tooLong, "{}"), AgentMessage.user("again"));
+        BusinessException rejected = assertThrows(BusinessException.class, () -> policy.normalize(invalid, null));
+        assertEquals("AGENT_TRANSCRIPT_INVALID", rejected.getCode());
+        assertTrue(rejected.getMessage().contains("64"));
+    }
+
+    @Test
+    void oversizedToolResultIdsAreRejectedDuringShapeValidation() {
+        List<AgentMessage> invalid = List.of(AgentMessage.user("hi"), AgentMessage.tool("x".repeat(65), "{}"));
+
+        BusinessException rejected = assertThrows(BusinessException.class, () -> policy.normalize(invalid, null));
+        assertEquals("AGENT_TRANSCRIPT_INVALID", rejected.getCode());
+        assertTrue(rejected.getMessage().contains("64"));
+    }
+
     private static List<AgentMessage> paused() {
         return List.of(
                 AgentMessage.user("帮我分析"),

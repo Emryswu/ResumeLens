@@ -23,6 +23,8 @@ public record AgentMessage(
     public static final String USER = "user";
     public static final String ASSISTANT = "assistant";
     public static final String TOOL = "tool";
+    /** Bounds externally supplied pairing ids; generated call_ UUIDs and scripted_ ids fit within this limit. */
+    public static final int MAX_TOOL_CALL_ID_CHARS = 64;
 
     public AgentMessage {
         toolCalls = toolCalls == null || toolCalls.isEmpty() ? null : List.copyOf(toolCalls);
@@ -51,11 +53,13 @@ public record AgentMessage(
 
     /** Characters counted against the transcript budget. */
     @JsonIgnore
-    public int size() {
-        int total = content == null ? 0 : content.length();
+    public long size() {
+        long total = (long) role.length() + (content == null ? 0 : content.length())
+                + (toolCallId == null ? 0 : toolCallId.length());
         if (toolCalls != null) {
             for (ToolCall call : toolCalls) {
-                total += call.function().name().length() + call.function().arguments().length();
+                total += (long) call.id().length() + call.type().length()
+                        + call.function().name().length() + call.function().arguments().length();
             }
         }
         return total;

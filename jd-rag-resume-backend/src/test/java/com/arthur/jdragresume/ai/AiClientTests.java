@@ -183,6 +183,22 @@ class AiClientTests {
     }
 
     @Test
+    void modelToolIdLimitMatchesTheClientTranscriptLimit() throws Exception {
+        AtomicReference<String> id = new AtomicReference<>("call_" + "x".repeat(58) + "-");
+        startServer(exchange -> respond(exchange, 200, objectMapper.writeValueAsString(Map.of("choices", List.of(
+                Map.of("message", Map.of("tool_calls", List.of(Map.of("id", id.get(), "type", "function",
+                        "function", Map.of("name", "list_resumes", "arguments", "{}"))))))))));
+        OpenAiCompatibleAgentModel model = new OpenAiCompatibleAgentModel(new AiClient(properties(), objectMapper));
+
+        AgentModel.Reply reply = model.next("system", List.of(AgentMessage.user("hi")), List.of(), Duration.ofSeconds(5));
+        assertEquals(id.get(), reply.toolCalls().getFirst().id());
+        id.set(id.get() + "x");
+        BusinessException rejected = assertThrows(BusinessException.class,
+                () -> model.next("system", List.of(AgentMessage.user("hi")), List.of(), Duration.ofSeconds(5)));
+        assertEquals("AI_RESPONSE_PARSE_FAILED", rejected.getCode());
+    }
+
+    @Test
     void toolRoundHonoursTheCallersRemainingBudget() throws Exception {
         startServer(exchange -> {
             try {

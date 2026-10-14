@@ -58,6 +58,11 @@ public class OpenAiCompatibleAgentModel implements AgentModel {
             String argumentsJson = arguments.isTextual() ? arguments.asText() : arguments.isMissingNode() ? "{}" : arguments.toString();
             // The transcript policy rejects duplicate ids within one message, so never produce one.
             String id = call.path("id").asText("");
+            // Never return a transcript the client would be forbidden to send back on its next turn.
+            if (id.length() > AgentMessage.MAX_TOOL_CALL_ID_CHARS) {
+                throw new BusinessException("AI_RESPONSE_PARSE_FAILED", "AI tool call id exceeds "
+                        + AgentMessage.MAX_TOOL_CALL_ID_CHARS + " characters");
+            }
             if (id.isBlank() || !ids.add(id)) {
                 id = "call_" + UUID.randomUUID();
                 ids.add(id);

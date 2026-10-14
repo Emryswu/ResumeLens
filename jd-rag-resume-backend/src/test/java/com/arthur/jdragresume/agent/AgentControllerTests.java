@@ -140,6 +140,18 @@ class AgentControllerTests {
     }
 
     @Test
+    void oversizedApprovalIdFailsValidationBeforeSpendingQuota() throws Exception {
+        properties.setMaxTurnsPerWindow(1);
+        MockMvc mockMvc = mockMvc();
+        mockMvc.perform(chat(PAUSED.formatted(",\"approval\":{\"toolCallId\":\"" + "x".repeat(65) + "\",\"approved\":true}")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+        assertEquals(0, modelCalls.get());
+        mockMvc.perform(chat("{\"messages\":[{\"role\":\"user\",\"content\":\"你好\"}]}"))
+                .andExpect(request().asyncStarted());
+    }
+
+    @Test
     void unconfiguredModelIsA503BeforeTheStreamOpensAndCostsNoQuota() throws Exception {
         properties.setMaxTurnsPerWindow(1);
         AgentModel unconfigured = new AgentModel() {

@@ -21,6 +21,7 @@ class ScriptedAgentModelTests {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AgentProperties properties = new AgentProperties();
     private final List<String> calls = new ArrayList<>();
+    private Object resumes = Map.of("total", 1, "resumes", List.of(Map.of("resumeId", 3, "title", "陈思远简历")));
 
     @Test
     void plainQuestionWalksThroughReadToolsAndAnswers() {
@@ -56,6 +57,35 @@ class ScriptedAgentModelTests {
         assertTrue(!answer.contains("不要重试"), answer);
     }
 
+    @Test
+    void aLargeResumeListStillPlansFromTheFirstItemAndReportsTheOmission() {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (int i = 1; i <= 20; i++) {
+            rows.add(Map.of("resumeId", i, "title", "简历" + "A".repeat(118),
+                    "candidateName", "B".repeat(80), "updatedAt", "2026-10-14T14:00:00"));
+        }
+        resumes = Map.of("total", 20, "resumes", rows);
+
+        AgentLoop.Outcome outcome = run("哪些职位适合我？");
+
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(List.of("list_resumes", "rank_jobs_for_resume", "search_resume_evidence"), calls);
+        String answer = outcome.transcript().getLast().content();
+        assertTrue(answer.contains("Java 后端"), answer);
+        assertTrue(answer.contains("省略"), answer);
+        assertTrue(!answer.contains("还没有上传简历"), answer);
+        AgentMessage result = outcome.transcript().stream().filter(message -> AgentMessage.TOOL.equals(message.role())).findFirst().orElseThrow();
+        try {
+            JsonNode envelope = objectMapper.readTree(result.content());
+            assertTrue(envelope.path("truncated").asBoolean());
+            assertTrue(envelope.path("omittedItems").asInt() > 0);
+            assertEquals(20, envelope.path("untrusted_data").path("total").asInt());
+            assertEquals(1, envelope.path("untrusted_data").path("resumes").path(0).path("resumeId").asInt());
+        } catch (java.io.IOException ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
     private AgentLoop.Outcome run(String question) {
         return loop().run(new TranscriptPolicy(properties).normalize(List.of(AgentMessage.user(question)), null),
                 null, new AgentToolContext(new AppUser()), (event, payload) -> { }, () -> false);
@@ -63,7 +93,7 @@ class ScriptedAgentModelTests {
 
     private AgentLoop loop() {
         AgentToolRegistry registry = new AgentToolRegistry(List.of(
-                tool("list_resumes", false, Map.of("total", 1, "resumes", List.of(Map.of("resumeId", 3, "title", "陈思远简历")))),
+                tool("list_resumes", false, resumes),
                 tool("rank_jobs_for_resume", false, Map.of("resumeId", 3, "matches",
                         List.of(Map.of("jobId", 8, "title", "Java 后端", "companyName", "某支付公司", "similarity", 0.81)))),
                 tool("search_resume_evidence", false, Map.of("threshold", 0.72, "kept", List.of(Map.of("chunkIndex", 0)), "filteredCount", 2)),
