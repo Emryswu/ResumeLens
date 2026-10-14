@@ -60,6 +60,8 @@ public class ResumeRagService {
     public List<RetrievedChunk> retrieve(AppUser user, Resume resume, JobDescription jobDescription) {
         try {
             List<ResumeChunk> indexedChunks = ensureIndexed(user, resume);
+            // Derive positions with the same splitter used to build the index. No schema change or re-embedding.
+            List<TextChunker.PositionedChunk> positionedChunks = textChunker.splitWithPositions(resume.getRawText());
             List<float[]> queryEmbeddings = buildQueryEmbeddings(jobDescription);
             List<String> keywords = extractKeywords(jobDescription);
 
@@ -79,12 +81,18 @@ public class ResumeRagService {
                         ? matchKeywords(chunk.getContent(), keywords)
                         : List.of();
                 double boosted = applyBoost(raw, boostHits.size());
+                int index = chunk.getChunkIndex();
+                TextChunker.PositionedChunk positioned = index >= 0 && index < positionedChunks.size()
+                        ? positionedChunks.get(index) : null;
+                String section = positioned != null && positioned.content().equals(chunk.getContent())
+                        ? TextChunker.describeSections(resume.getRawText(), positioned)
+                        : TextChunker.detectSection(chunk.getContent());
                 scored.add(new ScoredChunk(
                         chunk.getChunkIndex(),
                         chunk.getContent(),
                         raw,
                         boosted,
-                        TextChunker.describeSections(resume.getRawText(), chunk.getContent()),
+                        section,
                         boostHits
                 ));
             }

@@ -104,17 +104,32 @@ export function createSseParser() {
 }
 
 const EVENT_TYPES = new Set(["step", "note", "confirmation_required", "message", "error", "done"]);
+const DONE_STATES = new Set<AgentDoneState>([
+  "COMPLETED", "AWAITING_CONFIRMATION", "STEP_LIMIT", "TIMED_OUT", "FAILED", "CANCELLED",
+]);
+const RETRYABLE_REJECTIONS = new Set(["AGENT_RATE_LIMITED", "AGENT_BUSY", "AI_NOT_CONFIGURED"]);
 
 export function toAgentEvent(frame: SseFrame): AgentEvent | null {
   if (!EVENT_TYPES.has(frame.event)) return null;
   try {
-    return { type: frame.event, data: JSON.parse(frame.data) } as AgentEvent;
+    const data = JSON.parse(frame.data);
+    // A damaged done frame must not make an incomplete transcript look usable.
+    if (frame.event === "done" && (!data || !DONE_STATES.has(data.state)
+        || !Number.isInteger(data.steps) || data.steps < 0 || !Array.isArray(data.transcript))) return null;
+    return { type: frame.event, data } as AgentEvent;
   } catch {
     return null;
   }
 }
 
-/** Reads the stream to the end, handing each known event to onEvent as it arrives. */
+export class AgentStreamInterruptedError extends Error {
+  constructor() {
+    super("助手连接中断，本轮对话未完整接收");
+    this.name = "AgentStreamInterruptedError";
+  }
+}
+
+/** Delivers events through the terminal done frame; EOF before done means the turn is incomplete. */
 export async function readAgentStream(
   stream: ReadableStream<Uint8Array>,
   onEvent: (event: AgentEvent) => void,
@@ -122,19 +137,35 @@ export async function readAgentStream(
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   const parser = createSseParser();
+  let sawDone = false;
   const deliver = (frames: SseFrame[]) => {
     for (const frame of frames) {
       const event = toAgentEvent(frame);
-      if (event) onEvent(event);
+      if (event) {
+        if (event.type === "done") sawDone = true;
+        onEvent(event);
+        if (sawDone) break;
+      }
     }
   };
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    deliver(parser.push(decoder.decode(value, { stream: true })));
+  try {
+    while (!sawDone) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      deliver(parser.push(decoder.decode(value, { stream: true })));
+    }
+    if (!sawDone) {
+      deliver(parser.push(decoder.decode()));
+      deliver(parser.flush());
+    }
+    if (!sawDone) throw new AgentStreamInterruptedError();
+  } finally {
+    if (sawDone) {
+      // Nothing after done belongs to this turn; do not wait for a proxy to close the connection.
+      await reader.cancel().catch(() => {});
+    }
+    reader.releaseLock();
   }
-  deliver(parser.push(decoder.decode()));
-  deliver(parser.flush());
 }
 
 /** What the page renders: one entry per user question, each with its own tool timeline. */
@@ -162,7 +193,7 @@ export type AgentChatAction =
   | { type: "ask"; question: string }
   | { type: "decide"; approved: boolean }
   | { type: "event"; event: AgentEvent }
-  | { type: "failed"; code: string; message: string }
+  | { type: "failed"; code: string; message: string; retryConfirmation?: boolean }
   | { type: "settled" }
   | { type: "reset" };
 
@@ -181,13 +212,15 @@ export function agentChatReducer(state: AgentChatState, action: AgentChatAction)
       return {
         ...state,
         busy: true,
-        pending: null,
-        turns: updateLast(state.turns, (turn) => ({ ...turn, decision: action.approved ? "approved" : "rejected" })),
+        // Keep the confirmed transcript and card until the server acknowledges the decision.
+        turns: updateLast(state.turns, (turn) => ({ ...turn, error: undefined })),
       };
     case "failed":
       return {
         ...state,
         busy: false,
+        // Only a definite HTTP rejection is safe to retry. A broken stream may have already executed the write.
+        pending: action.retryConfirmation && RETRYABLE_REJECTIONS.has(action.code) ? state.pending : null,
         turns: updateLast(state.turns, (turn) => ({ ...turn, error: { code: action.code, message: action.message } })),
       };
     case "settled":
@@ -204,9 +237,13 @@ function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
     case "step":
       return {
         ...state,
+        pending: state.pending?.toolCallId === event.data.toolCallId ? null : state.pending,
         turns: updateLast(state.turns, (turn) => ({
           ...turn,
           steps: [...turn.steps, event.data],
+          decision: turn.confirmation?.toolCallId === event.data.toolCallId
+            ? event.data.errorCode === "USER_REJECTED" ? "rejected" : "approved"
+            : turn.decision,
           analysisId: event.data.tool === "start_analysis" && event.data.ok
             ? startedAnalysisId(event.data.resultPreview) ?? turn.analysisId
             : turn.analysisId,
@@ -237,6 +274,7 @@ function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
 
 /** The request body for the next call, built from state so it cannot drift from what was shown. */
 export function nextRequest(state: AgentChatState, input: { question: string } | { approved: boolean }) {
+  if (state.busy) throw new Error("assistant request is in progress");
   if ("question" in input) {
     return { messages: [...state.transcript, { role: "user", content: input.question }] };
   }

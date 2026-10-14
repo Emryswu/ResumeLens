@@ -23,6 +23,11 @@ public class TextChunker {
     }
 
     public List<String> split(String text) {
+        return splitWithPositions(text).stream().map(PositionedChunk::content).toList();
+    }
+
+    /** Positions refer to the normalized document; splitting and overlap are identical to {@link #split}. */
+    List<PositionedChunk> splitWithPositions(String text) {
         if (text == null || text.isBlank()) {
             return List.of();
         }
@@ -30,7 +35,7 @@ public class TextChunker {
         int chunkSize = Math.max(160, properties.getChunkSize());
         int overlap = Math.max(0, Math.min(properties.getChunkOverlap(), chunkSize / 2));
         String normalized = normalize(text);
-        List<String> chunks = new ArrayList<>();
+        List<PositionedChunk> chunks = new ArrayList<>();
         int start = 0;
 
         while (start < normalized.length()) {
@@ -38,7 +43,12 @@ public class TextChunker {
             int end = chooseBoundary(normalized, start, hardEnd);
             String chunk = normalized.substring(start, end).trim();
             if (!chunk.isEmpty()) {
-                chunks.add(chunk);
+                int contentStart = start;
+                // Match String.trim(), including whitespace at the beginning of an overlap.
+                while (contentStart < end && normalized.charAt(contentStart) <= ' ') {
+                    contentStart++;
+                }
+                chunks.add(new PositionedChunk(contentStart, chunk));
             }
             if (chunks.size() > Math.max(1, properties.getMaxChunks())) {
                 throw new BusinessException(
@@ -52,6 +62,21 @@ public class TextChunker {
             start = Math.max(start + 1, end - overlap);
         }
         return chunks;
+    }
+
+    record PositionedChunk(int startOffset, String content) {
+    }
+
+    /** An indexed chunk's position disambiguates identical text repeated in different sections. */
+    static String describeSections(String document, PositionedChunk chunk) {
+        if (document == null) {
+            return detectSection(chunk.content());
+        }
+        String normalized = normalize(document);
+        if (chunk.startOffset() < 0 || !normalized.startsWith(chunk.content(), chunk.startOffset())) {
+            return detectSection(chunk.content());
+        }
+        return describeSectionsAt(normalized, chunk.content(), chunk.startOffset());
     }
 
     /**
@@ -70,7 +95,10 @@ public class TextChunker {
         if (start < 0) {
             return detectSection(chunk);
         }
+        return describeSectionsAt(normalized, chunk, start);
+    }
 
+    private static String describeSectionsAt(String normalized, String chunk, int start) {
         Set<String> sections = new LinkedHashSet<>();
         Matcher inside = SECTION_HINT.matcher(chunk);
         int firstHeader = inside.find() ? inside.start(1) : chunk.length();

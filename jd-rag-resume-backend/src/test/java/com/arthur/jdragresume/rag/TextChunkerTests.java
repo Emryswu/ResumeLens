@@ -31,6 +31,7 @@ class TextChunkerTests {
         TextChunker chunker = new TextChunker(new RagProperties());
 
         assertEquals(List.of(), chunker.split("  \n  "));
+        assertEquals(List.of(), chunker.splitWithPositions("  \n  "));
     }
 
     @Test
@@ -113,6 +114,53 @@ class TextChunkerTests {
         for (int i = 1; i < chunks.size(); i++) {
             assertFalse(TextChunker.describeSections(resume, chunks.get(i)).isBlank());
         }
+    }
+
+    @Test
+    void identicalChunksInDifferentSectionsUseTheirActualPositions() {
+        String repeated = "参与 Java 接口开发、MySQL 查询优化及自动化测试。\n".repeat(100);
+        String document = "专业技能\n" + repeated + "项目经历\n" + repeated;
+        int projectStart = document.indexOf("项目经历");
+        List<TextChunker.PositionedChunk> chunks = new TextChunker(new RagProperties()).splitWithPositions(document);
+        List<TextChunker.PositionedChunk> projectChunks = chunks.stream()
+                .filter(chunk -> chunk.startOffset() > projectStart && !chunk.content().contains("项目经历"))
+                .toList();
+
+        assertFalse(projectChunks.isEmpty());
+        for (TextChunker.PositionedChunk chunk : projectChunks) {
+            assertTrue(document.indexOf(chunk.content()) < projectStart, "the same text must also occur in the skills section");
+            assertEquals("项目", TextChunker.describeSections(document, chunk));
+        }
+    }
+
+    @Test
+    void positionsPreserveExistingChunkTextWithCrLfWhitespaceAndOverlap() {
+        RagProperties properties = new RagProperties();
+        properties.setChunkSize(160);
+        properties.setChunkOverlap(20);
+        TextChunker chunker = new TextChunker(properties);
+        String text = "  技能\r\n" + "a".repeat(150) + "\r\n   " + "b".repeat(150)
+                + "\r\n项目经历\r\n" + "c".repeat(90) + " ";
+        String normalized = text.replace("\r\n", "\n").trim();
+        List<String> expected = List.of("技能\n" + "a".repeat(150),
+                "a".repeat(16) + "\n   " + "b".repeat(140),
+                "b".repeat(30) + "\n项目经历\n" + "c".repeat(90));
+        List<TextChunker.PositionedChunk> positioned = chunker.splitWithPositions(text);
+
+        assertEquals(expected, chunker.split(text));
+        assertEquals(expected, positioned.stream().map(TextChunker.PositionedChunk::content).toList());
+        assertEquals(List.of(0, 137, 277), positioned.stream().map(TextChunker.PositionedChunk::startOffset).toList());
+        for (TextChunker.PositionedChunk chunk : positioned) {
+            assertEquals(chunk.content(), normalized.substring(chunk.startOffset(), chunk.startOffset() + chunk.content().length()));
+        }
+        assertEquals("技能/项目", TextChunker.describeSections(text, positioned.get(2)));
+    }
+
+    @Test
+    void aPositionFromDifferentTextFallsBackInsteadOfReusingAnotherOccurrence() {
+        TextChunker.PositionedChunk chunk = new TextChunker.PositionedChunk(2, "Java Spring Boot");
+
+        assertEquals("正文", TextChunker.describeSections("技能\nJava Spring Boot", chunk));
     }
 
     private static Path resolveRepoRoot() {
