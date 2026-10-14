@@ -47,6 +47,7 @@ const ERROR_COPY: Record<string, string> = {
   AGENT_STEP_LIMIT: "这个问题步骤太多，请换个更具体的问法",
   AGENT_TIMEOUT: "本轮处理超时，请把问题拆小一些",
   AGENT_TRANSCRIPT_TOO_LARGE: "对话太长了，请点「新对话」重新开始",
+  AGENT_STREAM_INTERRUPTED: "连接中断，本轮对话未完整接收。若已同意发起分析，请到分析记录确认结果。",
   AI_NOT_CONFIGURED: "后端尚未配置大模型",
 };
 
@@ -105,8 +106,10 @@ export default function AssistantPage() {
     const controller = new AbortController();
     abortRef.current = controller;
     const sessionId = getAuthSessionId();
+    let streamOpened = false;
     try {
       const stream = await apiStream("/api/agent/chat", body, controller.signal);
+      streamOpened = true;
       await readAgentStream(stream, (event) => {
         if (isAuthSessionCurrent(sessionId)) dispatch({ type: "event", event });
       });
@@ -114,8 +117,11 @@ export default function AssistantPage() {
       if (controller.signal.aborted) return;
       const message = visibleApiErrorMessage(reason, "助手请求失败");
       if (message == null) return;
-      const code = reason instanceof ApiError ? reason.code : "NETWORK_ERROR";
-      dispatch({ type: "failed", code, message: ERROR_COPY[code] ?? message });
+      const code = streamOpened ? "AGENT_STREAM_INTERRUPTED" : reason instanceof ApiError ? reason.code : "NETWORK_ERROR";
+      dispatch({
+        type: "failed", code, message: ERROR_COPY[code] ?? message,
+        retryConfirmation: !streamOpened && reason instanceof ApiError && reason.status >= 400,
+      });
     } finally {
       dispatch({ type: "settled" });
     }

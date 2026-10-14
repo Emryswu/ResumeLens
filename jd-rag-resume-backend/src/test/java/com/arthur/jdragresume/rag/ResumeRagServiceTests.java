@@ -1,15 +1,91 @@
 package com.arthur.jdragresume.rag;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.entity.JobDescription;
+import com.arthur.jdragresume.entity.Resume;
+import com.arthur.jdragresume.entity.ResumeChunk;
+import com.arthur.jdragresume.repository.ResumeChunkRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Proxy;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ResumeRagServiceTests {
+    @TempDir Path tempDir;
+
+    @Test
+    void retrievalUsesChunkIndexToLabelRepeatedEvidenceIncludingCachedChunks() throws Exception {
+        RagProperties properties = new RagProperties();
+        properties.setHybridEnabled(false);
+        TextChunker chunker = new TextChunker(properties);
+        String repeated = "参与 Java 接口开发、MySQL 查询优化及自动化测试。\n".repeat(100);
+        String document = "专业技能\n" + repeated + "项目经历\n" + repeated;
+        int projectStart = document.indexOf("项目经历");
+        List<TextChunker.PositionedChunk> positions = chunker.splitWithPositions(document);
+        List<ResumeChunk> stored = new ArrayList<>();
+        ResumeChunkRepository repository = (ResumeChunkRepository) Proxy.newProxyInstance(
+                ResumeChunkRepository.class.getClassLoader(), new Class<?>[]{ResumeChunkRepository.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "findByResumeIdOrderByChunkIndexAsc" -> List.copyOf(stored);
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        int[] embeddedTexts = {0};
+        EmbeddingModel embeddings = (EmbeddingModel) Proxy.newProxyInstance(
+                EmbeddingModel.class.getClassLoader(), new Class<?>[]{EmbeddingModel.class},
+                (proxy, method, args) -> {
+                    if (!method.getName().equals("embed")) throw new UnsupportedOperationException(method.getName());
+                    List<?> texts = (List<?>) args[0];
+                    embeddedTexts[0] += texts.size();
+                    return texts.stream().map(ignored -> new float[]{1, 0}).toList();
+                });
+        ResumeIndexStore store = new ResumeIndexStore(repository) {
+            @Override
+            public List<ResumeChunk> replace(Long resumeId, List<ResumeChunk> replacements) {
+                stored.clear();
+                stored.addAll(replacements);
+                return List.copyOf(stored);
+            }
+        };
+        AppUser user = new AppUser();
+        Resume resume = new Resume();
+        ReflectionTestUtils.setField(resume, "id", 10L);
+        resume.setUser(user);
+        resume.setRawText(document);
+        JobDescription job = new JobDescription();
+        job.setTitle("Java 后端");
+        job.setDescription("开发后端接口");
+        ObjectMapper mapper = new ObjectMapper();
+        try (LuceneVectorIndex index = new LuceneVectorIndex(mapper, tempDir.toString())) {
+            ResumeRagService service = new ResumeRagService(embeddings, repository, chunker, properties, mapper, store, index);
+            List<RetrievedChunk> first = service.retrieve(user, resume, job);
+            int beforeCachedRead = embeddedTexts[0];
+            List<RetrievedChunk> cached = service.retrieve(user, resume, job);
+
+            assertEquals(1, embeddedTexts[0] - beforeCachedRead, "cached retrieval embeds only the JD, not the resume again");
+            assertEquals(first, cached);
+            int checked = 0;
+            for (RetrievedChunk chunk : cached) {
+                TextChunker.PositionedChunk position = positions.get(chunk.chunkIndex());
+                if (position.startOffset() > projectStart && !chunk.content().contains("项目经历")) {
+                    assertTrue(document.indexOf(chunk.content()) < projectStart);
+                    assertEquals("项目", chunk.section());
+                    checked++;
+                }
+            }
+            assertTrue(checked > 0);
+        }
+    }
+
     @Test
     void calculatesCosineSimilarity() {
         assertEquals(1.0, ResumeRagService.cosineSimilarity(
