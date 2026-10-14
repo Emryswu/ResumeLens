@@ -98,8 +98,10 @@ public class AgentLoop {
         long deadline = acceptedAtMs + properties.getTurnTimeoutSeconds() * 1000;
         int steps = 0;
         try {
+            // An approval may have expired or been cancelled while waiting in the executor queue.
+            requireActive(deadline, cancelled);
             if (input.pending() != null) {
-                resolvePending(input.pending(), approval.approved(), transcript, context, sink);
+                resolvePending(input.pending(), approval.approved(), transcript, context, sink, deadline, cancelled);
             }
             List<AgentModel.ToolDefinition> tools = registry.definitions();
             while (steps < properties.getMaxSteps()) {
@@ -127,9 +129,7 @@ public class AgentLoop {
                 }
                 PendingConfirmation gate = null;
                 for (AgentMessage.ToolCall call : reply.toolCalls()) {
-                    if (cancelled.getAsBoolean()) {
-                        return new Outcome(State.CANCELLED, transcript, steps);
-                    }
+                    requireActive(deadline, cancelled);
                     AgentTool tool = registry.find(call.name()).orElse(null);
                     if (tool != null && tool.requiresConfirmation()) {
                         if (gate != null) {
@@ -140,7 +140,7 @@ public class AgentLoop {
                         gate = prepareConfirmation(call, tool, context, sink, transcript);
                         continue;
                     }
-                    execute(call, tool, context, sink, transcript);
+                    execute(call, tool, context, sink, transcript, deadline, cancelled);
                 }
                 if (gate != null) {
                     sink.emit("confirmation_required", gate);
@@ -152,8 +152,9 @@ public class AgentLoop {
         } catch (AgentEventSink.ClientGoneException ex) {
             return new Outcome(State.CANCELLED, transcript, steps);
         } catch (BusinessException ex) {
-            // Model-side failures (timeouts, provider errors). Tool failures never reach here.
-            return fail(sink, transcript, steps, State.FAILED, ex.getCode(), ex.getMessage());
+            // The turn deadline also applies to approval and individual tool execution.
+            State state = "AGENT_TIMEOUT".equals(ex.getCode()) ? State.TIMED_OUT : State.FAILED;
+            return fail(sink, transcript, steps, state, ex.getCode(), ex.getMessage());
         }
     }
 
@@ -162,15 +163,26 @@ public class AgentLoop {
         model.requireReady();
     }
 
+    private void requireActive(long deadline, BooleanSupplier cancelled) {
+        if (cancelled.getAsBoolean()) {
+            throw new AgentEventSink.ClientGoneException(null);
+        }
+        if (clock.getAsLong() >= deadline) {
+            throw new BusinessException("AGENT_TIMEOUT", "本轮处理超时，请把问题拆小一些再试");
+        }
+    }
+
     private void resolvePending(
             AgentMessage.ToolCall pending,
             boolean approved,
             List<AgentMessage> transcript,
             AgentToolContext context,
-            AgentEventSink sink
+            AgentEventSink sink,
+            long deadline,
+            BooleanSupplier cancelled
     ) {
         if (approved) {
-            execute(pending, registry.find(pending.name()).orElse(null), context, sink, transcript);
+            execute(pending, registry.find(pending.name()).orElse(null), context, sink, transcript, deadline, cancelled);
         } else {
             record(pending, sink, transcript, 0, ToolEnvelope.error(pending.name(), "USER_REJECTED",
                     "用户拒绝了这次操作。除非用户再次明确要求，不要重试。"), false, "USER_REJECTED", "用户拒绝执行");
@@ -210,7 +222,9 @@ public class AgentLoop {
             AgentTool tool,
             AgentToolContext context,
             AgentEventSink sink,
-            List<AgentMessage> transcript
+            List<AgentMessage> transcript,
+            long deadline,
+            BooleanSupplier cancelled
     ) {
         long started = clock.getAsLong();
         if (tool == null) {
@@ -223,6 +237,8 @@ public class AgentLoop {
             record(call, sink, transcript, 0, prepared.error(), false, prepared.errorCode(), prepared.errorMessage());
             return;
         }
+        // Cancellation or expiry can occur while arguments are being prepared, including on the approval path.
+        requireActive(deadline, cancelled);
         try {
             // Serialized once: the tree goes into the envelope, its text feeds the size check and the preview.
             JsonNode data = ToolEnvelope.toTree(objectMapper, tool.execute(prepared.arguments(), context));

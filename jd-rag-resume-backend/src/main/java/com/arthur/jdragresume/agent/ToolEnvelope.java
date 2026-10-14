@@ -1,8 +1,10 @@
 package com.arthur.jdragresume.agent;
 
+import com.arthur.jdragresume.exception.BusinessException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
@@ -20,12 +22,41 @@ final class ToolEnvelope {
         root.put("tool", tool);
         root.put("ok", true);
         if (dataJson.length() > maxChars) {
+            JsonNode kept = data.deepCopy();
+            int keptChars = dataJson.length();
+            int omitted = 0;
+            while (keptChars > maxChars) {
+                ArrayNode items = removableItems(kept);
+                // A single item or non-list result cannot be shortened without losing its meaning or shape.
+                if (items == null) {
+                    throw new BusinessException("TOOL_RESULT_TOO_LARGE", "工具结果超过长度上限，请缩小查询范围");
+                }
+                JsonNode removed = items.remove(items.size() - 1);
+                keptChars -= removed.toString().length() + 1; // The removed item and its preceding comma.
+                omitted++;
+            }
             root.put("truncated", true);
-            root.put("untrusted_data", dataJson.substring(0, maxChars));
+            root.put("omittedItems", omitted);
+            root.set("untrusted_data", kept);
         } else {
             root.set("untrusted_data", data);
         }
         return root.toString();
+    }
+
+    /** Current list tools return either an array or an object with a top-level items array. */
+    private static ArrayNode removableItems(JsonNode data) {
+        if (data.isArray() && data.size() > 1) {
+            return (ArrayNode) data;
+        }
+        if (data.isObject()) {
+            for (JsonNode value : data) {
+                if (value.isArray() && value.size() > 1) {
+                    return (ArrayNode) value;
+                }
+            }
+        }
+        return null;
     }
 
     static String error(String tool, String code, String message) {

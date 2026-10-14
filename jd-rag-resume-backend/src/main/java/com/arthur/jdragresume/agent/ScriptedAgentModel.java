@@ -67,7 +67,9 @@ public class ScriptedAgentModel implements AgentModel {
         if (wantsAnalysis && started == null) {
             return call("start_analysis", "{\"resumeId\":" + resumeId + ",\"jobId\":" + topJobId + "}");
         }
-        return Reply.answer(BANNER + summary(firstResume, matches, evidence, started));
+        String omitted = resumes.path("truncated").asBoolean()
+                ? "本轮简历列表省略了 " + resumes.path("omittedItems").asInt() + " 份，以下按第一份简历演示。\n" : "";
+        return Reply.answer(BANNER + omitted + summary(firstResume, matches, evidence, started));
     }
 
     private String summary(JsonNode resume, JsonNode matches, JsonNode evidence, JsonNode started) {

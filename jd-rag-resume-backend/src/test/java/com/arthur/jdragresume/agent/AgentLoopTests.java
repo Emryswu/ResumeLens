@@ -252,6 +252,82 @@ class AgentLoopTests {
     }
 
     @Test
+    void queuedApprovalThatExceededTheDeadlineNeverExecutesTheWrite() {
+        List<AgentMessage> paused = pausedTranscript();
+        TranscriptPolicy.Approval approval = new TranscriptPolicy.Approval("c2", true);
+        ScriptedModel model = new ScriptedModel(transcript -> AgentModel.Reply.answer("不该发起"));
+        RecordingSink sink = new RecordingSink();
+
+        AgentLoop.Outcome outcome = loop(model).run(policy().normalize(paused, approval), approval, context, sink,
+                () -> false, clock.get() - 95_000);
+
+        assertEquals(AgentLoop.State.TIMED_OUT, outcome.state());
+        assertEquals(0, write.executions.get());
+        assertTrue(model.inputs.isEmpty());
+        assertEquals("AGENT_TIMEOUT", sink.payload("error").get("code"));
+    }
+
+    @Test
+    void queuedApprovalCancelledBeforeStartingNeverExecutesTheWrite() {
+        List<AgentMessage> paused = pausedTranscript();
+        TranscriptPolicy.Approval approval = new TranscriptPolicy.Approval("c2", true);
+        ScriptedModel model = new ScriptedModel(transcript -> AgentModel.Reply.answer("不该发起"));
+        RecordingSink sink = new RecordingSink();
+        sink.onEmit = name -> { throw new AgentEventSink.ClientGoneException(null); };
+
+        AgentLoop.Outcome outcome = loop(model).run(policy().normalize(paused, approval), approval, context, sink, () -> true);
+
+        assertEquals(AgentLoop.State.CANCELLED, outcome.state());
+        assertEquals(0, write.executions.get());
+        assertTrue(model.inputs.isEmpty());
+        assertTrue(sink.events.isEmpty());
+    }
+
+    @Test
+    void approvalRechecksCancellationAndDeadlineImmediatelyBeforeExecution() {
+        for (boolean cancel : List.of(false, true)) {
+            setUp();
+            List<AgentMessage> paused = pausedTranscript();
+            TranscriptPolicy.Approval approval = new TranscriptPolicy.Approval("c2", true);
+            AtomicBoolean cancelled = new AtomicBoolean();
+            write.onParameters = () -> {
+                if (cancel) cancelled.set(true);
+                else clock.addAndGet(95_000);
+            };
+            ScriptedModel model = new ScriptedModel(transcript -> AgentModel.Reply.answer("不该发起"));
+
+            AgentLoop.Outcome outcome = loop(model).run(policy().normalize(paused, approval), approval, context,
+                    new RecordingSink(), cancelled::get);
+
+            assertEquals(cancel ? AgentLoop.State.CANCELLED : AgentLoop.State.TIMED_OUT, outcome.state());
+            assertEquals(0, write.executions.get());
+            assertTrue(model.inputs.isEmpty());
+        }
+    }
+
+    @Test
+    void deadlineIsCheckedBetweenToolsOfTheSameModelReply() {
+        AgentTool slow = new AgentTool() {
+            public String name() { return "slow"; }
+            public String description() { return "slow read"; }
+            public ToolSchema parameters() { return ToolSchema.object(); }
+            public Object execute(JsonNode arguments, AgentToolContext context) {
+                clock.addAndGet(95_000);
+                return Map.of("found", true);
+            }
+        };
+        ScriptedModel model = new ScriptedModel(transcript -> AgentModel.Reply.call(
+                call("c1", "slow", "{}"), call("c2", "lookup", "{\"id\":1}")));
+        AgentLoop loop = new AgentLoop(model, new AgentToolRegistry(List.of(slow, lookup)), objectMapper, properties, clock::get);
+
+        AgentLoop.Outcome outcome = loop.run(fresh("先查慢的，再查 1 号"), null, context, new RecordingSink(), () -> false);
+
+        assertEquals(AgentLoop.State.TIMED_OUT, outcome.state());
+        assertTrue(lookup.seenIds.isEmpty());
+        assertEquals(1, model.inputs.size());
+    }
+
+    @Test
     void stopsSpendingModelCallsOnceTheClientIsGone() {
         AtomicBoolean cancelled = new AtomicBoolean();
         ScriptedModel model = new ScriptedModel(
@@ -285,7 +361,7 @@ class AgentLoopTests {
     }
 
     @Test
-    void oversizedToolResultsAreTruncatedBeforeReachingTheModel() {
+    void anOversizedResultWithoutListItemsFailsExplicitly() {
         properties.setToolResultMaxChars(100);
         lookup.payload = "x".repeat(5000);
         ScriptedModel model = new ScriptedModel(
@@ -297,9 +373,11 @@ class AgentLoopTests {
         AgentLoop.Outcome outcome = loop(model).run(fresh("查"), null, context, sink, () -> false);
 
         JsonNode envelope = json(toolMessages(outcome.transcript()).get(0).content());
-        assertTrue(envelope.path("truncated").asBoolean());
-        assertEquals(100, envelope.path("untrusted_data").asText().length());
+        assertFalse(envelope.path("ok").asBoolean());
+        assertEquals("TOOL_RESULT_TOO_LARGE", envelope.path("error").path("code").asText());
         AgentLoop.StepEvent step = (AgentLoop.StepEvent) sink.events.get(0).payload();
+        assertFalse(step.ok());
+        assertEquals("TOOL_RESULT_TOO_LARGE", step.errorCode());
         assertTrue(step.resultPreview().length() <= properties.getResultPreviewChars() + 1);
     }
 
@@ -436,6 +514,7 @@ class AgentLoopTests {
         final AtomicInteger executions = new AtomicInteger();
         boolean previewFails;
         boolean confirmationRequired = true;
+        Runnable onParameters = () -> { };
 
         @Override
         public String name() {
@@ -449,6 +528,7 @@ class AgentLoopTests {
 
         @Override
         public ToolSchema parameters() {
+            onParameters.run();
             return ToolSchema.object()
                     .integer("resumeId", "resume", true, 1, Long.MAX_VALUE)
                     .integer("jobId", "job", true, 1, Long.MAX_VALUE);

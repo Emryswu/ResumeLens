@@ -129,12 +129,20 @@ public class TranscriptPolicy {
                                 || call.function() == null || call.name() == null || call.name().isBlank()) {
                             throw invalid("message " + index + ": tool_call needs id and function.name");
                         }
+                        if (call.id().length() > AgentMessage.MAX_TOOL_CALL_ID_CHARS) {
+                            throw invalid("message " + index + ": tool_call id must be at most "
+                                    + AgentMessage.MAX_TOOL_CALL_ID_CHARS + " characters");
+                        }
                     }
                 }
             }
             case AgentMessage.TOOL -> {
                 if (message.toolCallId() == null || message.toolCallId().isBlank() || message.content() == null) {
                     throw invalid("message " + index + ": tool message needs tool_call_id and content");
+                }
+                if (message.toolCallId().length() > AgentMessage.MAX_TOOL_CALL_ID_CHARS) {
+                    throw invalid("message " + index + ": tool_call_id must be at most "
+                            + AgentMessage.MAX_TOOL_CALL_ID_CHARS + " characters");
                 }
                 if (message.hasToolCalls()) {
                     throw invalid("message " + index + ": tool messages cannot carry tool_calls");
