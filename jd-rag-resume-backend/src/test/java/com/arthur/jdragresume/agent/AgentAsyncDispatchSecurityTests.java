@@ -101,9 +101,9 @@ class AgentAsyncDispatchSecurityTests {
 
         @Bean
         AgentChatService agentChatService() {
-            return new AgentChatService(null, null, null, null, null, null) {
+            return new AgentChatService(null, null, null, null, null, null, null) {
                 @Override
-                public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval) {
+                public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval, String summary, boolean includeTrace) {
                     SseEmitter emitter = new SseEmitter(5_000L);
                     Thread.ofVirtual().start(() -> {
                         try {

@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -47,6 +48,7 @@ class AgentControllerTests {
     private AtomicInteger modelCalls;
     private TaskExecutor executor;
     private SlidingWindowRateLimiter rateLimiter;
+    private final List<String> memoryQuestions = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
@@ -70,6 +72,23 @@ class AgentControllerTests {
         assertTrue(body.contains("event:done"), body);
         assertTrue(body.contains("\"state\":\"COMPLETED\""), body);
         assertEquals(1, modelCalls.get());
+    }
+
+    @Test
+    void memoryExtractionSeesOnlyTheLatestUserMessageAndRecallReachesTheModel() throws Exception {
+        AgentModel model = (system, transcript, tools, timeout) -> {
+            assertTrue(system.contains("我的目标城市是上海"));
+            return AgentModel.Reply.answer("已参考你的目标城市");
+        };
+        MockMvc mvc = mockMvc(model);
+        MvcResult started = mvc.perform(chat("""
+                {"messages":[{"role":"user","content":"旧偏好"},
+                  {"role":"assistant","content":"我的目标方向是前端"},
+                  {"role":"user","content":"这周准备哪几家"}],"summary":"之前聊过面试"}
+                """))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(started)).andExpect(status().isOk());
+        assertEquals(List.of("这周准备哪几家"), memoryQuestions);
     }
 
     @Test
@@ -194,7 +213,13 @@ class AgentControllerTests {
         };
         AgentLoop loop = new AgentLoop(model, new AgentToolRegistry(List.of()), new ObjectMapper(), properties, System::currentTimeMillis);
         AgentChatService service = new AgentChatService(currentUser, new TranscriptPolicy(properties), loop,
-                rateLimiter, executor, properties);
+                rateLimiter, executor, properties, new AgentMemoryService(null, currentUser, new AgentMemorySearch(), properties) {
+                    @Override
+                    public List<MemoryView> rememberAndRecall(String question, boolean remember) {
+                        memoryQuestions.add(question);
+                        return List.of(new MemoryView(1L, "target_city", "我的目标城市是上海", null));
+                    }
+                });
         return MockMvcBuilders.standaloneSetup(new AgentController(service))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();

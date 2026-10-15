@@ -36,6 +36,7 @@ export type AgentDoneState =
   | "COMPLETED"
   | "AWAITING_CONFIRMATION"
   | "STEP_LIMIT"
+  | "REPLAN_LIMIT"
   | "TIMED_OUT"
   | "FAILED"
   | "CANCELLED";
@@ -46,7 +47,7 @@ export type AgentEvent =
   | { type: "confirmation_required"; data: AgentConfirmation }
   | { type: "message"; data: { content: string } }
   | { type: "error"; data: { code: string; message: string } }
-  | { type: "done"; data: { state: AgentDoneState; steps: number; transcript: AgentMessage[] } };
+  | { type: "done"; data: { state: AgentDoneState; steps: number; transcript: AgentMessage[]; summary?: string | null } };
 
 export type SseFrame = { event: string; data: string };
 
@@ -105,7 +106,7 @@ export function createSseParser() {
 
 const EVENT_TYPES = new Set(["step", "note", "confirmation_required", "message", "error", "done"]);
 const DONE_STATES = new Set<AgentDoneState>([
-  "COMPLETED", "AWAITING_CONFIRMATION", "STEP_LIMIT", "TIMED_OUT", "FAILED", "CANCELLED",
+  "COMPLETED", "AWAITING_CONFIRMATION", "STEP_LIMIT", "REPLAN_LIMIT", "TIMED_OUT", "FAILED", "CANCELLED",
 ]);
 const RETRYABLE_REJECTIONS = new Set(["AGENT_RATE_LIMITED", "AGENT_BUSY", "AI_NOT_CONFIGURED"]);
 
@@ -183,6 +184,7 @@ export type AgentTurn = {
 
 export type AgentChatState = {
   transcript: AgentMessage[];
+  summary?: string;
   turns: AgentTurn[];
   busy: boolean;
   /** Present while the server waits for the user to approve or reject a write action. */
@@ -267,6 +269,7 @@ function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
         ...state,
         busy: false,
         transcript: event.data.transcript,
+        summary: event.data.summary ?? undefined,
         pending: event.data.state === "AWAITING_CONFIRMATION" ? state.pending : null,
       };
   }
@@ -276,11 +279,13 @@ function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
 export function nextRequest(state: AgentChatState, input: { question: string } | { approved: boolean }) {
   if (state.busy) throw new Error("assistant request is in progress");
   if ("question" in input) {
-    return { messages: [...state.transcript, { role: "user", content: input.question }] };
+    return { messages: [...state.transcript, { role: "user", content: input.question }],
+      ...(state.summary ? { summary: state.summary } : {}) };
   }
   if (!state.pending) throw new Error("no pending action to decide");
   return {
     messages: state.transcript,
+    ...(state.summary ? { summary: state.summary } : {}),
     approval: { toolCallId: state.pending.toolCallId, approved: input.approved },
   };
 }

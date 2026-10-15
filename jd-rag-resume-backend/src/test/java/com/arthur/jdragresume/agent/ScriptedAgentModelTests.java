@@ -32,6 +32,15 @@ class ScriptedAgentModelTests {
         String answer = outcome.transcript().get(outcome.transcript().size() - 1).content();
         assertTrue(answer.startsWith("【演示模式"), answer);
         assertTrue(answer.contains("Java 后端"), answer);
+        assertEquals("list_resumes", outcome.transcript().get(1).toolCalls().getFirst().name());
+    }
+
+    @Test
+    void preparationPriorityQuestionStartsWithAStructuredPlan() {
+        AgentLoop.Outcome outcome = run("这周该优先准备哪几家");
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(AgentPlan.TOOL, outcome.transcript().get(1).toolCalls().getFirst().name());
+        assertEquals(List.of("list_resumes", "rank_jobs_for_resume", "search_resume_evidence"), calls);
     }
 
     @Test

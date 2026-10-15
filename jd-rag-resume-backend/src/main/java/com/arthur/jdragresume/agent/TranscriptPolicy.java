@@ -95,8 +95,16 @@ public class TranscriptPolicy {
             pending = open.get(approval.toolCallId());
         }
 
-        List<AgentMessage> compacted = compact(messages);
-        return new Normalized(trim(compacted), pending);
+        List<Integer> turns = new ArrayList<>();
+        for (int index = 0; index < messages.size(); index++) {
+            if (AgentMessage.USER.equals(messages.get(index).role())) turns.add(index);
+        }
+        int keep = Math.min(turns.size(), properties.getRecentTurns());
+        int split = turns.size() > properties.getSummaryThresholdTurns() ? turns.get(turns.size() - keep) : 0;
+        List<AgentMessage> window = trim(compact(messages.subList(split, messages.size())));
+        // Keep the original older turns for summarization, including any evicted by the size budget.
+        int removed = messages.size() - window.size();
+        return new Normalized(window, pending, List.copyOf(messages.subList(0, removed)));
     }
 
     private void checkShape(AgentMessage message, int index) {
@@ -155,7 +163,11 @@ public class TranscriptPolicy {
 
     /** Earlier turns keep only a short head of each tool result; the current turn stays intact. */
     private List<AgentMessage> compact(List<AgentMessage> messages) {
-        int lastUser = lastUserIndex(messages, messages.size());
+        int lastUser = messages.size();
+        for (int turn = 0; turn < properties.getRecentTurns(); turn++) {
+            lastUser = lastUserIndex(messages, lastUser);
+            if (lastUser < 0) break;
+        }
         int limit = properties.getCompactedToolResultChars();
         List<AgentMessage> result = new ArrayList<>(messages.size());
         for (int index = 0; index < messages.size(); index++) {
@@ -209,6 +221,9 @@ public class TranscriptPolicy {
     }
 
     /** {@code pending} is set only when an approval was supplied and matched. */
-    public record Normalized(List<AgentMessage> messages, AgentMessage.ToolCall pending) {
+    public record Normalized(List<AgentMessage> messages, AgentMessage.ToolCall pending, List<AgentMessage> older) {
+        public Normalized(List<AgentMessage> messages, AgentMessage.ToolCall pending) {
+            this(messages, pending, List.of());
+        }
     }
 }

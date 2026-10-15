@@ -2,9 +2,12 @@ package com.arthur.jdragresume.agent;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.validation.annotation.Validated;
+import jakarta.validation.constraints.Min;
 
 @Component
 @ConfigurationProperties(prefix = "app.agent")
+@Validated
 public class AgentProperties {
     /** Model calls per user turn; each call may request several tools. */
     private int maxSteps = 6;
@@ -25,6 +28,31 @@ public class AgentProperties {
     private int maxUserMessageChars = 4000;
     private int maxTurnsPerWindow = 20;
     private long windowMinutes = 10;
+    @Min(1)
+    private int maxPlanningSteps = 6;
+    @Min(0)
+    private int maxReplans = 2;
+    @Min(1)
+    private int summaryThresholdTurns = 12;
+    @Min(1)
+    private int recentTurns = 4;
+    @Min(1)
+    private int summaryMaxChars = 2000;
+    @Min(1)
+    private int memoryRecallLimit = 5;
+
+    public int getMaxPlanningSteps() { return maxPlanningSteps; }
+    public void setMaxPlanningSteps(int value) { maxPlanningSteps = value; }
+    public int getMaxReplans() { return maxReplans; }
+    public void setMaxReplans(int value) { maxReplans = value; }
+    public int getSummaryThresholdTurns() { return summaryThresholdTurns; }
+    public void setSummaryThresholdTurns(int value) { summaryThresholdTurns = value; }
+    public int getRecentTurns() { return recentTurns; }
+    public void setRecentTurns(int value) { recentTurns = value; }
+    public int getSummaryMaxChars() { return summaryMaxChars; }
+    public void setSummaryMaxChars(int value) { summaryMaxChars = value; }
+    public int getMemoryRecallLimit() { return memoryRecallLimit; }
+    public void setMemoryRecallLimit(int value) { memoryRecallLimit = value; }
 
     public int getMaxSteps() {
         return maxSteps;

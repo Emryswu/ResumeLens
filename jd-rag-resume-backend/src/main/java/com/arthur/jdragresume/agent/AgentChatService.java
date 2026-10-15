@@ -29,6 +29,7 @@ public class AgentChatService {
     private final SlidingWindowRateLimiter rateLimiter;
     private final TaskExecutor agentTaskExecutor;
     private final AgentProperties properties;
+    private final AgentMemoryService memoryService;
 
     public AgentChatService(
             CurrentUserService currentUserService,
@@ -36,7 +37,8 @@ public class AgentChatService {
             AgentLoop agentLoop,
             SlidingWindowRateLimiter rateLimiter,
             @Qualifier("agentTaskExecutor") TaskExecutor agentTaskExecutor,
-            AgentProperties properties
+            AgentProperties properties,
+            AgentMemoryService memoryService
     ) {
         this.currentUserService = currentUserService;
         this.transcriptPolicy = transcriptPolicy;
@@ -44,6 +46,7 @@ public class AgentChatService {
         this.rateLimiter = rateLimiter;
         this.agentTaskExecutor = agentTaskExecutor;
         this.properties = properties;
+        this.memoryService = memoryService;
     }
 
     /**
@@ -51,8 +54,15 @@ public class AgentChatService {
      * stream opens, so the client gets a plain JSON error with a meaningful status.
      */
     public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval) {
+        return chat(messages, approval, null, false);
+    }
+
+    public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval, String summary, boolean includeTrace) {
         long acceptedAt = System.currentTimeMillis();
         AppUser user = currentUserService.getCurrentUser();
+        if (summary != null && summary.length() > properties.getSummaryMaxChars()) {
+            throw new BusinessException("AGENT_TRANSCRIPT_TOO_LARGE", "conversation summary is too large");
+        }
         TranscriptPolicy.Normalized normalized = transcriptPolicy.normalize(messages, approval);
         agentLoop.requireModelReady();
         // Invalid transcripts and a missing model configuration above do not cost quota. A turn rejected below for a full queue
@@ -69,7 +79,7 @@ public class AgentChatService {
         emitter.onError(error -> cancelled.set(true));
         AgentToolContext context = new AgentToolContext(user);
         try {
-            agentTaskExecutor.execute(() -> runTurn(emitter, cancelled, normalized, approval, context, acceptedAt));
+            agentTaskExecutor.execute(() -> runTurn(emitter, cancelled, normalized, approval, context, acceptedAt, summary, includeTrace));
         } catch (TaskRejectedException ex) {
             throw new BusinessException("AGENT_BUSY", "assistant is busy, please retry shortly");
         }
@@ -82,7 +92,9 @@ public class AgentChatService {
             TranscriptPolicy.Normalized normalized,
             TranscriptPolicy.Approval approval,
             AgentToolContext context,
-            long acceptedAt
+            long acceptedAt,
+            String summary,
+            boolean includeTrace
     ) {
         long queuedMs = System.currentTimeMillis() - acceptedAt;
         AgentEventSink sink = (event, payload) -> {
@@ -99,8 +111,13 @@ public class AgentChatService {
             }
         };
         try {
+            if (cancelled.get()) return;
+            String question = normalized.messages().stream().filter(message -> AgentMessage.USER.equals(message.role()))
+                    .reduce((first, second) -> second).orElseThrow().content();
+            var memories = memoryService.rememberAndRecall(question, approval == null);
             // The emitter's timeout has been running since the request was accepted; so does the turn budget.
-            AgentLoop.Outcome outcome = agentLoop.run(normalized, approval, context, sink, cancelled::get, acceptedAt);
+            AgentLoop.Outcome outcome = agentLoop.run(normalized, approval, context, sink, cancelled::get, acceptedAt,
+                    new AgentLoop.TurnOptions(summary, memories, includeTrace));
             log.info("agent turn user={} state={} steps={} queuedMs={} elapsedMs={}", context.user().getId(),
                     outcome.state(), outcome.steps(), queuedMs, System.currentTimeMillis() - acceptedAt);
         } catch (AgentEventSink.ClientGoneException ex) {
