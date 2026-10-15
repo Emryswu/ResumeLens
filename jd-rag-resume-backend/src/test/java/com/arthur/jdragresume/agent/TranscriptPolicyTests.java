@@ -154,6 +154,7 @@ class TranscriptPolicyTests {
 
     @Test
     void earlierToolResultsAreCompactedButTheCurrentTurnIsKept() {
+        properties.setRecentTurns(1);
         properties.setCompactedToolResultChars(10);
         String big = "y".repeat(300);
         List<AgentMessage> messages = List.of(

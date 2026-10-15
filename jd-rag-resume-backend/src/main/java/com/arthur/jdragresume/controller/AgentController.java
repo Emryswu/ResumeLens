@@ -38,12 +38,14 @@ public class AgentController {
         TranscriptPolicy.Approval approval = request.approval() == null
                 ? null
                 : new TranscriptPolicy.Approval(request.approval().toolCallId(), request.approval().approved());
-        return agentChatService.chat(request.messages(), approval);
+        return agentChatService.chat(request.messages(), approval, request.summary(), request.includeTrace());
     }
 
     public record ChatRequest(
             @NotEmpty @Size(max = 400) List<AgentMessage> messages,
-            @Valid ApprovalRequest approval
+            @Valid ApprovalRequest approval,
+            String summary,
+            boolean includeTrace
     ) {
     }
 

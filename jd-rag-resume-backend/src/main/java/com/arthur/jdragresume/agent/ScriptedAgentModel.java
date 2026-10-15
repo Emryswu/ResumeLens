@@ -27,9 +27,25 @@ public class ScriptedAgentModel implements AgentModel {
 
     @Override
     public Reply next(String systemPrompt, List<AgentMessage> transcript, List<ToolDefinition> tools, Duration timeout) {
+        if (systemPrompt.startsWith("SUMMARY_TASK:")) {
+            // A bounded extract for offline demonstrations; production uses the configured model.
+            String text = transcript.getFirst().content();
+            return Reply.answer("【演示摘要】" + text.substring(0, Math.min(1000, text.length())));
+        }
         int lastUser = lastUserIndex(transcript);
         String question = transcript.get(lastUser).content();
         Map<String, JsonNode> results = toolResultsSince(transcript, lastUser);
+        boolean multiStep = question.contains("优先") || question.contains("准备哪") || question.contains("计划");
+        boolean submitted = transcript.subList(lastUser + 1, transcript.size()).stream()
+                .filter(AgentMessage::hasToolCalls).flatMap(message -> message.toolCalls().stream())
+                .anyMatch(tool -> AgentPlan.TOOL.equals(tool.name()));
+        if (multiStep && !submitted) {
+            return call(AgentPlan.TOOL, """
+                    {"steps":[{"tool":"list_resumes","purpose":"确定使用的简历"},
+                    {"tool":"rank_jobs_for_resume","purpose":"比较职位的粗排相似度"},
+                    {"tool":"search_resume_evidence","purpose":"查找优先职位的准备依据"}]}
+                    """);
+        }
         boolean wantsAnalysis = question.contains("分析");
 
         JsonNode resumes = results.get("list_resumes");

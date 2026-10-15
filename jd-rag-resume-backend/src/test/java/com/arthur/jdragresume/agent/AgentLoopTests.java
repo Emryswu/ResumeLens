@@ -153,6 +153,19 @@ class AgentLoopTests {
     }
 
     @Test
+    void approvedWriteCountsAgainstTheCurrentTurnsExecutionBudget() {
+        properties.setMaxPlanningSteps(1);
+        var paused = List.of(AgentMessage.user("帮我分析"), AgentMessage.assistant(null,
+                List.of(call("write", "start_analysis", "{\"resumeId\":1,\"jobId\":2}"))));
+        var approval = new TranscriptPolicy.Approval("write", true);
+        ScriptedModel model = new ScriptedModel(transcript -> AgentModel.Reply.call(call("read", "lookup", "{\"id\":1}")));
+        var outcome = loop(model).run(policy().normalize(paused, approval), approval, context, new RecordingSink(), () -> false);
+        assertEquals(AgentLoop.State.STEP_LIMIT, outcome.state());
+        assertEquals(1, write.executions.get());
+        assertTrue(lookup.seenIds.isEmpty());
+    }
+
+    @Test
     void injectedInstructionsInToolDataCannotTriggerAWrite() {
         lookup.payload = INJECTION;
         // A gullible model that does whatever the latest tool result tells it to.

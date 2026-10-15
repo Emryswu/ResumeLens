@@ -18,6 +18,19 @@ test.afterEach(() => {
   clearAuthSession();
 });
 
+test("summary survives done and is carried into questions and approvals, reset clears it", () => {
+  const summary = "用户此前比较过上海职位";
+  const transcript: AgentMessage[] = [{ role: "user", content: "继续" }];
+  const state = agentChatReducer(initialAgentChatState, { type: "event", event: {
+    type: "done", data: { state: "REPLAN_LIMIT", steps: 4, transcript, summary },
+  } });
+  assert.equal(state.summary, summary);
+  assert.equal(nextRequest(state, { question: "还有呢" }).summary, summary);
+  const pending = { toolCallId: "write1", tool: "start_analysis", arguments: {} };
+  assert.equal(nextRequest({ ...state, pending }, { approved: true }).summary, summary);
+  assert.equal(agentChatReducer(state, { type: "reset" }).summary, undefined);
+});
+
 test("parses frames split at arbitrary points, including inside CRLF", () => {
   const parser = createSseParser();
   const wire = "event:step\r\ndata:{\"a\":1}\r\n\r\nevent:done\r\ndata:{\"b\":2}\r\n\r\n";
