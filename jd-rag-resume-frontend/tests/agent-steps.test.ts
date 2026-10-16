@@ -89,7 +89,7 @@ function awaitingApproval() {
 
 test("an approval cut off before any result is unknown, never 'not executed'", () => {
   // The server may already have received the approval and run the analysis; the page cannot tell.
-  let state = agentChatReducer(awaitingApproval(), { type: "decide", approved: true });
+  const state = agentChatReducer(awaitingApproval(), { type: "decide", approved: true });
   assert.equal(state.turns[0].approvedCallId, "w1");
   assert.deepEqual(statuses(state), [["w1", "approving"]]);
 
