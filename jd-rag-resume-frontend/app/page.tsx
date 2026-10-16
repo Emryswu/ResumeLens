@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowRight, ArrowUpRight, Check, CircleAlert, CircleCheck, LoaderCircle, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
@@ -1087,7 +1088,7 @@ export default function Home() {
             </>}
             <label>密码<input required type="password" minLength={6} value={auth.password} onChange={(e) => setAuth({ ...auth, password: e.target.value })} placeholder="至少 6 位" /></label>
             {error && <div className="message error">{error}</div>}
-            <button className="primary full" disabled={busy === "auth"}>{busy === "auth" ? "正在连接…" : authMode === "login" ? "进入工作台" : "注册并进入"}<span>→</span></button>
+            <button className="primary full" disabled={busy === "auth"}>{busy === "auth" ? "正在连接…" : authMode === "login" ? "进入工作台" : "注册并进入"}<ArrowRight size={18} aria-hidden="true" /></button>
             <button className="text-button" type="button" onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setError(""); }}>
               {authMode === "login" ? "没有账号？创建一个" : "已有账号？直接登录"}
             </button>
@@ -1105,11 +1106,11 @@ export default function Home() {
       user={user}
       onLogout={logout}
       onNavigate={navigate}
-      actions={<><button className="ghost" type="button" onClick={() => navigate("jobs")}>＋ 添加岗位</button><button className="ghost" type="button" disabled={!!busy} onClick={() => void loadWorkspace()}>刷新数据</button></>}
+      actions={<><button className="ghost" type="button" onClick={() => navigate("jobs")}><Plus size={16} aria-hidden="true" />添加岗位</button><button className="ghost" type="button" disabled={!!busy} onClick={() => void loadWorkspace()}>刷新数据</button></>}
     >
-        {(error || notice) && <div className={`toast ${error ? "error" : "success"}`} role={error ? "alert" : "status"}><span>{error ? "!" : "✓"}</span>{error || notice}<button aria-label="关闭通知" onClick={() => { setError(""); setNotice(""); }}>×</button></div>}
+        {(error || notice) && <div className={`toast ${error ? "error" : "success"}`} role={error ? "alert" : "status"}>{error ? <CircleAlert size={20} aria-hidden="true" /> : <CircleCheck size={20} aria-hidden="true" />}{error || notice}<button aria-label="关闭通知" onClick={() => { setError(""); setNotice(""); }}><X size={18} aria-hidden="true" /></button></div>}
         <section id="workflow" hidden={pageView !== "match"}>
-          <div className="match-context"><label>当前简历<select value={selectedResumeId} disabled={!!busy} onChange={event => chooseResume(event.target.value ? Number(event.target.value) : "")}><option value="">请选择简历</option>{resumes.map(item => <option key={item.id} value={item.id}>{item.title} · {item.candidateName}</option>)}</select></label><button className="text-action" onClick={() => navigate("resumes")}>管理简历</button><div className="match-steps"><span>{selectedResumeId ? "✓" : "01"} 选择简历</span><span>{selectedJobId ? "✓" : "02"} 选择岗位</span><span className="current">03 核对与改进</span></div></div>
+          <div className="match-context"><label>当前简历<select value={selectedResumeId} disabled={!!busy} onChange={event => chooseResume(event.target.value ? Number(event.target.value) : "")}><option value="">请选择简历</option>{resumes.map(item => <option key={item.id} value={item.id}>{item.title} · {item.candidateName}</option>)}</select></label><button className="text-action" onClick={() => navigate("resumes")}>管理简历</button><div className="match-steps"><span>{selectedResumeId ? <Check size={14} aria-label="已完成" /> : "01"} 选择简历</span><span>{selectedJobId ? <Check size={14} aria-label="已完成" /> : "02"} 选择岗位</span><span className="current">03 核对与改进</span></div></div>
           <div className="match-layout"><aside className="job-rail" aria-label="目标岗位"><div className="entity-library">
                 <div className="entity-library-head"><span>目标岗位</span><em>{effectiveJobsTotal}</em></div>
                 <div className="job-library-controls">
@@ -1206,10 +1207,10 @@ export default function Home() {
               </div></aside>
             <section className="match-report" id="result" aria-label="岗位匹配报告" aria-busy={busy === "analysis" || fetchingReport || analysis?.status === "PENDING"}>
               {analysis?.status === "COMPLETED" && busy !== "analysis" ? <MatchReport key={analysis.id} analysis={analysis} job={jobs.find(item => item.id === analysis.jobDescriptionId)} saved={savedJobs.includes(analysis.jobDescriptionId)} disabled={!!busy} onBookmark={() => toggleBookmark(analysis.jobDescriptionId)} onExportMarkdown={exportMarkdown} onExportPdf={exportPdf} onSaveCopy={copy => { setResumes(items => [copy, ...items.filter(item => item.id !== copy.id)]); chooseResume(copy.id); invalidateSemanticMatches(); setNotice("修改版已另存为新简历，原简历未覆盖；可重新分析对比。"); }} /> : <div className="report-state" role="status">
-                <span className="report-state-mark" aria-hidden="true">{busy === "analysis" || analysis?.status === "PENDING" ? "◌" : analysis?.status === "FAILED" ? "!" : "↗"}</span>
+                <span className="report-state-mark" aria-hidden="true">{busy === "analysis" || analysis?.status === "PENDING" ? <LoaderCircle className="spin" size={24} /> : analysis?.status === "FAILED" ? <CircleAlert size={24} /> : <ArrowUpRight size={24} />}</span>
                 <span className="eyebrow">MATCH REVIEW</span><h2>{fetchingReport ? "正在读取匹配报告…" : busy === "analysis" || analysis?.status === "PENDING" ? "正在逐项核对岗位要求" : analysis?.status === "FAILED" ? "这次分析没有完成" : selectedJob ? selectedJob.title : "先选一个目标岗位"}</h2>
                 <p>{fetchingReport ? "正在读取当前简历与岗位对应的分析。" : busy === "analysis" || analysis?.status === "PENDING" ? pendingAnalysisLabel(aiStatus) : analysis?.status === "FAILED" ? analysis.summary || "输入仍然保留，可以重试分析。" : selectedJob ? `${selectedJob.companyName}${selectedJob.location ? ` · ${selectedJob.location}` : ""} · ${selectedResumeId ? "准备好后，生成你的匹配报告。" : "先添加或选择一份简历。"}` : "保存简历和岗位后，这里会显示真实的匹配依据与改进建议。"}</p>
-                {(busy === "analysis" || analysis?.status === "PENDING" || fetchingReport) ? <><progress aria-label="匹配处理中" /><button className="ghost" disabled={!!busy} onClick={() => void loadWorkspace()}>刷新报告状态</button></> : <button className="primary" type="button" disabled={!!busy || !selectedResumeId || !selectedJobId} onClick={() => void runAnalysis()}>{analysis?.status === "FAILED" ? "重试分析" : "开始匹配分析 →"}</button>}
+                {(busy === "analysis" || analysis?.status === "PENDING" || fetchingReport) ? <><progress aria-label="匹配处理中" /><button className="ghost" disabled={!!busy} onClick={() => void loadWorkspace()}>刷新报告状态</button></> : <button className="primary" type="button" disabled={!!busy || !selectedResumeId || !selectedJobId} onClick={() => void runAnalysis()}>{analysis?.status === "FAILED" ? "重试分析" : <>开始匹配分析<ArrowRight size={16} aria-hidden="true" /></>}</button>}
                 {!resumes.length && <button className="text-action" onClick={() => navigate("resumes")}>添加第一份简历</button>}
                 <small>{runtimeModeLabel(aiStatus)}</small>
               </div>}
@@ -1303,7 +1304,7 @@ export default function Home() {
                 </div>
               )}
             </form><details className="sample-action"><summary>用示例数据体验</summary><p>会在当前账号中保存示例简历和岗位，并提交一次分析。</p><button className="ghost" disabled={!!busy} onClick={() => { navigate("match"); void saveSampleAndAnalyze(); }}>保存示例并分析</button></details></section>
-        <section id="saved" className="saved-view" hidden={pageView !== "saved"}>{savedJobs.length === 0 ? <div className="empty-workspace"><h2>还没有保存的岗位</h2><p>在岗位或报告旁点「保存」，就能在这里继续准备。</p><button className="primary" onClick={() => navigate("match")}>去看目标岗位 →</button></div> : <><div className="saved-grid">{jobs.filter(item => savedJobs.includes(item.id)).map(item => <article className="saved-job" key={item.id}><p>{item.companyName} · {item.location || "地点未填写"}</p><h3>{item.title}</h3><div className="form-actions"><button className="primary" onClick={() => { chooseJob(item.id); navigate("match"); }}>查看匹配</button><Link className="ghost" href={`/jobs/${item.id}`}>岗位详情</Link><button className="text-action" onClick={() => toggleBookmark(item.id)}>取消保存</button></div></article>)}</div>{jobs.length < effectiveJobsTotal && <button className="ghost" disabled={jobsLoadingMore} onClick={() => void loadAllJobsForRanking()}>加载其余岗位中的收藏</button>}<p className="review-caveat">仅展示仍可访问的岗位。收藏范围：当前浏览器、当前账号。</p></>}</section>
+        <section id="saved" className="saved-view" hidden={pageView !== "saved"}>{savedJobs.length === 0 ? <div className="empty-workspace"><h2>还没有保存的岗位</h2><p>在岗位或报告旁点「保存」，就能在这里继续准备。</p><button className="primary" onClick={() => navigate("match")}>去看目标岗位<ArrowRight size={16} aria-hidden="true" /></button></div> : <><div className="saved-grid">{jobs.filter(item => savedJobs.includes(item.id)).map(item => <article className="saved-job" key={item.id}><p>{item.companyName} · {item.location || "地点未填写"}</p><h3>{item.title}</h3><div className="form-actions"><button className="primary" onClick={() => { chooseJob(item.id); navigate("match"); }}>查看匹配</button><Link className="ghost" href={`/jobs/${item.id}`}>岗位详情</Link><button className="text-action" onClick={() => toggleBookmark(item.id)}>取消保存</button></div></article>)}</div>{jobs.length < effectiveJobsTotal && <button className="ghost" disabled={jobsLoadingMore} onClick={() => void loadAllJobsForRanking()}>加载其余岗位中的收藏</button>}<p className="review-caveat">仅展示仍可访问的岗位。收藏范围：当前浏览器、当前账号。</p></>}</section>
                 <section className="history" id="history" hidden={pageView !== "history"}>
           <p className="history-count">{effectiveHistoryTotal} 条记录</p>
           <div className="history-table">

@@ -1,8 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { NAV_ITEMS, isHashView, type HashView, type WorkspaceView } from "../workspace-nav";
-import { NavIcon } from "./NavIcon";
+import { ArrowLeftRight, Bookmark, BriefcaseBusiness, FileText, History, Sparkles, type LucideIcon } from "lucide-react";
+import { NAV_ITEMS, isHashView, type HashView, type NavIconName, type WorkspaceView } from "../workspace-nav";
+
+const NAV_ICONS: Record<NavIconName, LucideIcon> = {
+  match: ArrowLeftRight,
+  resume: FileText,
+  jobs: BriefcaseBusiness,
+  saved: Bookmark,
+  history: History,
+  assistant: Sparkles,
+};
 
 export function SideNav({ active, onNavigate }: {
   active?: WorkspaceView;
@@ -13,8 +22,9 @@ export function SideNav({ active, onNavigate }: {
     <aside className="app-sidebar">
       <Link href="/" className="brand"><span className="brand-mark">R</span><span className="brand-name">ResumeLens</span></Link>
       <nav aria-label="工作台导航">
-        {NAV_ITEMS.map((item) => (
-          <Link
+        {NAV_ITEMS.map((item) => {
+          const Icon = NAV_ICONS[item.icon];
+          return <Link
             key={item.view}
             href={item.href}
             title={item.label}
@@ -27,10 +37,10 @@ export function SideNav({ active, onNavigate }: {
               onNavigate(view);
             }}
           >
-            <NavIcon name={item.icon} />
+            <Icon className="nav-icon" size={20} strokeWidth={1.75} aria-hidden="true" />
             <span className="nav-label">{item.label}</span>
-          </Link>
-        ))}
+          </Link>;
+        })}
       </nav>
     </aside>
   );

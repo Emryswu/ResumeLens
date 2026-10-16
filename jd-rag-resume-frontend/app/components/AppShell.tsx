@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { User } from "../lib/api";
@@ -28,7 +29,7 @@ export function AppShell({ children, title, subtitle, actions, activeView, back,
       <SideNav active={activeView} onNavigate={onNavigate} />
       <div className="app-main">
         <header className="app-topbar">
-          {back && <Link className="app-back" href={back.href}>← {back.label}</Link>}
+          {back && <Link className="app-back" href={back.href}><ArrowLeft size={16} aria-hidden="true" />{back.label}</Link>}
           <div className="app-account">
             <BackendStatus />
             {name && <span className="account-name" title={name}>{name}</span>}
