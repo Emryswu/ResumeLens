@@ -25,6 +25,13 @@ export type AgentStep = {
   resultPreview: string;
 };
 
+/** Sent when the server is about to run a tool; the matching step event carries the result. */
+export type AgentStepStart = {
+  toolCallId: string;
+  tool: string;
+  arguments: string;
+};
+
 export type AgentConfirmation = {
   toolCallId: string;
   tool: string;
@@ -42,6 +49,7 @@ export type AgentDoneState =
   | "CANCELLED";
 
 export type AgentEvent =
+  | { type: "step_started"; data: AgentStepStart }
   | { type: "step"; data: AgentStep }
   | { type: "note"; data: { content: string } }
   | { type: "confirmation_required"; data: AgentConfirmation }
@@ -104,7 +112,7 @@ export function createSseParser() {
   };
 }
 
-const EVENT_TYPES = new Set(["step", "note", "confirmation_required", "message", "error", "done"]);
+const EVENT_TYPES = new Set(["step_started", "step", "note", "confirmation_required", "message", "error", "done"]);
 const DONE_STATES = new Set<AgentDoneState>([
   "COMPLETED", "AWAITING_CONFIRMATION", "STEP_LIMIT", "REPLAN_LIMIT", "TIMED_OUT", "FAILED", "CANCELLED",
 ]);
@@ -173,6 +181,10 @@ export async function readAgentStream(
 export type AgentTurn = {
   question: string;
   steps: AgentStep[];
+  /** Calls the server started, in order; a call stays running until its step event arrives. */
+  started: AgentStepStart[];
+  /** Started calls whose request ended without a result. They are shown as unfinished, never as done. */
+  unfinished: string[];
   notes: string[];
   answer?: string;
   error?: { code: string; message: string };
@@ -208,7 +220,7 @@ export function agentChatReducer(state: AgentChatState, action: AgentChatAction)
         ...state,
         busy: true,
         pending: null,
-        turns: [...state.turns, { question: action.question, steps: [], notes: [] }],
+        turns: [...state.turns, { question: action.question, steps: [], started: [], unfinished: [], notes: [] }],
       };
     case "decide":
       return {
@@ -223,10 +235,11 @@ export function agentChatReducer(state: AgentChatState, action: AgentChatAction)
         busy: false,
         // Only a definite HTTP rejection is safe to retry. A broken stream may have already executed the write.
         pending: action.retryConfirmation && RETRYABLE_REJECTIONS.has(action.code) ? state.pending : null,
-        turns: updateLast(state.turns, (turn) => ({ ...turn, error: { code: action.code, message: action.message } })),
+        turns: updateLast(state.turns, (turn) => ({ ...closeOpenSteps(turn), error: { code: action.code, message: action.message } })),
       };
     case "settled":
-      return { ...state, busy: false };
+      // Whatever ended the request, nothing can still be running afterwards.
+      return { ...state, busy: false, turns: updateLast(state.turns, closeOpenSteps) };
     case "reset":
       return initialAgentChatState;
     case "event":
@@ -236,6 +249,13 @@ export function agentChatReducer(state: AgentChatState, action: AgentChatAction)
 
 function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
   switch (event.type) {
+    case "step_started":
+      return {
+        ...state,
+        turns: updateLast(state.turns, (turn) => turn.started.some((item) => item.toolCallId === event.data.toolCallId)
+          ? turn
+          : { ...turn, started: [...turn.started, event.data] }),
+      };
     case "step":
       return {
         ...state,
@@ -271,6 +291,7 @@ function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
         transcript: event.data.transcript,
         summary: event.data.summary ?? undefined,
         pending: event.data.state === "AWAITING_CONFIRMATION" ? state.pending : null,
+        turns: updateLast(state.turns, closeOpenSteps),
       };
   }
 }
@@ -297,6 +318,14 @@ function startedAnalysisId(preview: string): number | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** Marks every started call without a result as unfinished. */
+function closeOpenSteps(turn: AgentTurn): AgentTurn {
+  const open = turn.started
+    .map((item) => item.toolCallId)
+    .filter((id) => !turn.steps.some((step) => step.toolCallId === id) && !turn.unfinished.includes(id));
+  return open.length === 0 ? turn : { ...turn, unfinished: [...turn.unfinished, ...open] };
 }
 
 function updateLast(turns: AgentTurn[], update: (turn: AgentTurn) => AgentTurn): AgentTurn[] {
