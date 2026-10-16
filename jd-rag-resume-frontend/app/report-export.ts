@@ -90,7 +90,7 @@ export function evidenceChunks(value?: string): EvidenceChunk[] {
   });
 }
 
-function scoreLabel(score: number): string {
+export function scoreLabel(score: number): string {
   if (score >= 85) return "高度匹配";
   if (score >= 70) return "值得尝试";
   return "需要优化";
