@@ -13,7 +13,11 @@ export type StepStatus =
   | "rejected"
   /** Waiting for the user to approve or refuse. */
   | "awaiting"
-  /** Asked for confirmation, but the turn moved on without a decision; the tool never ran. */
+  /** The approval was sent and the request is still open; no result yet. */
+  | "approving"
+  /** The approval was sent but the request ended without a result: the server may or may not have run it. */
+  | "unknown"
+  /** Asked for confirmation, but no approval was sent; the tool never ran. */
   | "unconfirmed"
   /** Started, but the request ended before a result arrived. Not counted as done. */
   | "unfinished";
@@ -48,6 +52,8 @@ export const STATUS_LABELS: Record<StepStatus, string> = {
   failed: "失败",
   rejected: "你已拒绝，未执行",
   awaiting: "等待你确认",
+  approving: "已同意，等待执行",
+  unknown: "已同意，结果未知",
   unconfirmed: "未确认，未执行",
   unfinished: "未完成，没有返回结果",
 };
@@ -88,10 +94,15 @@ export function timelineSteps(turn: AgentTurn, pendingId: string | null): Timeli
       tool: confirmation.tool,
       label: toolLabel(confirmation.tool),
       arguments: JSON.stringify(confirmation.arguments),
-      status: pendingId === confirmation.toolCallId ? "awaiting" : "unconfirmed",
+      status: confirmationStatus(turn, confirmation.toolCallId, pendingId),
     });
   }
   return rows;
+}
+
+function confirmationStatus(turn: AgentTurn, id: string, pendingId: string | null): StepStatus {
+  if (turn.approvedCallId === id) return pendingId === id ? "approving" : "unknown";
+  return pendingId === id ? "awaiting" : "unconfirmed";
 }
 
 /** Sum of the latencies the server reported for finished tool calls; null when there are none. */

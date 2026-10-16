@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, CircleCheck, CircleDashed, CircleX, Hand, LoaderCircle, type LucideIcon } from "lucide-react";
+import { Ban, CircleCheck, CircleDashed, CircleHelp, CircleX, Hand, LoaderCircle, type LucideIcon } from "lucide-react";
 import type { AgentTurn } from "../../agent-stream";
 import {
   describeArguments,
@@ -19,6 +19,8 @@ const STATUS_ICONS: Record<StepStatus, LucideIcon> = {
   failed: CircleX,
   rejected: Ban,
   awaiting: Hand,
+  approving: LoaderCircle,
+  unknown: CircleHelp,
   unconfirmed: CircleDashed,
   unfinished: CircleDashed,
 };
@@ -26,6 +28,8 @@ const STATUS_ICONS: Record<StepStatus, LucideIcon> = {
 const NO_RESULT: Partial<Record<StepStatus, string>> = {
   running: "工具还在运行",
   awaiting: "还没有执行：等待你确认",
+  approving: "已提交你的同意，等待服务端执行",
+  unknown: "已提交你的同意，但连接在返回结果前中断，无法确定是否已经执行。请先到「分析记录」核实，不要直接重新发起。",
   unconfirmed: "没有执行",
   unfinished: "这一步没有返回结果",
 };
@@ -66,22 +70,24 @@ export function StepTimeline({ turn, pendingId, thinking }: {
 
 function StepRow({ row }: { row: TimelineStep }) {
   const Icon = STATUS_ICONS[row.status];
-  const status = row.status === "failed" && row.errorCode ? `${STATUS_LABELS.failed} · ${row.errorCode}` : STATUS_LABELS[row.status];
+  const spinning = row.status === "running" || row.status === "approving";
   const finished = row.status === "done" || row.status === "failed" || row.status === "rejected";
   return (
     <li className={`agent-step ${row.status}`}>
       <details>
         <summary className="agent-step-line">
-          <Icon className={`agent-step-icon${row.status === "running" ? " spin" : ""}`} size={18} aria-hidden="true" />
+          <Icon className={`agent-step-icon${spinning ? " spin" : ""}`} size={18} aria-hidden="true" />
           <strong>{row.label}</strong>
           <span className="agent-step-args">{describeArguments(row.arguments)}</span>
           <span className="agent-step-meta">
-            <span className="agent-step-status">{status}</span>
+            {/* The full error code goes in the details, so a long code cannot widen the row. */}
+            <span className="agent-step-status">{STATUS_LABELS[row.status]}</span>
             {row.latencyMs != null && <span>{formatDuration(row.latencyMs)}</span>}
           </span>
         </summary>
         <dl className="agent-step-detail">
           <div><dt>工具</dt><dd><code>{row.tool}</code></dd></div>
+          {row.status === "failed" && row.errorCode && <div><dt>错误码</dt><dd><code>{row.errorCode}</code></dd></div>}
           <div><dt>参数</dt><dd><pre>{formatArguments(row.arguments)}</pre></dd></div>
           <div>
             <dt>结果</dt>

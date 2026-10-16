@@ -320,15 +320,17 @@ button.history-row:hover { background: #f5f8f4; }
 .agent-step-icon { flex-shrink: 0; color: var(--muted); }
 .agent-step.done .agent-step-icon { color: var(--mint-dark); }
 .agent-step.failed .agent-step-icon { color: #a74438; }
-.agent-step.running .agent-step-icon, .agent-step.awaiting .agent-step-icon { color: #8a5a12; }
-.agent-step strong { flex-shrink: 0; font-weight: 600; }
+.agent-step.running .agent-step-icon, .agent-step.awaiting .agent-step-icon,
+.agent-step.approving .agent-step-icon, .agent-step.unknown .agent-step-icon { color: #8a5a12; }
+.agent-step strong { flex: 0 1 auto; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
 .agent-step-args { overflow: hidden; color: var(--muted); font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .agent-step-meta { display: flex; flex-shrink: 0; gap: 10px; margin-left: auto; color: var(--muted); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
 .agent-step.failed .agent-step-status { color: #a74438; font-weight: 600; }
-.agent-step.running .agent-step-status, .agent-step.awaiting .agent-step-status { color: #8a5a12; font-weight: 600; }
+.agent-step.running .agent-step-status, .agent-step.awaiting .agent-step-status,
+.agent-step.approving .agent-step-status, .agent-step.unknown .agent-step-status { color: #8a5a12; font-weight: 600; }
 .agent-step.thinking { color: var(--muted); }
 .agent-step-detail { display: grid; gap: 8px; margin: 4px 0 8px 26px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
-.agent-step-detail div { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; }
+.agent-step-detail div { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 8px; }
 .agent-step-detail dt { color: var(--muted); font-size: var(--text-meta); font-weight: 600; }
 .agent-step-detail dd { display: grid; gap: 4px; margin: 0; min-width: 0; }
 .agent-step-detail pre, .agent-step-detail code { margin: 0; font-size: var(--text-meta); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -345,6 +347,9 @@ button.history-row:hover { background: #f5f8f4; }
 .agent-confirm-actions { display: flex; gap: 16px; margin-left: auto; flex-shrink: 0; }
 .agent-confirm-result { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; color: var(--muted); font-size: var(--text-meta); font-weight: 600; }
 .agent-confirm-result.approved { color: var(--mint-dark); }
+.agent-confirm-result.sending, .agent-confirm-result.unknown { color: #8a5a12; }
+.agent-confirm-unknown { margin: 4px 0 0; color: #8a5a12; font-size: var(--text-body); }
+.agent-confirm-unknown a { color: inherit; font-weight: 600; }
 /* Analysis started from the chat: pending, done or failed, each with its own icon. */
 .agent-analysis { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
 .agent-analysis > svg { flex-shrink: 0; color: var(--mint-dark); }
@@ -367,6 +372,8 @@ button.history-row:hover { background: #f5f8f4; }
   .agent-confirm, .agent-analysis { align-items: flex-start; flex-direction: column; }
   .agent-confirm-actions, .agent-confirm-result, .agent-analysis .ghost { margin-left: 0; }
   .agent-step-args { display: none; }
+  .agent-step-line { flex-wrap: wrap; row-gap: 0; padding: 4px 0; }
+  .agent-step-meta { flex: 1 0 100%; margin-left: 0; padding-left: 26px; }
   .agent-step-detail { margin-left: 0; }
 }
 

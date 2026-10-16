@@ -246,6 +246,7 @@ function TurnView({ turn, live, pending, analysis, onDecide, disabled }: {
         <ConfirmationCard
           confirmation={turn.confirmation}
           decision={turn.decision}
+          approvalSent={turn.approvedCallId === turn.confirmation.toolCallId}
           active={pending?.toolCallId === turn.confirmation.toolCallId}
           disabled={disabled}
           onDecide={onDecide}

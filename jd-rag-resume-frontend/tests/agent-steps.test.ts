@@ -82,11 +82,44 @@ test("waiting, rejected and executed confirmations are three different rows", ()
   assert.equal(toolTimeMs(rows(state)), 52);
 });
 
-test("a confirmation the turn moved past is unconfirmed, not executed", () => {
+function awaitingApproval() {
   const confirmation = { toolCallId: "w1", tool: "start_analysis", arguments: { resumeId: 1, jobId: 2 } };
-  let state = run({ type: "confirmation_required", data: confirmation }, done("AWAITING_CONFIRMATION"));
-  state = agentChatReducer(state, { type: "decide", approved: true });
+  return run({ type: "confirmation_required", data: confirmation }, done("AWAITING_CONFIRMATION"));
+}
+
+test("an approval cut off before any result is unknown, never 'not executed'", () => {
+  // The server may already have received the approval and run the analysis; the page cannot tell.
+  let state = agentChatReducer(awaitingApproval(), { type: "decide", approved: true });
+  assert.equal(state.turns[0].approvedCallId, "w1");
+  assert.deepEqual(statuses(state), [["w1", "approving"]]);
+
+  for (const code of ["AGENT_STREAM_INTERRUPTED", "BACKEND_UNAVAILABLE", "NETWORK_ERROR"]) {
+    let broken = agentChatReducer(state, { type: "failed", code, message: "中断", retryConfirmation: true });
+    broken = agentChatReducer(broken, { type: "settled" });
+    assert.deepEqual(statuses(broken), [["w1", "unknown"]], code);
+    assert.equal(rows(broken)[0].latencyMs, undefined);
+  }
+});
+
+test("a refused request keeps the confirmation open, so the approval is not left as unknown", () => {
+  let state = agentChatReducer(awaitingApproval(), { type: "decide", approved: true });
+  state = agentChatReducer(state, { type: "failed", code: "AGENT_RATE_LIMITED", message: "稍后再试", retryConfirmation: true });
+  state = agentChatReducer(state, { type: "settled" });
+  assert.equal(state.turns[0].approvedCallId, undefined);
+  assert.deepEqual(statuses(state), [["w1", "awaiting"]]);
+});
+
+test("once the server answers, its result wins over the sent approval", () => {
+  let state = agentChatReducer(awaitingApproval(), { type: "decide", approved: true });
+  state = agentChatReducer(state, { type: "event", event: start("w1", "start_analysis") });
   state = agentChatReducer(state, { type: "failed", code: "AGENT_STREAM_INTERRUPTED", message: "中断" });
+  assert.deepEqual(statuses(state), [["w1", "unfinished"]], "started but no result: unfinished, not done");
+});
+
+test("a refusal cut off before the server answered is still not executed", () => {
+  let state = agentChatReducer(awaitingApproval(), { type: "decide", approved: false });
+  state = agentChatReducer(state, { type: "failed", code: "AGENT_STREAM_INTERRUPTED", message: "中断" });
+  assert.equal(state.turns[0].approvedCallId, undefined);
   assert.deepEqual(statuses(state), [["w1", "unconfirmed"]]);
 });
 

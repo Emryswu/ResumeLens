@@ -190,6 +190,11 @@ export type AgentTurn = {
   error?: { code: string; message: string };
   confirmation?: AgentConfirmation;
   decision?: "approved" | "rejected";
+  /**
+   * The call the user approved, set as soon as the approval is sent. Until its step arrives the outcome is
+   * unknown: a broken stream may still have executed it. Cleared only when the server definitely refused the request.
+   */
+  approvedCallId?: string;
   /** Set when start_analysis ran; the page follows it to the finished report. */
   analysisId?: number;
 };
@@ -227,16 +232,26 @@ export function agentChatReducer(state: AgentChatState, action: AgentChatAction)
         ...state,
         busy: true,
         // Keep the confirmed transcript and card until the server acknowledges the decision.
-        turns: updateLast(state.turns, (turn) => ({ ...turn, error: undefined })),
+        turns: updateLast(state.turns, (turn) => ({
+          ...turn,
+          error: undefined,
+          approvedCallId: action.approved ? state.pending?.toolCallId : turn.approvedCallId,
+        })),
       };
-    case "failed":
+    case "failed": {
+      // Only a definite HTTP rejection is safe to retry. A broken stream may have already executed the write.
+      const refused = !!action.retryConfirmation && RETRYABLE_REJECTIONS.has(action.code);
       return {
         ...state,
         busy: false,
-        // Only a definite HTTP rejection is safe to retry. A broken stream may have already executed the write.
-        pending: action.retryConfirmation && RETRYABLE_REJECTIONS.has(action.code) ? state.pending : null,
-        turns: updateLast(state.turns, (turn) => ({ ...closeOpenSteps(turn), error: { code: action.code, message: action.message } })),
+        pending: refused ? state.pending : null,
+        turns: updateLast(state.turns, (turn) => ({
+          ...closeOpenSteps(turn),
+          approvedCallId: refused ? undefined : turn.approvedCallId,
+          error: { code: action.code, message: action.message },
+        })),
       };
+    }
     case "settled":
       // Whatever ended the request, nothing can still be running afterwards.
       return { ...state, busy: false, turns: updateLast(state.turns, closeOpenSteps) };
