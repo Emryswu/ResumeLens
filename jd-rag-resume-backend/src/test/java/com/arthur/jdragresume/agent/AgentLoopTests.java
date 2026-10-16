@@ -54,7 +54,8 @@ class AgentLoopTests {
         AgentLoop.Outcome outcome = loop(model).run(fresh("查一下 7 号"), null, context, sink, () -> false);
 
         assertEquals(AgentLoop.State.COMPLETED, outcome.state());
-        assertEquals(List.of("step", "message", "done"), sink.names());
+        assertEquals(List.of("step_started", "step", "message", "done"), sink.names());
+        assertEquals(List.of("c1"), sink.started());
         assertEquals(List.of(7L), lookup.seenIds);
         List<AgentMessage> secondCall = model.inputs.get(1);
         AgentMessage toolResult = secondCall.get(secondCall.size() - 1);
@@ -90,9 +91,13 @@ class AgentLoopTests {
                 transcript -> AgentModel.Reply.answer("好了")
         );
 
-        AgentLoop.Outcome outcome = loop(model).run(fresh("查"), null, context, new RecordingSink(), () -> false);
+        RecordingSink sink = new RecordingSink();
+        AgentLoop.Outcome outcome = loop(model).run(fresh("查"), null, context, sink, () -> false);
 
         assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        // Unknown tools and rejected arguments never run, so only c4 starts; every call still gets its step.
+        assertEquals(List.of("c4"), sink.started());
+        assertEquals(List.of("c1", "c2", "c3", "c4"), sink.steps().stream().map(AgentLoop.StepEvent::toolCallId).toList());
         List<String> codes = toolMessages(outcome.transcript()).stream()
                 .map(message -> json(message.content()).path("error").path("code").asText("OK"))
                 .toList();
@@ -113,6 +118,7 @@ class AgentLoopTests {
         assertEquals(AgentLoop.State.AWAITING_CONFIRMATION, outcome.state());
         assertEquals(0, write.executions.get());
         assertEquals(List.of(1L), lookup.seenIds, "read calls in the same batch still run");
+        assertEquals(List.of("c1"), sink.started(), "the call waiting for confirmation has not started");
         AgentLoop.PendingConfirmation gate = (AgentLoop.PendingConfirmation) sink.events.stream()
                 .filter(event -> event.name().equals("confirmation_required")).findFirst().orElseThrow().payload();
         assertEquals("c2", gate.toolCallId());
@@ -132,7 +138,9 @@ class AgentLoopTests {
 
         assertEquals(AgentLoop.State.COMPLETED, outcome.state());
         assertEquals(1, write.executions.get());
-        AgentLoop.StepEvent step = (AgentLoop.StepEvent) sink.events.get(0).payload();
+        assertEquals(List.of("step_started", "step"), sink.names().subList(0, 2));
+        assertEquals(List.of("c2"), sink.started());
+        AgentLoop.StepEvent step = sink.steps().get(0);
         assertEquals("start_analysis", step.tool());
         assertTrue(step.ok());
     }
@@ -143,9 +151,12 @@ class AgentLoopTests {
         TranscriptPolicy.Approval approval = new TranscriptPolicy.Approval("c2", false);
         ScriptedModel model = new ScriptedModel(transcript -> AgentModel.Reply.answer("好的，不分析了"));
 
-        AgentLoop.Outcome outcome = loop(model).run(policy().normalize(paused, approval), approval, context, new RecordingSink(), () -> false);
+        RecordingSink sink = new RecordingSink();
+        AgentLoop.Outcome outcome = loop(model).run(policy().normalize(paused, approval), approval, context, sink, () -> false);
 
         assertEquals(0, write.executions.get());
+        assertEquals(List.of(), sink.started(), "a rejected call never starts");
+        assertEquals("USER_REJECTED", sink.steps().get(0).errorCode());
         AgentMessage result = model.inputs.get(0).get(model.inputs.get(0).size() - 1);
         assertEquals("c2", result.toolCallId());
         assertEquals("USER_REJECTED", json(result.content()).path("error").path("code").asText());
@@ -309,11 +320,13 @@ class AgentLoopTests {
             };
             ScriptedModel model = new ScriptedModel(transcript -> AgentModel.Reply.answer("不该发起"));
 
+            RecordingSink sink = new RecordingSink();
             AgentLoop.Outcome outcome = loop(model).run(policy().normalize(paused, approval), approval, context,
-                    new RecordingSink(), cancelled::get);
+                    sink, cancelled::get);
 
             assertEquals(cancel ? AgentLoop.State.CANCELLED : AgentLoop.State.TIMED_OUT, outcome.state());
             assertEquals(0, write.executions.get());
+            assertEquals(List.of(), sink.started(), "a call stopped before execution never starts");
             assertTrue(model.inputs.isEmpty());
         }
     }
@@ -388,7 +401,7 @@ class AgentLoopTests {
         JsonNode envelope = json(toolMessages(outcome.transcript()).get(0).content());
         assertFalse(envelope.path("ok").asBoolean());
         assertEquals("TOOL_RESULT_TOO_LARGE", envelope.path("error").path("code").asText());
-        AgentLoop.StepEvent step = (AgentLoop.StepEvent) sink.events.get(0).payload();
+        AgentLoop.StepEvent step = sink.steps().get(0);
         assertFalse(step.ok());
         assertEquals("TOOL_RESULT_TOO_LARGE", step.errorCode());
         assertTrue(step.resultPreview().length() <= properties.getResultPreviewChars() + 1);
@@ -490,6 +503,16 @@ class AgentLoopTests {
             return events.stream().map(Event::name).toList();
         }
 
+        List<String> started() {
+            return events.stream().filter(event -> event.name().equals("step_started"))
+                    .map(event -> ((AgentLoop.StepStartedEvent) event.payload()).toolCallId()).toList();
+        }
+
+        List<AgentLoop.StepEvent> steps() {
+            return events.stream().filter(event -> event.name().equals("step"))
+                    .map(event -> (AgentLoop.StepEvent) event.payload()).toList();
+        }
+
         @SuppressWarnings("unchecked")
         Map<String, Object> payload(String name) {
             return (Map<String, Object>) events.stream().filter(event -> event.name().equals(name)).findFirst().orElseThrow().payload();
@@ -499,6 +522,7 @@ class AgentLoopTests {
     static final class LookupTool implements AgentTool {
         final List<Long> seenIds = new ArrayList<>();
         String payload;
+        RuntimeException failure;
 
         @Override
         public String name() {
@@ -519,6 +543,7 @@ class AgentLoopTests {
         public Object execute(JsonNode arguments, AgentToolContext context) {
             long id = arguments.get("id").asLong();
             seenIds.add(id);
+            if (failure != null) throw failure;
             return Map.of("name", payload == null ? "record-" + id : payload);
         }
     }
@@ -565,6 +590,40 @@ class AgentLoopTests {
             executions.incrementAndGet();
             return Map.of("analysisId", 42, "status", "PENDING");
         }
+    }
+
+    @Test
+    void aToolThatThrowsStillClosesItsStartedStepAsFailed() {
+        lookup.failure = new IllegalStateException("boom");
+        ScriptedModel model = new ScriptedModel(
+                transcript -> AgentModel.Reply.call(call("c1", "lookup", "{\"id\":1}")),
+                transcript -> AgentModel.Reply.answer("查询失败了")
+        );
+        RecordingSink sink = new RecordingSink();
+
+        AgentLoop.Outcome outcome = loop(model).run(fresh("查"), null, context, sink, () -> false);
+
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(List.of("step_started", "step", "message", "done"), sink.names());
+        AgentLoop.StepEvent step = sink.steps().get(0);
+        assertEquals("c1", step.toolCallId());
+        assertFalse(step.ok());
+    }
+
+    @Test
+    void callsOverTheExecutionBudgetNeverStart() {
+        properties.setMaxPlanningSteps(1);
+        ScriptedModel model = new ScriptedModel(transcript -> AgentModel.Reply.call(
+                call("c1", "lookup", "{\"id\":1}"),
+                call("c2", "lookup", "{\"id\":2}")
+        ));
+        RecordingSink sink = new RecordingSink();
+
+        AgentLoop.Outcome outcome = loop(model).run(fresh("查两个"), null, context, sink, () -> false);
+
+        assertEquals(AgentLoop.State.STEP_LIMIT, outcome.state());
+        assertEquals(List.of("c1"), sink.started());
+        assertEquals(List.of(1L), lookup.seenIds);
     }
 
     @Test
