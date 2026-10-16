@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { AppChrome } from "../components/AppChrome";
+import { AppShell } from "../components/AppShell";
+import { useSessionUser } from "../components/use-session-user";
 import { parseAgentMarkdown, type MdInline } from "../agent-markdown";
 import {
   agentChatReducer,
@@ -52,6 +53,7 @@ const ERROR_COPY: Record<string, string> = {
 };
 
 export default function AssistantPage() {
+  const { user, logout } = useSessionUser();
   const [state, dispatch] = useReducer(agentChatReducer, initialAgentChatState);
   const [draft, setDraft] = useState("");
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
@@ -158,10 +160,11 @@ export default function AssistantPage() {
   const inputLocked = state.busy || !!state.pending;
 
   return (
-    <AppChrome
+    <AppShell
       title="AI 求职助手"
-      eyebrow="TOOL-CALLING AGENT"
       activeView="assistant"
+      user={user}
+      onLogout={logout}
       actions={
         <button
           className="ghost"
@@ -229,7 +232,7 @@ export default function AssistantPage() {
           </button>
         </form>
       </section>
-    </AppChrome>
+    </AppShell>
   );
 }
 

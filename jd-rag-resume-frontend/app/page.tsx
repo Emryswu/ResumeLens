@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
+import { AppShell } from "./components/AppShell";
 import { BackendStatus } from "./components/BackendStatus";
-import { WorkspaceNav, type WorkspaceView } from "./components/WorkspaceNav";
 import { MatchReport } from "./components/MatchReport";
 import { bookmarkKey, parseBookmarks } from "./workspace-bookmarks";
+import { hashForView, navLabel, viewFromHash, type HashView } from "./workspace-nav";
 import {
   AUTH_EXPIRED_EVENT,
   SAMPLE_BULK_JOBS,
@@ -71,6 +72,14 @@ type JobFilter = "all" | "unanalyzed";
 type JobAnalysesStatus = "idle" | "loading" | "ready" | "error";
 type JobSemanticStatus = "idle" | "loading" | "ready" | "error";
 type AnalysisRun = { generation: number; resumeId: number; jobId: number };
+
+const VIEW_SUBTITLES: Record<HashView, string> = {
+  match: "选一份简历和目标岗位，查看匹配报告和简历里的原文证据。",
+  resumes: "上传或粘贴你的简历，保存后即可用于岗位匹配。",
+  jobs: "录入目标岗位的职位描述，也可以批量导入。",
+  saved: "收藏保存在当前浏览器，按账号区分；不会跨设备同步。",
+  history: "你在当前账号下做过的每一次分析。",
+};
 
 function analysisTimestamp(item?: AnalysisSummary) {
   const timestamp = item?.createdAt ? Date.parse(item.createdAt) : Number.NaN;
@@ -150,7 +159,7 @@ function pendingAnalysisLabel(status: AiStatus | null) {
 
 export default function Home() {
   const [token, setToken] = useState("");
-  const [pageView, setPageView] = useState<WorkspaceView>("match");
+  const [pageView, setPageView] = useState<HashView>("match");
   const [savedJobs, setSavedJobs] = useState<number[]>([]);
   const [fetchingReport, setFetchingReport] = useState(false);
   // Bumped by every chooseResume call. Re-selecting the same resume leaves
@@ -1001,16 +1010,13 @@ export default function Home() {
   const hasMoreHistory = history.length < effectiveHistoryTotal;
 
 
-  function navigate(next: WorkspaceView) {
+  function navigate(next: HashView) {
     setPageView(next);
-    window.history.replaceState(null, "", `#${next === "match" ? "workflow" : next}`);
+    window.history.replaceState(null, "", hashForView(next));
   }
 
   useEffect(() => {
-    const syncView = () => {
-      const hash = window.location.hash.slice(1);
-      setPageView(["resumes", "jobs", "saved", "history"].includes(hash) ? hash as WorkspaceView : "match");
-    };
+    const syncView = () => setPageView(viewFromHash(window.location.hash));
     const timer = window.setTimeout(syncView, 0);
     window.addEventListener("hashchange", syncView);
     return () => { window.clearTimeout(timer); window.removeEventListener("hashchange", syncView); };
@@ -1092,13 +1098,15 @@ export default function Home() {
   }
 
   return (
-    <div className="app-shell refined-workspace">
-      <WorkspaceNav user={user} active={pageView} onLogout={logout} onNavigate={navigate} />
-      <main className="workspace">
-        <header className="topbar">
-          <div><span className="eyebrow">YOUR NEXT CHAPTER</span><h1>{pageView === "match" ? "下一份机会，从看清差距开始。" : pageView === "resumes" ? "让经历，说得更清楚。" : pageView === "jobs" ? "从一份岗位描述开始。" : pageView === "saved" ? "留给认真准备的机会。" : "回看每一次匹配。"}</h1><p className="workspace-subtitle">{pageView === "saved" ? "收藏保存在当前浏览器，按账号区分；不会跨设备同步。" : "看见优势，核对证据，再把简历向前推进一步。"}</p></div>
-          <div className="top-actions"><BackendStatus /><button className="ghost" type="button" onClick={() => navigate("jobs")}>＋ 添加岗位</button><button className="ghost" type="button" disabled={!!busy} onClick={() => void loadWorkspace()}>刷新数据</button></div>
-        </header>
+    <AppShell
+      title={navLabel(pageView)}
+      subtitle={VIEW_SUBTITLES[pageView]}
+      activeView={pageView}
+      user={user}
+      onLogout={logout}
+      onNavigate={navigate}
+      actions={<><button className="ghost" type="button" onClick={() => navigate("jobs")}>＋ 添加岗位</button><button className="ghost" type="button" disabled={!!busy} onClick={() => void loadWorkspace()}>刷新数据</button></>}
+    >
         {(error || notice) && <div className={`toast ${error ? "error" : "success"}`} role={error ? "alert" : "status"}><span>{error ? "!" : "✓"}</span>{error || notice}<button aria-label="关闭通知" onClick={() => { setError(""); setNotice(""); }}>×</button></div>}
         <section id="workflow" hidden={pageView !== "match"}>
           <div className="match-context"><label>当前简历<select value={selectedResumeId} disabled={!!busy} onChange={event => chooseResume(event.target.value ? Number(event.target.value) : "")}><option value="">请选择简历</option>{resumes.map(item => <option key={item.id} value={item.id}>{item.title} · {item.candidateName}</option>)}</select></label><button className="text-action" onClick={() => navigate("resumes")}>管理简历</button><div className="match-steps"><span>{selectedResumeId ? "✓" : "01"} 选择简历</span><span>{selectedJobId ? "✓" : "02"} 选择岗位</span><span className="current">03 核对与改进</span></div></div>
@@ -1297,7 +1305,7 @@ export default function Home() {
             </form><details className="sample-action"><summary>用示例数据体验</summary><p>会在当前账号中保存示例简历和岗位，并提交一次分析。</p><button className="ghost" disabled={!!busy} onClick={() => { navigate("match"); void saveSampleAndAnalyze(); }}>保存示例并分析</button></details></section>
         <section id="saved" className="saved-view" hidden={pageView !== "saved"}>{savedJobs.length === 0 ? <div className="empty-workspace"><h2>还没有保存的岗位</h2><p>在岗位或报告旁点「保存」，就能在这里继续准备。</p><button className="primary" onClick={() => navigate("match")}>去看目标岗位 →</button></div> : <><div className="saved-grid">{jobs.filter(item => savedJobs.includes(item.id)).map(item => <article className="saved-job" key={item.id}><p>{item.companyName} · {item.location || "地点未填写"}</p><h3>{item.title}</h3><div className="form-actions"><button className="primary" onClick={() => { chooseJob(item.id); navigate("match"); }}>查看匹配</button><Link className="ghost" href={`/jobs/${item.id}`}>岗位详情</Link><button className="text-action" onClick={() => toggleBookmark(item.id)}>取消保存</button></div></article>)}</div>{jobs.length < effectiveJobsTotal && <button className="ghost" disabled={jobsLoadingMore} onClick={() => void loadAllJobsForRanking()}>加载其余岗位中的收藏</button>}<p className="review-caveat">仅展示仍可访问的岗位。收藏范围：当前浏览器、当前账号。</p></>}</section>
                 <section className="history" id="history" hidden={pageView !== "history"}>
-          <div className="section-heading"><div><span>HISTORY</span><h2>最近分析</h2></div><p>{effectiveHistoryTotal} 条记录</p></div>
+          <p className="history-count">{effectiveHistoryTotal} 条记录</p>
           <div className="history-table">
             <div className="history-row history-head"><span>报告</span><span>岗位</span><span>状态</span><span>匹配度</span><span>时间</span></div>
             {history.length === 0 ? (
@@ -1327,7 +1335,6 @@ export default function Home() {
             )}
           </div>
         </section>
-      </main>
-    </div>
+    </AppShell>
   );
 }
