@@ -1232,7 +1232,7 @@ export default function Home() {
                 <strong>{editingResumeId ? "编辑模式仅支持更新文本" : file ? file.name : "选择简历文件（可选）"}</strong>
                 <small>PDF · DOCX · TXT，最大 20MB</small>
               </label>
-              <div className="field-row"><label>简历标题<input required value={resumeForm.title} onChange={(e) => setResumeForm({ ...resumeForm, title: e.target.value })} placeholder="Java 后端开发简历" /></label><label>候选人<input required value={resumeForm.candidateName} onChange={(e) => setResumeForm({ ...resumeForm, candidateName: e.target.value })} placeholder="姓名" /></label></div>
+              <div className="field-row"><label>简历标题<input required value={resumeForm.title} onChange={(e) => setResumeForm({ ...resumeForm, title: e.target.value })} placeholder="Java 后端开发简历" /></label><label>姓名<input required value={resumeForm.candidateName} onChange={(e) => setResumeForm({ ...resumeForm, candidateName: e.target.value })} placeholder="你的姓名" /></label></div>
               <div className="field-row"><label>手机<input value={resumeForm.phone} onChange={(e) => setResumeForm({ ...resumeForm, phone: e.target.value })} placeholder="可选" /></label><label>邮箱<input type="email" value={resumeForm.email} onChange={(e) => setResumeForm({ ...resumeForm, email: e.target.value })} placeholder="可选" /></label></div>
               <label>简历文本<textarea required={!file || !!editingResumeId} rows={8} value={resumeForm.rawText} onChange={(e) => setResumeForm({ ...resumeForm, rawText: e.target.value })} disabled={!!file && !editingResumeId} placeholder={file ? "已选择文件，将由服务端解析正文；保存后可在详情中编辑" : "可直接粘贴简历正文；上传文件时由服务端解析"} /></label>
               <div className="form-actions">

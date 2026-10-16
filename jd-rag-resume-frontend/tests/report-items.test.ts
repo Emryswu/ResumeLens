@@ -59,13 +59,15 @@ test("相似度取自报告保存的检索片段，没记录的片段没有数�
 });
 
 test("报告页文案：第二人称、无 MATCH REVIEW 眉标、不暗示证据已被验证", () => {
-  const files = [
+  const reportFiles = [
     "components/MatchReport.tsx",
     ...readdirSync(join(appDir, "components/report")).map((name) => `components/report/${name}`),
   ];
-  for (const file of files) {
+  for (const file of [...reportFiles, "page.tsx", "resumes/[id]/page.tsx", "preview-evidence.ts"]) {
+    assert.doesNotMatch(readFileSync(join(appDir, file), "utf8"), /候选人/, file);
+  }
+  for (const file of reportFiles) {
     const source = readFileSync(join(appDir, file), "utf8");
-    assert.doesNotMatch(source, /候选人/, file);
     assert.doesNotMatch(source, /MATCH REVIEW/, file);
     assert.doesNotMatch(source, /已验证|已证实|证据确凿/, file);
   }
