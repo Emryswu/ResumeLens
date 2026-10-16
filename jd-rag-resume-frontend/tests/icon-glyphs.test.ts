@@ -7,8 +7,6 @@ import { fileURLToPath } from "node:url";
 const appDir = join(dirname(fileURLToPath(import.meta.url)), "../app");
 /** Text characters that used to stand in for icons; icons now come from lucide-react. */
 const GLYPHS = /[✓✔✗✕×◐◌↗→←⌄＋⚠★☆]/u;
-/** The AI assistant page gets its own icons with the step bar (PR 3). */
-const NOT_YET = new Set(["assistant/page.tsx"]);
 
 function tsxFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -21,7 +19,6 @@ function tsxFiles(dir: string): string[] {
 test("页面不再用 Unicode 字符充当图标", () => {
   const offenders = tsxFiles(appDir)
     .map((path) => relative(appDir, path).replaceAll("\\", "/"))
-    .filter((file) => !NOT_YET.has(file))
     .flatMap((file) => readFileSync(join(appDir, file), "utf8").split("\n")
       .map((line, index) => ({ file, line: index + 1, text: line }))
       .filter(({ text }) => GLYPHS.test(text))

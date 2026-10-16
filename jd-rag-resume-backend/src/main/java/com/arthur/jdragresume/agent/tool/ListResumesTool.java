@@ -27,14 +27,14 @@ public class ListResumesTool implements AgentTool {
 
     @Override
     public String description() {
-        return "列出当前用户的简历（最新在前，最多 20 份），返回 resumeId、标题、候选人姓名。"
+        return "列出当前用户的简历（最新在前，最多 20 份），返回 resumeId、标题和简历上的姓名（candidateName）。"
                 + "其他工具需要 resumeId 时先调用它，不要猜测 id。可选 keyword 按标题或姓名过滤。";
     }
 
     @Override
     public ToolSchema parameters() {
         return ToolSchema.object()
-                .string("keyword", "按简历标题或候选人姓名过滤，可省略", false, 100);
+                .string("keyword", "按简历标题或简历上的姓名过滤，可省略", false, 100);
     }
 
     @Override

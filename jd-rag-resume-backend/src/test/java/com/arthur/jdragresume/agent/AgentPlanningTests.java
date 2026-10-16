@@ -63,7 +63,7 @@ class AgentPlanningTests {
             }
         }, true);
         assertEquals(AgentLoop.State.COMPLETED, outcome.state());
-        assertEquals(List.of("plan", "step", "step", "message", "done"), events);
+        assertEquals(List.of("plan", "step_started", "step", "step_started", "step", "message", "done"), events);
         assertEquals(3, done().trace().size());
     }
 
