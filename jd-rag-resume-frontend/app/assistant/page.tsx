@@ -1,17 +1,19 @@
 "use client";
 
-import Link from "next/link";
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { CircleAlert, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, SendHorizontal, Sparkles } from "lucide-react";
+import { FormEvent, KeyboardEvent, useEffect, useReducer, useRef, useState } from "react";
 import { AppShell } from "../components/AppShell";
+import { AgentMarkdown } from "../components/assistant/AgentMarkdown";
+import { AnalysisCard } from "../components/assistant/AnalysisCard";
+import { ConfirmationCard } from "../components/assistant/ConfirmationCard";
+import { StepTimeline } from "../components/assistant/StepTimeline";
 import { useSessionUser } from "../components/use-session-user";
-import { parseAgentMarkdown, type MdInline } from "../agent-markdown";
 import {
   agentChatReducer,
   initialAgentChatState,
   nextRequest,
   readAgentStream,
   type AgentConfirmation,
-  type AgentStep,
   type AgentTurn,
 } from "../agent-stream";
 import { analysisPollTimeoutMs, pollAnalysisUntilSettled } from "../analysis-poll";
@@ -31,16 +33,6 @@ const EXAMPLES = [
   "排第一的职位，我的简历里有哪些证据能支撑？",
   "帮我对最合适的职位做一次完整分析",
 ];
-
-const TOOL_LABELS: Record<string, string> = {
-  list_resumes: "读取简历列表",
-  search_jobs: "搜索职位库",
-  get_job: "读取职位详情",
-  rank_jobs_for_resume: "按语义相似度排序职位",
-  search_resume_evidence: "检索简历证据（RAG）",
-  get_latest_analysis: "读取最近一次分析",
-  start_analysis: "发起完整分析",
-};
 
 const ERROR_COPY: Record<string, string> = {
   AGENT_RATE_LIMITED: "提问太频繁了，请稍后再试",
@@ -160,34 +152,29 @@ export default function AssistantPage() {
   const inputLocked = state.busy || !!state.pending;
 
   return (
-    <AppShell
-      title="AI 求职助手"
-      activeView="assistant"
-      user={user}
-      onLogout={logout}
-      actions={
-        <button
-          className="ghost"
-          type="button"
-          disabled={state.busy || state.turns.length === 0}
-          onClick={() => {
-            followedRef.current = new Set();
-            setAnalyses({});
-            dispatch({ type: "reset" });
-          }}
-        >
-          新对话
-        </button>
-      }
-    >
+    <AppShell title="AI 求职助手" activeView="assistant" user={user} onLogout={logout}>
       <section className="assistant-shell">
-        <p className="assistant-mode">
-          {aiStatus == null
-            ? "助手会自己调用工具查询你的简历与职位库；涉及消耗配额的操作会先请你确认。"
-            : aiStatus.mockEnabled
-              ? "演示模式：由脚本模型按固定流程调用真实工具，未调用真实大模型。"
-              : `当前模型：${aiStatus.model || "未配置"}。助手会自己调用工具；发起完整分析前会先请你确认。`}
-        </p>
+        <div className="assistant-toolbar">
+          <p className="assistant-mode">
+            {aiStatus == null
+              ? "助手会自己调用工具查询你的简历与职位库；涉及消耗配额的操作会先请你确认。"
+              : aiStatus.mockEnabled
+                ? "演示模式：由脚本模型按固定流程调用真实工具，未调用真实大模型。"
+                : `当前模型：${aiStatus.model || "未配置"}。助手会自己调用工具；发起完整分析前会先请你确认。`}
+          </p>
+          <button
+            className="ghost"
+            type="button"
+            disabled={state.busy || state.turns.length === 0}
+            onClick={() => {
+              followedRef.current = new Set();
+              setAnalyses({});
+              dispatch({ type: "reset" });
+            }}
+          >
+            <MessageSquarePlus size={16} aria-hidden="true" />新对话
+          </button>
+        </div>
 
         {state.turns.length === 0 && (
           <div className="assistant-empty">
@@ -195,7 +182,7 @@ export default function AssistantPage() {
             <div className="assistant-examples">
               {EXAMPLES.map((example) => (
                 <button key={example} type="button" className="ghost" onClick={() => ask(example)}>
-                  {example}
+                  <MessageCircleQuestion size={16} aria-hidden="true" />{example}
                 </button>
               ))}
             </div>
@@ -215,7 +202,7 @@ export default function AssistantPage() {
             />
           ))}
         </ol>
-        <div ref={bottomRef} />
+        <div className="assistant-bottom" ref={bottomRef} />
 
         <form className="assistant-input" onSubmit={submit}>
           <textarea
@@ -228,7 +215,9 @@ export default function AssistantPage() {
             onKeyDown={onKeyDown}
           />
           <button className="secondary" disabled={inputLocked || !draft.trim()}>
-            {state.busy ? "处理中…" : "发送"}
+            {state.busy
+              ? <><LoaderCircle className="spin" size={16} aria-hidden="true" />处理中</>
+              : <><SendHorizontal size={16} aria-hidden="true" />发送</>}
           </button>
         </form>
       </section>
@@ -248,12 +237,7 @@ function TurnView({ turn, live, pending, analysis, onDecide, disabled }: {
     <li className="assistant-turn">
       <div className="assistant-question">{turn.question}</div>
 
-      {(turn.steps.length > 0 || live) && (
-        <ol className="agent-timeline" aria-label="工具调用时间线">
-          {turn.steps.map((step) => <StepView key={step.toolCallId} step={step} />)}
-          {live && <li className="agent-step running"><span className="agent-step-dot" />思考中…</li>}
-        </ol>
-      )}
+      <StepTimeline turn={turn} pendingId={pending?.toolCallId ?? null} thinking={live} />
 
       {/* Text the model writes next to its tool calls; before a confirmation it often carries the actual conclusion. */}
       {turn.notes.map((note, index) => <AgentMarkdown key={index} className="assistant-note" text={note} />)}
@@ -268,145 +252,20 @@ function TurnView({ turn, live, pending, analysis, onDecide, disabled }: {
         />
       )}
 
-      {turn.analysisId && <AnalysisStatus analysisId={turn.analysisId} analysis={analysis} />}
+      {turn.analysisId && <AnalysisCard analysisId={turn.analysisId} analysis={analysis} />}
 
-      {turn.answer && <AgentMarkdown className="assistant-answer" text={turn.answer} />}
-      {turn.error && <div className="assistant-error">{ERROR_COPY[turn.error.code] ?? turn.error.message}</div>}
-    </li>
-  );
-}
-
-function StepView({ step }: { step: AgentStep }) {
-  return (
-    <li className={`agent-step ${step.ok ? "ok" : "failed"}`}>
-      <details>
-        <summary>
-          <span className="agent-step-dot" aria-hidden="true" />
-          <strong>{TOOL_LABELS[step.tool] ?? step.tool}</strong>
-          <code>{describeArguments(step.arguments)}</code>
-          <span className="agent-step-meta">
-            {step.ok ? `${step.latencyMs} ms` : step.errorCode}
-          </span>
-        </summary>
-        <div className="agent-step-detail">
-          <div><span>工具</span><code>{step.tool}</code></div>
-          <div><span>参数</span><code>{step.arguments}</code></div>
-          <div><span>结果</span><code>{step.resultChars} 字符 · {step.resultPreview || "（空）"}</code></div>
-        </div>
-      </details>
-    </li>
-  );
-}
-
-function ConfirmationCard({ confirmation, decision, active, disabled, onDecide }: {
-  confirmation: AgentConfirmation;
-  decision?: "approved" | "rejected";
-  active: boolean;
-  disabled: boolean;
-  onDecide: (approved: boolean) => void;
-}) {
-  const preview = confirmation.preview ?? {};
-  const resumeTitle = String(preview.resumeTitle ?? `简历 #${String(confirmation.arguments.resumeId ?? "")}`);
-  const jobTitle = String(preview.jobTitle ?? `职位 #${String(confirmation.arguments.jobId ?? "")}`);
-  const company = preview.companyName ? `（${String(preview.companyName)}）` : "";
-  return (
-    <div className="agent-confirm" role="group" aria-label="待确认的操作">
-      <div>
-        <span className="eyebrow">需要你确认</span>
-        <p>
-          助手想要{TOOL_LABELS[confirmation.tool] ?? confirmation.tool}：<strong>{resumeTitle}</strong> × <strong>{jobTitle}{company}</strong>
-        </p>
-        <small>这会消耗一次分析配额并调用一次大模型。</small>
-      </div>
-      {active && !decision ? (
-        <div className="agent-confirm-actions">
-          <button className="secondary" type="button" disabled={disabled} onClick={() => onDecide(true)}>同意并发起</button>
-          <button className="ghost" type="button" disabled={disabled} onClick={() => onDecide(false)}>拒绝</button>
-        </div>
-      ) : (
-        <span className={`agent-confirm-result ${decision === "approved" ? "approved" : ""}`}>
-          {decision === "approved" ? "已同意" : decision === "rejected" ? "已拒绝" : "未确认"}
-        </span>
+      {turn.answer && (
+        <section className="assistant-reply" aria-label="回答">
+          <h3><Sparkles size={16} aria-hidden="true" />回答</h3>
+          <AgentMarkdown className="assistant-answer" text={turn.answer} />
+        </section>
       )}
-    </div>
+      {turn.error && (
+        <div className="assistant-error" role="alert">
+          <CircleAlert size={18} aria-hidden="true" />
+          <span>{ERROR_COPY[turn.error.code] ?? turn.error.message}</span>
+        </div>
+      )}
+    </li>
   );
-}
-
-function AnalysisStatus({ analysisId, analysis }: { analysisId: number; analysis?: Analysis }) {
-  const href = analysis
-    ? `/?resumeId=${analysis.resumeId}&jobId=${analysis.jobDescriptionId}&analysisId=${analysisId}`
-    : `/?analysisId=${analysisId}`;
-  return (
-    <div className="agent-analysis">
-      <span>
-        {!analysis || analysis.status === "PENDING"
-          ? "完整分析生成中…"
-          : analysis.status === "COMPLETED"
-            ? `分析完成，匹配分 ${analysis.matchScore ?? "—"}`
-            : `分析失败：${analysis.summary ?? "未知原因"}`}
-      </span>
-      <Link className="ghost compact" href={href}>查看完整报告</Link>
-    </div>
-  );
-}
-
-function AgentMarkdown({ text, className }: { text: string; className: string }) {
-  const blocks = useMemo(() => parseAgentMarkdown(text), [text]);
-  return (
-    <div className={`${className} agent-md`}>
-      {blocks.map((block, index) => {
-        switch (block.type) {
-          case "paragraph":
-            return (
-              <p key={index}>
-                {block.lines.map((line, lineIndex) => (
-                  <span key={lineIndex}>{lineIndex > 0 && <br />}<Inline parts={line} /></span>
-                ))}
-              </p>
-            );
-          case "heading":
-            return <p key={index} className={`agent-md-heading level-${block.level}`}><Inline parts={block.content} /></p>;
-          case "list": {
-            const items = block.items.map((item, itemIndex) => <li key={itemIndex}><Inline parts={item} /></li>);
-            return block.ordered ? <ol key={index} start={block.start}>{items}</ol> : <ul key={index}>{items}</ul>;
-          }
-          case "table":
-            return (
-              <div key={index} className="agent-md-table">
-                <table>
-                  <thead>
-                    <tr>{block.header.map((cell, cellIndex) => <th key={cellIndex}><Inline parts={cell} /></th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {block.rows.map((row, rowIndex) => (
-                      <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}><Inline parts={cell} /></td>)}</tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            );
-          case "code":
-            return <pre key={index}><code>{block.text}</code></pre>;
-        }
-      })}
-    </div>
-  );
-}
-
-function Inline({ parts }: { parts: MdInline[] }) {
-  return parts.map((part, index) =>
-    part.type === "strong" ? <strong key={index}>{part.text}</strong>
-      : part.type === "code" ? <code key={index}>{part.text}</code>
-        : part.text,
-  );
-}
-
-function describeArguments(raw: string): string {
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const parts = Object.entries(parsed).map(([key, value]) => `${key}=${String(value)}`);
-    return parts.length > 0 ? parts.join(" ") : "无参数";
-  } catch {
-    return raw;
-  }
 }
