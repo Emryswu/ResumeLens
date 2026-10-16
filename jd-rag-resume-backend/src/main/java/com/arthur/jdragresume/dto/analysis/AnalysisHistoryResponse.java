@@ -5,6 +5,7 @@ import com.arthur.jdragresume.entity.AnalysisStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record AnalysisHistoryResponse(
         Long id,
@@ -20,6 +21,9 @@ public record AnalysisHistoryResponse(
         String retrievedContext,
         String strengths,
         String missingSkills,
+        /* Null for reports written before structured findings; the client then reads the text fields. */
+        List<ReportItem> strengthItems,
+        List<ReportItem> gapItems,
         String improvementSuggestions,
         String interviewQuestions,
         LocalDateTime createdAt,
@@ -40,6 +44,8 @@ public record AnalysisHistoryResponse(
                 history.getRetrievedContext(),
                 history.getStrengths(),
                 history.getMissingSkills(),
+                ReportItems.read(history.getStrengthItems()),
+                ReportItems.read(history.getGapItems()),
                 history.getImprovementSuggestions(),
                 history.getInterviewQuestions(),
                 history.getCreatedAt(),

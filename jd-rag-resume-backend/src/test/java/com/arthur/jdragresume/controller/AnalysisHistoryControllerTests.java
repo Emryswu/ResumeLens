@@ -139,7 +139,7 @@ class AnalysisHistoryControllerTests {
         return new AnalysisHistoryResponse(
                 id, 1L, "arthur", 2L, "resume", 3L, "job",
                 status == AnalysisStatus.COMPLETED ? new BigDecimal("80.00") : null,
-                status, "summary", null, null, null, null, null, now, now
+                status, "summary", null, null, null, null, null, null, null, now, now
         );
     }
 

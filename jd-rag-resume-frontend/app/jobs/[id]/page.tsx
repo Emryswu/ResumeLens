@@ -1,5 +1,6 @@
 "use client";
 
+import { CircleAlert, CircleCheck, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
@@ -122,9 +123,9 @@ export default function JobDetailPage() {
     >
       {(error || notice) && (
         <div className={`toast ${error ? "error" : "success"}`}>
-          <span>{error ? "!" : "✓"}</span>
+          {error ? <CircleAlert size={20} aria-hidden="true" /> : <CircleCheck size={20} aria-hidden="true" />}
           {error || notice}
-          <button type="button" onClick={() => { setError(""); setNotice(""); }}>×</button>
+          <button type="button" aria-label="关闭通知" onClick={() => { setError(""); setNotice(""); }}><X size={18} aria-hidden="true" /></button>
         </div>
       )}
 

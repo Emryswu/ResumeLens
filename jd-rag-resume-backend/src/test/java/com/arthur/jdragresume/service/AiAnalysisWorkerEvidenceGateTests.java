@@ -1,5 +1,7 @@
 package com.arthur.jdragresume.service;
 
+import com.arthur.jdragresume.dto.analysis.ReportItem;
+import com.arthur.jdragresume.dto.analysis.ReportItems;
 import com.arthur.jdragresume.ai.AiClient;
 import com.arthur.jdragresume.ai.AiProperties;
 import com.arthur.jdragresume.entity.AnalysisHistory;
@@ -24,6 +26,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AiAnalysisWorkerEvidenceGateTests {
@@ -53,7 +56,13 @@ class AiAnalysisWorkerEvidenceGateTests {
         assertEquals(0, aiClient.calls());
         assertEquals(AnalysisStatus.COMPLETED, history.getStatus());
         assertEquals(new BigDecimal("0.00"), history.getMatchScore());
-        assertTrue(history.getSummary().contains("未检索到达到相似度阈值"));
+        assertTrue(history.getSummary().contains("没有达到相似度阈值"));
+        assertFalse(history.getInterviewQuestions().contains("候选人"));
+        assertEquals("[]", history.getStrengthItems());
+        List<ReportItem> gaps = ReportItems.read(history.getGapItems());
+        assertEquals(List.of("Java", "MySQL", AiAnalysisWorker.NO_EVIDENCE_GAP),
+                gaps.stream().map(ReportItem::title).toList());
+        assertTrue(gaps.stream().allMatch(gap -> gap.source() == ReportItem.Source.RULE && gap.chunks().isEmpty()));
         assertTrue(history.getStrengths().contains("未发现"));
         assertTrue(history.getMissingSkills().contains("Java"));
         assertTrue(history.getMissingSkills().contains("MySQL"));

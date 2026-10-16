@@ -63,6 +63,16 @@ public class AnalysisHistory extends AuditableEntity {
     @Column(columnDefinition = "LONGTEXT")
     private String missingSkills;
 
+    /** JSON array of structured strengths; null for reports written before V11. */
+    @Lob
+    @Column(name = "strength_items", columnDefinition = "LONGTEXT")
+    private String strengthItems;
+
+    /** JSON array of structured gaps; null for reports written before V11. */
+    @Lob
+    @Column(name = "gap_items", columnDefinition = "LONGTEXT")
+    private String gapItems;
+
     @Lob
     @Column(columnDefinition = "LONGTEXT")
     private String improvementSuggestions;
@@ -173,6 +183,22 @@ public class AnalysisHistory extends AuditableEntity {
 
     public void setMissingSkills(String missingSkills) {
         this.missingSkills = missingSkills;
+    }
+
+    public String getStrengthItems() {
+        return strengthItems;
+    }
+
+    public void setStrengthItems(String strengthItems) {
+        this.strengthItems = strengthItems;
+    }
+
+    public String getGapItems() {
+        return gapItems;
+    }
+
+    public void setGapItems(String gapItems) {
+        this.gapItems = gapItems;
     }
 
     public String getImprovementSuggestions() {

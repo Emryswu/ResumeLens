@@ -1,5 +1,6 @@
 "use client";
 
+import { CircleAlert, CircleCheck, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
@@ -120,9 +121,9 @@ export default function ResumeDetailPage() {
     >
       {(error || notice) && (
         <div className={`toast ${error ? "error" : "success"}`}>
-          <span>{error ? "!" : "✓"}</span>
+          {error ? <CircleAlert size={20} aria-hidden="true" /> : <CircleCheck size={20} aria-hidden="true" />}
           {error || notice}
-          <button type="button" onClick={() => { setError(""); setNotice(""); }}>×</button>
+          <button type="button" aria-label="关闭通知" onClick={() => { setError(""); setNotice(""); }}><X size={18} aria-hidden="true" /></button>
         </div>
       )}
 
@@ -132,7 +133,7 @@ export default function ResumeDetailPage() {
         <section className="detail-card">
           <div className="detail-meta">
             <div><span>ID</span><strong>#{resume.id}</strong></div>
-            <div><span>候选人</span><strong>{resume.candidateName}</strong></div>
+            <div><span>姓名</span><strong>{resume.candidateName}</strong></div>
             <div><span>手机</span><strong>{resume.phone || "—"}</strong></div>
             <div><span>邮箱</span><strong>{resume.email || "—"}</strong></div>
             <div><span>文件</span><strong>{resume.originalFileName || "文本录入"}</strong></div>
@@ -152,7 +153,7 @@ export default function ResumeDetailPage() {
         <form className="detail-card" onSubmit={save}>
           <div className="field-row">
             <label>简历标题<input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
-            <label>候选人<input required value={form.candidateName} onChange={(e) => setForm({ ...form, candidateName: e.target.value })} /></label>
+            <label>姓名<input required value={form.candidateName} onChange={(e) => setForm({ ...form, candidateName: e.target.value })} /></label>
           </div>
           <div className="field-row">
             <label>手机<input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>

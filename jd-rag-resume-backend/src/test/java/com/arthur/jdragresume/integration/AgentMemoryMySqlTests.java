@@ -21,7 +21,8 @@ class AgentMemoryMySqlTests {
     void flywayUpgradesV9AndDeletingAUserCascadesOnlyTheirMemories() throws Exception {
         var baseline = Flyway.configure().dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword()).target("9").load();
         baseline.migrate();
-        var upgraded = Flyway.configure().dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword()).load();
+        // Pin the upgrade to V10 so later migrations do not change what this test measures.
+        var upgraded = Flyway.configure().dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword()).target("10").load();
         assertEquals(1, upgraded.migrate().migrationsExecuted);
         try (var connection = DriverManager.getConnection(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
              var statement = connection.createStatement()) {

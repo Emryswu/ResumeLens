@@ -46,5 +46,5 @@ export function previewConclusion(
   if (keptAspects.length === 0) {
     return `当前阈值 ${minSimilarity.toFixed(2)} 下没有过阈示例块，因此不根据已过滤片段下匹配结论。`;
   }
-  return `基于过阈证据，候选人在${joinAspects(keptAspects)}方面匹配较好。低于阈值的片段不进入结论。`;
+  return `基于过阈证据，你的简历在${joinAspects(keptAspects)}方面匹配较好。低于阈值的片段不进入结论。`;
 }

@@ -61,6 +61,9 @@ export type Analysis = {
   retrievedContext?: string;
   strengths?: string;
   missingSkills?: string;
+  /** Structured findings; null for reports written before them. Normalised by report-items.findingsFrom. */
+  strengthItems?: unknown[] | null;
+  gapItems?: unknown[] | null;
   improvementSuggestions?: string;
   interviewQuestions?: string;
   createdAt: string;

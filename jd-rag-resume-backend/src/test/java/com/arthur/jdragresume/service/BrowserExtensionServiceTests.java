@@ -113,7 +113,7 @@ class BrowserExtensionServiceTests {
         return new AnalysisHistoryResponse(
                 id, 1L, "arthur", 7L, "Java 简历", 11L, "Java 后端",
                 status == AnalysisStatus.COMPLETED ? new BigDecimal("86.00") : null,
-                status, "summary", null, null, null, null, null, now, now
+                status, "summary", null, null, null, null, null, null, null, now, now
         );
     }
 
