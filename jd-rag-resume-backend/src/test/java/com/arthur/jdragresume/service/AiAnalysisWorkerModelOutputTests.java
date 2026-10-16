@@ -2,6 +2,9 @@ package com.arthur.jdragresume.service;
 
 import com.arthur.jdragresume.ai.AiClient;
 import com.arthur.jdragresume.ai.AiProperties;
+import com.arthur.jdragresume.dto.analysis.ReportCategory;
+import com.arthur.jdragresume.dto.analysis.ReportItem;
+import com.arthur.jdragresume.dto.analysis.ReportItems;
 import com.arthur.jdragresume.entity.AnalysisHistory;
 import com.arthur.jdragresume.entity.AnalysisStatus;
 import com.arthur.jdragresume.entity.AnalysisSubmissionRefund;
@@ -48,6 +51,25 @@ class AiAnalysisWorkerModelOutputTests {
         assertEquals("具备 Java 项目证据。[chunk-0]\n有 MySQL 调优经验。[chunk-1]", history.getStrengths());
         assertEquals("Java 证据与岗位相关。", history.getSummary());
         assertTrue(refunds.isEmpty());
+    }
+
+    @Test
+    void structuredFindingsAreStoredAsCodesNextToTheLegacyText() {
+        run(() -> """
+                {"matchScore": 82, "strengths": [
+                  {"title": "Java 项目", "detail": "你做过 Java 服务。", "chunks": [0], "category": "PROJECT"},
+                  {"title": "Kafka", "detail": "你用过 Kafka。", "chunks": [5], "category": "TECH_STACK"}
+                 ],
+                 "missingSkills": [{"title": "部署", "detail": "你还没写部署经验。", "chunks": [], "category": "ENGINEERING"}],
+                 "summary": "你和岗位比较匹配。"}
+                """);
+
+        assertEquals(AnalysisStatus.COMPLETED, history.getStatus());
+        assertEquals("Java 项目：你做过 Java 服务。 [chunk-0]", history.getStrengths());
+        assertEquals(List.of(new ReportItem("Java 项目", "你做过 Java 服务。", List.of(0), ReportCategory.PROJECT,
+                ReportItem.Source.MODEL)), ReportItems.read(history.getStrengthItems()));
+        assertTrue(history.getStrengthItems().contains("\"PROJECT\""));
+        assertEquals(ReportCategory.ENGINEERING, ReportItems.read(history.getGapItems()).getFirst().category());
     }
 
     @Test

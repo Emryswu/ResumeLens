@@ -181,11 +181,16 @@ public class AiClient {
         return """
                 {
                   "matchScore": 86.50,
-                  "strengths": "简历体现了岗位所需的 Java、Spring Boot、MySQL、JWT 与 REST API 实践。[chunk-0]",
-                  "missingSkills": "简历尚未充分体现高并发调优、自动化测试和生产部署经验。",
-                  "improvementSuggestions": "补充项目指标、API 规模、数据库设计细节以及个人承担的具体职责。",
-                  "interviewQuestions": "1. 请说明 JWT 鉴权流程。2. Spring Boot 如何统一处理异常？3. 数据表如何实现用户数据隔离？",
-                  "summary": "候选人与 Java 后端及 RAG 工程岗位匹配度较高，但仍需补充工程化和生产环境经验。"
+                  "strengths": [
+                    {"title": "Java 后端技术栈", "detail": "你的简历体现了岗位所需的 Java、Spring Boot、MySQL、JWT 与 REST API 实践。", "chunks": [0], "category": "TECH_STACK"}
+                  ],
+                  "missingSkills": [
+                    {"title": "高并发调优", "detail": "你的简历还没有体现高并发场景下的性能调优经验。", "chunks": [], "category": "ENGINEERING"},
+                    {"title": "自动化测试与部署", "detail": "你的简历尚未展示自动化测试和生产部署的实践。", "chunks": [], "category": "ENGINEERING"}
+                  ],
+                  "improvementSuggestions": ["补充项目指标、API 规模和数据库设计细节", "写清你在项目中承担的具体职责"],
+                  "interviewQuestions": ["请说明 JWT 鉴权流程。", "Spring Boot 如何统一处理异常？", "数据表如何实现用户数据隔离？"],
+                  "summary": "你和 Java 后端及 RAG 工程岗位的匹配度较高，但还需要补充工程化和生产环境方面的经验。"
                 }
                 """;
     }
