@@ -42,3 +42,101 @@ test("工作台自绘底色，不依赖 body 上的全局 --paper", () => {
   assert.match(globalsCss, /body \{[^}]*background: var\(--paper\)/);
   assert.match(workspaceCss, /\.refined-workspace \{[^}]*background: var\(--paper\)/);
 });
+
+type Rule = { selector: string; body: string };
+
+/** Innermost rules only; @media wrappers are dropped and @font-face/@keyframes skipped. */
+function rules(css: string): Rule[] {
+  return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .map((match) => ({ selector: match[1].replace(/^[\s\S]*@media[^{]*$/, "").trim(), body: match[2] }))
+    .filter((rule) => rule.selector && !rule.selector.startsWith("@") && !/^(from|to|\d+%)$/.test(rule.selector));
+}
+
+/** Rendered only on the sign-in page, which keeps its own type and palette. */
+const LOGIN_ONLY = /^(\.auth-|\.mobile-brand|\.status-pill|\.text-button|\.model-line|body$|html$|:root$|\*)/;
+/** Shared by the sign-in page and the shell; the shell overrides them in workspace.css. */
+const SHARED_WITH_LOGIN = ["label", ".eyebrow", ".message"];
+
+const shellRules = [...rules(globalsCss), ...rules(workspaceCss)].filter((rule) => {
+  const selectors = rule.selector.split(",").map((part) => part.trim());
+  return !selectors.every((part) => LOGIN_ONLY.test(part) || SHARED_WITH_LOGIN.includes(part));
+});
+
+function tokens(css: string, scope: RegExp): Map<string, string> {
+  const block = css.match(scope)?.[1] ?? "";
+  return new Map([...block.matchAll(/(--[\w-]+):\s*([^;]+);/g)].map((match) => [match[1], match[2].trim()]));
+}
+const rootTokens = tokens(globalsCss, /:root \{([^}]*)\}/);
+const shellTokens = new Map([...rootTokens, ...tokens(workspaceCss, /\.refined-workspace \{([^}]*--[^}]*)\}/)]);
+const resolve = (value: string) => value.replace(/var\((--[\w-]+)\)/g, (_, name: string) => shellTokens.get(name) ?? name);
+
+function pixels(value: string): number {
+  const resolved = resolve(value.trim());
+  if (resolved === "0") return 0;
+  const match = resolved.match(/^(\d+(?:\.\d+)?)px$/);
+  assert.ok(match, `无法解析字号 ${value}`);
+  return Number(match[1]);
+}
+
+test("外壳内正文不小于 14px，次要文字不小于 13px", () => {
+  assert.equal(rootTokens.get("--text-meta"), "13px");
+  assert.equal(rootTokens.get("--text-body"), "14px");
+  const tooSmall = shellRules.flatMap((rule) => [
+    ...[...rule.body.matchAll(/font-size:\s*([^;]+)/g)].map((match) => match[1]),
+    ...[...rule.body.matchAll(/font:\s*\d+\s+(\d+px)/g)].map((match) => match[1]),
+  ].filter((value) => { const size = pixels(value); return size !== 0 && size < 13; })
+    .map((value) => `${rule.selector}: ${value}`));
+  assert.deepEqual(tooSmall, []);
+});
+
+test("与登录页共用的选择器在外壳内被覆盖到字号基线以上", () => {
+  for (const selector of SHARED_WITH_LOGIN) {
+    const override = rules(workspaceCss).find((rule) => rule.selector === `.refined-workspace ${selector}`);
+    assert.ok(override, `workspace.css 缺少 .refined-workspace ${selector}`);
+    const size = override.body.match(/font-size:\s*([^;]+)/)?.[1];
+    assert.ok(size && pixels(size) >= 13, `.refined-workspace ${selector} 字号应不小于 13px`);
+  }
+});
+
+function luminance(hex: string): number {
+  const full = hex.length === 4 ? `#${[...hex.slice(1)].map((c) => c + c).join("")}` : hex;
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(full.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrast(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+test("外壳文字颜色在其底色上达到 WCAG AA（4.5:1）", () => {
+  const paper = resolve("var(--paper)");
+  const panel = resolve("var(--panel)");
+  for (const name of ["--ink", "--muted", "--mint-dark"]) {
+    for (const ground of [paper, panel]) {
+      assert.ok(contrast(resolve(`var(${name})`), ground) >= 4.5, `${name} 在 ${ground} 上对比度不足`);
+    }
+  }
+  const failures: string[] = [];
+  for (const rule of shellRules) {
+    const color = rule.body.match(/(?:^|[;\s])color:\s*([^;]+)/)?.[1];
+    if (!color) continue;
+    const text = resolve(color.trim());
+    if (!/^#[0-9a-f]{3,6}$/i.test(text)) continue;
+    const background = rule.body.match(/background(?:-color)?:\s*([^;]+)/)?.[1];
+    const ground = background ? resolve(background.trim()) : null;
+    const grounds = ground && /^#[0-9a-f]{3,6}$/i.test(ground) ? [ground] : [paper, panel];
+    for (const each of grounds) {
+      const ratio = contrast(text, each);
+      if (ratio < 4.5) failures.push(`${rule.selector}: ${text} on ${each} = ${ratio.toFixed(2)}`);
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+test("外壳内不再使用宋体，宋体只留给登录页", () => {
+  const serif = shellRules.filter((rule) => /ResumeSerif/.test(rule.body)).map((rule) => rule.selector);
+  // .brand-mark is shared with the sign-in page; the sidebar overrides its font.
+  assert.deepEqual(serif, [".brand-mark"]);
+  assert.match(workspaceCss, /\.app-sidebar \.brand-mark \{[^}]*font: 600 \d+px system-ui/);
+});
