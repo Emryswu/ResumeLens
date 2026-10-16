@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { AppChrome } from "../../components/AppChrome";
+import { AppShell } from "../../components/AppShell";
+import { useSessionUser } from "../../components/use-session-user";
 import { apiRequest, visibleApiErrorMessage, type Job } from "../../lib/api";
 
 export default function JobDetailPage() {
+  const { user, logout } = useSessionUser();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const id = Number(params.id);
@@ -94,9 +96,12 @@ export default function JobDetailPage() {
   }
 
   return (
-    <AppChrome
+    <AppShell
       title={job ? job.title : `职位 #${params.id}`}
-      eyebrow="JOB DETAIL"
+      activeView="jobs"
+      back={{ href: "/#jobs", label: "职位库" }}
+      user={user}
+      onLogout={logout}
       actions={
         <>
           <button className="ghost" type="button" onClick={() => void load()} disabled={!!busy}>
@@ -174,6 +179,6 @@ export default function JobDetailPage() {
           </div>
         </form>
       )}
-    </AppChrome>
+    </AppShell>
   );
 }

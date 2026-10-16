@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { AppChrome } from "../../components/AppChrome";
+import { AppShell } from "../../components/AppShell";
+import { useSessionUser } from "../../components/use-session-user";
 import { apiRequest, visibleApiErrorMessage, type Resume } from "../../lib/api";
 
 export default function ResumeDetailPage() {
+  const { user, logout } = useSessionUser();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const id = Number(params.id);
@@ -92,9 +94,12 @@ export default function ResumeDetailPage() {
   }
 
   return (
-    <AppChrome
+    <AppShell
       title={resume ? resume.title : `简历 #${params.id}`}
-      eyebrow="RESUME DETAIL"
+      activeView="resumes"
+      back={{ href: "/#resumes", label: "我的简历" }}
+      user={user}
+      onLogout={logout}
       actions={
         <>
           <button className="ghost" type="button" onClick={() => void load()} disabled={!!busy}>
@@ -166,6 +171,6 @@ export default function ResumeDetailPage() {
           </div>
         </form>
       )}
-    </AppChrome>
+    </AppShell>
   );
 }
