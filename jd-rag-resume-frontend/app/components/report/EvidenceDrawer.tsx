@@ -51,7 +51,8 @@ export function EvidenceDrawer({ opened, evidence, onClose }: {
             {marked ? "高亮的是与这一条字面相同的词，只用来帮你定位，不代表这段原文一定支撑上面的结论。" : "这段原文里没有与这一条字面相同的词，请自行对照。"}
             {opened.kind === "strength" && ` 检索相似度 ${chunk.similarity.toFixed(2)}，表示文本相关程度，不等于能力评分。`}
           </p>
-          <p className="source-text evidence-drawer-text">
+          {/* No literal overlap: outline the whole chunk instead of marking nothing. */}
+          <p className={`source-text evidence-drawer-text${marked ? "" : " unmatched"}`}>
             {segments.map((segment, index) => segment.mark ? <mark key={index}>{segment.text}</mark> : segment.text)}
           </p>
         </>

@@ -207,6 +207,7 @@
 .evidence-drawer-for span { display: block; color: var(--muted); font-size: var(--text-meta); }
 .evidence-drawer-text { margin: 0; }
 .evidence-drawer-text mark { padding: 0 1px; border-radius: 3px; color: var(--ink); background: #cfe9d8; }
+.evidence-drawer-text.unmatched { padding: 10px 12px; border: 1px solid #9cc9ad; border-radius: 8px; background: #f4faf6; }
 .evidence-drawer-note { margin: 0; color: var(--muted); font-size: var(--text-body); line-height: 1.7; }
 .refined-workspace .ghost.icon-only { width: 36px; min-height: 36px; padding: 0; }
 .retrieval-details { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
