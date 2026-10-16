@@ -11,8 +11,15 @@ test("英文技术词按整词、忽略大小写高亮", () => {
 
 test("中文取标题里能在片段中原样找到的最长子串（至少两个字）", () => {
   assert.deepEqual(marked("负责支付对账系统的后端开发", "支付对账经验"), ["支付对账"]);
-  assert.deepEqual(marked("参与后端服务开发", "后端技术栈"), ["后端"]);
+  assert.deepEqual(marked("参与支付服务开发", "支付技术栈"), ["支付"]);
   assert.deepEqual(marked("参与开发", "后"), []);
+});
+
+test("泛词（后端、技术、开发…）单独或只由泛词拼成时不高亮，含具体词的短语照常高亮", () => {
+  const chunk = "2023-2025 某公司后端开发，本科计算机科学与技术，负责项目，熟悉使用 Java";
+  assert.deepEqual(marked(chunk, "Java 后端技术栈"), ["Java"]);
+  assert.deepEqual(marked(chunk, "后端开发经验"), []);
+  assert.deepEqual(marked("负责支付系统后端开发", "支付系统后端"), ["支付系统后端"]);
 });
 
 test("说明里的中文不参与高亮，避免「你的简历」之类的词到处命中", () => {
