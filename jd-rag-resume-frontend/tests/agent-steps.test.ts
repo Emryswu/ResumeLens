@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  agentChatReducer, initialAgentChatState, retryAdvice, retryRequest,
+  agentChatReducer, initialAgentChatState, nextRequest, retryAdvice, retryRequest, staleConversation,
   type AgentChatState, type AgentEvent, type AgentMessage, type AgentStep,
 } from "../app/agent-stream.ts";
 import { describeArguments, formatDuration, timelineSteps, toolTimeMs } from "../app/agent-steps.ts";
@@ -200,6 +200,25 @@ test("regression: approve, analysis succeeds, connection drops before done, then
   if (request) sent.push(request.body);
   assert.equal(request, null);
   assert.deepEqual(sent, [], "a retry would resend the old transcript and the server would call the analysis unconfirmed");
+});
+
+test("regression: analysis succeeds, connection drops before done, then a typed question is not sent on the old transcript", () => {
+  let state = approvedAndRan();
+  // Still waiting for the server: nothing is decided yet, so the conversation is not blocked.
+  assert.equal(staleConversation(state), null);
+  state = agentChatReducer(state, { type: "failed", code: "AGENT_STREAM_INTERRUPTED", message: "中断" });
+  state = agentChatReducer(state, { type: "settled" });
+
+  assert.deepEqual(staleConversation(state), { analysisId: 7 }, "the page locks the input and points to report 7");
+  // Whatever the page does, the shared builder refuses to put the old transcript in a request.
+  const sent: unknown[] = [];
+  assert.throws(() => sent.push(nextRequest(state, { question: "刚才分析完成了吗？" })), /new conversation/);
+  assert.deepEqual(sent, []);
+
+  // 新对话 starts from an empty transcript, which is consistent again.
+  const fresh = agentChatReducer(state, { type: "reset" });
+  assert.equal(staleConversation(fresh), null);
+  assert.deepEqual(nextRequest(fresh, { question: "刚才分析完成了吗？" }).messages, [{ role: "user", content: "刚才分析完成了吗？" }]);
 });
 
 test("once done delivered the transcript, a later failure can be retried on that transcript", () => {

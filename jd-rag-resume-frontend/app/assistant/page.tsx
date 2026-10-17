@@ -17,6 +17,7 @@ import {
   readAgentStream,
   retryAdvice,
   retryRequest,
+  staleConversation,
   type AgentConfirmation,
   type AgentTurn,
 } from "../agent-stream";
@@ -127,7 +128,8 @@ export default function AssistantPage() {
 
   function ask(question: string) {
     const text = question.trim();
-    if (!text || state.busy || state.pending) return;
+    // nextRequest also refuses a stale conversation; checking first keeps the draft instead of throwing.
+    if (!text || state.busy || state.pending || staleConversation(state)) return;
     setDraft("");
     start(text, nextRequest(state, { question: text }));
   }
@@ -162,7 +164,8 @@ export default function AssistantPage() {
     }
   }
 
-  const inputLocked = state.busy || !!state.pending;
+  const stale = staleConversation(state);
+  const inputLocked = state.busy || !!state.pending || !!stale;
   const canRetry = retryRequest(state) != null;
 
   return (
@@ -229,7 +232,8 @@ export default function AssistantPage() {
           <textarea
             rows={2}
             value={draft}
-            placeholder={state.pending ? "请先确认或拒绝上面的操作" : "问点什么，例如：我的简历最适合哪个职位？（Enter 发送，Shift+Enter 换行）"}
+            placeholder={stale ? "这段对话的记录没有同步完整，不能继续提问：请查看上面的报告入口，或点「新对话」重新开始"
+              : state.pending ? "请先确认或拒绝上面的操作" : "问点什么，例如：我的简历最适合哪个职位？（Enter 发送，Shift+Enter 换行）"}
             disabled={inputLocked}
             maxLength={4000}
             onChange={(event) => setDraft(event.target.value)}
@@ -293,8 +297,8 @@ function TurnView({ turn, live, pending, analysis, onDecide, onRetry, disabled }
             {advice.kind === "check-report" && (
               <span className="assistant-error-hint">
                 {advice.analysisId
-                  ? "分析已经发起，为避免重复发起，这里不提供重试，请直接查看已生成的报告。"
-                  : "你已同意发起分析，但无法确定是否已经执行；为避免重复发起，这里不提供重试，请先到分析记录核实。"}
+                  ? "分析已经发起，但对话记录没有同步完整。为避免助手误以为没有执行，这段对话不能继续，请直接查看已生成的报告，或点「新对话」重新开始。"
+                  : "你已同意发起分析，但无法确定是否已经执行。为避免重复发起，这段对话不能继续，请先到分析记录核实，或点「新对话」重新开始。"}
               </span>
             )}
           </span>
