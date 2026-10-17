@@ -1,9 +1,8 @@
 "use client";
 
-import { X } from "lucide-react";
-import { useEffect, useRef } from "react";
 import { highlightSegments } from "../../evidence-highlight";
 import type { EvidenceChunk } from "../../report-export";
+import { SideDrawer } from "../SideDrawer";
 import type { OpenedEvidence } from "./FindingList";
 
 /**
@@ -15,31 +14,13 @@ export function EvidenceDrawer({ opened, evidence, onClose }: {
   evidence: EvidenceChunk[];
   onClose: () => void;
 }) {
-  const headingRef = useRef<HTMLHeadingElement>(null);
   const chunk = opened ? evidence.find((item) => item.index === opened.chunk) : undefined;
-
-  useEffect(() => {
-    if (!opened) return;
-    headingRef.current?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [opened, onClose]);
-
   if (!opened) return null;
   const segments = chunk ? highlightSegments(chunk.content, opened.finding) : [];
   const marked = segments.some((segment) => segment.mark);
   return (
-    <aside id="evidence-drawer" className="evidence-drawer" aria-labelledby="evidence-drawer-title">
-      <header>
-        <div>
-          <h3 id="evidence-drawer-title" tabIndex={-1} ref={headingRef}>相关原文片段</h3>
-          <p>片段 {opened.chunk}{chunk ? ` · ${chunk.section}` : ""}</p>
-        </div>
-        <button type="button" className="ghost icon-only" aria-label="关闭原文片段" onClick={onClose}><X size={18} aria-hidden="true" /></button>
-      </header>
+    <SideDrawer id="evidence-drawer" title="相关原文片段" subtitle={`片段 ${opened.chunk}${chunk ? ` · ${chunk.section}` : ""}`}
+      closeLabel="关闭原文片段" focusKey={opened} onClose={onClose}>
       <p className="evidence-drawer-for">
         <span>{opened.kind === "requirement" ? "岗位要求" : opened.kind === "gap" ? "缺口" : "优势"}</span>
         {opened.finding.title}
@@ -59,6 +40,6 @@ export function EvidenceDrawer({ opened, evidence, onClose }: {
       ) : (
         <p className="evidence-drawer-note">这份报告没有保存片段 {opened.chunk} 的原文。</p>
       )}
-    </aside>
+    </SideDrawer>
   );
 }

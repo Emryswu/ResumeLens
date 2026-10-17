@@ -2,6 +2,9 @@
  * Turns one assistant turn into the rows of its step bar. Every row comes from a server event or from the
  * pending confirmation; durations and result sizes are only ever the numbers the server reported.
  */
+import {
+  BriefcaseBusiness, FileSearch, FileStack, Gauge, History, ListOrdered, Search, Wrench, type LucideIcon,
+} from "lucide-react";
 import type { AgentTurn } from "./agent-stream";
 
 export type StepStatus =
@@ -36,15 +39,26 @@ export type TimelineStep = {
   errorCode?: string | null;
 };
 
-export const TOOL_LABELS: Record<string, string> = {
-  list_resumes: "读取简历列表",
-  search_jobs: "搜索职位库",
-  get_job: "读取职位详情",
-  rank_jobs_for_resume: "按语义相似度排序职位",
-  search_resume_evidence: "检索简历证据（RAG）",
-  get_latest_analysis: "读取最近一次分析",
-  start_analysis: "发起完整分析",
+export type ToolMeta = { label: string; icon: LucideIcon };
+
+/**
+ * Every tool the backend registers (classes implementing AgentTool), with its Chinese name and icon.
+ * tests/agent-tools.test.ts reads the backend sources and fails when a tool is missing here.
+ */
+export const AGENT_TOOLS: Record<string, ToolMeta> = {
+  list_resumes: { label: "读取简历列表", icon: FileStack },
+  search_jobs: { label: "搜索职位库", icon: Search },
+  get_job: { label: "读取职位详情", icon: BriefcaseBusiness },
+  rank_jobs_for_resume: { label: "按语义相似度排序职位", icon: ListOrdered },
+  search_resume_evidence: { label: "检索简历证据（RAG）", icon: FileSearch },
+  get_latest_analysis: { label: "读取最近一次分析", icon: History },
+  start_analysis: { label: "发起完整分析", icon: Gauge },
 };
+
+/** A tool this page does not know yet still shows, under its raw name and a generic icon. */
+export function toolMeta(tool: string): ToolMeta {
+  return AGENT_TOOLS[tool] ?? { label: tool, icon: Wrench };
+}
 
 export const STATUS_LABELS: Record<StepStatus, string> = {
   running: "进行中",
@@ -59,7 +73,49 @@ export const STATUS_LABELS: Record<StepStatus, string> = {
 };
 
 export function toolLabel(tool: string): string {
-  return TOOL_LABELS[tool] ?? tool;
+  return toolMeta(tool).label;
+}
+
+/** Statuses that must stay visible in the one-line summary, in the order they are listed. */
+const ISSUE_LABELS: Partial<Record<StepStatus, string>> = {
+  failed: "失败",
+  rejected: "已拒绝",
+  unknown: "结果未知",
+  unfinished: "未完成",
+  unconfirmed: "未执行",
+};
+
+export type ProcessSummary = {
+  /** Tools in order of first use, each listed once. */
+  tools: string[];
+  /** Their Chinese names joined with 、. */
+  text: string;
+  /** The tool whose icon stands for the turn, or "multiple" (shown as a clock) when more than one tool ran. */
+  icon: string | "multiple";
+  /** Total reported tool time; only given for several tools, null when no finished call reported one. */
+  totalMs: number | null;
+  /** Steps that did not simply finish, e.g. "1 步失败". Never folded away by the summary. */
+  issues: { status: StepStatus; label: string }[];
+  steps: number;
+};
+
+/** The one line a finished turn's process collapses to. Null when the turn used no tools. */
+export function processSummary(rows: TimelineStep[]): ProcessSummary | null {
+  if (rows.length === 0) return null;
+  const tools = [...new Set(rows.map((row) => row.tool))];
+  const multiple = tools.length > 1;
+  const issues = Object.entries(ISSUE_LABELS).flatMap(([status, label]) => {
+    const count = rows.filter((row) => row.status === status).length;
+    return count > 0 ? [{ status: status as StepStatus, label: `${count} 步${label}` }] : [];
+  });
+  return {
+    tools,
+    text: tools.map(toolLabel).join("、"),
+    icon: multiple ? "multiple" : tools[0],
+    totalMs: multiple ? toolTimeMs(rows) : null,
+    issues,
+    steps: rows.length,
+  };
 }
 
 

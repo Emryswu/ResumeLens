@@ -2,13 +2,13 @@
 
 import { ArrowRight, ArrowUp, CircleAlert, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { FormEvent, KeyboardEvent, useEffect, useReducer, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AppShell } from "../components/AppShell";
 import { RetryButton } from "../components/StateBlock";
 import { AgentMarkdown } from "../components/assistant/AgentMarkdown";
 import { AnalysisCard } from "../components/assistant/AnalysisCard";
 import { ConfirmationCard } from "../components/assistant/ConfirmationCard";
-import { StepTimeline } from "../components/assistant/StepTimeline";
+import { ProcessDrawer, StepTimeline } from "../components/assistant/StepTimeline";
 import { useSessionUser } from "../components/use-session-user";
 import {
   agentChatReducer,
@@ -52,6 +52,9 @@ const ERROR_COPY: Record<string, string> = {
 export default function AssistantPage() {
   const { user, logout } = useSessionUser();
   const [state, dispatch] = useReducer(agentChatReducer, initialAgentChatState);
+  /** The turn whose process is open in the side panel. */
+  const [processTurn, setProcessTurn] = useState<number | null>(null);
+  const closeProcess = useCallback(() => setProcessTurn(null), []);
   const [draft, setDraft] = useState("");
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const [analyses, setAnalyses] = useState<Record<number, Analysis>>({});
@@ -186,6 +189,7 @@ export default function AssistantPage() {
             onClick={() => {
               followedRef.current = new Set();
               setAnalyses({});
+              setProcessTurn(null);
               dispatch({ type: "reset" });
             }}
           >
@@ -223,9 +227,18 @@ export default function AssistantPage() {
               onDecide={decide}
               onRetry={index === state.turns.length - 1 && canRetry ? retry : undefined}
               disabled={state.busy}
+              processOpen={processTurn === index}
+              onOpenProcess={() => setProcessTurn(index)}
             />
           ))}
         </ol>
+        {processTurn != null && state.turns[processTurn] && (
+          <ProcessDrawer
+            turn={state.turns[processTurn]}
+            pendingId={processTurn === state.turns.length - 1 ? state.pending?.toolCallId ?? null : null}
+            onClose={closeProcess}
+          />
+        )}
         <div className="assistant-bottom" ref={bottomRef} />
 
         <form className="assistant-input" onSubmit={submit}>
@@ -250,7 +263,7 @@ export default function AssistantPage() {
   );
 }
 
-function TurnView({ turn, live, pending, analysis, onDecide, onRetry, disabled }: {
+function TurnView({ turn, live, pending, analysis, onDecide, onRetry, disabled, processOpen, onOpenProcess }: {
   turn: AgentTurn;
   live: boolean;
   pending: AgentConfirmation | null;
@@ -259,13 +272,15 @@ function TurnView({ turn, live, pending, analysis, onDecide, onRetry, disabled }
   /** Only on the last failed turn, when asking the same question again is safe. */
   onRetry?: () => void;
   disabled: boolean;
+  processOpen: boolean;
+  onOpenProcess: () => void;
 }) {
   const advice = retryAdvice(turn);
   return (
     <li className="assistant-turn">
       <div className="assistant-question">{turn.question}</div>
 
-      <StepTimeline turn={turn} pendingId={pending?.toolCallId ?? null} thinking={live} />
+      <StepTimeline turn={turn} pendingId={pending?.toolCallId ?? null} thinking={live} open={processOpen} onOpen={onOpenProcess} />
 
       {/* Text the model writes next to its tool calls; before a confirmation it often carries the actual conclusion. */}
       {turn.notes.map((note, index) => <AgentMarkdown key={index} className="assistant-note" text={note} />)}
