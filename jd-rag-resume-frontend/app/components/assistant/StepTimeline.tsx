@@ -73,12 +73,18 @@ export function StepTimeline({ turn, pendingId, thinking, open, onOpen }: {
 }
 
 /** The full timeline of one finished turn, opened from its summary line. */
-export function ProcessDrawer({ turn, pendingId, onClose }: { turn: AgentTurn; pendingId: string | null; onClose: () => void }) {
+export function ProcessDrawer({ turn, turnKey, pendingId, onClose }: {
+  turn: AgentTurn;
+  /** Which turn is shown; switching turns moves focus to the title and makes that turn's summary the one to return to. */
+  turnKey: number;
+  pendingId: string | null;
+  onClose: () => void;
+}) {
   const rows = timelineSteps(turn, pendingId);
   const summary = processSummary(rows);
   const toolTime = toolTimeMs(rows);
   return (
-    <SideDrawer id={PROCESS_DRAWER_ID} title={summary?.text ?? "处理过程"} closeLabel="关闭处理过程" onClose={onClose}
+    <SideDrawer id={PROCESS_DRAWER_ID} title={summary?.text ?? "处理过程"} closeLabel="关闭处理过程" focusKey={turnKey} onClose={onClose}
       subtitle={`${rows.length} 步${toolTime != null ? ` · 工具耗时 ${formatDuration(toolTime)}` : ""}`}>
       <Timeline rows={rows} thinking={false} />
     </SideDrawer>

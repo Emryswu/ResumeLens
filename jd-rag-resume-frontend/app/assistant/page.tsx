@@ -235,6 +235,7 @@ export default function AssistantPage() {
         {processTurn != null && state.turns[processTurn] && (
           <ProcessDrawer
             turn={state.turns[processTurn]}
+            turnKey={processTurn}
             pendingId={processTurn === state.turns.length - 1 ? state.pending?.toolCallId ?? null : null}
             onClose={closeProcess}
           />

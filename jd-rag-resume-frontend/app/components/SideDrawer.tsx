@@ -4,29 +4,36 @@ import { X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 
 /**
- * Non-modal side panel: on the right on wide screens, a bottom sheet at 780px and below. Focus moves to the title
- * whenever focusKey changes, Escape closes it, and closing returns focus to whatever opened it.
+ * Non-modal side panel: on the right on wide screens, a bottom sheet at 780px and below. Escape closes it.
+ * Each time it opens or focusKey changes, it remembers what had focus (the control that opened or switched it) and
+ * moves focus to the title; closing returns focus to the control that opened it last.
  */
 export function SideDrawer({ id, title, subtitle, closeLabel, focusKey, onClose, children }: {
   id: string;
   title: ReactNode;
   subtitle?: ReactNode;
   closeLabel: string;
-  /** Change it to move focus back to the title, e.g. when the drawer switches to other content. */
-  focusKey?: unknown;
+  /** Identifies the content, e.g. the turn or snippet shown. Change it when the drawer switches to other content. */
+  focusKey: unknown;
   onClose: () => void;
   children: ReactNode;
 }) {
+  const asideRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
 
+  // Runs on open and on every switch, so switching from A to B and closing returns to B, not A.
+  // Focus already inside the panel is not an opener.
   useEffect(() => {
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    return () => { if (opener?.isConnected) opener.focus(); };
-  }, []);
-
-  useEffect(() => {
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body && !asideRef.current?.contains(active)) openerRef.current = active;
     headingRef.current?.focus();
   }, [focusKey]);
+
+  useEffect(() => () => {
+    const opener = openerRef.current;
+    if (opener?.isConnected) opener.focus();
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -37,7 +44,7 @@ export function SideDrawer({ id, title, subtitle, closeLabel, focusKey, onClose,
   }, [onClose]);
 
   return (
-    <aside id={id} className="side-drawer" aria-labelledby={`${id}-title`}>
+    <aside id={id} ref={asideRef} className="side-drawer" aria-labelledby={`${id}-title`}>
       <header>
         <div>
           <h3 id={`${id}-title`} tabIndex={-1} ref={headingRef}>{title}</h3>
