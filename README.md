@@ -1,10 +1,12 @@
 # ResumeLens · JD-RAG Resume Matching
 
-[![CI](https://github.com/wuWhite688/ResumeLens/actions/workflows/ci.yml/badge.svg)](https://github.com/wuWhite688/ResumeLens/actions/workflows/ci.yml)
+[![CI](https://github.com/Emryswu/ResumeLens/actions/workflows/ci.yml/badge.svg)](https://github.com/Emryswu/ResumeLens/actions/workflows/ci.yml)
 
 基于 **本地向量检索 + 大模型生成** 的简历 / 职位（JD）智能匹配系统。
 
 后端用 Spring Boot 完成鉴权、持久化、岗位库向量粗排与异步精析；精析走「关键词重排 + 语义阈值门控」的 RAG。工作台默认是「一份简历对岗位库排序，再对 Top N 出证据链报告」。适合作为 Java 后端 + RAG 工程化作品集项目。
+
+前端采用浅色水墨山水与深绿配色，围绕「选简历 → 选岗位 → 核对与改进」组织工作台：左侧筛选目标岗位，右侧阅读匹配报告；点击引用片段查看简历原文，再对照建议手动修改并另存简历。AI 助手共用同一套导航和抽屉交互，工具处理过程与回答分开展示。
 
 | 层 | 技术 |
 |----|------|
@@ -13,14 +15,50 @@
 | 向量 | 本地 ONNX：`Alibaba-NLP/gte-multilingual-base-int8`（CLS pooling，768 维） |
 | 检索 | Lucene 向量索引 + 语义阈值 + 关键词 boost + 双 Query |
 | 生成 | OpenAI 兼容 Chat Completions（推荐 DeepSeek；支持 mock） |
-| 前端 | Next.js（vinext）/ React 19 / TypeScript |
+| 前端 | Next.js 16（vinext）/ React 19 / TypeScript / lucide-react / 本地思源宋体（Noto Serif SC） |
 | 交付 | Docker Compose（MySQL + API + Web）/ Actuator Health |
 
 ---
 
 ## 界面预览
 
-> 以下截图均由本机真实运行的服务截取（Spring Boot + MySQL + 本地 ONNX 向量检索 + Next.js）。
+### 新版工作台与报告
+
+**水墨工作台 · 岗位列表与报告并排**：顶部山水横幅、侧栏插画和深绿卡片沿用统一配色。岗位按语义相关度初筛，报告集中展示匹配分、简历与目标职位、结论以及结构化优势和缺口；检索参数收在「检索详情」中。
+
+> 新版配图来自已合并的 [界面改版 PR #72](https://github.com/Emryswu/ResumeLens/pull/72) 与 [助手面板 PR #73](https://github.com/Emryswu/ResumeLens/pull/73)，均为实际页面截图。报告使用离线 mock 演示数据；助手的 SSE 事件使用固定脚本，**未调用真实大模型**。报告中的长岗位名、公司名和地点用于演示截断与换行。图片链接固定到截图提交，不随分支更新。
+
+![新版水墨工作台与结构化匹配报告（mock 演示数据）](https://github.com/Emryswu/ResumeLens/blob/f63c0c79cf84ff9c4ca27220a4eae8321e0023fb/after/11-report-full.png?raw=true)
+
+**从结论追溯原文**：优势与缺口按技术栈、项目经历、工程实践等类别展示，规则检出的缺口单独标注。点击「片段 N」在侧边抽屉查看相关原文；高亮只表示词面重叠，帮助定位，不代表语义支撑。优势旁的相似度表示检索相关程度，不是能力评分。
+
+**对照原文修改**：报告提供「匹配依据 / 修改简历 / 岗位要求」三个标签。「修改简历」读取当前简历原文作为可编辑草稿，旁边展示分析建议，可另存为新简历或下载 TXT；目前不自动生成改写内容，也不覆盖原简历。
+
+### AI 助手 · 处理过程侧栏
+
+处理中，工具步骤随 SSE 实时出现；回答到达后收成一行摘要，点击打开完整时间线。每步可展开查看工具名、参数、返回结果与错误码，失败等异常状态仍保留在摘要上。下图故意让一次职位详情读取失败，以展示状态。
+
+![新版 AI 助手处理过程侧栏（固定 SSE 演示，含一次失败）](https://github.com/Emryswu/ResumeLens/blob/00a7ea6515c8093c7741e4a9a1e238e44dfa9adb/after/03-panel-open.png?raw=true)
+
+发起完整分析仍须先经确认卡同意；同意后断流且结果未知时，页面引导到分析记录核实。若写操作结果未知，或已执行但未收到完整对话记录，当前对话不能继续或重试，可查看记录 / 报告后新开对话。
+
+<details>
+<summary>窄屏界面与更多新版截图</summary>
+
+[工作台首屏](https://github.com/Emryswu/ResumeLens/blob/f63c0c79cf84ff9c4ca27220a4eae8321e0023fb/after/10-report.png?raw=true) · [空账号引导](https://github.com/Emryswu/ResumeLens/blob/f63c0c79cf84ff9c4ca27220a4eae8321e0023fb/after/01-match-empty.png?raw=true) · [助手回答与摘要行](https://github.com/Emryswu/ResumeLens/blob/00a7ea6515c8093c7741e4a9a1e238e44dfa9adb/after/02-summary-multi.png?raw=true)
+
+窄屏下重新排列报告与岗位列表，原文和处理过程面板从底部弹出；面板支持 Esc 关闭，焦点回到最后点击的入口。以下为 390px 宽截图，数据来源同上。
+
+| 匹配报告 | 助手处理过程 |
+| --- | --- |
+| ![390px 新版匹配报告](https://github.com/Emryswu/ResumeLens/blob/f63c0c79cf84ff9c4ca27220a4eae8321e0023fb/after/390-report.png?raw=true) | ![390px 助手底部处理过程面板](https://github.com/Emryswu/ResumeLens/blob/00a7ea6515c8093c7741e4a9a1e238e44dfa9adb/after/07-phone-sheet.png?raw=true) |
+
+</details>
+
+<details>
+<summary>旧版界面 · 真实 DeepSeek 与 RAG 链路演示</summary>
+
+> 以下为改版前留存的截图，用于展示真实模型与检索链路，不代表当前布局。截图均由本机真实运行的服务截取（Spring Boot + MySQL + 本地 ONNX 向量检索 + Next.js）。
 > 后端以 `AI_MOCK_ENABLED=false` 连接真实 DeepSeek（`deepseek-chat`）运行，**报告正文由真实模型生成**，界面右上角标注了当前生成模型；
 > 检索链路同样是真跑的——分块、CLS 向量化、Lucene 召回、相似度与过阈判定都来自真实计算，截图中的 `raw=0.8573 · status=kept` 即真实检索元数据。
 
@@ -57,6 +95,22 @@
 
 </details>
 
+</details>
+
+---
+
+## 工作台交互
+
+| 入口 | 当前能力 |
+| --- | --- |
+| 岗位匹配 | 选择简历，按语义相关度 / 保存时间查看岗位，筛选未分析岗位，对 Top N 发起精析；在同屏核对报告与引用原文 |
+| 我的简历 / 职位库 | 管理列表、上传简历、批量导入 JD，进入独立详情页查看 / 编辑 / 删除 |
+| 已保存 | 收藏目标岗位，快速回到对应岗位继续匹配；只在当前浏览器按用户保存岗位 ID，不跨设备同步 |
+| 分析记录 | 查看历史任务与报告；通过 `/?analysisId=<id>` 直接打开指定报告 |
+| AI 助手 | 自然语言查询岗位与证据，实时查看工具过程；回答后通过摘要打开侧栏，写操作先确认 |
+
+空列表给出上传、添加或开始匹配的入口，首次加载显示骨架屏，读取失败可重试；刷新失败时保留已有内容。岗位名、公司名与文件名过长时省略显示，可悬浮查看全文。
+
 ---
 
 ## 功能一览
@@ -89,8 +143,13 @@
 │   ├── src/test/java/...
 │   └── start-backend-background.ps1
 ├── jd-rag-resume-frontend/        # ResumeLens 工作台
-│   ├── app/page.tsx
+│   ├── app/page.tsx               # 岗位匹配、列表、收藏与分析记录
+│   ├── app/assistant/page.tsx     # AI 助手与 SSE 对话
+│   ├── app/components/            # 共用壳层、结构化报告、原文与过程抽屉
+│   ├── app/workspace.css          # 工作台样式与设计变量
 │   ├── app/report-export.ts       # 报告 Markdown / PDF 导出
+│   ├── public/brand/              # 水墨横幅、插画、标语与卡片背景
+│   ├── public/fonts/              # 自托管中文字体与许可证
 │   └── app/api/backend/[...path]/ # 开发代理 → :8080
 └── browser-extension/             # Chrome MV3 · BOSS JD 抓取与岗位库入口
 ```
@@ -493,11 +552,12 @@ node --experimental-strip-types --test tests/report-export.test.ts
 
 1. 注册账号 → 导入或抓取若干 JD → 岗位库默认按向量粗排  
 2. 对语义 Top N 发起精析，走通异步分析与证据链  
-3. 打开报告：查看 kept / filtered、相似度、硬技能相关缺口  
+3. 打开报告：阅读结构化优势 / 缺口，点击片段打开原文抽屉，再展开「检索详情」查看保留 / 过滤片段与相似度
 4. **导出 Markdown / PDF**，展示可交付物  
 5. 编辑 / 删除简历或 JD，再重新匹配，体现 CRUD、粗排缓存失效与 Lucene 重建  
 6. （可选）用一份无关领域简历对比，说明阈值与 0 分兜底  
-7. 打开 **AI 助手**，问「帮我对最合适的职位做一次完整分析」：观察工具时间线逐步出现，在确认卡上先点拒绝、再问一次后同意，最后跟随链接打开生成的报告  
+7. 打开 **AI 助手**，问「帮我对最合适的职位做一次完整分析」：观察工具步骤实时出现、回答后收成摘要，点击查看过程侧栏；在确认卡上先点拒绝、再问一次后同意，最后跟随链接打开生成的报告
+8. 在报告「修改简历」中对照当前原文手动修改，另存为新简历，再次匹配；保存目标岗位后，到「已保存」中查看
 
 ---
 
@@ -509,7 +569,7 @@ node --experimental-strip-types --test tests/report-export.test.ts
 
 ## 已知边界（诚实说明）
 
-- 主工作台仍为单页（锚点导航），并已增加简历/JD **独立详情路由**  
+- 主工作台通过 hash 切换岗位匹配、简历、职位库、已保存与分析记录视图；简历 / JD 详情和 AI 助手使用独立路由
 - UI 通过 Actuator 实时探测**后端健康**；DeepSeek / 兼容模型是否可用仍以实际分析请求为准  
 - 旧的 Hibernate 建表数据库会由 Flyway baseline 为 V1；新数据库直接执行版本化迁移  
 - Compose 首次启动需下载本地 GTE 模型，耗时取决于网络  
