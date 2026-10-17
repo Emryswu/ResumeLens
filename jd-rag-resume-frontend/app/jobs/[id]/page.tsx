@@ -1,12 +1,14 @@
 "use client";
 
-import { CircleAlert, CircleCheck, X } from "lucide-react";
+import { CircleAlert, CircleCheck, FileText, RotateCw, X } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { AppShell } from "../../components/AppShell";
+import { EmptyState, ErrorState, Skeleton } from "../../components/StateBlock";
 import { useSessionUser } from "../../components/use-session-user";
 import { apiRequest, visibleApiErrorMessage, type Job } from "../../lib/api";
+import { loadState } from "../../view-states";
 
 export default function JobDetailPage() {
   const { user, logout } = useSessionUser();
@@ -17,7 +19,9 @@ export default function JobDetailPage() {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState("");
+  const validId = Number.isFinite(id) && id > 0;
   const [form, setForm] = useState({
     title: "",
     companyName: "",
@@ -29,11 +33,12 @@ export default function JobDetailPage() {
 
   const load = useCallback(async () => {
     if (!Number.isFinite(id) || id <= 0) {
-      setError("无效的职位 ID");
+      setLoadError("无效的职位 ID");
       return;
     }
     setBusy("load");
     setError("");
+    setLoadError("");
     try {
       const data = await apiRequest<Job>(`/api/job-descriptions/${id}`);
       setJob(data);
@@ -48,7 +53,7 @@ export default function JobDetailPage() {
     } catch (reason) {
       const message = visibleApiErrorMessage(reason, "加载职位失败");
       if (message == null) return;
-      setError(message);
+      setLoadError(message);
     } finally {
       setBusy("");
     }
@@ -96,6 +101,10 @@ export default function JobDetailPage() {
     }
   }
 
+  // A failed refresh keeps the 职位 on screen and reports in the toast; with nothing loaded the page shows the retry.
+  const view = loadState({ hasData: !!job, loading: busy === "load" || !loadError, error: loadError });
+  const toastError = error || (job ? loadError : "");
+
   return (
     <AppShell
       title={job ? job.title : `职位 #${params.id}`}
@@ -105,8 +114,8 @@ export default function JobDetailPage() {
       onLogout={logout}
       actions={
         <>
-          <button className="ghost" type="button" onClick={() => void load()} disabled={!!busy}>
-            刷新
+          <button className="ghost" type="button" onClick={() => void load()} disabled={!!busy || !validId}>
+            <RotateCw size={16} aria-hidden="true" />刷新
           </button>
           {job && !editing && (
             <button className="ghost accent" type="button" onClick={() => setEditing(true)} disabled={!!busy}>
@@ -121,29 +130,41 @@ export default function JobDetailPage() {
         </>
       }
     >
-      {(error || notice) && (
-        <div className={`toast ${error ? "error" : "success"}`}>
-          {error ? <CircleAlert size={20} aria-hidden="true" /> : <CircleCheck size={20} aria-hidden="true" />}
-          {error || notice}
-          <button type="button" aria-label="关闭通知" onClick={() => { setError(""); setNotice(""); }}><X size={18} aria-hidden="true" /></button>
+      {(toastError || notice) && (
+        <div className={`toast ${toastError ? "error" : "success"}`} role={toastError ? "alert" : "status"}>
+          {toastError ? <CircleAlert size={20} aria-hidden="true" /> : <CircleCheck size={20} aria-hidden="true" />}
+          {toastError || notice}
+          <button type="button" aria-label="关闭通知" onClick={() => { setError(""); setLoadError(""); setNotice(""); }}><X size={18} aria-hidden="true" /></button>
         </div>
       )}
 
-      {busy === "load" && !job && <p className="detail-muted">加载中…</p>}
+      {view === "loading" && <Skeleton className="detail-skeleton" label="正在读取职位" lines={6} />}
+      {view === "error" && (
+        <div className="state-panel detail-state">
+          <ErrorState title="职位没有加载出来" text={loadError} onRetry={validId ? () => void load() : undefined}
+            action={<Link className="ghost" href="/#jobs">返回职位库</Link>} />
+        </div>
+      )}
 
       {job && !editing && (
         <section className="detail-card">
           <div className="detail-meta">
             <div><span>ID</span><strong>#{job.id}</strong></div>
-            <div><span>公司</span><strong>{job.companyName}</strong></div>
-            <div><span>地点</span><strong>{job.location || "—"}</strong></div>
-            <div><span>类型</span><strong>{job.employmentType || "—"}</strong></div>
+            <div><span>公司</span><strong title={job.companyName}>{job.companyName}</strong></div>
+            <div><span>地点</span><strong title={job.location || "—"}>{job.location || "—"}</strong></div>
+            <div><span>类型</span><strong title={job.employmentType || "—"}>{job.employmentType || "—"}</strong></div>
             <div><span>更新</span><strong>{job.updatedAt ? new Date(job.updatedAt).toLocaleString("zh-CN") : "—"}</strong></div>
           </div>
           <h2>岗位描述</h2>
-          <pre className="detail-body">{job.description || "（空）"}</pre>
+          {job.description
+            ? <pre className="detail-body">{job.description}</pre>
+            : <EmptyState compact icon={FileText} title="还没有填写岗位描述" text="点「编辑」补充后，匹配时会用到这部分内容。"
+              action={<button className="ghost" type="button" onClick={() => setEditing(true)} disabled={!!busy}>编辑</button>} />}
           <h2>任职要求</h2>
-          <pre className="detail-body">{job.requirements || "（空）"}</pre>
+          {job.requirements
+            ? <pre className="detail-body">{job.requirements}</pre>
+            : <EmptyState compact icon={FileText} title="还没有填写任职要求" text="点「编辑」补充后，匹配时会用到这部分内容。"
+              action={<button className="ghost" type="button" onClick={() => setEditing(true)} disabled={!!busy}>编辑</button>} />}
           <div className="form-actions">
             <Link className="secondary" href={`/?jobId=${job.id}`}>
               用此职位去匹配

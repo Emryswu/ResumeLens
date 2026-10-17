@@ -1,8 +1,10 @@
 "use client";
 
-import { CircleAlert, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, SendHorizontal, Sparkles } from "lucide-react";
+import { ArrowUp, CircleAlert, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Sparkles } from "lucide-react";
 import { FormEvent, KeyboardEvent, useEffect, useReducer, useRef, useState } from "react";
+import { canRetryTurn } from "../agent-steps";
 import { AppShell } from "../components/AppShell";
+import { RetryButton } from "../components/StateBlock";
 import { AgentMarkdown } from "../components/assistant/AgentMarkdown";
 import { AnalysisCard } from "../components/assistant/AnalysisCard";
 import { ConfirmationCard } from "../components/assistant/ConfirmationCard";
@@ -178,7 +180,13 @@ export default function AssistantPage() {
 
         {state.turns.length === 0 && (
           <div className="assistant-empty">
-            <h2>可以这样问我</h2>
+            <div className="assistant-empty-head">
+              <span className="state-icon" aria-hidden="true"><Sparkles size={22} /></span>
+              <div>
+                <h2>还没有对话，可以这样问我</h2>
+                <p>点一个例子直接提问，或在下方输入你的问题。</p>
+              </div>
+            </div>
             <div className="assistant-examples">
               {EXAMPLES.map((example) => (
                 <button key={example} type="button" className="ghost" onClick={() => ask(example)}>
@@ -198,6 +206,7 @@ export default function AssistantPage() {
               pending={index === state.turns.length - 1 ? state.pending : null}
               analysis={turn.analysisId ? analyses[turn.analysisId] : undefined}
               onDecide={decide}
+              onRetry={index === state.turns.length - 1 && !inputLocked && canRetryTurn(turn) ? () => ask(turn.question) : undefined}
               disabled={state.busy}
             />
           ))}
@@ -214,10 +223,10 @@ export default function AssistantPage() {
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
           />
-          <button className="secondary" disabled={inputLocked || !draft.trim()}>
+          <button className="assistant-send" aria-label="发送" title={state.busy ? "处理中" : "发送"} disabled={inputLocked || !draft.trim()}>
             {state.busy
-              ? <><LoaderCircle className="spin" size={16} aria-hidden="true" />处理中</>
-              : <><SendHorizontal size={16} aria-hidden="true" />发送</>}
+              ? <LoaderCircle className="spin" size={20} aria-hidden="true" />
+              : <ArrowUp size={20} strokeWidth={2.25} aria-hidden="true" />}
           </button>
         </form>
       </section>
@@ -225,12 +234,14 @@ export default function AssistantPage() {
   );
 }
 
-function TurnView({ turn, live, pending, analysis, onDecide, disabled }: {
+function TurnView({ turn, live, pending, analysis, onDecide, onRetry, disabled }: {
   turn: AgentTurn;
   live: boolean;
   pending: AgentConfirmation | null;
   analysis?: Analysis;
   onDecide: (approved: boolean) => void;
+  /** Only on the last failed turn, when asking the same question again is safe. */
+  onRetry?: () => void;
   disabled: boolean;
 }) {
   return (
@@ -265,6 +276,7 @@ function TurnView({ turn, live, pending, analysis, onDecide, disabled }: {
         <div className="assistant-error" role="alert">
           <CircleAlert size={18} aria-hidden="true" />
           <span>{ERROR_COPY[turn.error.code] ?? turn.error.message}</span>
+          {onRetry && <RetryButton className="ghost compact" onClick={onRetry} />}
         </div>
       )}
     </li>

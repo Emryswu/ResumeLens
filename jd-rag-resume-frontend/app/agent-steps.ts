@@ -62,6 +62,19 @@ export function toolLabel(tool: string): string {
   return TOOL_LABELS[tool] ?? tool;
 }
 
+/** Asking the same question again cannot help: the user has to rephrase, start over or fix the configuration. */
+const NOT_RETRYABLE = new Set(["AGENT_STEP_LIMIT", "AGENT_TRANSCRIPT_TOO_LARGE", "AI_NOT_CONFIGURED"]);
+
+/**
+ * Whether a failed turn may offer "重试", which asks its question again as a new turn. Not after an approval whose
+ * outcome is unknown: the write may already have run, so the user should check the analysis history first.
+ */
+export function canRetryTurn(turn: AgentTurn): boolean {
+  if (!turn.error || NOT_RETRYABLE.has(turn.error.code)) return false;
+  const approved = turn.approvedCallId;
+  return !approved || turn.steps.some((step) => step.toolCallId === approved);
+}
+
 export function timelineSteps(turn: AgentTurn, pendingId: string | null): TimelineStep[] {
   const finished = new Set(turn.steps.map((step) => step.toolCallId));
   const rows: TimelineStep[] = turn.steps.map((step) => ({

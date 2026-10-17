@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { agentChatReducer, initialAgentChatState, type AgentChatState, type AgentEvent, type AgentStep } from "../app/agent-stream.ts";
-import { describeArguments, formatDuration, timelineSteps, toolTimeMs } from "../app/agent-steps.ts";
+import { canRetryTurn, describeArguments, formatDuration, timelineSteps, toolTimeMs } from "../app/agent-steps.ts";
 
 const start = (toolCallId: string, tool = "list_resumes", args = "{}"): AgentEvent =>
   ({ type: "step_started", data: { toolCallId, tool, arguments: args } });
@@ -143,4 +143,27 @@ test("arguments read as Chinese, unknown keys are kept, invalid JSON is shown ra
 test("durations keep the reported value", () => {
   assert.equal(formatDuration(12), "12 ms");
   assert.equal(formatDuration(1430), "1.4 s");
+});
+
+test("a failed question can be asked again unless rephrasing or starting over is the only fix", () => {
+  const failed = (code: string) => agentChatReducer(run(start("c1")), { type: "failed", code, message: "失败" }).turns[0];
+  assert.equal(canRetryTurn(run(start("c1"), finish("c1"), done("COMPLETED")).turns[0]), false, "no error, nothing to retry");
+  assert.equal(canRetryTurn(failed("NETWORK_ERROR")), true);
+  assert.equal(canRetryTurn(failed("AGENT_BUSY")), true);
+  assert.equal(canRetryTurn(failed("AGENT_STREAM_INTERRUPTED")), true);
+  for (const code of ["AGENT_STEP_LIMIT", "AGENT_TRANSCRIPT_TOO_LARGE", "AI_NOT_CONFIGURED"]) {
+    assert.equal(canRetryTurn(failed(code)), false, code);
+  }
+});
+
+test("no retry after an approval whose outcome is unknown: the write may already have run", () => {
+  let state = agentChatReducer(awaitingApproval(), { type: "decide", approved: true });
+  state = agentChatReducer(state, { type: "failed", code: "AGENT_STREAM_INTERRUPTED", message: "中断" });
+  assert.equal(canRetryTurn(state.turns[0]), false);
+
+  // Once the approved call reported its result, asking again is a fresh question like any other.
+  let reported = agentChatReducer(awaitingApproval(), { type: "decide", approved: true });
+  reported = agentChatReducer(reported, { type: "event", event: finish("w1", { tool: "start_analysis" }) });
+  reported = agentChatReducer(reported, { type: "failed", code: "AGENT_STREAM_INTERRUPTED", message: "中断" });
+  assert.equal(canRetryTurn(reported.turns[0]), true);
 });

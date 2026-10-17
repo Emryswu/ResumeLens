@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeftRight, Bookmark, BriefcaseBusiness, FileText, History, Sparkles, type LucideIcon } from "lucide-react";
+import { SidebarArtCard } from "./BrandArt";
 import { NAV_ITEMS, isHashView, type HashView, type NavIconName, type WorkspaceView } from "../workspace-nav";
 
 const NAV_ICONS: Record<NavIconName, LucideIcon> = {
@@ -42,6 +43,7 @@ export function SideNav({ active, onNavigate }: {
           </Link>;
         })}
       </nav>
+      <SidebarArtCard />
     </aside>
   );
 }

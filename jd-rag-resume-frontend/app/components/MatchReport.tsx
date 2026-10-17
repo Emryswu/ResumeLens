@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, ChevronDown } from "lucide-react";
+import { ArrowRight, ChevronDown, Download, Gem, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Analysis, Job, Resume } from "../lib/api";
 import { apiRequest, getAuthSessionId, isAuthSessionCurrent, visibleApiErrorMessage } from "../lib/api";
@@ -8,6 +8,7 @@ import { asList, downloadTextFile, evidenceChunks, parseRagMeta } from "../repor
 import { coverRequirements, coverageSummary } from "../requirement-coverage";
 import { findingsFrom } from "../report-items";
 import { resumeFormFrom } from "../resume-upload";
+import { ErrorState, LoadingState } from "./StateBlock";
 import { EvidenceDrawer } from "./report/EvidenceDrawer";
 import { EvidenceTag, FindingList, type OpenedEvidence } from "./report/FindingList";
 import { ReportHeader } from "./report/ReportHeader";
@@ -97,11 +98,10 @@ export function MatchReport({ analysis, job, saved, disabled, onBookmark, onExpo
   }
 
   const score = analysis.matchScore != null && Number.isFinite(Number(analysis.matchScore)) ? Number(analysis.matchScore) : null;
-  const jobMeta = [currentJob?.companyName, currentJob?.location].filter(Boolean).join(" · ");
 
   return <>
     <ReportHeader reportId={analysis.id} score={score} resumeTitle={analysis.resumeTitle} jobTitle={analysis.jobTitle}
-      jobMeta={jobMeta} summary={analysis.summary} saved={saved} onBookmark={onBookmark} />
+      company={currentJob?.companyName} location={currentJob?.location} summary={analysis.summary} saved={saved} onBookmark={onBookmark} />
     <div className="review-tabs" role="tablist" aria-label="报告内容">{([
       ["evidence", "匹配依据"], ["edit", "修改简历"], ["jd", "岗位要求"],
     ] as const).map(([value, label], index, all) => <button key={value} id={`review-tab-${value}`} type="button" role="tab" aria-selected={tab === value} aria-controls="review-panel" onClick={() => setTab(value)} onKeyDown={(event) => {
@@ -114,13 +114,13 @@ export function MatchReport({ analysis, job, saved, disabled, onBookmark, onExpo
     <div className="review-body" id="review-panel" role="tabpanel" aria-labelledby={`review-tab-${tab}`}>
       {tab === "evidence" && <>
         <section className="finding-section">
-          <h3>你的经历与岗位要求</h3>
+          <h3><Gem size={18} aria-hidden="true" />你的经历与岗位要求</h3>
           <p className="review-caveat">每一条都引用了你简历中的片段；点「片段」查看相关原文。</p>
           <FindingList kind="strength" items={strengths} evidence={evidence} opened={opened} onOpen={setOpened}
             empty="这份报告没有列出有简历片段支撑的优势。" />
         </section>
         <section className="finding-section">
-          <h3>简历中还没体现的要求</h3>
+          <h3><TriangleAlert className="gap-mark" size={18} aria-hidden="true" />简历中还没体现的要求</h3>
           <p className="review-caveat">简历里没写，不代表你不具备这项能力；补充前请确认是你真实做过的。</p>
           <FindingList kind="gap" items={gaps} evidence={evidence} opened={opened} onOpen={setOpened}
             empty="这份报告没有列出明确缺口，仍建议对照岗位要求逐条核对。" />
@@ -135,15 +135,19 @@ export function MatchReport({ analysis, job, saved, disabled, onBookmark, onExpo
       {tab === "edit" && <>
         <h3>让经历，说得更具体。</h3><p className="review-caveat">以当前简历原文起稿，参考分析建议自行修改。尚未自动生成改写内容。</p>
         {suggestions.length > 0 && <ul className="rewrite-suggestions">{suggestions.map((text, index) => <li key={index}>{text}</li>)}</ul>}
-        {loading ? <p role="status">正在读取原简历…</p> : original ? <div className="rewrite-compare"><section><h3>当前简历原文</h3><p className="review-caveat">历史报告可能对应较早版本，请核对修改时间。</p><p className="source-text">{original.rawText || "原文为空"}</p></section><section><label htmlFor="resume-draft">修改草稿 · 可直接编辑</label><textarea id="resume-draft" rows={16} value={draft} onChange={event => setDraft(event.target.value)} disabled={saving} /></section></div> : null}
+        {loading ? <LoadingState compact text="正在读取原简历…" /> : original ? <div className="rewrite-compare"><section><h3>当前简历原文</h3><p className="review-caveat">历史报告可能对应较早版本，请核对修改时间。</p><p className="source-text">{original.rawText || "原文为空"}</p></section><section><label htmlFor="resume-draft">修改草稿 · 可直接编辑</label><textarea id="resume-draft" rows={16} value={draft} onChange={event => setDraft(event.target.value)} disabled={saving} /></section></div> : null}
         <p className="review-caveat warning">仅补充亲自完成、能够验证的经历和数字。切换报告前请另存或下载草稿。</p>
-        {draftError && <div className="message error" role="alert">{draftError}{!original && <button type="button" className="ghost" onClick={() => { setLoading(true); setResumeRetry(value => value + 1); }}>重试读取</button>}</div>}
+        {draftError && (original
+          ? <div className="message error" role="alert">{draftError}</div>
+          : <ErrorState compact text={draftError} retryLabel="重试读取" onRetry={() => { setLoading(true); setResumeRetry(value => value + 1); }} />)}
         <div className="form-actions"><button type="button" className="primary" disabled={disabled || saving || !original || !draft.trim() || draft === original.rawText} onClick={() => void saveCopy()}>{saving ? "保存中…" : "另存为新简历"}</button><button type="button" className="ghost" disabled={!draft.trim()} onClick={() => downloadTextFile(`resume-${analysis.resumeId}-draft.txt`, draft, "text/plain;charset=utf-8")}>下载草稿</button></div>
         {questions.length > 0 && <details className="review-evidence interview-questions"><summary><h3>面试准备问题</h3><ChevronDown size={18} aria-hidden="true" /></summary><ol>{questions.map((text, index) => <li key={index}>{text}</li>)}</ol></details>}
       </>}
-      {tab === "jd" && <>{currentJob ? <><h3>岗位职责</h3><p className="source-text">{currentJob.description || "未提供岗位职责"}</p><h3>任职要求</h3><p className="source-text">{currentJob.requirements || "未提供任职要求"}</p></> : <p role="status">{jobError || "正在读取岗位要求…"}{jobError && <button className="ghost" onClick={() => setJobRetry(value => value + 1)}>重试</button>}</p>}</>}
+      {tab === "jd" && <>{currentJob ? <><h3>岗位职责</h3><p className="source-text">{currentJob.description || "未提供岗位职责"}</p><h3>任职要求</h3><p className="source-text">{currentJob.requirements || "未提供任职要求"}</p></>
+        : jobError ? <ErrorState compact text={jobError} onRetry={() => { setJobError(""); setJobRetry(value => value + 1); }} />
+        : <LoadingState compact text="正在读取岗位要求…" />}</>}
     </div>
-    <footer className="review-footer"><div><span className="review-muted">{new Date(analysis.createdAt).toLocaleString("zh-CN")}</span><div className="review-export"><button type="button" className="text-action" onClick={onExportMarkdown}>导出 Markdown</button><button type="button" className="text-action" onClick={onExportPdf}>导出 PDF</button></div></div>{tab !== "edit" && <button type="button" className="primary" onClick={() => setTab("edit")}>对照原文修改<ArrowRight size={16} aria-hidden="true" /></button>}</footer>
+    <footer className="review-footer"><div><span className="review-muted">{new Date(analysis.createdAt).toLocaleString("zh-CN")}</span><div className="review-export"><button type="button" className="text-action" onClick={onExportMarkdown}><Download size={16} aria-hidden="true" />导出 Markdown</button><button type="button" className="text-action" onClick={onExportPdf}><Download size={16} aria-hidden="true" />导出 PDF</button></div></div>{tab !== "edit" && <button type="button" className="primary" onClick={() => setTab("edit")}>对照原文修改<ArrowRight size={16} aria-hidden="true" /></button>}</footer>
     <EvidenceDrawer opened={opened} evidence={evidence} onClose={closeEvidence} />
   </>;
 }
