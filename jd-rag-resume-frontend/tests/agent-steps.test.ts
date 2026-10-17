@@ -5,7 +5,9 @@ import {
   agentChatReducer, initialAgentChatState, nextRequest, retryAdvice, retryRequest, staleConversation,
   type AgentChatState, type AgentEvent, type AgentMessage, type AgentStep,
 } from "../app/agent-stream.ts";
-import { describeArguments, formatDuration, timelineSteps, toolTimeMs } from "../app/agent-steps.ts";
+import {
+  describeArguments, formatDuration, processSummary, timelineSteps, toolTimeMs, type StepStatus, type TimelineStep,
+} from "../app/agent-steps.ts";
 
 const start = (toolCallId: string, tool = "list_resumes", args = "{}"): AgentEvent =>
   ({ type: "step_started", data: { toolCallId, tool, arguments: args } });
@@ -244,4 +246,62 @@ test("a confirmed write that failed ran nothing, so it can be retried even witho
   state = agentChatReducer(state, { type: "failed", code: "AGENT_STREAM_INTERRUPTED", message: "中断" });
   state = agentChatReducer(state, { type: "settled" });
   assert.deepEqual(retryAdvice(state.turns[0]), { kind: "retry" });
+});
+
+const step = (tool: string, status: StepStatus = "done", latencyMs?: number): TimelineStep =>
+  ({ id: `${tool}-${status}-${latencyMs}`, tool, label: tool, arguments: "{}", status, latencyMs });
+
+test("a turn without tools has no summary line", () => {
+  assert.equal(processSummary([]), null);
+});
+
+test("one tool: its own name and icon, no total time", () => {
+  const summary = processSummary([step("search_jobs", "done", 80)]);
+  assert.equal(summary?.text, "搜索职位库");
+  assert.equal(summary?.icon, "search_jobs");
+  assert.equal(summary?.totalMs, null);
+  assert.deepEqual(summary?.issues, []);
+});
+
+test("several tools: names in order of first use, a clock icon and the total tool time", () => {
+  const summary = processSummary([step("list_resumes", "done", 12), step("rank_jobs_for_resume", "done", 900)]);
+  assert.equal(summary?.text, "读取简历列表、按语义相似度排序职位");
+  assert.equal(summary?.icon, "multiple");
+  assert.equal(summary?.totalMs, 912);
+});
+
+test("a tool called again is listed once, where it was first used", () => {
+  const summary = processSummary([
+    step("search_jobs", "done", 10), step("get_job", "done", 20), step("search_jobs", "done", 30), step("get_job", "done", 40),
+  ]);
+  assert.deepEqual(summary?.tools, ["search_jobs", "get_job"]);
+  assert.equal(summary?.text, "搜索职位库、读取职位详情");
+  assert.equal(summary?.steps, 4);
+  assert.equal(summary?.totalMs, 100);
+  // Calling the same tool twice is still one kind of tool: its own icon, no total.
+  const repeated = processSummary([step("get_job", "done", 5), step("get_job", "done", 6)]);
+  assert.equal(repeated?.icon, "get_job");
+  assert.equal(repeated?.totalMs, null);
+});
+
+test("failed and refused steps are never folded away by the summary", () => {
+  const summary = processSummary([
+    step("search_jobs", "done", 10), step("get_job", "failed", 30), step("get_job", "failed", 5), step("start_analysis", "rejected"),
+  ]);
+  assert.deepEqual(summary?.issues, [
+    { status: "failed", label: "2 步失败" },
+    { status: "rejected", label: "1 步已拒绝" },
+  ]);
+  // A single failed tool still says so.
+  assert.deepEqual(processSummary([step("get_job", "failed", 30)])?.issues, [{ status: "failed", label: "1 步失败" }]);
+});
+
+test("total time adds up only what the server reported: failed calls count, refused and unfinished ones do not", () => {
+  const summary = processSummary([
+    step("search_jobs", "done", 100), step("get_job", "failed", 50), step("start_analysis", "rejected", 999),
+    step("list_resumes", "unfinished"),
+  ]);
+  assert.equal(summary?.totalMs, 150);
+  assert.equal(formatDuration(summary?.totalMs ?? 0), "150 ms");
+  assert.equal(processSummary([step("search_jobs", "unfinished"), step("get_job", "unfinished")])?.totalMs, null);
 });
