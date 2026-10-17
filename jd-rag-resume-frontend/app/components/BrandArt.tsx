@@ -1,17 +1,22 @@
 /**
- * Atmosphere images from public/brand. They are pre-compressed webp files, so a plain lazy <img> is enough:
+ * Atmosphere images from public/brand. They are pre-compressed webp files, so a plain <img> is enough:
  * vinext serves public/ as static assets without the next/image optimizer.
  */
 type BrandFile = "hero-landscape" | "sidebar-art" | "cta-card-bg" | "slogan";
 
-export function BrandImage({ name, alt = "", className }: {
+export function BrandImage({ name, alt = "", className, priority = false }: {
   name: BrandFile;
   /** Empty for decoration; the slogan carries words, so it passes them. */
   alt?: string;
   className?: string;
+  /** In the first screen: load right away at high priority. Everything else waits until it scrolls near. */
+  priority?: boolean;
 }) {
-  // eslint-disable-next-line @next/next/no-img-element -- see the note above
-  return <img className={className} src={`/brand/${name}.webp`} alt={alt} loading="lazy" decoding="async" />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- see the note above
+    <img className={className} src={`/brand/${name}.webp`} alt={alt} decoding="async"
+      loading={priority ? undefined : "lazy"} fetchPriority={priority ? "high" : undefined} />
+  );
 }
 
 export function SidebarArtCard() {

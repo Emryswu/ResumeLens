@@ -42,8 +42,8 @@ export function AppShell({ children, title, subtitle, actions, activeView, back,
         <main className="workspace">
           <div className={`page-header${hero ? " page-hero" : ""}`}>
             {hero && <>
-              <BrandImage name="hero-landscape" className="page-hero-art" />
-              <BrandImage name="slogan" className="page-hero-slogan" alt="不只是匹配，更是看见你的潜力" />
+              <BrandImage name="hero-landscape" className="page-hero-art" priority />
+              <BrandImage name="slogan" className="page-hero-slogan" alt="不只是匹配，更是看见你的潜力" priority />
             </>}
             <div className="page-heading">
               <h1 title={typeof title === "string" ? title : undefined}>{title}</h1>
