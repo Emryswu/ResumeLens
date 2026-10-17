@@ -17,6 +17,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # commit 只署作者本人。只查本 PR 新增的提交（base..head），不回头查 main 的历史；
+  # 检查逻辑在脚本里，本地可单独运行：node .github/scripts/check-commit-messages.mjs origin/main HEAD
+  commit-messages:
+    name: 提交信息署名检查
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      # 要拿到 base 和 head 之间的全部提交，不能只取最近一次
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 准备 Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: 检查脚本自测
+        run: node --test .github/scripts/check-commit-messages.test.mjs
+
+      - name: 检查本 PR 新增提交的提交信息
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/check-commit-messages.mjs "$BASE_SHA" "$HEAD_SHA"
+
   backend:
     name: 后端 · Java 21
     runs-on: ubuntu-latest
