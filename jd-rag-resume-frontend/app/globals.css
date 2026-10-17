@@ -307,6 +307,7 @@ button.history-row:hover { background: #f5f8f4; }
 .assistant-error > svg { flex-shrink: 0; margin-top: 2px; }
 .assistant-error > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .assistant-error .ghost { flex-shrink: 0; }
+.assistant-error-hint { display: block; margin-top: 2px; }
 /* Process panel: one row per tool call, kept visually apart from the answer. */
 .assistant-process { display: grid; gap: 6px; padding: 10px 14px 12px; border: 1px solid var(--line); border-radius: 12px; background: #f5f6f3; min-width: 0; }
 .assistant-process > header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }

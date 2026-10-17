@@ -197,6 +197,12 @@ export type AgentTurn = {
   approvedCallId?: string;
   /** Set when start_analysis ran; the page follows it to the finished report. */
   analysisId?: number;
+  /**
+   * The done frame of this turn's latest request arrived, so state.transcript records everything the turn did.
+   * A tool result alone is not enough: without done the transcript still predates the call, and resending it
+   * makes the server report the call as never confirmed.
+   */
+  synced?: boolean;
 };
 
 export type AgentChatState = {
@@ -235,6 +241,7 @@ export function agentChatReducer(state: AgentChatState, action: AgentChatAction)
         turns: updateLast(state.turns, (turn) => ({
           ...turn,
           error: undefined,
+          synced: false,
           approvedCallId: action.approved ? state.pending?.toolCallId : turn.approvedCallId,
         })),
       };
@@ -306,7 +313,7 @@ function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
         transcript: event.data.transcript,
         summary: event.data.summary ?? undefined,
         pending: event.data.state === "AWAITING_CONFIRMATION" ? state.pending : null,
-        turns: updateLast(state.turns, closeOpenSteps),
+        turns: updateLast(state.turns, (turn) => ({ ...closeOpenSteps(turn), synced: true })),
       };
   }
 }
@@ -324,6 +331,37 @@ export function nextRequest(state: AgentChatState, input: { question: string } |
     ...(state.summary ? { summary: state.summary } : {}),
     approval: { toolCallId: state.pending.toolCallId, approved: input.approved },
   };
+}
+
+/** Asking the same question again cannot help: the user has to rephrase, start over or fix the configuration. */
+const NOT_RETRYABLE = new Set(["AGENT_STEP_LIMIT", "AGENT_TRANSCRIPT_TOO_LARGE", "AI_NOT_CONFIGURED"]);
+
+export type RetryAdvice =
+  | { kind: "retry" }
+  /**
+   * The user approved a write that may have run (no result) or did run (result, but no done), and the transcript a
+   * retry would resend predates it. Point to the report instead of asking again.
+   */
+  | { kind: "check-report"; analysisId?: number }
+  | { kind: "none" };
+
+/** What a failed turn offers: "重试" (ask the same question as a new turn), a pointer to the report, or nothing. */
+export function retryAdvice(turn: AgentTurn): RetryAdvice {
+  if (!turn.error) return { kind: "none" };
+  const approved = turn.approvedCallId;
+  if (approved && !turn.synced) {
+    const step = turn.steps.find((item) => item.toolCallId === approved);
+    // A failed write ran nothing; asking again at worst asks for confirmation again.
+    if (!step || step.ok) return { kind: "check-report", analysisId: turn.analysisId };
+  }
+  return NOT_RETRYABLE.has(turn.error.code) ? { kind: "none" } : { kind: "retry" };
+}
+
+/** The request "重试" sends: the last question on the current transcript, or null when retrying is not safe. */
+export function retryRequest(state: AgentChatState): { question: string; body: ReturnType<typeof nextRequest> } | null {
+  const turn = state.turns.at(-1);
+  if (!turn || state.busy || state.pending || retryAdvice(turn).kind !== "retry") return null;
+  return { question: turn.question, body: nextRequest(state, { question: turn.question }) };
 }
 
 function startedAnalysisId(preview: string): number | undefined {

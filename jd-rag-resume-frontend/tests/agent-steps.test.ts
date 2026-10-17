@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { agentChatReducer, initialAgentChatState, type AgentChatState, type AgentEvent, type AgentStep } from "../app/agent-stream.ts";
-import { canRetryTurn, describeArguments, formatDuration, timelineSteps, toolTimeMs } from "../app/agent-steps.ts";
+import {
+  agentChatReducer, initialAgentChatState, retryAdvice, retryRequest,
+  type AgentChatState, type AgentEvent, type AgentMessage, type AgentStep,
+} from "../app/agent-stream.ts";
+import { describeArguments, formatDuration, timelineSteps, toolTimeMs } from "../app/agent-steps.ts";
 
 const start = (toolCallId: string, tool = "list_resumes", args = "{}"): AgentEvent =>
   ({ type: "step_started", data: { toolCallId, tool, arguments: args } });
@@ -145,25 +148,81 @@ test("durations keep the reported value", () => {
   assert.equal(formatDuration(1430), "1.4 s");
 });
 
+const canRetry = (state: AgentChatState) => retryAdvice(state.turns.at(-1)!).kind === "retry";
+
 test("a failed question can be asked again unless rephrasing or starting over is the only fix", () => {
-  const failed = (code: string) => agentChatReducer(run(start("c1")), { type: "failed", code, message: "失败" }).turns[0];
-  assert.equal(canRetryTurn(run(start("c1"), finish("c1"), done("COMPLETED")).turns[0]), false, "no error, nothing to retry");
-  assert.equal(canRetryTurn(failed("NETWORK_ERROR")), true);
-  assert.equal(canRetryTurn(failed("AGENT_BUSY")), true);
-  assert.equal(canRetryTurn(failed("AGENT_STREAM_INTERRUPTED")), true);
+  const failed = (code: string) => agentChatReducer(run(start("c1")), { type: "failed", code, message: "失败" });
+  assert.equal(canRetry(run(start("c1"), finish("c1"), done("COMPLETED"))), false, "no error, nothing to retry");
+  assert.equal(canRetry(failed("NETWORK_ERROR")), true);
+  assert.equal(canRetry(failed("AGENT_BUSY")), true);
+  assert.equal(canRetry(failed("AGENT_STREAM_INTERRUPTED")), true);
   for (const code of ["AGENT_STEP_LIMIT", "AGENT_TRANSCRIPT_TOO_LARGE", "AI_NOT_CONFIGURED"]) {
-    assert.equal(canRetryTurn(failed(code)), false, code);
+    assert.equal(canRetry(failed(code)), false, code);
   }
 });
 
 test("no retry after an approval whose outcome is unknown: the write may already have run", () => {
   let state = agentChatReducer(awaitingApproval(), { type: "decide", approved: true });
   state = agentChatReducer(state, { type: "failed", code: "AGENT_STREAM_INTERRUPTED", message: "中断" });
-  assert.equal(canRetryTurn(state.turns[0]), false);
+  assert.deepEqual(retryAdvice(state.turns[0]), { kind: "check-report", analysisId: undefined });
+  assert.equal(retryRequest(agentChatReducer(state, { type: "settled" })), null);
+});
 
-  // Once the approved call reported its result, asking again is a fresh question like any other.
-  let reported = agentChatReducer(awaitingApproval(), { type: "decide", approved: true });
-  reported = agentChatReducer(reported, { type: "event", event: finish("w1", { tool: "start_analysis" }) });
-  reported = agentChatReducer(reported, { type: "failed", code: "AGENT_STREAM_INTERRUPTED", message: "中断" });
-  assert.equal(canRetryTurn(reported.turns[0]), true);
+/** The conversation as the server returned it when it asked for confirmation; the approved call is not in it yet. */
+const beforeApproval: AgentMessage[] = [
+  { role: "user", content: "帮我对最合适的职位做一次完整分析" },
+  { role: "assistant", content: "", tool_calls: [{ id: "w1", type: "function", function: { name: "start_analysis", arguments: "{}" } }] },
+];
+
+function approvedAndRan(...after: AgentEvent[]): AgentChatState {
+  let state = run(
+    { type: "confirmation_required", data: { toolCallId: "w1", tool: "start_analysis", arguments: { resumeId: 1, jobId: 2 } } },
+    { type: "done", data: { state: "AWAITING_CONFIRMATION", steps: 1, transcript: beforeApproval } },
+  );
+  state = agentChatReducer(state, { type: "decide", approved: true });
+  state = agentChatReducer(state, { type: "event", event: start("w1", "start_analysis") });
+  state = agentChatReducer(state, { type: "event", event: finish("w1", { tool: "start_analysis", resultPreview: "{\"analysisId\":7}" }) });
+  return after.reduce((current, event) => agentChatReducer(current, { type: "event", event }), state);
+}
+
+test("regression: approve, analysis succeeds, connection drops before done, then 重试 sends nothing", () => {
+  let state = approvedAndRan();
+  state = agentChatReducer(state, { type: "failed", code: "AGENT_STREAM_INTERRUPTED", message: "中断" });
+  state = agentChatReducer(state, { type: "settled" });
+
+  // The result arrived but done did not, so the transcript still predates the approved call.
+  assert.deepEqual(state.transcript, beforeApproval);
+  assert.deepEqual(retryAdvice(state.turns[0]), { kind: "check-report", analysisId: 7 });
+
+  // What the page's retry does: send retryRequest's body, if there is one.
+  const sent: unknown[] = [];
+  const request = retryRequest(state);
+  if (request) sent.push(request.body);
+  assert.equal(request, null);
+  assert.deepEqual(sent, [], "a retry would resend the old transcript and the server would call the analysis unconfirmed");
+});
+
+test("once done delivered the transcript, a later failure can be retried on that transcript", () => {
+  const afterRun: AgentMessage[] = [...beforeApproval, { role: "tool", tool_call_id: "w1", content: "{\"analysisId\":7}" }];
+  let state = approvedAndRan(
+    { type: "error", data: { code: "AGENT_TIMEOUT", message: "超时" } },
+    { type: "done", data: { state: "TIMED_OUT", steps: 2, transcript: afterRun } },
+  );
+  state = agentChatReducer(state, { type: "settled" });
+  assert.deepEqual(retryAdvice(state.turns[0]), { kind: "retry" });
+  const request = retryRequest(state);
+  assert.ok(request);
+  assert.deepEqual(request.body.messages, [...afterRun, { role: "user", content: state.turns[0].question }]);
+});
+
+test("a confirmed write that failed ran nothing, so it can be retried even without done", () => {
+  let state = run(
+    { type: "confirmation_required", data: { toolCallId: "w1", tool: "start_analysis", arguments: {} } },
+    { type: "done", data: { state: "AWAITING_CONFIRMATION", steps: 1, transcript: beforeApproval } },
+  );
+  state = agentChatReducer(state, { type: "decide", approved: true });
+  state = agentChatReducer(state, { type: "event", event: finish("w1", { tool: "start_analysis", ok: false, errorCode: "TOOL_FAILED" }) });
+  state = agentChatReducer(state, { type: "failed", code: "AGENT_STREAM_INTERRUPTED", message: "中断" });
+  state = agentChatReducer(state, { type: "settled" });
+  assert.deepEqual(retryAdvice(state.turns[0]), { kind: "retry" });
 });

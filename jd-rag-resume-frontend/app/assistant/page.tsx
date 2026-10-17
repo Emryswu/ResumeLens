@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowUp, CircleAlert, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUp, CircleAlert, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { FormEvent, KeyboardEvent, useEffect, useReducer, useRef, useState } from "react";
-import { canRetryTurn } from "../agent-steps";
 import { AppShell } from "../components/AppShell";
 import { RetryButton } from "../components/StateBlock";
 import { AgentMarkdown } from "../components/assistant/AgentMarkdown";
@@ -15,6 +15,8 @@ import {
   initialAgentChatState,
   nextRequest,
   readAgentStream,
+  retryAdvice,
+  retryRequest,
   type AgentConfirmation,
   type AgentTurn,
 } from "../agent-stream";
@@ -126,9 +128,18 @@ export default function AssistantPage() {
   function ask(question: string) {
     const text = question.trim();
     if (!text || state.busy || state.pending) return;
-    const body = nextRequest(state, { question: text });
-    dispatch({ type: "ask", question: text });
     setDraft("");
+    start(text, nextRequest(state, { question: text }));
+  }
+
+  /** Sends exactly what retryRequest built; it refuses whenever the transcript would predate a confirmed write. */
+  function retry() {
+    const request = retryRequest(state);
+    if (request) start(request.question, request.body);
+  }
+
+  function start(question: string, body: unknown) {
+    dispatch({ type: "ask", question });
     void send(body);
   }
 
@@ -152,6 +163,7 @@ export default function AssistantPage() {
   }
 
   const inputLocked = state.busy || !!state.pending;
+  const canRetry = retryRequest(state) != null;
 
   return (
     <AppShell title="AI 求职助手" activeView="assistant" user={user} onLogout={logout}>
@@ -206,7 +218,7 @@ export default function AssistantPage() {
               pending={index === state.turns.length - 1 ? state.pending : null}
               analysis={turn.analysisId ? analyses[turn.analysisId] : undefined}
               onDecide={decide}
-              onRetry={index === state.turns.length - 1 && !inputLocked && canRetryTurn(turn) ? () => ask(turn.question) : undefined}
+              onRetry={index === state.turns.length - 1 && canRetry ? retry : undefined}
               disabled={state.busy}
             />
           ))}
@@ -244,6 +256,7 @@ function TurnView({ turn, live, pending, analysis, onDecide, onRetry, disabled }
   onRetry?: () => void;
   disabled: boolean;
 }) {
+  const advice = retryAdvice(turn);
   return (
     <li className="assistant-turn">
       <div className="assistant-question">{turn.question}</div>
@@ -275,8 +288,22 @@ function TurnView({ turn, live, pending, analysis, onDecide, onRetry, disabled }
       {turn.error && (
         <div className="assistant-error" role="alert">
           <CircleAlert size={18} aria-hidden="true" />
-          <span>{ERROR_COPY[turn.error.code] ?? turn.error.message}</span>
+          <span>
+            {ERROR_COPY[turn.error.code] ?? turn.error.message}
+            {advice.kind === "check-report" && (
+              <span className="assistant-error-hint">
+                {advice.analysisId
+                  ? "分析已经发起，为避免重复发起，这里不提供重试，请直接查看已生成的报告。"
+                  : "你已同意发起分析，但无法确定是否已经执行；为避免重复发起，这里不提供重试，请先到分析记录核实。"}
+              </span>
+            )}
+          </span>
           {onRetry && <RetryButton className="ghost compact" onClick={onRetry} />}
+          {advice.kind === "check-report" && (
+            <Link className="ghost compact" href={advice.analysisId ? `/?analysisId=${advice.analysisId}` : "/#history"}>
+              {advice.analysisId ? "查看报告" : "去分析记录"}<ArrowRight size={14} aria-hidden="true" />
+            </Link>
+          )}
         </div>
       )}
     </li>
