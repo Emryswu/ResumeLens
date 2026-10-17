@@ -140,11 +140,11 @@ test("两个重试按钮各自只推进自己的计数器", () => {
   const [jobCounter] = JOB_DEPS.filter((name) => /retry/i.test(name));
   const setterOf = (counter: string) => `set${counter[0].toUpperCase()}${counter.slice(1)}`;
 
-  const resumeButton = source.match(/onClick=\{\(\) => \{ setLoading\(true\); (set\w+)\(value => value \+ 1\); \}\}>重试读取</);
+  const resumeButton = source.match(/retryLabel="重试读取" onRetry=\{\(\) => \{ setLoading\(true\); (set\w+)\(value => value \+ 1\); \}\}/);
   assert.ok(resumeButton, "找不到简历的「重试读取」按钮");
   assert.equal(resumeButton[1], setterOf(resumeCounter));
 
-  const jobButton = source.match(/onClick=\{\(\) => (set\w+)\(value => value \+ 1\)\}>重试</);
+  const jobButton = source.match(/text=\{jobError\} onRetry=\{\(\) => \{ setJobError\(""\); (set\w+)\(value => value \+ 1\); \}\}/);
   assert.ok(jobButton, "找不到岗位要求的「重试」按钮");
   assert.equal(jobButton[1], setterOf(jobCounter));
 });

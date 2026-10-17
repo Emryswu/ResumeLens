@@ -1,8 +1,10 @@
 "use client";
 
-import { CircleAlert, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, SendHorizontal, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUp, CircleAlert, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { FormEvent, KeyboardEvent, useEffect, useReducer, useRef, useState } from "react";
 import { AppShell } from "../components/AppShell";
+import { RetryButton } from "../components/StateBlock";
 import { AgentMarkdown } from "../components/assistant/AgentMarkdown";
 import { AnalysisCard } from "../components/assistant/AnalysisCard";
 import { ConfirmationCard } from "../components/assistant/ConfirmationCard";
@@ -13,6 +15,9 @@ import {
   initialAgentChatState,
   nextRequest,
   readAgentStream,
+  retryAdvice,
+  retryRequest,
+  staleConversation,
   type AgentConfirmation,
   type AgentTurn,
 } from "../agent-stream";
@@ -123,10 +128,20 @@ export default function AssistantPage() {
 
   function ask(question: string) {
     const text = question.trim();
-    if (!text || state.busy || state.pending) return;
-    const body = nextRequest(state, { question: text });
-    dispatch({ type: "ask", question: text });
+    // nextRequest also refuses a stale conversation; checking first keeps the draft instead of throwing.
+    if (!text || state.busy || state.pending || staleConversation(state)) return;
     setDraft("");
+    start(text, nextRequest(state, { question: text }));
+  }
+
+  /** Sends exactly what retryRequest built; it refuses whenever the transcript would predate a confirmed write. */
+  function retry() {
+    const request = retryRequest(state);
+    if (request) start(request.question, request.body);
+  }
+
+  function start(question: string, body: unknown) {
+    dispatch({ type: "ask", question });
     void send(body);
   }
 
@@ -149,7 +164,9 @@ export default function AssistantPage() {
     }
   }
 
-  const inputLocked = state.busy || !!state.pending;
+  const stale = staleConversation(state);
+  const inputLocked = state.busy || !!state.pending || !!stale;
+  const canRetry = retryRequest(state) != null;
 
   return (
     <AppShell title="AI 求职助手" activeView="assistant" user={user} onLogout={logout}>
@@ -178,7 +195,13 @@ export default function AssistantPage() {
 
         {state.turns.length === 0 && (
           <div className="assistant-empty">
-            <h2>可以这样问我</h2>
+            <div className="assistant-empty-head">
+              <span className="state-icon" aria-hidden="true"><Sparkles size={22} /></span>
+              <div>
+                <h2>还没有对话，可以这样问我</h2>
+                <p>点一个例子直接提问，或在下方输入你的问题。</p>
+              </div>
+            </div>
             <div className="assistant-examples">
               {EXAMPLES.map((example) => (
                 <button key={example} type="button" className="ghost" onClick={() => ask(example)}>
@@ -198,6 +221,7 @@ export default function AssistantPage() {
               pending={index === state.turns.length - 1 ? state.pending : null}
               analysis={turn.analysisId ? analyses[turn.analysisId] : undefined}
               onDecide={decide}
+              onRetry={index === state.turns.length - 1 && canRetry ? retry : undefined}
               disabled={state.busy}
             />
           ))}
@@ -208,16 +232,17 @@ export default function AssistantPage() {
           <textarea
             rows={2}
             value={draft}
-            placeholder={state.pending ? "请先确认或拒绝上面的操作" : "问点什么，例如：我的简历最适合哪个职位？（Enter 发送，Shift+Enter 换行）"}
+            placeholder={stale ? "这段对话的记录没有同步完整，不能继续提问：请查看上面的报告入口，或点「新对话」重新开始"
+              : state.pending ? "请先确认或拒绝上面的操作" : "问点什么，例如：我的简历最适合哪个职位？（Enter 发送，Shift+Enter 换行）"}
             disabled={inputLocked}
             maxLength={4000}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
           />
-          <button className="secondary" disabled={inputLocked || !draft.trim()}>
+          <button className="assistant-send" aria-label="发送" title={state.busy ? "处理中" : "发送"} disabled={inputLocked || !draft.trim()}>
             {state.busy
-              ? <><LoaderCircle className="spin" size={16} aria-hidden="true" />处理中</>
-              : <><SendHorizontal size={16} aria-hidden="true" />发送</>}
+              ? <LoaderCircle className="spin" size={20} aria-hidden="true" />
+              : <ArrowUp size={20} strokeWidth={2.25} aria-hidden="true" />}
           </button>
         </form>
       </section>
@@ -225,14 +250,17 @@ export default function AssistantPage() {
   );
 }
 
-function TurnView({ turn, live, pending, analysis, onDecide, disabled }: {
+function TurnView({ turn, live, pending, analysis, onDecide, onRetry, disabled }: {
   turn: AgentTurn;
   live: boolean;
   pending: AgentConfirmation | null;
   analysis?: Analysis;
   onDecide: (approved: boolean) => void;
+  /** Only on the last failed turn, when asking the same question again is safe. */
+  onRetry?: () => void;
   disabled: boolean;
 }) {
+  const advice = retryAdvice(turn);
   return (
     <li className="assistant-turn">
       <div className="assistant-question">{turn.question}</div>
@@ -264,7 +292,22 @@ function TurnView({ turn, live, pending, analysis, onDecide, disabled }: {
       {turn.error && (
         <div className="assistant-error" role="alert">
           <CircleAlert size={18} aria-hidden="true" />
-          <span>{ERROR_COPY[turn.error.code] ?? turn.error.message}</span>
+          <span>
+            {ERROR_COPY[turn.error.code] ?? turn.error.message}
+            {advice.kind === "check-report" && (
+              <span className="assistant-error-hint">
+                {advice.analysisId
+                  ? "分析已经发起，但对话记录没有同步完整。为避免助手误以为没有执行，这段对话不能继续，请直接查看已生成的报告，或点「新对话」重新开始。"
+                  : "你已同意发起分析，但无法确定是否已经执行。为避免重复发起，这段对话不能继续，请先到分析记录核实，或点「新对话」重新开始。"}
+              </span>
+            )}
+          </span>
+          {onRetry && <RetryButton className="ghost compact" onClick={onRetry} />}
+          {advice.kind === "check-report" && (
+            <Link className="ghost compact" href={advice.analysisId ? `/?analysisId=${advice.analysisId}` : "/#history"}>
+              {advice.analysisId ? "查看报告" : "去分析记录"}<ArrowRight size={14} aria-hidden="true" />
+            </Link>
+          )}
         </div>
       )}
     </li>

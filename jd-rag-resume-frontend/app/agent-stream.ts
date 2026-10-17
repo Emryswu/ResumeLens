@@ -197,6 +197,12 @@ export type AgentTurn = {
   approvedCallId?: string;
   /** Set when start_analysis ran; the page follows it to the finished report. */
   analysisId?: number;
+  /**
+   * The done frame of this turn's latest request arrived, so state.transcript records everything the turn did.
+   * A tool result alone is not enough: without done the transcript still predates the call, and resending it
+   * makes the server report the call as never confirmed.
+   */
+  synced?: boolean;
 };
 
 export type AgentChatState = {
@@ -235,6 +241,7 @@ export function agentChatReducer(state: AgentChatState, action: AgentChatAction)
         turns: updateLast(state.turns, (turn) => ({
           ...turn,
           error: undefined,
+          synced: false,
           approvedCallId: action.approved ? state.pending?.toolCallId : turn.approvedCallId,
         })),
       };
@@ -306,7 +313,7 @@ function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
         transcript: event.data.transcript,
         summary: event.data.summary ?? undefined,
         pending: event.data.state === "AWAITING_CONFIRMATION" ? state.pending : null,
-        turns: updateLast(state.turns, closeOpenSteps),
+        turns: updateLast(state.turns, (turn) => ({ ...closeOpenSteps(turn), synced: true })),
       };
   }
 }
@@ -314,7 +321,11 @@ function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
 /** The request body for the next call, built from state so it cannot drift from what was shown. */
 export function nextRequest(state: AgentChatState, input: { question: string } | { approved: boolean }) {
   if (state.busy) throw new Error("assistant request is in progress");
-  if ("question" in input) {
+  const question = "question" in input;
+  if (!question && !state.pending) throw new Error("no pending action to decide");
+  // Every way of sending (typing, examples, 重试, a decision) builds its body here, so none can resend a stale transcript.
+  if (staleConversation(state)) throw new Error("the transcript predates an approved write; start a new conversation");
+  if (question) {
     return { messages: [...state.transcript, { role: "user", content: input.question }],
       ...(state.summary ? { summary: state.summary } : {}) };
   }
@@ -324,6 +335,55 @@ export function nextRequest(state: AgentChatState, input: { question: string } |
     ...(state.summary ? { summary: state.summary } : {}),
     approval: { toolCallId: state.pending.toolCallId, approved: input.approved },
   };
+}
+
+/** Asking the same question again cannot help: the user has to rephrase, start over or fix the configuration. */
+const NOT_RETRYABLE = new Set(["AGENT_STEP_LIMIT", "AGENT_TRANSCRIPT_TOO_LARGE", "AI_NOT_CONFIGURED"]);
+
+export type RetryAdvice =
+  | { kind: "retry" }
+  /**
+   * The user approved a write that may have run (no result) or did run (result, but no done), and the transcript a
+   * retry would resend predates it. Point to the report instead of asking again.
+   */
+  | { kind: "check-report"; analysisId?: number }
+  | { kind: "none" };
+
+/** What a failed turn offers: "重试" (ask the same question as a new turn), a pointer to the report, or nothing. */
+export function retryAdvice(turn: AgentTurn): RetryAdvice {
+  if (!turn.error) return { kind: "none" };
+  const write = unsyncedWrite(turn);
+  if (write) return { kind: "check-report", ...write };
+  return NOT_RETRYABLE.has(turn.error.code) ? { kind: "none" } : { kind: "retry" };
+}
+
+/**
+ * The turn's approved write ran, or may have, but done never delivered the transcript that records it. Sending
+ * state.transcript again would make the server report that call as never confirmed and the model would act on that.
+ * A failed write ran nothing, so it does not count.
+ */
+function unsyncedWrite(turn: AgentTurn): { analysisId?: number } | null {
+  const approved = turn.approvedCallId;
+  if (!approved || turn.synced) return null;
+  const step = turn.steps.find((item) => item.toolCallId === approved);
+  return step && !step.ok ? null : { analysisId: turn.analysisId };
+}
+
+/**
+ * Set when the current conversation cannot be continued: the last request ended after an approved write without
+ * done. Only 新对话 (reset) clears it; the report or the analysis history shows what actually happened.
+ * While a request is still open nothing is decided yet, so it is null then.
+ */
+export function staleConversation(state: AgentChatState): { analysisId?: number } | null {
+  const turn = state.turns.at(-1);
+  return turn && !state.busy ? unsyncedWrite(turn) : null;
+}
+
+/** The request "重试" sends: the last question on the current transcript, or null when retrying is not safe. */
+export function retryRequest(state: AgentChatState): { question: string; body: ReturnType<typeof nextRequest> } | null {
+  const turn = state.turns.at(-1);
+  if (!turn || state.busy || state.pending || retryAdvice(turn).kind !== "retry") return null;
+  return { question: turn.question, body: nextRequest(state, { question: turn.question }) };
 }
 
 function startedAnalysisId(preview: string): number | undefined {

@@ -62,6 +62,7 @@ export function toolLabel(tool: string): string {
   return TOOL_LABELS[tool] ?? tool;
 }
 
+
 export function timelineSteps(turn: AgentTurn, pendingId: string | null): TimelineStep[] {
   const finished = new Set(turn.steps.map((step) => step.toolCallId));
   const rows: TimelineStep[] = turn.steps.map((step) => ({

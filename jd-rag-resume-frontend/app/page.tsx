@@ -1,12 +1,15 @@
 "use client";
 
-import { ArrowRight, ArrowUpRight, Check, CircleAlert, CircleCheck, LoaderCircle, Plus, X } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Bookmark, BriefcaseBusiness, Check, CircleAlert, CircleCheck, FileText, History, ListChecks, LoaderCircle, Plus, RotateCw, Upload, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { AppShell } from "./components/AppShell";
 import { BackendStatus } from "./components/BackendStatus";
+import { BrandCtaCard } from "./components/BrandArt";
+import { EmptyState, ErrorState, LoadingState, RetryButton, Skeleton } from "./components/StateBlock";
 import { MatchReport } from "./components/MatchReport";
+import { reportPanelState, type LoadState } from "./view-states";
 import { bookmarkKey, parseBookmarks } from "./workspace-bookmarks";
 import { hashForView, navLabel, viewFromHash, type HashView } from "./workspace-nav";
 import {
@@ -205,6 +208,13 @@ export default function Home() {
   const [bulkImportText, setBulkImportText] = useState(() => JSON.stringify(SAMPLE_BULK_JOBS, null, 2));
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  // Until the first load succeeds the lists are unknown, not empty: show placeholders, then data or a retry.
+  const [workspaceStatus, setWorkspaceStatus] = useState<LoadState>("loading");
+  const [workspaceError, setWorkspaceError] = useState("");
+  const workspaceLoaded = useRef(false);
+  const [reportFetchError, setReportFetchError] = useState<{ analysisId: number; message: string } | null>(null);
+  const [reportRetry, setReportRetry] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const analysisRunSequence = useRef(0);
   const activeAnalysisRun = useRef<AnalysisRun | null>(null);
   const jobAnalysesRequestGeneration = useRef(0);
@@ -281,6 +291,10 @@ export default function Home() {
     setShowBulkImport(false);
     setNotice("");
     setBusy("");
+    workspaceLoaded.current = false;
+    setWorkspaceStatus("loading");
+    setWorkspaceError("");
+    setReportFetchError(null);
   }
 
   function invalidateSemanticMatches() {
@@ -330,6 +344,10 @@ export default function Home() {
     const sessionId = getAuthSessionId();
     setBusy("loading");
     setError("");
+    if (!workspaceLoaded.current) {
+      setWorkspaceStatus("loading");
+      setWorkspaceError("");
+    }
     try {
       const [resumePage, jobPage, historyPage] = await Promise.all([
         apiRequest<PageData<Resume>>("/api/resumes?size=50"),
@@ -349,6 +367,8 @@ export default function Home() {
       setHistory(historyPage.content);
       setHistoryTotal(historyPage.totalElements);
       setHistoryPage(0);
+      workspaceLoaded.current = true;
+      setWorkspaceStatus("ready");
       if (!selectedResumeId && resumePage.content[0]) chooseResume(resumePage.content[0].id);
       if (!selectedJobId && jobPage.content[0]) chooseJob(jobPage.content[0].id);
       if (analysis) {
@@ -357,7 +377,14 @@ export default function Home() {
       }
     } catch (reason) {
       if (!isAuthSessionCurrent(sessionId)) return;
-      reportRequestError(reason, "无法连接后端");
+      const message = visibleApiErrorMessage(reason, "无法连接后端");
+      if (message == null) return;
+      // A failed refresh keeps what is on screen; a failed first load has nothing to show but the retry.
+      if (workspaceLoaded.current) setError(message);
+      else {
+        setWorkspaceError(message);
+        setWorkspaceStatus("error");
+      }
     } finally {
       if (isAuthSessionCurrent(sessionId)) setBusy("");
     }
@@ -1051,13 +1078,29 @@ export default function Home() {
     const timer = window.setTimeout(() => {
       setFetchingReport(true);
       void apiRequest<Analysis>(`/api/analysis-histories/${selectedAnalysisId}`).then(item => {
-        if (active && isAuthSessionCurrent(session) && item.resumeId === selectedResumeId && item.jobDescriptionId === selectedJobId) setAnalysis(item);
+        if (!active || !isAuthSessionCurrent(session)) return;
+        setReportFetchError(null);
+        if (item.resumeId === selectedResumeId && item.jobDescriptionId === selectedJobId) setAnalysis(item);
       }).catch(reason => {
-        if (active && isAuthSessionCurrent(session)) reportRequestError(reason, "读取报告失败，可刷新数据后重试");
+        if (!active || !isAuthSessionCurrent(session)) return;
+        const message = visibleApiErrorMessage(reason, "读取报告失败");
+        if (message != null) setReportFetchError({ analysisId: selectedAnalysisId, message });
       }).finally(() => { if (active) setFetchingReport(false); });
     }, 0);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [token, selectedResumeId, selectedJobId, selectedAnalysisId, selectedAnalysisStatus, analysis?.id, analysis?.status, analysis?.resumeId, analysis?.jobDescriptionId, busy]);
+  }, [token, selectedResumeId, selectedJobId, selectedAnalysisId, selectedAnalysisStatus, analysis?.id, analysis?.status, analysis?.resumeId, analysis?.jobDescriptionId, busy, reportRetry]);
+
+  const reportPanel = reportPanelState({
+    workspace: workspaceStatus,
+    analysis,
+    analyzing: busy === "analysis",
+    fetchingReport,
+    fetchError: !!selectedAnalysisId && reportFetchError?.analysisId === selectedAnalysisId,
+    resumeCount: resumes.length,
+    jobCount: jobs.length,
+  });
+  const workspaceLoading = workspaceStatus === "loading";
+  const workspaceFailed = workspaceStatus === "error";
 
   if (!token) {
     return (
@@ -1098,10 +1141,55 @@ export default function Home() {
     );
   }
 
+  function reportStateView() {
+    if (reportPanel === "workspace-loading") return <Skeleton className="report-skeleton" label="正在读取工作台" lines={4} />;
+    const waiting = reportPanel === "analyzing" || reportPanel === "fetching";
+    const pairReady = !busy && !!selectedResumeId && !!selectedJobId;
+    const view = (() => {
+      switch (reportPanel) {
+        case "analyzing":
+          return { title: "正在逐项核对岗位要求", text: pendingAnalysisLabel(aiStatus) };
+        case "fetching":
+          return { title: "正在读取匹配报告…", text: "正在读取当前简历与岗位对应的分析。" };
+        case "fetch-error":
+          return { error: true, title: "匹配报告没有读取出来", text: reportFetchError?.message,
+            action: <RetryButton className="primary" label="重新读取" onClick={() => setReportRetry((value) => value + 1)} /> };
+        case "failed":
+          return { error: true, title: "这次分析没有完成", text: analysis?.summary || "输入仍然保留，可以重试分析。",
+            action: <button className="primary" type="button" disabled={!pairReady} onClick={() => void runAnalysis()}><RotateCw size={16} aria-hidden="true" />重试分析</button> };
+        case "no-resume":
+          return { icon: FileText, title: "还没有简历，上传一份", text: "上传文件或粘贴简历正文，保存后就能和目标岗位匹配。",
+            action: <button className="primary" type="button" onClick={() => navigate("resumes")}><Upload size={16} aria-hidden="true" />上传简历</button> };
+        case "no-job":
+          return { icon: BriefcaseBusiness, title: "还没有目标岗位，添加一个", text: "录入岗位描述后，这里会生成匹配报告和简历里的原文证据。",
+            action: <button className="primary" type="button" onClick={() => navigate("jobs")}><Plus size={16} aria-hidden="true" />添加岗位</button> };
+        default:
+          return { icon: ArrowUpRight, title: selectedJob ? selectedJob.title : "先选一个目标岗位",
+            text: selectedJob
+              ? `${selectedJob.companyName}${selectedJob.location ? ` · ${selectedJob.location}` : ""} · ${selectedResumeId ? "准备好后，生成你的匹配报告。" : "先在上方选择一份简历。"}`
+              : "从左侧选一个目标岗位，生成你的匹配报告。",
+            action: <button className="primary" type="button" disabled={!pairReady} onClick={() => void runAnalysis()}>开始匹配分析<ArrowRight size={16} aria-hidden="true" /></button> };
+      }
+    })();
+    const Icon = view.error ? CircleAlert : view.icon;
+    return (
+      <div className={`report-state${view.error ? " is-error" : ""}`} role={view.error ? "alert" : "status"}>
+        <span className="report-state-mark" aria-hidden="true">{waiting ? <LoaderCircle className="spin" size={24} /> : Icon && <Icon size={24} />}</span>
+        <h2 title={view.title}>{view.title}</h2>
+        {view.text && <p>{view.text}</p>}
+        {waiting
+          ? <><progress aria-label="匹配处理中" /><button className="ghost" disabled={!!busy} onClick={() => void loadWorkspace()}>刷新报告状态</button></>
+          : view.action}
+        <small>{runtimeModeLabel(aiStatus)}</small>
+      </div>
+    );
+  }
+
   return (
     <AppShell
       title={navLabel(pageView)}
       subtitle={VIEW_SUBTITLES[pageView]}
+      hero={pageView === "match"}
       activeView={pageView}
       user={user}
       onLogout={logout}
@@ -1109,7 +1197,8 @@ export default function Home() {
       actions={<><button className="ghost" type="button" onClick={() => navigate("jobs")}><Plus size={16} aria-hidden="true" />添加岗位</button><button className="ghost" type="button" disabled={!!busy} onClick={() => void loadWorkspace()}>刷新数据</button></>}
     >
         {(error || notice) && <div className={`toast ${error ? "error" : "success"}`} role={error ? "alert" : "status"}>{error ? <CircleAlert size={20} aria-hidden="true" /> : <CircleCheck size={20} aria-hidden="true" />}{error || notice}<button aria-label="关闭通知" onClick={() => { setError(""); setNotice(""); }}><X size={18} aria-hidden="true" /></button></div>}
-        <section id="workflow" hidden={pageView !== "match"}>
+        {workspaceFailed && <div className="state-panel"><ErrorState title="工作台数据没有加载出来" text={workspaceError} onRetry={() => void loadWorkspace()} retrying={busy === "loading"} /></div>}
+        <section id="workflow" hidden={pageView !== "match" || workspaceFailed}>
           <div className="match-context"><label>当前简历<select value={selectedResumeId} disabled={!!busy} onChange={event => chooseResume(event.target.value ? Number(event.target.value) : "")}><option value="">请选择简历</option>{resumes.map(item => <option key={item.id} value={item.id}>{item.title} · {item.candidateName}</option>)}</select></label><button className="text-action" onClick={() => navigate("resumes")}>管理简历</button><div className="match-steps"><span>{selectedResumeId ? <Check size={14} aria-label="已完成" /> : "01"} 选择简历</span><span>{selectedJobId ? <Check size={14} aria-label="已完成" /> : "02"} 选择岗位</span><span className="current">03 核对与改进</span></div></div>
           <div className="match-layout"><aside className="job-rail" aria-label="目标岗位"><div className="entity-library">
                 <div className="entity-library-head"><span>目标岗位</span><em>{effectiveJobsTotal}</em></div>
@@ -1144,35 +1233,27 @@ export default function Home() {
                   </button>
                 </div>
                 <small className="semantic-note">语义相关度用于初筛，综合匹配分来自单独的分析。</small>
-                {(jobAnalysesLoading || jobsLoadingMore || jobSemanticStatus === "loading") && <p className="entity-empty">正在整理完整岗位库…</p>}
-                {(jobAnalysisDataRequired || jobSemanticDataRequired) && !selectedResumeId && (
-                  <p className="entity-empty">请先选择一份简历，再做粗排或按分析结果整理岗位</p>
+                {!workspaceLoading && (jobAnalysesLoading || jobsLoadingMore || jobSemanticStatus === "loading") && <LoadingState compact text="正在整理完整岗位库…" />}
+                {jobs.length > 0 && (jobAnalysisDataRequired || jobSemanticDataRequired) && !selectedResumeId && (
+                  <EmptyState compact icon={FileText} title="请先选择一份简历" text="选好简历后，才能按语义相关度或分析结果整理岗位。" />
                 )}
                 {jobAnalysisDataRequired && jobAnalysesStatus === "error" && (
-                  <div className="entity-empty">
-                    匹配信息加载失败：{jobAnalysesError || "请稍后重试"}
-                    {selectedResumeId && (
-                      <button className="ghost compact" type="button" onClick={() => void loadJobAnalyses(Number(selectedResumeId))}>
-                        重试
-                      </button>
-                    )}
-                  </div>
+                  <ErrorState compact text={`匹配信息加载失败：${jobAnalysesError || "请稍后重试"}`}
+                    onRetry={selectedResumeId ? () => void loadJobAnalyses(Number(selectedResumeId)) : undefined} />
                 )}
                 {jobSemanticDataRequired && jobSemanticStatus === "error" && (
-                  <div className="entity-empty">
-                    向量粗排失败：{jobSemanticError || "请稍后重试"}
-                    {selectedResumeId && (
-                      <button className="ghost compact" type="button" onClick={() => void loadSemanticMatches(Number(selectedResumeId))}>
-                        重试
-                      </button>
-                    )}
-                  </div>
+                  <ErrorState compact text={`向量粗排失败：${jobSemanticError || "请稍后重试"}`}
+                    onRetry={selectedResumeId ? () => void loadSemanticMatches(Number(selectedResumeId)) : undefined} />
                 )}
-                {jobs.length === 0 ? (
-                  <p className="entity-empty">暂无职位，保存后会出现在这里</p>
+                {workspaceLoading ? (
+                  <Skeleton className="skeleton-rows" label="正在读取岗位" lines={4} />
+                ) : jobs.length === 0 ? (
+                  <EmptyState compact icon={BriefcaseBusiness} title="还没有岗位，添加一个" text="保存目标岗位的职位描述后，就能开始匹配。"
+                    action={<button className="ghost" type="button" onClick={() => navigate("jobs")}><Plus size={16} aria-hidden="true" />添加岗位</button>} />
                 ) : (jobAnalysisDataRequired && !jobAnalysisDataReady)
                     || (jobSemanticDataRequired && !jobSemanticDataReady) ? null : visibleJobs.length === 0 ? (
-                  <p className="entity-empty">当前简历下没有未分析职位</p>
+                  <EmptyState compact icon={ListChecks} title="这份简历的岗位都分析过了" text="取消「仅看未分析」可以查看全部岗位。"
+                    action={<button className="ghost" type="button" onClick={() => setJobFilter("all")}>显示全部岗位</button>} />
                 ) : visibleJobs.map((item) => {
                   const latest = latestAnalysisByJob.get(item.id);
                   const semanticSimilarity = semanticSimilarityByJob.get(item.id);
@@ -1180,8 +1261,8 @@ export default function Home() {
                     <div className={`entity-row ${selectedJobId === item.id ? "selected" : ""} ${editingJobId === item.id ? "editing" : ""}`} key={item.id}>
                       <button type="button" className="entity-main job-entity-main" aria-pressed={selectedJobId === item.id} disabled={!!busy} onClick={() => chooseJob(item.id)} title="选为匹配职位">
                         <span className="job-entity-copy">
-                          <strong>{item.title}</strong>
-                          <small>{item.companyName}{item.location ? ` · ${item.location}` : ""}</small>
+                          <strong title={item.title}>{item.title}</strong>
+                          <small title={`${item.companyName}${item.location ? ` · ${item.location}` : ""}`}>{item.companyName}{item.location ? ` · ${item.location}` : ""}</small>
                         </span>
                         <em className={`job-score ${jobSort === "semantic" ? "semantic" : latest?.status.toLowerCase() || "unanalyzed"}`}>
                           {jobSort === "semantic" && typeof semanticSimilarity === "number"
@@ -1200,25 +1281,19 @@ export default function Home() {
                 {jobs.length < effectiveJobsTotal && (
                   <div className="entity-load-more">
                     <button className="ghost compact" type="button" disabled={jobsLoadingMore} onClick={() => void loadMoreJobs()}>
-                      {jobsLoadingMore ? "加载中…" : `继续加载（还有 ${effectiveJobsTotal - jobs.length} 个）`}
+                      {jobsLoadingMore ? <><LoaderCircle className="spin" size={14} aria-hidden="true" />加载中…</> : `继续加载（还有 ${effectiveJobsTotal - jobs.length} 个）`}
                     </button>
                   </div>
                 )}
               </div></aside>
-            <section className="match-report" id="result" aria-label="岗位匹配报告" aria-busy={busy === "analysis" || fetchingReport || analysis?.status === "PENDING"}>
-              {analysis?.status === "COMPLETED" && busy !== "analysis" ? <MatchReport key={analysis.id} analysis={analysis} job={jobs.find(item => item.id === analysis.jobDescriptionId)} saved={savedJobs.includes(analysis.jobDescriptionId)} disabled={!!busy} onBookmark={() => toggleBookmark(analysis.jobDescriptionId)} onExportMarkdown={exportMarkdown} onExportPdf={exportPdf} onSaveCopy={copy => { setResumes(items => [copy, ...items.filter(item => item.id !== copy.id)]); chooseResume(copy.id); invalidateSemanticMatches(); setNotice("修改版已另存为新简历，原简历未覆盖；可重新分析对比。"); }} /> : <div className="report-state" role="status">
-                <span className="report-state-mark" aria-hidden="true">{busy === "analysis" || analysis?.status === "PENDING" ? <LoaderCircle className="spin" size={24} /> : analysis?.status === "FAILED" ? <CircleAlert size={24} /> : <ArrowUpRight size={24} />}</span>
-                <h2>{fetchingReport ? "正在读取匹配报告…" : busy === "analysis" || analysis?.status === "PENDING" ? "正在逐项核对岗位要求" : analysis?.status === "FAILED" ? "这次分析没有完成" : selectedJob ? selectedJob.title : "先选一个目标岗位"}</h2>
-                <p>{fetchingReport ? "正在读取当前简历与岗位对应的分析。" : busy === "analysis" || analysis?.status === "PENDING" ? pendingAnalysisLabel(aiStatus) : analysis?.status === "FAILED" ? analysis.summary || "输入仍然保留，可以重试分析。" : selectedJob ? `${selectedJob.companyName}${selectedJob.location ? ` · ${selectedJob.location}` : ""} · ${selectedResumeId ? "准备好后，生成你的匹配报告。" : "先添加或选择一份简历。"}` : "保存简历和岗位后，这里会显示真实的匹配依据与改进建议。"}</p>
-                {(busy === "analysis" || analysis?.status === "PENDING" || fetchingReport) ? <><progress aria-label="匹配处理中" /><button className="ghost" disabled={!!busy} onClick={() => void loadWorkspace()}>刷新报告状态</button></> : <button className="primary" type="button" disabled={!!busy || !selectedResumeId || !selectedJobId} onClick={() => void runAnalysis()}>{analysis?.status === "FAILED" ? "重试分析" : <>开始匹配分析<ArrowRight size={16} aria-hidden="true" /></>}</button>}
-                {!resumes.length && <button className="text-action" onClick={() => navigate("resumes")}>添加第一份简历</button>}
-                <small>{runtimeModeLabel(aiStatus)}</small>
-              </div>}
-              {analysis?.status === "COMPLETED" && <div className="report-rerun"><small>{runtimeModeLabel(aiStatus)}</small><button className="text-action" disabled={!!busy || !selectedResumeId || !selectedJobId || analysis.resumeId !== selectedResumeId || analysis.jobDescriptionId !== selectedJobId} onClick={() => void runAnalysis()}>重新分析当前组合</button></div>}
+            <div className="match-main"><section className="match-report" id="result" aria-label="岗位匹配报告" aria-busy={busy === "analysis" || fetchingReport || analysis?.status === "PENDING"}>
+              {analysis?.status === "COMPLETED" && busy !== "analysis" ? <MatchReport key={analysis.id} analysis={analysis} job={jobs.find(item => item.id === analysis.jobDescriptionId)} saved={savedJobs.includes(analysis.jobDescriptionId)} disabled={!!busy} onBookmark={() => toggleBookmark(analysis.jobDescriptionId)} onExportMarkdown={exportMarkdown} onExportPdf={exportPdf} onSaveCopy={copy => { setResumes(items => [copy, ...items.filter(item => item.id !== copy.id)]); chooseResume(copy.id); invalidateSemanticMatches(); setNotice("修改版已另存为新简历，原简历未覆盖；可重新分析对比。"); }} /> : reportStateView()}
+              {analysis?.status === "COMPLETED" && <div className="report-rerun"><small>{runtimeModeLabel(aiStatus)}</small><button className="text-action" disabled={!!busy || !selectedResumeId || !selectedJobId || analysis.resumeId !== selectedResumeId || analysis.jobDescriptionId !== selectedJobId} onClick={() => void runAnalysis()}><RotateCw size={16} aria-hidden="true" />重新分析当前组合</button></div>}
             </section>
+            <BrandCtaCard /></div>
           </div>
         </section>
-        <section className="editor-view" id="resumes" hidden={pageView !== "resumes"}><div className="editor-toolbar"><p>上传文件或直接粘贴正文，保存后选择目标岗位。</p><button className="ghost" onClick={() => { resetResumeEditor(); setNotice(""); }}>新建空白简历</button><button className="ghost" onClick={fillSampleForms}>填入示例</button><button className="ghost" onClick={() => navigate("match")}>返回匹配</button></div>            <form className="step-card" onSubmit={saveResume}>
+        <section className="editor-view" id="resumes" hidden={pageView !== "resumes" || workspaceFailed}><div className="editor-toolbar"><p>上传文件或直接粘贴正文，保存后选择目标岗位。</p><button className="ghost" onClick={() => { resetResumeEditor(); setNotice(""); }}>新建空白简历</button><button className="ghost" onClick={fillSampleForms}>填入示例</button><button className="ghost" onClick={() => navigate("match")}>返回匹配</button></div>            <form className="step-card" onSubmit={saveResume}>
               <div className="step-title">
                 <span>01</span>
                 <div>
@@ -1227,9 +1302,11 @@ export default function Home() {
                 </div>
               </div>
               <label className={`file-drop ${editingResumeId ? "disabled-drop" : ""}`}>
-                <input type="file" accept=".pdf,.doc,.docx,.txt,.md" onChange={chooseFile} disabled={!!editingResumeId} />
-                <span className="upload-icon">↑</span>
-                <strong>{editingResumeId ? "编辑模式仅支持更新文本" : file ? file.name : "选择简历文件（可选）"}</strong>
+                <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt,.md" onChange={chooseFile} disabled={!!editingResumeId} />
+                <span className="upload-icon" aria-hidden="true"><Upload size={16} /></span>
+                {file && !editingResumeId
+                  ? <strong className="truncate" title={file.name}>{file.name}</strong>
+                  : <strong>{editingResumeId ? "编辑模式仅支持更新文本" : "选择简历文件（可选）"}</strong>}
                 <small>PDF · DOCX · TXT，最大 20MB</small>
               </label>
               <div className="field-row"><label>简历标题<input required value={resumeForm.title} onChange={(e) => setResumeForm({ ...resumeForm, title: e.target.value })} placeholder="Java 后端开发简历" /></label><label>姓名<input required value={resumeForm.candidateName} onChange={(e) => setResumeForm({ ...resumeForm, candidateName: e.target.value })} placeholder="你的姓名" /></label></div>
@@ -1243,13 +1320,16 @@ export default function Home() {
               </div>
               <div className="entity-library">
                 <div className="entity-library-head"><span>已存简历</span><em>{resumes.length}</em></div>
-                {resumes.length === 0 ? (
-                  <p className="entity-empty">暂无简历，保存后会出现在这里</p>
+                {workspaceLoading ? (
+                  <Skeleton className="skeleton-rows" label="正在读取简历" lines={2} />
+                ) : resumes.length === 0 ? (
+                  <EmptyState compact icon={FileText} title="还没有简历，上传一份" text="选择文件或粘贴正文，点「保存简历」后会出现在这里。"
+                    action={<button className="ghost" type="button" onClick={() => fileInputRef.current?.click()}><Upload size={16} aria-hidden="true" />选择文件</button>} />
                 ) : resumes.map((item) => (
                   <div className={`entity-row ${selectedResumeId === item.id ? "selected" : ""} ${editingResumeId === item.id ? "editing" : ""}`} key={item.id}>
                     <button type="button" className="entity-main" onClick={() => chooseResume(item.id)} title="选为匹配简历">
-                      <strong>#{item.id} · {item.title}</strong>
-                      <small>{item.candidateName}{item.originalFileName ? ` · ${item.originalFileName}` : ""}</small>
+                      <strong title={item.title}>#{item.id} · {item.title}</strong>
+                      <small title={`${item.candidateName}${item.originalFileName ? ` · ${item.originalFileName}` : ""}`}>{item.candidateName}{item.originalFileName ? ` · ${item.originalFileName}` : ""}</small>
                     </button>
                     <div className="entity-actions">
                       <Link className="ghost compact" href={`/resumes/${item.id}`}>详情</Link>
@@ -1260,7 +1340,7 @@ export default function Home() {
                 ))}
               </div>
             </form></section>
-        <section className="editor-view" id="jobs" hidden={pageView !== "jobs"}><div className="editor-toolbar"><p>填写目标岗位，也支持批量导入。</p><button className="ghost" onClick={resetJobEditor}>新建空白岗位</button><button className="ghost" onClick={fillSampleForms}>填入示例</button><button className="ghost" onClick={() => navigate("match")}>返回匹配</button></div>            <form className="step-card" onSubmit={saveJob}>
+        <section className="editor-view" id="jobs" hidden={pageView !== "jobs" || workspaceFailed}><div className="editor-toolbar"><p>填写目标岗位，也支持批量导入。</p><button className="ghost" onClick={resetJobEditor}>新建空白岗位</button><button className="ghost" onClick={fillSampleForms}>填入示例</button><button className="ghost" onClick={() => navigate("match")}>返回匹配</button></div>            <form className="step-card" onSubmit={saveJob}>
               <div className="step-title">
                 <span>02</span>
                 <div>
@@ -1304,19 +1384,20 @@ export default function Home() {
                 </div>
               )}
             </form><details className="sample-action"><summary>用示例数据体验</summary><p>会在当前账号中保存示例简历和岗位，并提交一次分析。</p><button className="ghost" disabled={!!busy} onClick={() => { navigate("match"); void saveSampleAndAnalyze(); }}>保存示例并分析</button></details></section>
-        <section id="saved" className="saved-view" hidden={pageView !== "saved"}>{savedJobs.length === 0 ? <div className="empty-workspace"><h2>还没有保存的岗位</h2><p>在岗位或报告旁点「保存」，就能在这里继续准备。</p><button className="primary" onClick={() => navigate("match")}>去看目标岗位<ArrowRight size={16} aria-hidden="true" /></button></div> : <><div className="saved-grid">{jobs.filter(item => savedJobs.includes(item.id)).map(item => <article className="saved-job" key={item.id}><p>{item.companyName} · {item.location || "地点未填写"}</p><h3>{item.title}</h3><div className="form-actions"><button className="primary" onClick={() => { chooseJob(item.id); navigate("match"); }}>查看匹配</button><Link className="ghost" href={`/jobs/${item.id}`}>岗位详情</Link><button className="text-action" onClick={() => toggleBookmark(item.id)}>取消保存</button></div></article>)}</div>{jobs.length < effectiveJobsTotal && <button className="ghost" disabled={jobsLoadingMore} onClick={() => void loadAllJobsForRanking()}>加载其余岗位中的收藏</button>}<p className="review-caveat">仅展示仍可访问的岗位。收藏范围：当前浏览器、当前账号。</p></>}</section>
-                <section className="history" id="history" hidden={pageView !== "history"}>
-          <p className="history-count">{effectiveHistoryTotal} 条记录</p>
+        <section id="saved" className="saved-view" hidden={pageView !== "saved" || workspaceFailed}>{savedJobs.length === 0 ? <div className="state-panel"><EmptyState icon={Bookmark} title="还没有保存的岗位" text="在岗位或报告旁点「保存」，就能在这里继续准备。" action={<button className="primary" type="button" onClick={() => navigate("match")}>去看目标岗位<ArrowRight size={16} aria-hidden="true" /></button>} /></div> : <><div className="saved-grid">{jobs.filter(item => savedJobs.includes(item.id)).map(item => <article className="saved-job" key={item.id}><p className="truncate" title={`${item.companyName} · ${item.location || "地点未填写"}`}>{item.companyName} · {item.location || "地点未填写"}</p><h3 title={item.title}>{item.title}</h3><div className="form-actions"><button className="primary" onClick={() => { chooseJob(item.id); navigate("match"); }}>查看匹配</button><Link className="ghost" href={`/jobs/${item.id}`}>岗位详情</Link><button className="text-action" onClick={() => toggleBookmark(item.id)}>取消保存</button></div></article>)}</div>{jobs.length < effectiveJobsTotal && <button className="ghost" disabled={jobsLoadingMore} onClick={() => void loadAllJobsForRanking()}>加载其余岗位中的收藏</button>}<p className="review-caveat">仅展示仍可访问的岗位。收藏范围：当前浏览器、当前账号。</p></>}</section>
+                <section className="history" id="history" hidden={pageView !== "history" || workspaceFailed}>
+          {!workspaceLoading && <p className="history-count">{effectiveHistoryTotal} 条记录</p>}
           <div className="history-table">
             <div className="history-row history-head"><span>报告</span><span>岗位</span><span>状态</span><span>匹配度</span><span>时间</span></div>
-            {history.length === 0 ? (
-              <div className="history-empty">
-                暂无记录。选择简历和岗位，完成第一次分析后会显示在这里。
-              </div>
+            {workspaceLoading ? (
+              <Skeleton className="skeleton-rows history-skeleton" label="正在读取分析记录" lines={4} />
+            ) : history.length === 0 ? (
+              <EmptyState icon={History} title="还没有分析记录" text="选择简历和岗位，完成第一次分析后会显示在这里。"
+                action={<button className="primary" type="button" onClick={() => navigate("match")}>去做第一次匹配<ArrowRight size={16} aria-hidden="true" /></button>} />
             ) : visibleHistory.map((item) => (
               <button className="history-row" key={item.id} type="button" onClick={() => { activeAnalysisRun.current = null; chooseResume(item.resumeId); chooseJob(item.jobDescriptionId); setAnalysis(item); navigate("match"); document.getElementById("result")?.scrollIntoView({ behavior: "smooth" }); }}>
-                <span>#{item.id} · {item.resumeTitle}</span>
-                <span>{item.jobTitle}</span>
+                <span title={item.resumeTitle}>#{item.id} · {item.resumeTitle}</span>
+                <span title={item.jobTitle}>{item.jobTitle}</span>
                 <span><i className={item.status.toLowerCase()} />{item.status}</span>
                 <span>{item.status !== "COMPLETED" || item.matchScore == null ? <strong>{item.status === "FAILED" ? "失败" : "分析中"}</strong> : <><strong>{Number(item.matchScore).toFixed(0)}</strong> / 100</>}</span>
                 <span>{new Date(item.createdAt).toLocaleDateString("zh-CN")}</span>
@@ -1329,7 +1410,7 @@ export default function Home() {
                 </button>
                 {historyExpanded && hasMoreHistory && (
                   <button className="ghost compact" type="button" disabled={historyLoadingMore} onClick={() => void loadMoreHistory()}>
-                    {historyLoadingMore ? "加载中…" : `继续加载（还有 ${effectiveHistoryTotal - history.length} 条）`}
+                    {historyLoadingMore ? <><LoaderCircle className="spin" size={14} aria-hidden="true" />加载中…</> : `继续加载（还有 ${effectiveHistoryTotal - history.length} 条）`}
                   </button>
                 )}
               </div>

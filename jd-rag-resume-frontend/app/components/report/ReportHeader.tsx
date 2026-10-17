@@ -1,7 +1,8 @@
 "use client";
 
-import { ArrowLeftRight, Bookmark, BookmarkCheck } from "lucide-react";
+import { ArrowLeftRight, Bookmark, BookmarkCheck, Building, FileText, MapPin, Sparkles } from "lucide-react";
 import { scoreLabel } from "../../report-export";
+import { Truncate } from "../StateBlock";
 
 function ScoreRing({ score }: { score: number | null }) {
   const radius = 52;
@@ -18,12 +19,13 @@ function ScoreRing({ score }: { score: number | null }) {
   );
 }
 
-export function ReportHeader({ reportId, score, resumeTitle, jobTitle, jobMeta, summary, saved, onBookmark }: {
+export function ReportHeader({ reportId, score, resumeTitle, jobTitle, company, location, summary, saved, onBookmark }: {
   reportId: number;
   score: number | null;
   resumeTitle: string;
   jobTitle: string;
-  jobMeta: string;
+  company?: string;
+  location?: string;
   summary?: string;
   saved: boolean;
   onBookmark: () => void;
@@ -37,14 +39,25 @@ export function ReportHeader({ reportId, score, resumeTitle, jobTitle, jobMeta, 
       <div className="report-main">
         <div className="report-pair">
           <div className="report-side">
-            <span>你的简历</span>
-            <strong title={resumeTitle}>{resumeTitle}</strong>
+            <span className="report-side-icon" aria-hidden="true"><FileText size={24} /></span>
+            <div className="report-side-copy">
+              <span>你的简历</span>
+              <strong title={resumeTitle}>{resumeTitle}</strong>
+            </div>
           </div>
           <ArrowLeftRight className="report-pair-icon" size={20} aria-label="对照" />
           <div className="report-side">
-            <span>目标职位</span>
-            <strong title={jobTitle}>{jobTitle}</strong>
-            {jobMeta && <small title={jobMeta}>{jobMeta}</small>}
+            <span className="report-side-icon" aria-hidden="true"><Building size={24} /></span>
+            <div className="report-side-copy">
+              <span>目标职位</span>
+              <strong title={jobTitle}>{jobTitle}</strong>
+              {(company || location) && (
+                <small className="report-side-meta">
+                  {company && <Truncate text={company} />}
+                  {location && <span className="report-side-place"><MapPin size={14} aria-label="地点" /><Truncate text={location} /></span>}
+                </small>
+              )}
+            </div>
           </div>
           <button type="button" className="ghost bookmark" onClick={onBookmark} aria-pressed={saved}>
             {saved ? <BookmarkCheck size={16} aria-hidden="true" /> : <Bookmark size={16} aria-hidden="true" />}
@@ -52,7 +65,7 @@ export function ReportHeader({ reportId, score, resumeTitle, jobTitle, jobMeta, 
           </button>
         </div>
         <div className="report-conclusion">
-          <h2>结论</h2>
+          <h2><Sparkles size={16} aria-hidden="true" />结论</h2>
           <p>{summary || "这份报告没有给出结论，请查看下方的逐条结果。"}</p>
           <small>报告 #{reportId}</small>
         </div>
