@@ -26,9 +26,9 @@
 
 **水墨工作台 · 岗位列表与报告并排**：顶部山水横幅、侧栏插画和深绿卡片沿用统一配色。岗位按语义相关度初筛，报告集中展示匹配分、简历与目标职位、结论以及结构化优势和缺口；检索参数收在「检索详情」中。
 
-> 新版配图来自已合并的 [界面改版 PR #72](https://github.com/Emryswu/ResumeLens/pull/72) 与 [助手面板 PR #73](https://github.com/Emryswu/ResumeLens/pull/73)，均为实际页面截图。报告使用离线 mock 演示数据；助手的 SSE 事件使用固定脚本，**未调用真实大模型**。报告中的长岗位名、公司名和地点用于演示截断与换行。图片链接固定到截图提交，不随分支更新。
+> 新版配图来自已合并的 [界面改版 PR #72](https://github.com/Emryswu/ResumeLens/pull/72) 与 [助手面板 PR #73](https://github.com/Emryswu/ResumeLens/pull/73)，均为实际页面截图。报告使用离线 mock 演示数据；助手的 SSE 事件使用固定脚本，**未调用真实大模型**。报告中的长岗位名、公司名和地点用于演示截断与换行。展示图随 README 保存在 `docs/screenshots/`，使用相对路径引用，不依赖临时截图分支。
 
-![新版水墨工作台与结构化匹配报告（mock 演示数据）](https://github.com/Emryswu/ResumeLens/blob/f63c0c79cf84ff9c4ca27220a4eae8321e0023fb/after/11-report-full.png?raw=true)
+![新版水墨工作台与结构化匹配报告（mock 演示数据）](docs/screenshots/09-workspace-report-full.png)
 
 **从结论追溯原文**：优势与缺口按技术栈、项目经历、工程实践等类别展示，规则检出的缺口单独标注。点击「片段 N」在侧边抽屉查看相关原文；高亮只表示词面重叠，帮助定位，不代表语义支撑。优势旁的相似度表示检索相关程度，不是能力评分。
 
@@ -38,20 +38,20 @@
 
 处理中，工具步骤随 SSE 实时出现；回答到达后收成一行摘要，点击打开完整时间线。每步可展开查看工具名、参数、返回结果与错误码，失败等异常状态仍保留在摘要上。下图故意让一次职位详情读取失败，以展示状态。
 
-![新版 AI 助手处理过程侧栏（固定 SSE 演示，含一次失败）](https://github.com/Emryswu/ResumeLens/blob/00a7ea6515c8093c7741e4a9a1e238e44dfa9adb/after/03-panel-open.png?raw=true)
+![新版 AI 助手处理过程侧栏（固定 SSE 演示，含一次失败）](docs/screenshots/10-assistant-process-panel.png)
 
 发起完整分析仍须先经确认卡同意；同意后断流且结果未知时，页面引导到分析记录核实。若写操作结果未知，或已执行但未收到完整对话记录，当前对话不能继续或重试，可查看记录 / 报告后新开对话。
 
 <details>
 <summary>窄屏界面与更多新版截图</summary>
 
-[工作台首屏](https://github.com/Emryswu/ResumeLens/blob/f63c0c79cf84ff9c4ca27220a4eae8321e0023fb/after/10-report.png?raw=true) · [空账号引导](https://github.com/Emryswu/ResumeLens/blob/f63c0c79cf84ff9c4ca27220a4eae8321e0023fb/after/01-match-empty.png?raw=true) · [助手回答与摘要行](https://github.com/Emryswu/ResumeLens/blob/00a7ea6515c8093c7741e4a9a1e238e44dfa9adb/after/02-summary-multi.png?raw=true)
+[工作台首屏](docs/screenshots/11-workspace-report.png) · [空账号引导](docs/screenshots/12-workspace-empty.png) · [助手回答与摘要行](docs/screenshots/13-assistant-summary.png)
 
 窄屏下重新排列报告与岗位列表，原文和处理过程面板从底部弹出；面板支持 Esc 关闭，焦点回到最后点击的入口。以下为 390px 宽截图，数据来源同上。
 
 | 匹配报告 | 助手处理过程 |
 | --- | --- |
-| ![390px 新版匹配报告](https://github.com/Emryswu/ResumeLens/blob/f63c0c79cf84ff9c4ca27220a4eae8321e0023fb/after/390-report.png?raw=true) | ![390px 助手底部处理过程面板](https://github.com/Emryswu/ResumeLens/blob/00a7ea6515c8093c7741e4a9a1e238e44dfa9adb/after/07-phone-sheet.png?raw=true) |
+| ![390px 新版匹配报告](docs/screenshots/14-mobile-report.png) | ![390px 助手底部处理过程面板](docs/screenshots/15-mobile-assistant-process.png) |
 
 </details>
 
