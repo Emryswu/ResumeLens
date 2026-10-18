@@ -4,7 +4,7 @@
 
 基于 **本地向量检索 + 大模型生成** 的简历 / 职位（JD）智能匹配系统。
 
-后端用 Spring Boot 完成鉴权、持久化、岗位库向量粗排与异步精析；精析走「关键词重排 + 语义阈值门控」的 RAG。工作台默认是「一份简历对岗位库排序，再对 Top N 出证据链报告」。适合作为 Java 后端 + RAG 工程化作品集项目。
+后端用 Spring Boot 完成鉴权、持久化、岗位库向量粗排与异步精析；精析走「关键词重排 + 语义阈值门控」的 RAG。工作台默认是「一份简历对岗位库排序，再对 Top N 出证据链报告」。
 
 前端采用浅色水墨山水与深绿配色，围绕「选简历 → 选岗位 → 核对与改进」组织工作台：左侧筛选目标岗位，右侧阅读匹配报告；点击引用片段查看简历原文，再对照建议手动修改并另存简历。AI 助手共用同一套导航和抽屉交互，工具处理过程与回答分开展示。
 
@@ -133,7 +133,7 @@
 
 ```text
 .
-├── README.md                      # 本文件（作品集说明）
+├── README.md                      # 本文件
 ├── start-mysql.ps1                # 便携 MySQL 启动（参数 / 环境变量 / 自动探测）
 ├── stop-mysql.ps1
 ├── connect-mysql.ps1
@@ -575,4 +575,4 @@ node --experimental-strip-types --test tests/report-export.test.ts
 
 ## License
 
-个人学习 / 作品集项目。第三方模型权重与依赖遵循其各自许可证（Alibaba GTE ONNX、Spring、Lucene、Tika 等）。
+个人学习项目。第三方模型权重与依赖遵循其各自许可证（Alibaba GTE ONNX、Spring、Lucene、Tika 等）。
