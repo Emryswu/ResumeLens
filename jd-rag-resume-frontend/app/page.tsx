@@ -1037,6 +1037,11 @@ export default function Home() {
     }
     return filtered;
   })();
+  // Managing saved jobs must not depend on resume selection or ranking services.
+  const libraryRankingReady = (!jobAnalysisDataRequired || jobAnalysisDataReady)
+    && (!jobSemanticDataRequired || jobSemanticDataReady);
+  const libraryJobs = libraryRankingReady ? visibleJobs
+    : [...jobs].sort((left, right) => jobTimestamp(right) - jobTimestamp(left) || right.id - left.id);
   const visibleHistory = historyExpanded ? history : history.slice(0, HISTORY_PREVIEW_LIMIT);
   const hiddenLoadedHistory = Math.max(0, history.length - HISTORY_PREVIEW_LIMIT);
   const hasMoreHistory = history.length < effectiveHistoryTotal;
@@ -1432,18 +1437,18 @@ export default function Home() {
             <ErrorState compact text={`向量粗排失败：${jobSemanticError || "请稍后重试"}`}
               onRetry={selectedResumeId ? () => void loadSemanticMatches(Number(selectedResumeId)) : undefined} />
           )}
+          {jobs.length > 0 && !libraryRankingReady && <p className="review-caveat" role="status">匹配数据尚未就绪，以下按最近保存展示全部已加载岗位；匹配排序和「仅看未分析」暂未应用。</p>}
           {workspaceLoading ? (
             <Skeleton className="skeleton-rows" label="正在读取岗位" lines={4} />
           ) : jobs.length === 0 ? (
             <div className="state-panel"><EmptyState icon={BriefcaseBusiness} art="empty-jobs" title="职位库还是空的" text="添加一个目标岗位，或用浏览器插件从招聘页一键导入。"
               action={<button className="primary" type="button" onClick={() => { resetJobEditor(); setShowJobEditor(true); }}><Plus size={16} aria-hidden="true" />添加岗位</button>} /></div>
-          ) : (jobAnalysisDataRequired && !jobAnalysisDataReady)
-              || (jobSemanticDataRequired && !jobSemanticDataReady) ? null : visibleJobs.length === 0 ? (
+          ) : libraryJobs.length === 0 ? (
             <EmptyState compact icon={ListChecks} title="这份简历的岗位都分析过了" text="取消「仅看未分析」可以查看全部岗位。"
               action={<button className="ghost" type="button" onClick={() => setJobFilter("all")}>显示全部岗位</button>} />
           ) : (
             <div className="job-list">
-              {visibleJobs.map((item) => (
+              {libraryJobs.map((item) => (
                 <JobCard key={item.id} job={item}
                   analysis={latestAnalysisByJob.get(item.id)}
                   similarity={semanticSimilarityByJob.get(item.id)}
