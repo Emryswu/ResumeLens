@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownWideNarrow, ArrowRight, ArrowUpRight, Bookmark, BriefcaseBusiness, Check, CircleAlert, CircleCheck, FileText, History, ListChecks, LoaderCircle, Plus, RotateCw, Sparkles, Upload, X } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowRight, ArrowUpRight, Bookmark, BriefcaseBusiness, CircleAlert, CircleCheck, FileText, History, ListChecks, LoaderCircle, Plus, RotateCw, Sparkles, Upload, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
@@ -10,6 +10,8 @@ import { LoginPage, type AuthForm, type AuthMode } from "./components/LoginPage"
 import { EmptyState, ErrorState, LoadingState, RetryButton, Skeleton } from "./components/StateBlock";
 import { MatchReport } from "./components/MatchReport";
 import { JobCard } from "./components/JobCard";
+import { Workbench } from "./components/Workbench";
+import { EMPTY_PASTE_JOB, pasteJobPayload, workbenchAction, type JobSource, type PasteJobForm } from "./workbench";
 import { reportPanelState, type LoadState } from "./view-states";
 import { bookmarkKey, parseBookmarks } from "./workspace-bookmarks";
 import { hashForView, navLabel, viewFromHash, type HashView } from "./workspace-nav";
@@ -94,14 +96,6 @@ function analysisTimestamp(item?: AnalysisSummary) {
 function analysisScore(item?: AnalysisSummary) {
   const score = Number(item?.matchScore);
   return item?.status === "COMPLETED" && Number.isFinite(score) ? score : -1;
-}
-
-function jobScoreLabel(item?: AnalysisSummary) {
-  if (!item) return "未分析";
-  if (item.status === "PENDING") return "分析中";
-  if (item.status === "FAILED") return "失败";
-  const score = Number(item.matchScore);
-  return Number.isFinite(score) ? `${score.toFixed(0)} 分` : "—";
 }
 
 function jobTimestamp(item: Job) {
@@ -210,6 +204,10 @@ export default function Home() {
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [showJobEditor, setShowJobEditor] = useState(false);
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  // The match page is the workbench (pick a resume and a job) until a report is opened or an analysis starts.
+  const [matchMode, setMatchMode] = useState<"compose" | "report">("compose");
+  const [jobSource, setJobSource] = useState<JobSource>("library");
+  const [pasteJob, setPasteJob] = useState<PasteJobForm>({ ...EMPTY_PASTE_JOB });
   // Until the first load succeeds the lists are unknown, not empty: show placeholders, then data or a retry.
   const [workspaceStatus, setWorkspaceStatus] = useState<LoadState>("loading");
   const [workspaceError, setWorkspaceError] = useState("");
@@ -291,6 +289,9 @@ export default function Home() {
     setAuth({ username: "", password: "", email: "", displayName: "" });
     setBulkImportText(JSON.stringify(SAMPLE_BULK_JOBS, null, 2));
     setShowBulkImport(false);
+    setMatchMode("compose");
+    setJobSource("library");
+    setPasteJob({ ...EMPTY_PASTE_JOB });
     setNotice("");
     setBusy("");
     workspaceLoaded.current = false;
@@ -573,6 +574,7 @@ export default function Home() {
           chooseResume(requestedAnalysis.resumeId);
           chooseJob(requestedAnalysis.jobDescriptionId);
           setAnalysis(requestedAnalysis);
+          setMatchMode("report");
         } catch (reason) {
           if (!active || !isAuthSessionCurrent(sessionId)) return;
           reportRequestError(reason, "无法读取指定分析报告");
@@ -732,6 +734,8 @@ export default function Home() {
       chooseJob(saved.id);
       invalidateSemanticMatches();
       setEditingJobId(null);
+      setJobSource("library");
+      setMatchMode("compose");
       navigate("match");
     } catch (reason) {
       reportRequestError(reason, "JD 保存失败");
@@ -868,6 +872,7 @@ export default function Home() {
       chooseResume(createdResume.id);
       chooseJob(createdJob.id);
       setNotice("示例数据已保存，正在启动 RAG 匹配分析…");
+      setMatchMode("report");
       setBusy("analysis");
       run = beginAnalysisRun(createdResume.id, createdJob.id);
       const result = await apiRequest<Analysis>("/api/analysis-histories/ai", {
@@ -888,16 +893,19 @@ export default function Home() {
     }
   }
 
-  async function runAnalysis() {
-    if (!selectedResumeId || !selectedJobId) {
+  /**
+   * Starts an analysis of the given pair. The ids are passed in rather than read from state, because the
+   * workbench calls this right after saving a pasted job, before the new selection has rendered.
+   */
+  async function runAnalysis(resumeId: number | "" = selectedResumeId, jobId: number | "" = selectedJobId) {
+    if (!resumeId || !jobId) {
       setError("请先选择简历和职位 JD，或点「一键示例匹配」");
       return;
     }
+    setMatchMode("report");
     setBusy("analysis");
     setError("");
     setNotice(`正在检索（语义阈值门控 + 关键词重排），${generationProgressLabel(aiStatus)}`);
-    const resumeId = Number(selectedResumeId);
-    const jobId = Number(selectedJobId);
     const run = beginAnalysisRun(resumeId, jobId);
     try {
       const result = await apiRequest<Analysis>("/api/analysis-histories/ai", {
@@ -916,6 +924,52 @@ export default function Home() {
     } finally {
       setBusy("");
     }
+  }
+
+  /** The workbench button: a pasted job is saved to the job library first, then the pair is analysed. */
+  async function startFromWorkbench() {
+    if (!selectedResumeId) {
+      setError("请先选择一份简历");
+      return;
+    }
+    const resumeId = selectedResumeId;
+    if (jobSource === "library") {
+      await runAnalysis(resumeId, selectedJobId);
+      return;
+    }
+    const checked = pasteJobPayload(pasteJob);
+    if (!checked.ok) {
+      setError(checked.problems.join("；"));
+      return;
+    }
+    const session = getAuthSessionId();
+    setBusy("paste-job");
+    setError("");
+    let saved: Job;
+    try {
+      saved = await apiRequest<Job>("/api/job-descriptions", { method: "POST", body: JSON.stringify(checked.payload) });
+    } catch (reason) {
+      if (isAuthSessionCurrent(session)) {
+        reportRequestError(reason, "职位保存失败，粘贴的内容仍保留");
+        setBusy("");
+      }
+      return;
+    }
+    if (!isAuthSessionCurrent(session)) return;
+    setJobs((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
+    setJobsTotal((total) => total + 1);
+    invalidateSemanticMatches();
+    chooseJob(saved.id);
+    setPasteJob({ ...EMPTY_PASTE_JOB });
+    setJobSource("library");
+    setBusy("");
+    await runAnalysis(resumeId, saved.id);
+  }
+
+  function openWorkbench() {
+    activeAnalysisRun.current = null;
+    setMatchMode("compose");
+    navigate("match");
   }
 
   async function runTopMatchesAnalysis() {
@@ -1099,6 +1153,13 @@ export default function Home() {
     return () => { active = false; window.clearTimeout(timer); };
   }, [token, selectedResumeId, selectedJobId, selectedAnalysisId, selectedAnalysisStatus, analysis?.id, analysis?.status, analysis?.resumeId, analysis?.jobDescriptionId, busy, reportRetry]);
 
+  const workbenchNext = workbenchAction({
+    resumeId: selectedResumeId,
+    source: jobSource,
+    jobId: selectedJobId,
+    paste: pasteJob,
+    latest: latestSelected,
+  });
   const reportPanel = reportPanelState({
     workspace: workspaceStatus,
     analysis,
@@ -1152,8 +1213,8 @@ export default function Home() {
           return { icon: ArrowUpRight, title: selectedJob ? selectedJob.title : "先选一个目标岗位",
             text: selectedJob
               ? `${selectedJob.companyName}${selectedJob.location ? ` · ${selectedJob.location}` : ""} · ${selectedResumeId ? "准备好后，生成你的匹配报告。" : "先在上方选择一份简历。"}`
-              : "从左侧选一个目标岗位，生成你的匹配报告。",
-            action: <button className="primary" type="button" disabled={!pairReady} onClick={() => void runAnalysis()}>开始匹配分析<ArrowRight size={16} aria-hidden="true" /></button> };
+              : "回到工作台选择简历和岗位，生成你的匹配报告。",
+            action: <button className="primary" type="button" onClick={openWorkbench}>回到工作台<ArrowRight size={16} aria-hidden="true" /></button> };
       }
     })();
     const Icon = view.error ? CircleAlert : view.icon;
@@ -1172,8 +1233,8 @@ export default function Home() {
 
   return (
     <AppShell
-      title={navLabel(pageView)}
-      subtitle={VIEW_SUBTITLES[pageView]}
+      title={pageView === "match" && matchMode === "compose" ? "岗位匹配工作台" : navLabel(pageView)}
+      subtitle={pageView === "match" && matchMode === "compose" ? "选择你的简历与职位描述，开始一次新的匹配分析。" : VIEW_SUBTITLES[pageView]}
       hero
       activeView={pageView}
       user={user}
@@ -1184,99 +1245,43 @@ export default function Home() {
         {(error || notice) && <div className={`toast ${error ? "error" : "success"}`} role={error ? "alert" : "status"}>{error ? <CircleAlert size={20} aria-hidden="true" /> : <CircleCheck size={20} aria-hidden="true" />}{error || notice}<button aria-label="关闭通知" onClick={() => { setError(""); setNotice(""); }}><X size={18} aria-hidden="true" /></button></div>}
         {workspaceFailed && <div className="state-panel"><ErrorState title="工作台数据没有加载出来" text={workspaceError} onRetry={() => void loadWorkspace()} retrying={busy === "loading"} /></div>}
         <section id="workflow" hidden={pageView !== "match" || workspaceFailed}>
-          <div className="match-context"><label>当前简历<select value={selectedResumeId} disabled={!!busy} onChange={event => chooseResume(event.target.value ? Number(event.target.value) : "")}><option value="">请选择简历</option>{resumes.map(item => <option key={item.id} value={item.id}>{item.title} · {item.candidateName}</option>)}</select></label><button className="text-action" onClick={() => navigate("resumes")}>管理简历</button><div className="match-steps"><span>{selectedResumeId ? <Check size={14} aria-label="已完成" /> : "01"} 选择简历</span><span>{selectedJobId ? <Check size={14} aria-label="已完成" /> : "02"} 选择岗位</span><span className="current">03 核对与改进</span></div></div>
-          <div className="match-layout"><aside className="job-rail" aria-label="目标岗位"><div className="entity-library">
-                <div className="entity-library-head"><span>目标岗位</span><em>{effectiveJobsTotal}</em></div>
-                <div className="job-library-controls">
-                  <select aria-label="职位排序" value={jobSort} onChange={(event) => {
-                    const next = event.target.value as JobSort;
-                    setJobSort(next);
-                    if (next === "score" || next === "analyzed") void loadAllJobsForRanking();
-                  }} disabled={jobsLoadingMore}>
-                    <option value="semantic">语义相关度</option>
-                    <option value="recent">最近保存</option>
-                    <option value="score">已分析匹配分</option>
-                    <option value="analyzed">最近分析</option>
-                  </select>
-                  <label>
-                    <input type="checkbox" checked={jobFilter === "unanalyzed"} disabled={jobsLoadingMore} onChange={(event) => {
-                      const next = event.target.checked ? "unanalyzed" : "all";
-                      setJobFilter(next);
-                      if (next === "unanalyzed") void loadAllJobsForRanking();
-                    }} />
-                    仅看未分析
-                  </label>
-                </div>
-                <div className="semantic-actions">
-                  <select aria-label="Top N 分析数量" value={topMatchCount} onChange={(event) => setTopMatchCount(Number(event.target.value))}>
-                    <option value={3}>Top 3</option>
-                    <option value={5}>Top 5</option>
-                    <option value={10}>Top 10</option>
-                  </select>
-                  <button className="ghost compact" type="button" disabled={!!busy || !selectedResumeId} onClick={() => void runTopMatchesAnalysis()}>
-                    {busy === "top-analysis" ? "逐个精析中…" : "分析向量 Top N"}
-                  </button>
-                </div>
-                <small className="semantic-note">语义相关度用于初筛，综合匹配分来自单独的分析。</small>
-                {!workspaceLoading && (jobAnalysesLoading || jobsLoadingMore || jobSemanticStatus === "loading") && <LoadingState compact text="正在整理完整岗位库…" />}
-                {jobs.length > 0 && (jobAnalysisDataRequired || jobSemanticDataRequired) && !selectedResumeId && (
-                  <EmptyState compact icon={FileText} title="请先选择一份简历" text="选好简历后，才能按语义相关度或分析结果整理岗位。" />
-                )}
-                {jobAnalysisDataRequired && jobAnalysesStatus === "error" && (
-                  <ErrorState compact text={`匹配信息加载失败：${jobAnalysesError || "请稍后重试"}`}
-                    onRetry={selectedResumeId ? () => void loadJobAnalyses(Number(selectedResumeId)) : undefined} />
-                )}
-                {jobSemanticDataRequired && jobSemanticStatus === "error" && (
-                  <ErrorState compact text={`向量粗排失败：${jobSemanticError || "请稍后重试"}`}
-                    onRetry={selectedResumeId ? () => void loadSemanticMatches(Number(selectedResumeId)) : undefined} />
-                )}
-                {workspaceLoading ? (
-                  <Skeleton className="skeleton-rows" label="正在读取岗位" lines={4} />
-                ) : jobs.length === 0 ? (
-                  <EmptyState compact icon={BriefcaseBusiness} title="还没有岗位，添加一个" text="保存目标岗位的职位描述后，就能开始匹配。"
-                    action={<button className="ghost" type="button" onClick={() => navigate("jobs")}><Plus size={16} aria-hidden="true" />添加岗位</button>} />
-                ) : (jobAnalysisDataRequired && !jobAnalysisDataReady)
-                    || (jobSemanticDataRequired && !jobSemanticDataReady) ? null : visibleJobs.length === 0 ? (
-                  <EmptyState compact icon={ListChecks} title="这份简历的岗位都分析过了" text="取消「仅看未分析」可以查看全部岗位。"
-                    action={<button className="ghost" type="button" onClick={() => setJobFilter("all")}>显示全部岗位</button>} />
-                ) : visibleJobs.map((item) => {
-                  const latest = latestAnalysisByJob.get(item.id);
-                  const semanticSimilarity = semanticSimilarityByJob.get(item.id);
-                  return (
-                    <div className={`entity-row ${selectedJobId === item.id ? "selected" : ""} ${editingJobId === item.id ? "editing" : ""}`} key={item.id}>
-                      <button type="button" className="entity-main job-entity-main" aria-pressed={selectedJobId === item.id} disabled={!!busy} onClick={() => chooseJob(item.id)} title="选为匹配职位">
-                        <span className="job-entity-copy">
-                          <strong title={item.title}>{item.title}</strong>
-                          <small title={`${item.companyName}${item.location ? ` · ${item.location}` : ""}`}>{item.companyName}{item.location ? ` · ${item.location}` : ""}</small>
-                        </span>
-                        <em className={`job-score ${jobSort === "semantic" ? "semantic" : latest?.status.toLowerCase() || "unanalyzed"}`}>
-                          {jobSort === "semantic" && typeof semanticSimilarity === "number"
-                            ? `语义相关度 ${semanticSimilarity.toFixed(2)}`
-                            : jobScoreLabel(latest)}
-                        </em>
-                      </button>
-                      <div className="entity-actions">
-                        <button type="button" className="ghost compact" aria-pressed={savedJobs.includes(item.id)} onClick={() => toggleBookmark(item.id)}>{savedJobs.includes(item.id) ? "已保存" : "保存"}</button><Link className="ghost compact" href={`/jobs/${item.id}`}>详情</Link>
-                        <button type="button" className="ghost compact" onClick={() => beginEditJob(item)} disabled={!!busy}>编辑</button>
-                        <button type="button" className="ghost compact danger" onClick={() => void deleteJob(item.id)} disabled={!!busy}>删除</button>
-                      </div>
-                    </div>
-                  );
-                })}
-                {jobs.length < effectiveJobsTotal && (
-                  <div className="entity-load-more">
-                    <button className="ghost compact" type="button" disabled={jobsLoadingMore} onClick={() => void loadMoreJobs()}>
-                      {jobsLoadingMore ? <><LoaderCircle className="spin" size={14} aria-hidden="true" />加载中…</> : `继续加载（还有 ${effectiveJobsTotal - jobs.length} 个）`}
-                    </button>
-                  </div>
-                )}
-              </div></aside>
-            <div className="match-main"><section className="match-report" id="result" aria-label="岗位匹配报告" aria-busy={busy === "analysis" || fetchingReport || analysis?.status === "PENDING"}>
-              {analysis?.status === "COMPLETED" && busy !== "analysis" ? <MatchReport key={analysis.id} analysis={analysis} job={jobs.find(item => item.id === analysis.jobDescriptionId)} saved={savedJobs.includes(analysis.jobDescriptionId)} disabled={!!busy} onBookmark={() => toggleBookmark(analysis.jobDescriptionId)} onExportMarkdown={exportMarkdown} onExportPdf={exportPdf} onSaveCopy={copy => { setResumes(items => [copy, ...items.filter(item => item.id !== copy.id)]); chooseResume(copy.id); invalidateSemanticMatches(); setNotice("修改版已另存为新简历，原简历未覆盖；可重新分析对比。"); }} /> : reportStateView()}
-              {analysis?.status === "COMPLETED" && <div className="report-rerun"><small>{runtimeModeLabel(aiStatus)}</small><button className="text-action" disabled={!!busy || !selectedResumeId || !selectedJobId || analysis.resumeId !== selectedResumeId || analysis.jobDescriptionId !== selectedJobId} onClick={() => void runAnalysis()}><RotateCw size={16} aria-hidden="true" />重新分析当前组合</button></div>}
-            </section>
-            <BrandCtaCard /></div>
-          </div>
+          {matchMode === "compose" ? (
+            <Workbench
+              loading={workspaceLoading}
+              resumes={resumes}
+              jobs={jobs}
+              moreJobs={Math.max(0, effectiveJobsTotal - jobs.length)}
+              loadingMoreJobs={jobsLoadingMore}
+              onLoadMoreJobs={() => void loadMoreJobs()}
+              selectedResumeId={selectedResumeId}
+              selectedJobId={selectedJobId}
+              latestByJob={latestAnalysisByJob}
+              source={jobSource}
+              paste={pasteJob}
+              action={workbenchNext}
+              busy={!!busy}
+              starting={busy === "paste-job" || busy === "analysis"}
+              onChooseResume={chooseResume}
+              onChooseJob={chooseJob}
+              onSourceChange={setJobSource}
+              onPasteChange={setPasteJob}
+              onClear={() => { setPasteJob({ ...EMPTY_PASTE_JOB }); if (jobSource === "library") chooseJob(""); }}
+              onAnalyze={() => void startFromWorkbench()}
+              onViewReport={() => setMatchMode("report")}
+              onManageResumes={() => navigate("resumes")}
+              onManageJobs={() => navigate("jobs")} />
+          ) : (
+            <div className="match-main">
+              <div className="report-toolbar">
+                <button className="ghost" type="button" disabled={busy === "analysis"} onClick={openWorkbench}><Plus size={16} aria-hidden="true" />新建匹配</button>
+              </div>
+              <section className="match-report" id="result" aria-label="岗位匹配报告" aria-busy={busy === "analysis" || fetchingReport || analysis?.status === "PENDING"}>
+                {analysis?.status === "COMPLETED" && busy !== "analysis" ? <MatchReport key={analysis.id} analysis={analysis} job={jobs.find(item => item.id === analysis.jobDescriptionId)} saved={savedJobs.includes(analysis.jobDescriptionId)} disabled={!!busy} onBookmark={() => toggleBookmark(analysis.jobDescriptionId)} onExportMarkdown={exportMarkdown} onExportPdf={exportPdf} onSaveCopy={copy => { setResumes(items => [copy, ...items.filter(item => item.id !== copy.id)]); chooseResume(copy.id); invalidateSemanticMatches(); setNotice("修改版已另存为新简历，原简历未覆盖；可重新分析对比。"); }} /> : reportStateView()}
+                {analysis?.status === "COMPLETED" && <div className="report-rerun"><small>{runtimeModeLabel(aiStatus)}</small><button className="text-action" disabled={!!busy || !selectedResumeId || !selectedJobId || analysis.resumeId !== selectedResumeId || analysis.jobDescriptionId !== selectedJobId} onClick={() => void runAnalysis()}><RotateCw size={16} aria-hidden="true" />重新分析当前组合</button></div>}
+              </section>
+              <BrandCtaCard />
+            </div>
+          )}
         </section>
         <section className="editor-view" id="resumes" hidden={pageView !== "resumes" || workspaceFailed}><div className="editor-toolbar"><p>上传文件或直接粘贴正文，保存后选择目标岗位。</p><button className="ghost" onClick={() => { resetResumeEditor(); setNotice(""); }}>新建空白简历</button><button className="ghost" onClick={fillSampleForms}>填入示例</button><button className="ghost" onClick={() => navigate("match")}>返回匹配</button></div>            <form className="step-card" onSubmit={saveResume}>
               <div className="step-title">
@@ -1456,7 +1461,7 @@ export default function Home() {
                   selected={selectedJobId === item.id}
                   saved={savedJobs.includes(item.id)}
                   disabled={!!busy}
-                  onUse={() => { chooseJob(item.id); navigate("match"); }}
+                  onUse={() => { chooseJob(item.id); setJobSource("library"); openWorkbench(); }}
                   onToggleSave={() => toggleBookmark(item.id)}
                   onEdit={() => beginEditJob(item)}
                   onDelete={() => void deleteJob(item.id)} />
@@ -1479,7 +1484,7 @@ export default function Home() {
               selected={selectedJobId === item.id}
               saved
               disabled={!!busy}
-              onUse={() => { chooseJob(item.id); navigate("match"); }}
+              onUse={() => { chooseJob(item.id); setJobSource("library"); openWorkbench(); }}
               onToggleSave={() => toggleBookmark(item.id)} />
           ))}</div>{jobs.length < effectiveJobsTotal && <button className="ghost" disabled={jobsLoadingMore} onClick={() => void loadAllJobsForRanking()}>加载其余岗位中的收藏</button>}<p className="review-caveat">仅展示仍可访问的岗位。收藏范围：当前浏览器、当前账号。</p></>}</section>
                 <section className="history" id="history" hidden={pageView !== "history" || workspaceFailed}>
@@ -1492,7 +1497,7 @@ export default function Home() {
               <EmptyState icon={History} art="empty-history" title="还没有分析记录" text="选择简历和岗位，完成第一次分析后会显示在这里。"
                 action={<button className="primary" type="button" onClick={() => navigate("match")}>去做第一次匹配<ArrowRight size={16} aria-hidden="true" /></button>} />
             ) : visibleHistory.map((item) => (
-              <button className="history-row" key={item.id} type="button" onClick={() => { activeAnalysisRun.current = null; chooseResume(item.resumeId); chooseJob(item.jobDescriptionId); setAnalysis(item); navigate("match"); document.getElementById("result")?.scrollIntoView({ behavior: "smooth" }); }}>
+              <button className="history-row" key={item.id} type="button" onClick={() => { activeAnalysisRun.current = null; chooseResume(item.resumeId); chooseJob(item.jobDescriptionId); setAnalysis(item); setMatchMode("report"); navigate("match"); }}>
                 <span title={item.resumeTitle}>#{item.id} · {item.resumeTitle}</span>
                 <span title={item.jobTitle}>{item.jobTitle}</span>
                 <span><i className={item.status.toLowerCase()} />{item.status}</span>
