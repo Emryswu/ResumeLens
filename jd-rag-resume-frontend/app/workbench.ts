@@ -13,12 +13,15 @@ export type PasteJobForm = {
 
 export const EMPTY_PASTE_JOB: PasteJobForm = { title: "", companyName: "", location: "", description: "", requirements: "" };
 
+/** Longest job description the backend accepts (JobDescriptionRequest.description). */
+export const PASTE_DESCRIPTION_MAX = 20000;
+
 /** Same limits as the backend's JobDescriptionRequest, so a pasted job is rejected here rather than after the request. */
 const PASTE_FIELDS: { key: keyof PasteJobForm; label: string; required: boolean; max: number }[] = [
   { key: "title", label: "职位名称", required: true, max: 160 },
   { key: "companyName", label: "公司名称", required: true, max: 120 },
   { key: "location", label: "工作地点", required: false, max: 80 },
-  { key: "description", label: "职位描述", required: true, max: 20000 },
+  { key: "description", label: "职位描述", required: true, max: PASTE_DESCRIPTION_MAX },
   { key: "requirements", label: "任职要求", required: false, max: 20000 },
 ];
 

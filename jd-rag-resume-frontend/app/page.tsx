@@ -1233,8 +1233,8 @@ export default function Home() {
 
   return (
     <AppShell
-      title={navLabel(pageView)}
-      subtitle={VIEW_SUBTITLES[pageView]}
+      title={pageView === "match" && matchMode === "compose" ? "岗位匹配工作台" : navLabel(pageView)}
+      subtitle={pageView === "match" && matchMode === "compose" ? "选择你的简历与职位描述，开始一次新的匹配分析。" : VIEW_SUBTITLES[pageView]}
       hero
       activeView={pageView}
       user={user}
@@ -1265,6 +1265,7 @@ export default function Home() {
               onChooseJob={chooseJob}
               onSourceChange={setJobSource}
               onPasteChange={setPasteJob}
+              onClear={() => { setPasteJob({ ...EMPTY_PASTE_JOB }); if (jobSource === "library") chooseJob(""); }}
               onAnalyze={() => void startFromWorkbench()}
               onViewReport={() => setMatchMode("report")}
               onManageResumes={() => navigate("resumes")}
