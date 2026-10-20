@@ -24,11 +24,15 @@
 
 ### 新版工作台与报告
 
-**水墨工作台 · 岗位列表与报告并排**：顶部山水横幅、侧栏插画和深绿卡片沿用统一配色。岗位按语义相关度初筛，报告集中展示匹配分、简历与目标职位、结论以及结构化优势和缺口；检索参数收在「检索详情」中。
+**岗位匹配工作台**：左边选一份简历，右边粘贴职位描述或从职位库挑一个岗位，点「开始分析」生成报告。粘贴的职位会先存进职位库，下次可以直接选；已经分析过的组合直接「查看报告」，不重复调用模型。
 
-> 新版配图来自已合并的 [界面改版 PR #72](https://github.com/Emryswu/ResumeLens/pull/72) 与 [助手面板 PR #73](https://github.com/Emryswu/ResumeLens/pull/73)，均为实际页面截图。报告使用离线 mock 演示数据；助手的 SSE 事件使用固定脚本，**未调用真实大模型**。报告中的长岗位名、公司名和地点用于演示截断与换行。展示图随 README 保存在 `docs/screenshots/`，使用相对路径引用，不依赖临时截图分支。
+> 配图来自第二轮改版 [#77](https://github.com/Emryswu/ResumeLens/pull/77)–[#81](https://github.com/Emryswu/ResumeLens/pull/81) 与助手面板 [PR #73](https://github.com/Emryswu/ResumeLens/pull/73)，均为实际页面截图。页面数据来自本地 mock 后端，报告为离线 mock 演示数据；助手的 SSE 事件使用固定脚本，**未调用真实大模型**。展示图随 README 保存在 `docs/screenshots/`，使用相对路径引用，不依赖临时截图分支。
 
-![新版水墨工作台与结构化匹配报告（mock 演示数据）](docs/screenshots/09-workspace-report-full.png)
+![岗位匹配工作台：左选简历，右粘贴职位描述或从职位库选择（mock 演示数据）](docs/screenshots/20-workbench.png)
+
+**匹配报告**：匹配分、简历与目标职位、结论，以及按类别整理的优势和缺口；检索参数收在「检索详情」中，顶部「新建匹配」回到工作台。
+
+![结构化匹配报告（mock 演示数据）](docs/screenshots/09-workspace-report-full.png)
 
 **从结论追溯原文**：优势与缺口按技术栈、项目经历、工程实践等类别展示，规则检出的缺口单独标注。点击「片段 N」在侧边抽屉查看相关原文；高亮只表示词面重叠，帮助定位，不代表语义支撑。优势旁的相似度表示检索相关程度，不是能力评分。
 
@@ -43,11 +47,17 @@
 发起完整分析仍须先经确认卡同意；同意后断流且结果未知时，页面引导到分析记录核实。若写操作结果未知，或已执行但未收到完整对话记录，当前对话不能继续或重试，可查看记录 / 报告后新开对话。
 
 <details>
-<summary>窄屏界面与更多新版截图</summary>
+<summary>职位库、简历、分析记录与窄屏截图</summary>
 
-[工作台首屏](docs/screenshots/11-workspace-report.png) · [空账号引导](docs/screenshots/12-workspace-empty.png) · [助手回答与摘要行](docs/screenshots/13-assistant-summary.png)
+**职位库、我的简历与分析记录**：职位库按与当前简历的语义相关度排序，可对前 N 个逐个精析；我的简历支持拖拽上传，上传前在本地校验格式与大小；分析记录汇总最高分与 80 分以上的记录，可按时间和已收藏岗位筛选。
 
-窄屏下重新排列报告与岗位列表，原文和处理过程面板从底部弹出；面板支持 Esc 关闭，焦点回到最后点击的入口。以下为 390px 宽截图，数据来源同上。
+| 职位库 | 我的简历 | 分析记录 |
+| --- | --- | --- |
+| ![职位库](docs/screenshots/17-jobs.png) | ![我的简历](docs/screenshots/18-resumes.png) | ![分析记录](docs/screenshots/19-history.png) |
+
+[登录页](docs/screenshots/16-login.png) · [工作台首屏](docs/screenshots/11-workspace-report.png) · [空账号引导](docs/screenshots/12-workspace-empty.png) · [助手回答与摘要行](docs/screenshots/13-assistant-summary.png)
+
+窄屏下工作台、报告与列表改为单列，原文和处理过程面板从底部弹出；面板支持 Esc 关闭，焦点回到最后点击的入口。以下为 390px 宽截图，数据来源同上。
 
 | 匹配报告 | 助手处理过程 |
 | --- | --- |
