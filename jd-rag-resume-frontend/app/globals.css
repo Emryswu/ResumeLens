@@ -238,17 +238,6 @@ a.secondary {
 /* Evidence panel: same light paper palette as insight/result cards (not dark navy block) */
 /* Keep chips in the same green-teal family as the rest of the product */
 .history { padding-top: 44px; }
-.history-table { overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: var(--panel); }
-.history-row { display: grid; grid-template-columns: 1.5fr 1.1fr .7fr .55fr .65fr; align-items: center; width: 100%; padding: 12px 16px; border: 0; border-bottom: 1px solid #e9ece8; color: #5d7071; background: transparent; text-align: left; font-size: var(--text-body); }
-button.history-row:hover { background: #f5f8f4; }
-.history-row:last-child { border-bottom: 0; }
-.history-head { color: #66716f; background: #f5f6f2; font-size: var(--text-meta); font-weight: 800; letter-spacing: .7px; }
-.history-row > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.history-row > span:nth-child(3) { display: flex; align-items: center; gap: 6px; }
-.history-row i { width: 6px; height: 6px; border-radius: 50%; background: #d2a044; }
-.history-row i.completed { background: #46ae70; }
-.history-row i.failed { background: #dc665a; }
-.history-row strong { color: var(--ink); font-size: var(--text-body); }
 .history-more {
   display: flex; justify-content: center; gap: 8px; padding: 10px 16px;
   background: #fbfcf9;
@@ -261,16 +250,12 @@ button.history-row:hover { background: #f5f8f4; }
   .mobile-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; font-weight: 800; }
   .workspace { margin-left: 0; padding: 26px 18px 60px; }
   .questions { grid-template-columns: 1fr; }
-  .history-row { grid-template-columns: 1.5fr .9fr .6fr; }
-  .history-row > span:nth-child(3), .history-row > span:nth-child(5) { display: none; }
 }
 
 @media (max-width: 540px) {
   .auth-panel { padding: 18px 16px 32px; }
   .top-actions { width: 100%; justify-content: space-between; }
   .field-row { grid-template-columns: 1fr; }
-  .history-row { grid-template-columns: 1.5fr .6fr; }
-  .history-row > span:nth-child(2) { display: none; }
 }
 
 /* AI assistant (/assistant): conversation, tool timeline, confirmation gate */

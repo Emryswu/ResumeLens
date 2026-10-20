@@ -6,7 +6,7 @@ import type { AnalysisSummary, Job } from "../lib/api";
 import { companyMark, jobFitLabel, jobMetaParts, jobRing } from "../job-card";
 
 /** A small progress ring with the number inside; `muted` marks a first-pass score rather than an analysis. */
-function MiniRing({ value, label, muted }: { value: number | null; label: string; muted?: boolean }) {
+export function MiniRing({ value, label, muted }: { value: number | null; label: string; muted?: boolean }) {
   const radius = 30;
   const length = 2 * Math.PI * radius;
   const clamped = value == null ? 0 : Math.max(0, Math.min(100, value));

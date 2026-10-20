@@ -92,13 +92,9 @@
 .sample-action summary { cursor: pointer; }
 .saved-view { padding-top: 24px; }
 .state-panel { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
-.history-table > .state-block { border-top: 1px solid #e9ece8; }
 .history-skeleton { padding: 12px 16px; }
 .state-panel.detail-state { margin-top: 18px; }
 .refined-workspace .history { margin-top: 0; padding-top: 0; }
-.history-count { margin: 0 0 12px; color: var(--muted); }
-.refined-workspace .history-row { font-size: var(--text-body); }
-.refined-workspace .history-row > span { overflow-wrap: anywhere; }
 .refined-workspace .message { font-size: var(--text-body); }
 .refined-workspace .toast { position: static; margin: 15px 0 24px; box-shadow: none; font-size: var(--text-body); }
 .refined-workspace .toast > svg { color: var(--mint-dark); }
@@ -357,6 +353,38 @@
 .wb-action .ghost { min-height: 46px; padding: 0 22px; }
 .wb-action .primary { min-width: 160px; min-height: 46px; padding: 0 24px; gap: 8px; font-size: 15px; }
 .report-toolbar { display: flex; justify-content: flex-start; }
+/* 分析记录: numbers, filters, then a table of records. */
+.history-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 20px; }
+.stat-card strong.stat-text { font-size: 22px; }
+.history-panel { padding: 18px 20px 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.history-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 14px; }
+.history-filters small { margin-left: auto; color: var(--muted); font-size: var(--text-meta); }
+.history-filters .ghost { min-height: 40px; padding: 0 14px; border: 1px solid var(--line); }
+.history-select { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 4px 0 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); }
+.history-select select { height: 36px; border: 0; box-shadow: none; padding: 0 26px 0 0; background-color: transparent; color: var(--ink); font-size: var(--text-body); }
+.history-grid { display: grid; }
+.history-item { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.5fr) 88px 150px 128px; align-items: center; gap: 16px; padding: 14px 12px; border-bottom: 1px solid #edf1ed; }
+.history-item:last-child { border-bottom: 0; }
+.history-header { padding-block: 10px; border-radius: 10px; border-bottom: 0; color: var(--muted); background: #f5f7f4; font-size: var(--text-meta); font-weight: 600; }
+.history-cell { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.history-icon { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 11px; color: var(--mint-dark); background: #e8f2eb; }
+.history-job-icon { flex-shrink: 0; color: var(--muted); }
+.history-copy { display: grid; min-width: 0; }
+.history-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; }
+.history-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-meta); }
+.history-chip { display: inline-flex; flex-shrink: 0; align-items: center; gap: 3px; margin-left: auto; padding: 1px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: var(--text-meta); white-space: nowrap; }
+.history-score .mini-ring { width: 64px; height: 64px; }
+.history-score .mini-ring svg { width: 64px; height: 64px; }
+.history-score .mini-ring > div:has(strong) { grid-auto-flow: column; align-items: baseline; gap: 1px; }
+.history-time { flex-direction: column; align-items: flex-start; gap: 0; font-variant-numeric: tabular-nums; }
+.history-status { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: var(--text-meta); }
+.history-status.pending { color: #82540f; }
+.history-status.failed { color: #9c4a3c; }
+.history-status svg { margin-left: 6px; color: var(--mint-dark); }
+.history-actions { justify-content: flex-end; }
+.history-actions .ghost { min-height: 40px; padding: 0 14px; border: 1px solid var(--line); white-space: nowrap; }
+.history-panel .state-block { margin: 12px 0; }
+.history-more { display: flex; justify-content: center; padding: 12px 0; background: transparent; }
 /* 我的简历: drop zone, numbers, then one card per resume. */
 .resume-drop { position: relative; display: grid; justify-items: center; gap: 8px; padding: 38px 24px; border: 1.5px dashed #b9d0c1; border-radius: 16px; color: var(--ink); background: linear-gradient(180deg, #fbfdfb, #f2f8f3); text-align: center; cursor: pointer; transition: border-color .2s, background-color .2s; }
 .resume-drop input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
@@ -378,6 +406,7 @@
 .stat-icon { display: grid; place-items: center; flex-shrink: 0; width: 52px; height: 52px; border-radius: 50%; color: var(--mint-dark); background: #e8f2eb; }
 .stat-card strong { display: flex; align-items: baseline; gap: 6px; font-size: 26px; line-height: 1.2; font-weight: 600; font-variant-numeric: tabular-nums; }
 .stat-card strong small { color: var(--ink); font-size: var(--text-body); font-weight: 500; }
+.stat-card > div { min-width: 0; }
 .stat-card p { margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-meta); }
 .resume-list { display: grid; gap: 12px; }
 .resume-card { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 18px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); transition: border-color .2s, box-shadow .2s; }
@@ -426,6 +455,10 @@
   .job-card-actions { grid-column: 2 / -1; flex-wrap: wrap; }
   .library-toolbar { flex-direction: column; }
   .workbench { grid-template-columns: minmax(0, 1fr); }
+  .history-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .history-item { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 72px 120px; }
+  .history-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .history-chip { display: none; }
   .resume-card { grid-template-columns: 56px minmax(0, 1fr); }
   .resume-card-actions { grid-column: 2; flex-wrap: wrap; }
   .wb-steps-body { grid-template-columns: minmax(0, 1fr); }
@@ -458,6 +491,14 @@
   .filter-field select { min-width: 0; width: 100%; }
   .filter-topn { margin-left: 0; }
   .wb-panel { padding: 18px; }
+  .history-panel { padding: 12px 14px 4px; }
+  .history-header { display: none; }
+  .history-item { grid-template-columns: minmax(0, 1fr) 64px; gap: 8px 12px; padding: 14px 4px; }
+  .history-resume, .history-job, .history-time { grid-column: 1; }
+  .history-score { grid-column: 2; grid-row: 1 / span 3; }
+  .history-actions { grid-column: 1 / -1; }
+  .history-actions .ghost { flex: 1; }
+  .history-filters small { flex-basis: 100%; margin-left: 0; }
   .resume-drop { padding: 26px 18px; }
   .resume-card { gap: 12px 14px; padding: 16px; }
   .resume-card-actions { grid-column: 1 / -1; flex-wrap: nowrap; gap: 6px; }
@@ -469,6 +510,7 @@
   .stat-icon svg { width: 18px; height: 18px; }
   .stat-card strong { font-size: 20px; }
   .stat-card p { white-space: normal; }
+  .history-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .resume-view .step-card { padding: 18px; }
   .wb-head { flex-wrap: wrap; }
   .wb-head-copy { flex-basis: calc(100% - 54px); }
