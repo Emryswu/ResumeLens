@@ -39,33 +39,6 @@
 .refined-workspace input[type=checkbox] { accent-color: var(--mint-dark); width: 15px; height: 15px; }
 .text-action { display: inline-flex; align-items: center; gap: 6px; border: 0; padding: 5px 0; color: var(--mint-dark); background: transparent; text-decoration: none; font-size: var(--text-body); }
 .text-action:disabled { opacity: .5; }
-.match-context { display: flex; align-items: center; gap: 18px; padding-bottom: 20px; border-bottom: 1px solid var(--line); margin-bottom: 26px; }
-.match-context label { display: grid; gap: 0; min-width: 0; }
-.match-context select { background: transparent; border: 0; box-shadow: none; padding-left: 0; height: 32px; width: min(370px, 100%); color: var(--ink); font-weight: 500; }
-.match-steps { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; margin-left: auto; font-size: var(--text-meta); color: var(--muted); }
-.match-steps span { display: inline-flex; align-items: center; gap: 4px; }
-.match-steps .current { color: var(--mint-dark); }
-.match-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 32px; align-items: start; }
-.job-rail { min-width: 0; }
-.job-rail .entity-library { display: block; padding: 0; border: 0; margin: 0; max-height: none; overflow: visible; }
-.job-rail .entity-library-head { margin-bottom: 15px; }
-.job-rail .entity-library-head span { font-size: 15px; font-weight: 600; }
-.job-rail .entity-library-head em { background: transparent; color: var(--muted); }
-.job-rail .entity-row { display: block; border: 1px solid transparent; border-radius: 11px; background: transparent; padding: 15px 13px; margin: 7px 0; box-shadow: none; }
-.job-rail .entity-row.selected { border-color: var(--line); box-shadow: inset 3px 0 var(--mint-dark); background: var(--panel); }
-.job-rail .entity-row:hover { background: var(--panel); }
-.job-rail .job-entity-main { width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
-.job-rail .entity-main strong { color: var(--ink); font-size: 15px; line-height: 1.6; font-weight: 600; }
-.job-rail .entity-main small { font-size: var(--text-meta); line-height: 1.6; }
-.job-rail .job-score { align-self: flex-start; background: transparent; padding: 0; border: 0; font-size: var(--text-meta); color: var(--mint-dark); }
-.job-rail .entity-actions { flex-wrap: wrap; margin-top: 12px; display: flex; gap: 10px; }
-.job-rail .entity-actions .ghost { padding: 0; min-height: 25px; border: 0; background: transparent; font-size: var(--text-meta); }
-.job-rail .entity-actions .danger { color: #8e5a49; }
-.job-rail .job-library-controls { display: flex; flex-wrap: wrap; gap: 8px; }
-.job-rail .job-library-controls select { width: 100%; background: transparent; font-size: var(--text-body); }
-.job-rail .semantic-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-.job-rail .semantic-actions select { width: 74px; font-size: var(--text-body); }
-.job-rail .semantic-note { display: block; font-size: var(--text-meta); color: var(--muted); margin: 11px 0 18px; line-height: 1.7; }
 .match-report { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; min-width: 0; overflow-wrap: anywhere; }
 .review-tabs { display: flex; gap: 26px; padding: 0 30px; border-bottom: 1px solid var(--line); }
 .review-tabs button { padding: 12px 0; background: transparent; border: 0; border-bottom: 2px solid transparent; font-size: 14px; color: var(--muted); }
@@ -411,11 +384,9 @@
   .app-sidebar .brand, .app-sidebar nav a { justify-content: center; padding: 0; }
   .app-sidebar nav a { width: 48px; }
   .app-sidebar .brand-name, .app-sidebar .nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .match-layout { grid-template-columns: 240px minmax(0, 1fr); gap: 22px; }
   .sidebar-card { display: none; }
   .page-hero .page-heading { max-width: 62%; }
   .rewrite-compare { grid-template-columns: 1fr; }
-  .match-steps { gap: 12px; }
   .job-card { grid-template-columns: 56px minmax(0, 1fr) 76px; }
   .job-card > .mini-ring { grid-column: 3; grid-row: 1; }
   .job-card-desc { grid-column: 2 / -1; }
@@ -435,19 +406,11 @@
   .app-topbar { position: static; padding-inline: 20px; }
   .account-name { display: none; }
   .refined-workspace .workspace { margin: 0; padding: 26px 20px 50px; }
-  .match-context { flex-wrap: wrap; gap: 12px; }
-  .match-context label { flex: 1; min-width: 180px; }
-  .match-steps { width: 100%; margin: 0; }
-  .match-layout { grid-template-columns: minmax(0, 1fr); }
   /* Narrow screens keep a short, faint banner and drop the slogan so the content starts right away. */
   .page-header.page-hero { min-height: 0; padding: 18px; }
   .page-hero-slogan { display: none; }
   .page-hero .page-heading { max-width: none; }
   .brand-cta { justify-self: stretch; width: auto; min-height: 104px; padding: 16px 20px; }
-  .job-rail .entity-row { padding: 15px; }
-  .job-rail .entity-main { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; }
-  .job-rail .job-library-controls { align-items: center; }
-  .job-rail .job-library-controls select { width: auto; flex: 1; }
   .review-body { padding: 22px; }
   .review-footer { padding: 18px 22px; }
   .editor-view .step-card { padding: 22px; }
