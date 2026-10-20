@@ -4,9 +4,9 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { User } from "../lib/api";
-import type { HashView, WorkspaceView } from "../workspace-nav";
+import { isHashView, type HashView, type WorkspaceView } from "../workspace-nav";
 import { BackendStatus } from "./BackendStatus";
-import { BrandImage } from "./BrandArt";
+import { BrandImage, PAGE_SLOGANS } from "./BrandArt";
 import { SideNav } from "./SideNav";
 
 type Props = {
@@ -17,7 +17,7 @@ type Props = {
   activeView?: WorkspaceView;
   /** Detail pages link back to the list they came from. */
   back?: { href: string; label: string };
-  /** Paint the page header as the landscape banner with the slogan (the match view). */
+  /** Paint the page header as the landscape banner with that page's handwritten slogan. */
   hero?: boolean;
   user: User | null;
   onLogout: () => void;
@@ -27,6 +27,7 @@ type Props = {
 /** The one layout every signed-in page uses: side navigation, top bar, page header, content. */
 export function AppShell({ children, title, subtitle, actions, activeView, back, hero, user, onLogout, onNavigate }: Props) {
   const name = user?.displayName || user?.username;
+  const slogan = hero && activeView && isHashView(activeView) ? PAGE_SLOGANS[activeView] : null;
   return (
     <div className="app-shell refined-workspace">
       <SideNav active={activeView} onNavigate={onNavigate} />
@@ -41,10 +42,8 @@ export function AppShell({ children, title, subtitle, actions, activeView, back,
         </header>
         <main className="workspace">
           <div className={`page-header${hero ? " page-hero" : ""}`}>
-            {hero && <>
-              <BrandImage name="hero-landscape" className="page-hero-art" priority />
-              <BrandImage name="slogan" className="page-hero-slogan" alt="不只是匹配，更是看见你的潜力" priority />
-            </>}
+            {hero && <BrandImage name="hero-landscape" className="page-hero-art" priority />}
+            {slogan && <BrandImage name={slogan.file} className="page-hero-slogan" alt={slogan.alt} priority />}
             <div className="page-heading">
               <h1 title={typeof title === "string" ? title : undefined}>{title}</h1>
               {subtitle && <p className="workspace-subtitle">{subtitle}</p>}

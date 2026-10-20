@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { AppShell } from "./components/AppShell";
-import { BackendStatus } from "./components/BackendStatus";
 import { BrandCtaCard } from "./components/BrandArt";
+import { LoginPage, type AuthForm, type AuthMode } from "./components/LoginPage";
 import { EmptyState, ErrorState, LoadingState, RetryButton, Skeleton } from "./components/StateBlock";
 import { MatchReport } from "./components/MatchReport";
 import { reportPanelState, type LoadState } from "./view-states";
@@ -171,8 +171,8 @@ export default function Home() {
   // to refetch the per-job scores that chooseResume just cleared.
   const [resumeScopeEpoch, setResumeScopeEpoch] = useState(0);
   const [user, setUser] = useState<User | null>(null);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const [auth, setAuth] = useState({ username: "", password: "", email: "", displayName: "" });
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [auth, setAuth] = useState<AuthForm>({ username: "", password: "", email: "", displayName: "" });
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobsTotal, setJobsTotal] = useState(0);
@@ -1104,40 +1104,16 @@ export default function Home() {
 
   if (!token) {
     return (
-      <main className="auth-shell">
-        <section className="auth-story">
-          <div className="brand"><span className="brand-mark">R</span><span>ResumeLens</span></div>
-          <div className="eyebrow">RAG · RESUME INTELLIGENCE</div>
-          <h1>让每一段经历，<br />都对准理想职位。</h1>
-          <p>阿里 GTE 本地检索简历证据，{runtimeModeLabel(aiStatus)}。不是关键词打分，而是一条完整的 RAG 链路。</p>
-          <div className="auth-metrics">
-            <div><strong>768</strong><span>向量维度</span></div>
-            <div><strong>Top-K</strong><span>证据召回</span></div>
-            <div><strong>MySQL</strong><span>结果持久化</span></div>
-          </div>
-          <div className="story-orbit story-orbit-one" />
-          <div className="story-orbit story-orbit-two" />
-        </section>
-        <section className="auth-panel">
-          <form className="auth-card" onSubmit={submitAuth}>
-            <div className="mobile-brand"><span className="brand-mark">R</span> ResumeLens</div>
-            <BackendStatus variant="pill" />
-            <h2>{authMode === "login" ? "登录工作台" : "创建演示账号"}</h2>
-            <p>{authMode === "login" ? "继续你的简历匹配分析" : "30 秒建立自己的分析空间"}</p>
-            <label>用户名<input required maxLength={64} value={auth.username} onChange={(e) => setAuth({ ...auth, username: e.target.value })} placeholder="输入用户名" /></label>
-            {authMode === "register" && <>
-              <label>显示名称<input required maxLength={80} value={auth.displayName} onChange={(e) => setAuth({ ...auth, displayName: e.target.value })} placeholder="例如 Arthur" /></label>
-              <label>邮箱<input required type="email" value={auth.email} onChange={(e) => setAuth({ ...auth, email: e.target.value })} placeholder="name@example.com" /></label>
-            </>}
-            <label>密码<input required type="password" minLength={6} value={auth.password} onChange={(e) => setAuth({ ...auth, password: e.target.value })} placeholder="至少 6 位" /></label>
-            {error && <div className="message error">{error}</div>}
-            <button className="primary full" disabled={busy === "auth"}>{busy === "auth" ? "正在连接…" : authMode === "login" ? "进入工作台" : "注册并进入"}<ArrowRight size={18} aria-hidden="true" /></button>
-            <button className="text-button" type="button" onClick={() => { setAuthMode(authMode === "login" ? "register" : "login"); setError(""); }}>
-              {authMode === "login" ? "没有账号？创建一个" : "已有账号？直接登录"}
-            </button>
-          </form>
-        </section>
-      </main>
+      <LoginPage
+        mode={authMode}
+        onModeChange={(mode) => { setAuthMode(mode); setError(""); }}
+        form={auth}
+        onFormChange={setAuth}
+        busy={busy === "auth"}
+        error={error}
+        onSubmit={submitAuth}
+        runtimeLabel={runtimeModeLabel(aiStatus)}
+      />
     );
   }
 
@@ -1189,7 +1165,7 @@ export default function Home() {
     <AppShell
       title={navLabel(pageView)}
       subtitle={VIEW_SUBTITLES[pageView]}
-      hero={pageView === "match"}
+      hero
       activeView={pageView}
       user={user}
       onLogout={logout}
@@ -1384,7 +1360,7 @@ export default function Home() {
                 </div>
               )}
             </form><details className="sample-action"><summary>用示例数据体验</summary><p>会在当前账号中保存示例简历和岗位，并提交一次分析。</p><button className="ghost" disabled={!!busy} onClick={() => { navigate("match"); void saveSampleAndAnalyze(); }}>保存示例并分析</button></details></section>
-        <section id="saved" className="saved-view" hidden={pageView !== "saved" || workspaceFailed}>{savedJobs.length === 0 ? <div className="state-panel"><EmptyState icon={Bookmark} title="还没有保存的岗位" text="在岗位或报告旁点「保存」，就能在这里继续准备。" action={<button className="primary" type="button" onClick={() => navigate("match")}>去看目标岗位<ArrowRight size={16} aria-hidden="true" /></button>} /></div> : <><div className="saved-grid">{jobs.filter(item => savedJobs.includes(item.id)).map(item => <article className="saved-job" key={item.id}><p className="truncate" title={`${item.companyName} · ${item.location || "地点未填写"}`}>{item.companyName} · {item.location || "地点未填写"}</p><h3 title={item.title}>{item.title}</h3><div className="form-actions"><button className="primary" onClick={() => { chooseJob(item.id); navigate("match"); }}>查看匹配</button><Link className="ghost" href={`/jobs/${item.id}`}>岗位详情</Link><button className="text-action" onClick={() => toggleBookmark(item.id)}>取消保存</button></div></article>)}</div>{jobs.length < effectiveJobsTotal && <button className="ghost" disabled={jobsLoadingMore} onClick={() => void loadAllJobsForRanking()}>加载其余岗位中的收藏</button>}<p className="review-caveat">仅展示仍可访问的岗位。收藏范围：当前浏览器、当前账号。</p></>}</section>
+        <section id="saved" className="saved-view" hidden={pageView !== "saved" || workspaceFailed}>{savedJobs.length === 0 ? <div className="state-panel"><EmptyState icon={Bookmark} art="empty-jobs" title="还没有保存的岗位" text="在岗位或报告旁点「保存」，就能在这里继续准备。" action={<button className="primary" type="button" onClick={() => navigate("match")}>去看目标岗位<ArrowRight size={16} aria-hidden="true" /></button>} /></div> : <><div className="saved-grid">{jobs.filter(item => savedJobs.includes(item.id)).map(item => <article className="saved-job" key={item.id}><p className="truncate" title={`${item.companyName} · ${item.location || "地点未填写"}`}>{item.companyName} · {item.location || "地点未填写"}</p><h3 title={item.title}>{item.title}</h3><div className="form-actions"><button className="primary" onClick={() => { chooseJob(item.id); navigate("match"); }}>查看匹配</button><Link className="ghost" href={`/jobs/${item.id}`}>岗位详情</Link><button className="text-action" onClick={() => toggleBookmark(item.id)}>取消保存</button></div></article>)}</div>{jobs.length < effectiveJobsTotal && <button className="ghost" disabled={jobsLoadingMore} onClick={() => void loadAllJobsForRanking()}>加载其余岗位中的收藏</button>}<p className="review-caveat">仅展示仍可访问的岗位。收藏范围：当前浏览器、当前账号。</p></>}</section>
                 <section className="history" id="history" hidden={pageView !== "history" || workspaceFailed}>
           {!workspaceLoading && <p className="history-count">{effectiveHistoryTotal} 条记录</p>}
           <div className="history-table">
@@ -1392,7 +1368,7 @@ export default function Home() {
             {workspaceLoading ? (
               <Skeleton className="skeleton-rows history-skeleton" label="正在读取分析记录" lines={4} />
             ) : history.length === 0 ? (
-              <EmptyState icon={History} title="还没有分析记录" text="选择简历和岗位，完成第一次分析后会显示在这里。"
+              <EmptyState icon={History} art="empty-history" title="还没有分析记录" text="选择简历和岗位，完成第一次分析后会显示在这里。"
                 action={<button className="primary" type="button" onClick={() => navigate("match")}>去做第一次匹配<ArrowRight size={16} aria-hidden="true" /></button>} />
             ) : visibleHistory.map((item) => (
               <button className="history-row" key={item.id} type="button" onClick={() => { activeAnalysisRun.current = null; chooseResume(item.resumeId); chooseJob(item.jobDescriptionId); setAnalysis(item); navigate("match"); document.getElementById("result")?.scrollIntoView({ behavior: "smooth" }); }}>
