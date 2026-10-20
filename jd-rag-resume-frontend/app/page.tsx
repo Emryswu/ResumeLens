@@ -219,6 +219,8 @@ export default function Home() {
   const [workspaceStatus, setWorkspaceStatus] = useState<LoadState>("loading");
   const [workspaceError, setWorkspaceError] = useState("");
   const workspaceLoaded = useRef(false);
+  // An empty job library has nothing to pick from, so the workbench opens on the paste tab instead.
+  const effectiveJobSource: JobSource = jobSource === "library" && workspaceStatus === "ready" && jobs.length === 0 ? "paste" : jobSource;
   const [reportFetchError, setReportFetchError] = useState<{ analysisId: number; message: string } | null>(null);
   const [reportRetry, setReportRetry] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -971,7 +973,7 @@ export default function Home() {
       return;
     }
     const resumeId = selectedResumeId;
-    if (jobSource === "library") {
+    if (effectiveJobSource === "library") {
       await runAnalysis(resumeId, selectedJobId);
       return;
     }
@@ -1192,7 +1194,7 @@ export default function Home() {
 
   const workbenchNext = workbenchAction({
     resumeId: selectedResumeId,
-    source: jobSource,
+    source: effectiveJobSource,
     jobId: selectedJobId,
     paste: pasteJob,
     latest: latestSelected,
@@ -1293,7 +1295,7 @@ export default function Home() {
               selectedResumeId={selectedResumeId}
               selectedJobId={selectedJobId}
               latestByJob={latestAnalysisByJob}
-              source={jobSource}
+              source={effectiveJobSource}
               paste={pasteJob}
               action={workbenchNext}
               busy={!!busy}
@@ -1302,7 +1304,7 @@ export default function Home() {
               onChooseJob={chooseJob}
               onSourceChange={setJobSource}
               onPasteChange={setPasteJob}
-              onClear={() => { setPasteJob({ ...EMPTY_PASTE_JOB }); if (jobSource === "library") chooseJob(""); }}
+              onClear={() => { setPasteJob({ ...EMPTY_PASTE_JOB }); if (effectiveJobSource === "library") chooseJob(""); }}
               onAnalyze={() => void startFromWorkbench()}
               onViewReport={() => setMatchMode("report")}
               onManageResumes={() => navigate("resumes")}
