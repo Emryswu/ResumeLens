@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownWideNarrow, ArrowRight, ArrowUpRight, Bookmark, BriefcaseBusiness, ChartNoAxesColumn, CircleAlert, CircleCheck, ClipboardPaste, Clock3, CloudUpload, FileText, History, ListChecks, LoaderCircle, Pencil, Plus, RotateCw, Sparkles, Upload, X } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowRight, ArrowUpRight, Bookmark, BriefcaseBusiness, CalendarDays, ChartNoAxesColumn, CircleAlert, CircleCheck, ClipboardPaste, Clock3, CloudUpload, FileText, History, ListChecks, LoaderCircle, Pencil, Plus, RotateCw, Sparkles, Star, Upload, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { AppShell } from "./components/AppShell";
@@ -11,7 +11,9 @@ import { MatchReport } from "./components/MatchReport";
 import { JobCard } from "./components/JobCard";
 import { Workbench } from "./components/Workbench";
 import { ResumeCard } from "./components/ResumeCard";
-import { RESUME_ACCEPT, resumeFileProblem, resumeStats } from "./resume-list";
+import { RESUME_ACCEPT, relativeDay, resumeFileProblem, resumeStats } from "./resume-list";
+import { HistoryRow } from "./components/HistoryRow";
+import { TIME_RANGES, filterHistory, historyStats, type TimeRange } from "./history-view";
 import { EMPTY_PASTE_JOB, pasteJobPayload, workbenchAction, type JobSource, type PasteJobForm } from "./workbench";
 import { reportPanelState, type LoadState } from "./view-states";
 import { bookmarkKey, parseBookmarks } from "./workspace-bookmarks";
@@ -72,7 +74,6 @@ const EMPTY_JOB_FORM = {
   description: "",
   requirements: "",
 };
-const HISTORY_PREVIEW_LIMIT = 8;
 const HISTORY_PAGE_SIZE = 20;
 const JOB_PAGE_SIZE = 50;
 type JobSort = "recent" | "semantic" | "score" | "analyzed";
@@ -86,7 +87,7 @@ const VIEW_SUBTITLES: Record<HashView, string> = {
   resumes: "集中管理你的简历，上传后即可用于岗位匹配与优化。",
   jobs: "浏览职位，结合你的当前简历，快速找到更合适的机会。",
   saved: "收藏保存在当前浏览器，按账号区分；不会跨设备同步。",
-  history: "你在当前账号下做过的每一次分析。",
+  history: "查看你已保存的匹配结果，随时回顾历史分析。",
 };
 
 function analysisTimestamp(item?: AnalysisSummary) {
@@ -188,7 +189,8 @@ export default function Home() {
   const [history, setHistory] = useState<Analysis[]>([]);
   const [historyTotal, setHistoryTotal] = useState(0);
   const [historyPage, setHistoryPage] = useState(0);
-  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [historyRange, setHistoryRange] = useState<TimeRange>("all");
+  const [historySavedOnly, setHistorySavedOnly] = useState(false);
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
   const [selectedResumeId, setSelectedResumeId] = useState<number | "">("");
   const [selectedJobId, setSelectedJobId] = useState<number | "">("");
@@ -217,6 +219,8 @@ export default function Home() {
   const [workspaceStatus, setWorkspaceStatus] = useState<LoadState>("loading");
   const [workspaceError, setWorkspaceError] = useState("");
   const workspaceLoaded = useRef(false);
+  // An empty job library has nothing to pick from, so the workbench opens on the paste tab instead.
+  const effectiveJobSource: JobSource = jobSource === "library" && workspaceStatus === "ready" && jobs.length === 0 ? "paste" : jobSource;
   const [reportFetchError, setReportFetchError] = useState<{ analysisId: number; message: string } | null>(null);
   const [reportRetry, setReportRetry] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -283,7 +287,8 @@ export default function Home() {
     setHistory([]);
     setHistoryTotal(0);
     setHistoryPage(0);
-    setHistoryExpanded(false);
+    setHistoryRange("all");
+    setHistorySavedOnly(false);
     setSelectedResumeId("");
     setSelectedJobId("");
     setEditingResumeId(null);
@@ -968,7 +973,7 @@ export default function Home() {
       return;
     }
     const resumeId = selectedResumeId;
-    if (jobSource === "library") {
+    if (effectiveJobSource === "library") {
       await runAnalysis(resumeId, selectedJobId);
       return;
     }
@@ -1131,8 +1136,7 @@ export default function Home() {
     && (!jobSemanticDataRequired || jobSemanticDataReady);
   const libraryJobs = libraryRankingReady ? visibleJobs
     : [...jobs].sort((left, right) => jobTimestamp(right) - jobTimestamp(left) || right.id - left.id);
-  const visibleHistory = historyExpanded ? history : history.slice(0, HISTORY_PREVIEW_LIMIT);
-  const hiddenLoadedHistory = Math.max(0, history.length - HISTORY_PREVIEW_LIMIT);
+  const visibleHistory = filterHistory(history, { range: historyRange, savedOnly: historySavedOnly, savedJobs, now: pageOpenedAt });
   const hasMoreHistory = history.length < effectiveHistoryTotal;
 
 
@@ -1190,7 +1194,7 @@ export default function Home() {
 
   const workbenchNext = workbenchAction({
     resumeId: selectedResumeId,
-    source: jobSource,
+    source: effectiveJobSource,
     jobId: selectedJobId,
     paste: pasteJob,
     latest: latestSelected,
@@ -1291,7 +1295,7 @@ export default function Home() {
               selectedResumeId={selectedResumeId}
               selectedJobId={selectedJobId}
               latestByJob={latestAnalysisByJob}
-              source={jobSource}
+              source={effectiveJobSource}
               paste={pasteJob}
               action={workbenchNext}
               busy={!!busy}
@@ -1300,7 +1304,7 @@ export default function Home() {
               onChooseJob={chooseJob}
               onSourceChange={setJobSource}
               onPasteChange={setPasteJob}
-              onClear={() => { setPasteJob({ ...EMPTY_PASTE_JOB }); if (jobSource === "library") chooseJob(""); }}
+              onClear={() => { setPasteJob({ ...EMPTY_PASTE_JOB }); if (effectiveJobSource === "library") chooseJob(""); }}
               onAnalyze={() => void startFromWorkbench()}
               onViewReport={() => setMatchMode("report")}
               onManageResumes={() => navigate("resumes")}
@@ -1532,34 +1536,58 @@ export default function Home() {
               onUse={() => { chooseJob(item.id); setJobSource("library"); openWorkbench(); }}
               onToggleSave={() => toggleBookmark(item.id)} />
           ))}</div>{jobs.length < effectiveJobsTotal && <button className="ghost" disabled={jobsLoadingMore} onClick={() => void loadAllJobsForRanking()}>加载其余岗位中的收藏</button>}<p className="review-caveat">仅展示仍可访问的岗位。收藏范围：当前浏览器、当前账号。</p></>}</section>
-                <section className="history" id="history" hidden={pageView !== "history" || workspaceFailed}>
-          {!workspaceLoading && <p className="history-count">{effectiveHistoryTotal} 条记录</p>}
-          <div className="history-table">
-            <div className="history-row history-head"><span>报告</span><span>岗位</span><span>状态</span><span>匹配度</span><span>时间</span></div>
-            {workspaceLoading ? (
-              <Skeleton className="skeleton-rows history-skeleton" label="正在读取分析记录" lines={4} />
-            ) : history.length === 0 ? (
-              <EmptyState icon={History} art="empty-history" title="还没有分析记录" text="选择简历和岗位，完成第一次分析后会显示在这里。"
-                action={<button className="primary" type="button" onClick={() => navigate("match")}>去做第一次匹配<ArrowRight size={16} aria-hidden="true" /></button>} />
-            ) : visibleHistory.map((item) => (
-              <button className="history-row" key={item.id} type="button" onClick={() => { activeAnalysisRun.current = null; chooseResume(item.resumeId); chooseJob(item.jobDescriptionId); setAnalysis(item); setMatchMode("report"); navigate("match"); }}>
-                <span title={item.resumeTitle}>#{item.id} · {item.resumeTitle}</span>
-                <span title={item.jobTitle}>{item.jobTitle}</span>
-                <span><i className={item.status.toLowerCase()} />{item.status}</span>
-                <span>{item.status !== "COMPLETED" || item.matchScore == null ? <strong>{item.status === "FAILED" ? "失败" : "分析中"}</strong> : <><strong>{Number(item.matchScore).toFixed(0)}</strong> / 100</>}</span>
-                <span>{new Date(item.createdAt).toLocaleDateString("zh-CN")}</span>
-              </button>
-            ))}
-            {history.length > HISTORY_PREVIEW_LIMIT && (
+        <section className="history" id="history" hidden={pageView !== "history" || workspaceFailed}>
+          {!workspaceLoading && history.length > 0 && (() => {
+            const stats = historyStats(history, effectiveHistoryTotal);
+            const scope = stats.partial ? `已加载 ${stats.loaded} / ${stats.total} 条中` : "";
+            return (
+              <div className="stat-row history-stats">
+                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><FileText size={22} /></span><div><strong>{stats.total}<small>条</small></strong><p>已保存的分析记录</p></div></div>
+                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><ChartNoAxesColumn size={22} /></span><div><strong>{stats.best ?? "—"}{stats.best != null && <small>分</small>}</strong><p>{scope ? `最高匹配分（${scope}）` : "历史最高匹配分"}</p></div></div>
+                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><Clock3 size={22} /></span><div><strong className="stat-text">{stats.latest ? relativeDay(Date.parse(stats.latest.createdAt), pageOpenedAt) : "—"}</strong><p title={stats.latest?.jobTitle}>最近分析{stats.latest ? ` · ${stats.latest.jobTitle}` : ""}</p></div></div>
+                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><Star size={22} /></span><div><strong>{stats.strong}<small>个</small></strong><p>{scope ? `匹配分 ≥ 80（${scope}）` : "匹配分 ≥ 80 的记录"}</p></div></div>
+              </div>
+            );
+          })()}
+          <div className="history-panel">
+            {!workspaceLoading && history.length > 0 && (
+              <div className="history-filters">
+                <label className="history-select"><CalendarDays size={16} aria-hidden="true" />
+                  <select aria-label="时间范围" value={historyRange} onChange={(event) => setHistoryRange(event.target.value as TimeRange)}>
+                    {TIME_RANGES.map((range) => <option key={range.value} value={range.value}>{range.label}</option>)}
+                  </select>
+                </label>
+                <button type="button" className="ghost" aria-pressed={historySavedOnly} onClick={() => setHistorySavedOnly((value) => !value)}><Bookmark size={16} aria-hidden="true" />仅看已收藏岗位</button>
+                <small>{historyRange === "all" && !historySavedOnly ? `${effectiveHistoryTotal} 条记录` : `筛选出 ${visibleHistory.length} 条（已加载的记录中）`}</small>
+              </div>
+            )}
+            <div className="history-grid" role="table" aria-label="分析记录">
+              {(workspaceLoading || history.length > 0) && (
+                <div className="history-item history-header" role="row">
+                  <span role="columnheader">简历</span><span role="columnheader">职位</span><span role="columnheader">匹配分</span><span role="columnheader">分析时间</span><span role="columnheader">操作</span>
+                </div>
+              )}
+              {workspaceLoading ? (
+                <Skeleton className="skeleton-rows history-skeleton" label="正在读取分析记录" lines={4} />
+              ) : history.length === 0 ? (
+                <EmptyState icon={History} art="empty-history" title="还没有分析记录" text="选择简历和岗位，完成第一次分析后会显示在这里。"
+                  action={<button className="primary" type="button" onClick={openWorkbench}>去做第一次匹配<ArrowRight size={16} aria-hidden="true" /></button>} />
+              ) : visibleHistory.length === 0 ? (
+                <EmptyState compact icon={ListChecks} title="没有符合条件的记录" text="换个时间范围，或取消「仅看已收藏岗位」。"
+                  action={<button className="ghost" type="button" onClick={() => { setHistoryRange("all"); setHistorySavedOnly(false); }}>显示全部记录</button>} />
+              ) : visibleHistory.map((item) => (
+                <HistoryRow key={item.id} item={item}
+                  resume={resumes.find((resume) => resume.id === item.resumeId)}
+                  job={jobs.find((job) => job.id === item.jobDescriptionId)}
+                  saved={savedJobs.includes(item.jobDescriptionId)}
+                  onOpen={() => { activeAnalysisRun.current = null; chooseResume(item.resumeId); chooseJob(item.jobDescriptionId); setAnalysis(item); setMatchMode("report"); navigate("match"); }} />
+              ))}
+            </div>
+            {hasMoreHistory && !workspaceLoading && (
               <div className="history-more">
-                <button className="ghost compact" type="button" onClick={() => setHistoryExpanded((expanded) => !expanded)}>
-                  {historyExpanded ? "收起" : `展开其余 ${hiddenLoadedHistory} 条`}
+                <button className="ghost" type="button" disabled={historyLoadingMore} onClick={() => void loadMoreHistory()}>
+                  {historyLoadingMore ? <><LoaderCircle className="spin" size={14} aria-hidden="true" />加载中…</> : `继续加载（还有 ${effectiveHistoryTotal - history.length} 条）`}
                 </button>
-                {historyExpanded && hasMoreHistory && (
-                  <button className="ghost compact" type="button" disabled={historyLoadingMore} onClick={() => void loadMoreHistory()}>
-                    {historyLoadingMore ? <><LoaderCircle className="spin" size={14} aria-hidden="true" />加载中…</> : `继续加载（还有 ${effectiveHistoryTotal - history.length} 条）`}
-                  </button>
-                )}
               </div>
             )}
           </div>
