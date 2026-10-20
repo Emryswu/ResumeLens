@@ -88,16 +88,6 @@
 .requirement-list li { padding-bottom: 8px; }
 .requirement-list li > span { display: block; }
 .requirement-list li > span:last-child { font-size: var(--text-meta); color: var(--muted); }
-.editor-view { max-width: 980px; margin: 30px auto 0; }
-.editor-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
-.editor-toolbar p { color: var(--muted); margin-right: auto; font-size: var(--text-body); }
-.editor-view .step-card { padding: 28px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: none; }
-.editor-view .step-card textarea { min-height: 150px; }
-.editor-view .step-title h3 { font-size: 19px; }
-.editor-view .step-title p { font-size: var(--text-meta); }
-.editor-view .step-title > span { color: var(--mint-dark); background: #eef5ef; font-family: inherit; }
-.editor-view .entity-row { box-shadow: none; }
-.editor-view .entity-main strong { font-size: 14px; }
 .sample-action { color: var(--muted); margin-top: 24px; font-size: var(--text-meta); }
 .sample-action summary { cursor: pointer; }
 .saved-view { padding-top: 24px; }
@@ -367,6 +357,49 @@
 .wb-action .ghost { min-height: 46px; padding: 0 22px; }
 .wb-action .primary { min-width: 160px; min-height: 46px; padding: 0 24px; gap: 8px; font-size: 15px; }
 .report-toolbar { display: flex; justify-content: flex-start; }
+/* 我的简历: drop zone, numbers, then one card per resume. */
+.resume-drop { position: relative; display: grid; justify-items: center; gap: 8px; padding: 38px 24px; border: 1.5px dashed #b9d0c1; border-radius: 16px; color: var(--ink); background: linear-gradient(180deg, #fbfdfb, #f2f8f3); text-align: center; cursor: pointer; transition: border-color .2s, background-color .2s; }
+.resume-drop input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.resume-drop:hover, .resume-drop.dragging { border-color: var(--mint-dark); background: #eef6f0; }
+.resume-drop:has(input:focus-visible) { outline: 2px solid var(--mint-dark); outline-offset: 3px; }
+.resume-drop.disabled { cursor: default; opacity: .7; }
+.resume-drop-icon { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; color: #fff; background: var(--mint-dark); box-shadow: 0 8px 20px rgba(35, 105, 78, .18); }
+.resume-drop strong { font-size: 17px; font-weight: 600; }
+.resume-drop strong em { color: var(--mint-dark); font-style: normal; }
+.resume-drop small { color: var(--muted); font-size: var(--text-body); font-weight: 400; }
+.resume-drop-alt { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 16px; margin: 10px 0 20px; color: var(--muted); font-size: var(--text-body); }
+.resume-view .library-editor { margin-bottom: 22px; }
+.resume-view .step-card { padding: 24px; }
+.resume-view .step-title > span { color: var(--mint-dark); background: #eef5ef; }
+.resume-view .step-title p strong { display: inline-block; max-width: 320px; vertical-align: bottom; }
+.resume-view .step-card textarea { min-height: 180px; }
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 26px; }
+.stat-card { display: flex; align-items: center; gap: 16px; min-width: 0; padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); }
+.stat-icon { display: grid; place-items: center; flex-shrink: 0; width: 52px; height: 52px; border-radius: 50%; color: var(--mint-dark); background: #e8f2eb; }
+.stat-card strong { display: flex; align-items: baseline; gap: 6px; font-size: 26px; line-height: 1.2; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat-card strong small { color: var(--ink); font-size: var(--text-body); font-weight: 500; }
+.stat-card p { margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-meta); }
+.resume-list { display: grid; gap: 12px; }
+.resume-card { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 18px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); transition: border-color .2s, box-shadow .2s; }
+.resume-card:hover { border-color: #cfdcd2; box-shadow: 0 8px 24px rgba(35, 105, 78, .06); }
+.resume-card.selected { border-color: #b9d3c3; box-shadow: inset 3px 0 var(--mint-dark); }
+.resume-file { position: relative; display: grid; place-items: center; width: 52px; height: 60px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); background: #fafbf9; }
+.resume-file-kind { position: absolute; right: -8px; bottom: -5px; padding: 0 5px; border-radius: 5px; color: #fff; background: var(--mint-dark); font-size: var(--text-meta); font-style: normal; font-weight: 700; line-height: 19px; }
+.resume-file-kind.pdf { background: #b8402f; }
+.resume-file-kind.word { background: #2f62b8; }
+.resume-file-kind.text { background: #4d5d66; }
+.resume-file-kind.paste { background: var(--mint-dark); }
+.resume-card-main { display: grid; gap: 2px; min-width: 0; }
+.resume-card-main h3 { display: flex; align-items: center; gap: 10px; min-width: 0; margin: 0; font-size: 17px; line-height: 1.45; }
+.resume-card-main h3 a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; text-decoration: none; }
+.resume-card-main h3 a:hover { color: var(--mint-dark); }
+.resume-current { flex-shrink: 0; padding: 1px 9px; border-radius: 999px; color: var(--mint-dark); background: #e8f2eb; font-size: var(--text-meta); font-weight: 500; }
+.resume-card-meta { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 0; color: var(--ink); font-size: var(--text-body); }
+.resume-card-meta span { display: inline-flex; align-items: center; gap: 5px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume-card-main small { color: var(--muted); font-size: var(--text-meta); }
+.resume-card-actions { display: flex; align-items: center; gap: 8px; }
+.resume-card-actions .ghost { min-height: 38px; padding: 0 14px; border: 1px solid var(--line); white-space: nowrap; }
+.resume-card-actions .primary { min-height: 38px; padding: 0 16px; gap: 6px; white-space: nowrap; }
 @media (max-width: 1100px) {
   .report-header { grid-template-columns: minmax(0, 1fr); justify-items: start; }
   .report-score { grid-auto-flow: column; align-items: center; }
@@ -393,6 +426,8 @@
   .job-card-actions { grid-column: 2 / -1; flex-wrap: wrap; }
   .library-toolbar { flex-direction: column; }
   .workbench { grid-template-columns: minmax(0, 1fr); }
+  .resume-card { grid-template-columns: 56px minmax(0, 1fr); }
+  .resume-card-actions { grid-column: 2; flex-wrap: wrap; }
   .wb-steps-body { grid-template-columns: minmax(0, 1fr); }
   .library-resume { flex-basis: auto; }
 }
@@ -413,7 +448,6 @@
   .brand-cta { justify-self: stretch; width: auto; min-height: 104px; padding: 16px 20px; }
   .review-body { padding: 22px; }
   .review-footer { padding: 18px 22px; }
-  .editor-view .step-card { padding: 22px; }
   .job-card { grid-template-columns: 48px minmax(0, 1fr) 76px; gap: 12px 14px; padding: 16px; }
   .company-mark { width: 48px; height: 48px; font-size: 19px; }
   .job-card-desc, .job-card-actions { grid-column: 1 / -1; }
@@ -424,6 +458,18 @@
   .filter-field select { min-width: 0; width: 100%; }
   .filter-topn { margin-left: 0; }
   .wb-panel { padding: 18px; }
+  .resume-drop { padding: 26px 18px; }
+  .resume-card { gap: 12px 14px; padding: 16px; }
+  .resume-card-actions { grid-column: 1 / -1; flex-wrap: nowrap; gap: 6px; }
+  .resume-card-actions .ghost { padding: 0 10px; }
+  .resume-card-actions .primary { flex: 1; min-width: 0; justify-content: center; padding: 0 10px; }
+  .stat-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .stat-card { flex-direction: column; align-items: flex-start; gap: 6px; padding: 12px; }
+  .stat-icon { width: 34px; height: 34px; }
+  .stat-icon svg { width: 18px; height: 18px; }
+  .stat-card strong { font-size: 20px; }
+  .stat-card p { white-space: normal; }
+  .resume-view .step-card { padding: 18px; }
   .wb-head { flex-wrap: wrap; }
   .wb-head-copy { flex-basis: calc(100% - 54px); }
   .wb-head-action { margin-left: 54px; }
@@ -444,7 +490,6 @@
   .review-evidence summary { flex-wrap: wrap; gap: 4px; }
   .review-footer, .report-rerun { padding: 16px 18px; }
   .refined-workspace .field-row { grid-template-columns: 1fr; }
-  .editor-view .step-card { padding: 18px; }
   .refined-workspace .entity-row { flex-wrap: wrap; }
   .refined-workspace .entity-actions { flex-wrap: wrap; }
   .report-state { padding: 40px 20px; }

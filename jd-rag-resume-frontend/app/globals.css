@@ -137,18 +137,12 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .step-title h3, .step-title p { margin: 0; }
 .step-title h3 { font-size: 14px; }
 .step-title p { margin-top: 3px; color: var(--muted); font-size: var(--text-meta); }
-.file-drop { position: relative; place-items: center; gap: 4px; padding: 13px; border: 1px dashed #bacbc1; border-radius: 10px; color: #557067; background: #f7fbf7; text-align: center; }
-.file-drop input { position: absolute; inset: 0; height: 100%; opacity: 0; cursor: pointer; }
-.upload-icon { display: grid; place-items: center; width: 28px; height: 28px; margin-bottom: 2px; border-radius: 8px; color: var(--mint-dark); background: #e1f4e8; font-size: 17px; }
-.file-drop strong { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-meta); }
-.file-drop small { color: #65726e; font-size: var(--text-meta); font-weight: 500; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .step-card input, .step-card select { height: 38px; }
 .step-card textarea { min-height: 110px; line-height: 1.55; }
 .step-card .secondary { align-self: flex-start; }
 .form-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: auto; }
 .form-actions .secondary { margin-top: 0; }
-.file-drop.disabled-drop { opacity: .72; background: #f3f4f2; border-style: solid; }
 .entity-library {
   margin-top: 4px; padding-top: 12px; border-top: 1px dashed #e0e6e1;
   display: grid; gap: 6px; max-height: 168px; overflow: auto;
