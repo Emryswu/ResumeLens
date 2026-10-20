@@ -2,6 +2,7 @@
 
 import { CircleAlert, LoaderCircle, RotateCw, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { BrandImage, type BrandIllustration } from "./BrandArt";
 
 /**
  * Empty, loading and error blocks shared by every signed-in page, so each state looks and reads the same:
@@ -10,16 +11,20 @@ import type { ReactNode } from "react";
 
 type Size = { compact?: boolean };
 
-export function EmptyState({ icon: Icon, title, text, action, compact }: Size & {
+export function EmptyState({ icon: Icon, art, title, text, action, compact }: Size & {
   icon: LucideIcon;
+  /** A full-page empty state can show an illustration instead of the icon; compact rows keep the icon. */
+  art?: BrandIllustration;
   title: string;
   text?: ReactNode;
   /** The main way forward, usually a primary button. */
   action?: ReactNode;
 }) {
   return (
-    <div className={`state-block${compact ? " compact" : ""}`}>
-      <span className="state-icon" aria-hidden="true"><Icon size={compact ? 20 : 24} /></span>
+    <div className={`state-block${compact ? " compact" : ""}${art && !compact ? " has-art" : ""}`}>
+      {art && !compact
+        ? <BrandImage name={art} className="state-art" />
+        : <span className="state-icon" aria-hidden="true"><Icon size={compact ? 20 : 24} /></span>}
       <div className="state-copy">
         <h3>{title}</h3>
         {text && <p>{text}</p>}

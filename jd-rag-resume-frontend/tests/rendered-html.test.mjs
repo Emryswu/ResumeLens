@@ -16,6 +16,7 @@ test("server-renders the ResumeLens product shell", async () => {
   const html = await response.text();
   assert.match(html, /<title>ResumeLens · RAG 简历匹配<\/title>/);
   assert.match(html, /ResumeLens/);
-  assert.match(html, /RAG · RESUME INTELLIGENCE/);
+  assert.match(html, /用 AI 看懂你的简历/);
+  assert.match(html, /src="\/brand\/login-landscape\.webp"/);
   assert.doesNotMatch(html, /Your site is taking shape|codex-preview|react-loading-skeleton/);
 });
