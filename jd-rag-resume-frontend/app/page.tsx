@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowDownWideNarrow, ArrowRight, ArrowUpRight, Bookmark, BriefcaseBusiness, CircleAlert, CircleCheck, FileText, History, ListChecks, LoaderCircle, Plus, RotateCw, Sparkles, Upload, X } from "lucide-react";
-import Link from "next/link";
+import { ArrowDownWideNarrow, ArrowRight, ArrowUpRight, Bookmark, BriefcaseBusiness, ChartNoAxesColumn, CircleAlert, CircleCheck, ClipboardPaste, Clock3, CloudUpload, FileText, History, ListChecks, LoaderCircle, Pencil, Plus, RotateCw, Sparkles, Upload, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { AppShell } from "./components/AppShell";
@@ -11,6 +10,8 @@ import { EmptyState, ErrorState, LoadingState, RetryButton, Skeleton } from "./c
 import { MatchReport } from "./components/MatchReport";
 import { JobCard } from "./components/JobCard";
 import { Workbench } from "./components/Workbench";
+import { ResumeCard } from "./components/ResumeCard";
+import { RESUME_ACCEPT, resumeFileProblem, resumeStats } from "./resume-list";
 import { EMPTY_PASTE_JOB, pasteJobPayload, workbenchAction, type JobSource, type PasteJobForm } from "./workbench";
 import { reportPanelState, type LoadState } from "./view-states";
 import { bookmarkKey, parseBookmarks } from "./workspace-bookmarks";
@@ -82,7 +83,7 @@ type AnalysisRun = { generation: number; resumeId: number; jobId: number };
 
 const VIEW_SUBTITLES: Record<HashView, string> = {
   match: "选一份简历和目标岗位，查看匹配报告和简历里的原文证据。",
-  resumes: "上传或粘贴你的简历，保存后即可用于岗位匹配。",
+  resumes: "集中管理你的简历，上传后即可用于岗位匹配与优化。",
   jobs: "浏览职位，结合你的当前简历，快速找到更合适的机会。",
   saved: "收藏保存在当前浏览器，按账号区分；不会跨设备同步。",
   history: "你在当前账号下做过的每一次分析。",
@@ -203,6 +204,10 @@ export default function Home() {
   const [bulkImportText, setBulkImportText] = useState(() => JSON.stringify(SAMPLE_BULK_JOBS, null, 2));
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [showJobEditor, setShowJobEditor] = useState(false);
+  const [showResumeEditor, setShowResumeEditor] = useState(false);
+  const [resumeDragging, setResumeDragging] = useState(false);
+  // "N 天前" only needs day precision, so the page reads the clock once instead of during every render.
+  const [pageOpenedAt] = useState(() => Date.now());
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   // The match page is the workbench (pick a resume and a job) until a report is opened or an analysis starts.
   const [matchMode, setMatchMode] = useState<"compose" | "report">("compose");
@@ -289,6 +294,7 @@ export default function Home() {
     setAuth({ username: "", password: "", email: "", displayName: "" });
     setBulkImportText(JSON.stringify(SAMPLE_BULK_JOBS, null, 2));
     setShowBulkImport(false);
+    setShowResumeEditor(false);
     setMatchMode("compose");
     setJobSource("library");
     setPasteJob({ ...EMPTY_PASTE_JOB });
@@ -620,11 +626,37 @@ export default function Home() {
     clearAuthenticatedView();
   }
 
-  async function chooseFile(event: ChangeEvent<HTMLInputElement>) {
-    const nextFile = event.target.files?.[0] || null;
-    setFile(nextFile);
+  /** A picked or dropped file opens the confirm panel; nothing is uploaded until the user saves it. */
+  function pickResumeFile(nextFile: File | null | undefined) {
     if (!nextFile) return;
-    setResumeForm((current) => prepareResumeUploadDraft(current, nextFile.name));
+    const problem = resumeFileProblem(nextFile);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setError("");
+    setEditingResumeId(null);
+    setFile(nextFile);
+    setResumeForm((current) => {
+      const draft = prepareResumeUploadDraft(current, nextFile.name);
+      return { ...draft, candidateName: draft.candidateName || user?.displayName || "" };
+    });
+    setShowResumeEditor(true);
+    requestAnimationFrame(() => document.getElementById("resume-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function chooseFile(event: ChangeEvent<HTMLInputElement>) {
+    pickResumeFile(event.target.files?.[0]);
+    // Picking the same file again after cancelling must still fire onChange.
+    event.target.value = "";
+  }
+
+  function openPasteResume() {
+    setEditingResumeId(null);
+    setFile(null);
+    setResumeForm({ ...EMPTY_RESUME_FORM, candidateName: user?.displayName || "" });
+    setShowResumeEditor(true);
+    requestAnimationFrame(() => document.getElementById("resume-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   async function beginEditResume(item: Resume) {
@@ -636,6 +668,8 @@ export default function Home() {
       setEditingResumeId(detail.id);
       setFile(null);
       setResumeForm(resumeFormFrom(detail));
+      setShowResumeEditor(true);
+      requestAnimationFrame(() => document.getElementById("resume-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }));
       chooseResume(detail.id);
       setNotice(`正在编辑简历 #${detail.id}，保存后将更新并失效旧向量索引`);
     } catch (reason) {
@@ -666,6 +700,7 @@ export default function Home() {
     setEditingResumeId(null);
     setFile(null);
     setResumeForm({ ...EMPTY_RESUME_FORM });
+    setShowResumeEditor(false);
   }
 
   function resetJobEditor() {
@@ -703,8 +738,7 @@ export default function Home() {
       }
       chooseResume(saved.id);
       invalidateSemanticMatches();
-      setEditingResumeId(null);
-      setFile(null);
+      resetResumeEditor();
     } catch (reason) {
       reportRequestError(reason, "简历保存失败");
     } finally {
@@ -818,6 +852,7 @@ export default function Home() {
     setEditingJobId(null);
     setResumeForm({ ...SAMPLE_RESUME });
     setJobForm({ ...SAMPLE_JOB });
+    setShowResumeEditor(true);
     setNotice("已填入示例简历与岗位，保存后即可返回岗位匹配");
   }
 
@@ -1283,53 +1318,63 @@ export default function Home() {
             </div>
           )}
         </section>
-        <section className="editor-view" id="resumes" hidden={pageView !== "resumes" || workspaceFailed}><div className="editor-toolbar"><p>上传文件或直接粘贴正文，保存后选择目标岗位。</p><button className="ghost" onClick={() => { resetResumeEditor(); setNotice(""); }}>新建空白简历</button><button className="ghost" onClick={fillSampleForms}>填入示例</button><button className="ghost" onClick={() => navigate("match")}>返回匹配</button></div>            <form className="step-card" onSubmit={saveResume}>
+        <section className="resume-view" id="resumes" hidden={pageView !== "resumes" || workspaceFailed}>
+          <label className={`resume-drop${resumeDragging ? " dragging" : ""}${busy ? " disabled" : ""}`}
+            onDragOver={(event) => { event.preventDefault(); if (!busy) setResumeDragging(true); }}
+            onDragLeave={() => setResumeDragging(false)}
+            onDrop={(event) => { event.preventDefault(); setResumeDragging(false); if (!busy) pickResumeFile(event.dataTransfer.files?.[0]); }}>
+            <input ref={fileInputRef} type="file" accept={RESUME_ACCEPT} onChange={chooseFile} disabled={!!busy} />
+            <span className="resume-drop-icon" aria-hidden="true"><CloudUpload size={34} /></span>
+            <strong>拖拽简历到这里，或<em>点击上传</em></strong>
+            <small>支持 PDF / DOC / DOCX / TXT / MD 格式，文件不超过 20MB</small>
+          </label>
+          <p className="resume-drop-alt">没有文件？<button type="button" className="text-action" onClick={openPasteResume}><ClipboardPaste size={15} aria-hidden="true" />直接粘贴简历正文</button><button type="button" className="text-action" onClick={fillSampleForms}>填入示例</button></p>
+          {showResumeEditor && <div className="library-editor" id="resume-editor">
+            <button className="icon-button library-editor-close" type="button" aria-label="收起简历表单" onClick={resetResumeEditor}><X size={18} aria-hidden="true" /></button>
+            <form className="step-card" onSubmit={saveResume}>
               <div className="step-title">
-                <span>01</span>
+                <span>{editingResumeId ? <Pencil size={16} aria-hidden="true" /> : file ? <Upload size={16} aria-hidden="true" /> : <ClipboardPaste size={16} aria-hidden="true" />}</span>
                 <div>
-                  <h3>{editingResumeId ? `编辑简历 #${editingResumeId}` : "添加简历"}</h3>
-                  <p>{editingResumeId ? "修改正文后保存，重新匹配时将使用新内容" : "上传文件或粘贴原文"}</p>
+                  <h3>{editingResumeId ? "编辑简历" : file ? "确认后上传" : "粘贴简历正文"}</h3>
+                  <p>{editingResumeId ? "修改正文后保存，重新匹配时将使用新内容" : file ? <>文件：<strong className="truncate" title={file.name}>{file.name}</strong>，正文由服务端解析</> : "把简历正文粘贴进来，保存后即可用于匹配"}</p>
                 </div>
               </div>
-              <label className={`file-drop ${editingResumeId ? "disabled-drop" : ""}`}>
-                <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt,.md" onChange={chooseFile} disabled={!!editingResumeId} />
-                <span className="upload-icon" aria-hidden="true"><Upload size={16} /></span>
-                {file && !editingResumeId
-                  ? <strong className="truncate" title={file.name}>{file.name}</strong>
-                  : <strong>{editingResumeId ? "编辑模式仅支持更新文本" : "选择简历文件（可选）"}</strong>}
-                <small>PDF · DOCX · TXT，最大 20MB</small>
-              </label>
-              <div className="field-row"><label>简历标题<input required value={resumeForm.title} onChange={(e) => setResumeForm({ ...resumeForm, title: e.target.value })} placeholder="Java 后端开发简历" /></label><label>姓名<input required value={resumeForm.candidateName} onChange={(e) => setResumeForm({ ...resumeForm, candidateName: e.target.value })} placeholder="你的姓名" /></label></div>
-              <div className="field-row"><label>手机<input value={resumeForm.phone} onChange={(e) => setResumeForm({ ...resumeForm, phone: e.target.value })} placeholder="可选" /></label><label>邮箱<input type="email" value={resumeForm.email} onChange={(e) => setResumeForm({ ...resumeForm, email: e.target.value })} placeholder="可选" /></label></div>
-              <label>简历文本<textarea required={!file || !!editingResumeId} rows={8} value={resumeForm.rawText} onChange={(e) => setResumeForm({ ...resumeForm, rawText: e.target.value })} disabled={!!file && !editingResumeId} placeholder={file ? "已选择文件，将由服务端解析正文；保存后可在详情中编辑" : "可直接粘贴简历正文；上传文件时由服务端解析"} /></label>
+              <div className="field-row"><label>简历标题<input required maxLength={120} value={resumeForm.title} onChange={(e) => setResumeForm({ ...resumeForm, title: e.target.value })} placeholder="Java 后端开发简历" /></label><label>姓名<input required maxLength={80} value={resumeForm.candidateName} onChange={(e) => setResumeForm({ ...resumeForm, candidateName: e.target.value })} placeholder="你的姓名" /></label></div>
+              <div className="field-row"><label>手机<input maxLength={40} value={resumeForm.phone} onChange={(e) => setResumeForm({ ...resumeForm, phone: e.target.value })} placeholder="可选" /></label><label>邮箱<input type="email" maxLength={128} value={resumeForm.email} onChange={(e) => setResumeForm({ ...resumeForm, email: e.target.value })} placeholder="可选" /></label></div>
+              {!file && <label>简历正文<textarea required rows={10} value={resumeForm.rawText} onChange={(e) => setResumeForm({ ...resumeForm, rawText: e.target.value })} placeholder="可直接粘贴简历正文" /></label>}
               <div className="form-actions">
-                <button className="secondary" disabled={!!busy}>{busy === "resume" ? file ? "上传与解析中…" : "保存中…" : editingResumeId ? "更新简历" : "保存简历"}</button>
-                {editingResumeId && (
-                  <button className="ghost" type="button" onClick={resetResumeEditor}>取消编辑</button>
-                )}
+                <button className="secondary" disabled={!!busy}>{busy === "resume" ? file ? "上传与解析中…" : "保存中…" : editingResumeId ? "更新简历" : file ? "上传简历" : "保存简历"}</button>
+                <button className="ghost" type="button" onClick={resetResumeEditor}>取消</button>
               </div>
-              <div className="entity-library">
-                <div className="entity-library-head"><span>已存简历</span><em>{resumes.length}</em></div>
-                {workspaceLoading ? (
-                  <Skeleton className="skeleton-rows" label="正在读取简历" lines={2} />
-                ) : resumes.length === 0 ? (
-                  <EmptyState compact icon={FileText} title="还没有简历，上传一份" text="选择文件或粘贴正文，点「保存简历」后会出现在这里。"
-                    action={<button className="ghost" type="button" onClick={() => fileInputRef.current?.click()}><Upload size={16} aria-hidden="true" />选择文件</button>} />
-                ) : resumes.map((item) => (
-                  <div className={`entity-row ${selectedResumeId === item.id ? "selected" : ""} ${editingResumeId === item.id ? "editing" : ""}`} key={item.id}>
-                    <button type="button" className="entity-main" onClick={() => chooseResume(item.id)} title="选为匹配简历">
-                      <strong title={item.title}>#{item.id} · {item.title}</strong>
-                      <small title={`${item.candidateName}${item.originalFileName ? ` · ${item.originalFileName}` : ""}`}>{item.candidateName}{item.originalFileName ? ` · ${item.originalFileName}` : ""}</small>
-                    </button>
-                    <div className="entity-actions">
-                      <Link className="ghost compact" href={`/resumes/${item.id}`}>详情</Link>
-                      <button type="button" className="ghost compact" onClick={() => void beginEditResume(item)} disabled={!!busy}>编辑</button>
-                      <button type="button" className="ghost compact danger" onClick={() => void deleteResume(item.id)} disabled={!!busy}>删除</button>
-                    </div>
-                  </div>
-                ))}
+            </form>
+          </div>}
+          {!workspaceLoading && resumes.length > 0 && (() => {
+            const stats = resumeStats(resumes, pageOpenedAt);
+            return (
+              <div className="stat-row">
+                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><FileText size={22} /></span><div><strong>{stats.count}<small>份简历</small></strong><p>{stats.uploaded > 0 ? `其中 ${stats.uploaded} 份为上传文件` : "都由粘贴正文保存"}</p></div></div>
+                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><ChartNoAxesColumn size={22} /></span><div><strong>{effectiveHistoryTotal}<small>次分析</small></strong><p>用这些简历做过的匹配</p></div></div>
+                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><Clock3 size={22} /></span><div><strong>{stats.latest ?? "—"}</strong><p>最近更新时间</p></div></div>
               </div>
-            </form></section>
+            );
+          })()}
+          <div className="library-head"><h2>我的简历列表<em>{resumes.length}</em></h2></div>
+          {workspaceLoading ? (
+            <Skeleton className="skeleton-rows" label="正在读取简历" lines={3} />
+          ) : resumes.length === 0 ? (
+            <div className="state-panel"><EmptyState icon={FileText} art="empty-resumes" title="还没有简历" text="上传一份简历文件，或直接粘贴正文，保存后就能用于岗位匹配。"
+              action={<button className="primary" type="button" onClick={() => fileInputRef.current?.click()}><Upload size={16} aria-hidden="true" />上传简历</button>} /></div>
+          ) : (
+            <div className="resume-list">
+              {resumes.map((item) => (
+                <ResumeCard key={item.id} resume={item} selected={selectedResumeId === item.id} disabled={!!busy}
+                  onUse={() => { chooseResume(item.id); openWorkbench(); }}
+                  onEdit={() => void beginEditResume(item)}
+                  onDelete={() => void deleteResume(item.id)} />
+              ))}
+            </div>
+          )}
+        </section>
         <section className="job-library" id="jobs" hidden={pageView !== "jobs" || workspaceFailed}>
           <div className="library-toolbar">
             <div className="library-filters">
