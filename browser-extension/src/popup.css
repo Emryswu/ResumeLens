@@ -149,4 +149,16 @@ button:disabled { cursor: wait; opacity: .6; }
 .detail-block ul { margin: 0; padding-left: 17px; color: #35463e; font-size: 11px; line-height: 1.6; }
 .report-link { display: block; margin-top: 13px; color: #176b4d; font-size: 11px; font-weight: 800; text-decoration: none; }
 
+.permission {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  border: 1px solid #d5e4dc;
+  border-radius: 10px;
+  padding: 10px 11px;
+  background: #f7fbf9;
+}
+.permission p { margin: 0; color: #476558; font-size: 11px; line-height: 1.6; }
+.permission .secondary { justify-self: start; }
+
 .hidden { display: none !important; }

@@ -41,6 +41,28 @@
     return true;
   });
 
+  // Commands from the page (the assistant asking for a BOSS search) go to the service worker
+  // over a port; every event the worker sends comes back as a window message.
+  const relayModule = globalThis.ResumeLensCommandRelay;
+  if (relayModule) {
+    const relay = relayModule.create({
+      connect: () => chrome.runtime.connect({ name: relayModule.PORT_NAME }),
+      postToPage: (requestId, event) => {
+        window.postMessage({ channel: CHANNEL, direction: "event", requestId, event }, window.location.origin);
+      },
+      version: chrome.runtime.getManifest().version,
+      capabilities: ["collectBossJobs"],
+    });
+    window.addEventListener("message", (event) => {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (!data || data.channel !== CHANNEL || data.direction !== "command") return;
+      if (typeof data.requestId !== "string" || !data.requestId || data.requestId.length > 100) return;
+      if (!relayModule.isAction(data.action)) return;
+      relay.handle({ requestId: data.requestId, action: data.action, payload: data.payload });
+    });
+  }
+
   function requestIdentifier() {
     if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
       return globalThis.crypto.randomUUID();
