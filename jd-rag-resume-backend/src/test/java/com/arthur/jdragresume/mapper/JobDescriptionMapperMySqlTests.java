@@ -239,7 +239,7 @@ class JobDescriptionMapperMySqlTests {
         var search = new SearchJobsTool(service, history);
         var mapper = new ObjectMapper().findAndRegisterModules();
         var context = new AgentToolContext(owner);
-        var student = mapper.createObjectNode().put("city", "深圳").put("experience", "在校生");
+        var student = mapper.createObjectNode().put("keyword", "Java 后端").put("city", "深圳").put("experience", "在校生");
         assertInstanceOf(DeferrableTool.Done.class, collect.begin(student, context));
         jobs.flush();
         entityManager.clear();

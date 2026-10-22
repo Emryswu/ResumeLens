@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The JSON Schema subset the tools need (flat objects of integers, strings and integer
+ * The JSON Schema subset the tools need (flat objects of integers, strings, booleans and integer
  * arrays), plus a
  * validator for exactly that subset. The schema sent to the model and the one enforced
  * before execution are the same object, so they cannot drift apart.
@@ -30,6 +30,11 @@ public final class ToolSchema {
 
     public ToolSchema string(String name, String description, boolean required, int maxLength) {
         properties.put(name, new Property("string", description, required, 0, 0, maxLength));
+        return this;
+    }
+
+    public ToolSchema bool(String name, String description, boolean required) {
+        properties.put(name, new Property("boolean", description, required, 0, 0, 0));
         return this;
     }
 
@@ -58,7 +63,7 @@ public final class ToolSchema {
                 items.put("minimum", property.minimum());
                 items.put("maximum", property.maximum());
                 node.put("maxItems", property.maxLength());
-            } else {
+            } else if (property.type().equals("string")) {
                 node.put("maxLength", property.maxLength());
             }
             if (property.required()) {
@@ -94,6 +99,10 @@ public final class ToolSchema {
             }
             if (property.type().equals("integer")) {
                 checkInteger(name, value, property, problems);
+            } else if (property.type().equals("boolean")) {
+                if (!value.isBoolean()) {
+                    problems.add("'" + name + "' must be a boolean");
+                }
             } else if (property.type().equals("array")) {
                 if (!value.isArray()) {
                     problems.add("'" + name + "' must be an array of integers");

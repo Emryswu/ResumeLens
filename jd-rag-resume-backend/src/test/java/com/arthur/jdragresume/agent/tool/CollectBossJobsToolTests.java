@@ -33,6 +33,33 @@ class CollectBossJobsToolTests {
     private final CollectBossJobsTool tool = new CollectBossJobsTool(List.of(collector), jobs, history);
 
     @Test
+    void missingOrBlankKeywordsAreRejectedBeforeCollectionUnlessBroadSearchIsExplicit() {
+        var missing = objectMapper.createObjectNode().put("city", "深圳");
+        List<JsonNode> invalid = List.of(missing, missing.deepCopy().put("keyword", ""),
+                missing.deepCopy().put("keyword", " \t "),
+                missing.deepCopy().put("keyword", "\u3000\u00a0\uFEFF"),
+                missing.deepCopy().put("broadSearch", false),
+                missing.deepCopy().put("broadSearch", "true"));
+        for (JsonNode arguments : invalid) {
+            BusinessException failure = assertThrows(BusinessException.class, () -> tool.begin(arguments, context));
+            assertEquals("BOSS_DIRECTION_REQUIRED", failure.getCode());
+            assertTrue(failure.getMessage().contains("请先根据简历确定方向"));
+        }
+        assertTrue(collector.started.isEmpty());
+        assertTrue(jobs.batches.isEmpty());
+        org.mockito.Mockito.verifyNoInteractions(history);
+    }
+
+    @Test
+    void aBlankKeywordCannotBypassTheGuardOnBrowserResume() {
+        var arguments = objectMapper.createObjectNode().put("city", "深圳");
+        assertThrows(BusinessException.class, () -> tool.resume(arguments, report(), context));
+        assertEquals(0, collector.completions);
+        assertTrue(jobs.batches.isEmpty());
+        org.mockito.Mockito.verifyNoInteractions(history);
+    }
+
+    @Test
     void aDelegatingCollectorTurnsIntoABrowserCommand() {
         DeferrableTool.Begin begin = tool.begin(arguments(), context);
 
@@ -55,19 +82,31 @@ class CollectBossJobsToolTests {
     void aStudentCollectionKeepsItsFilterSeparateFromTheEmploymentLabel() {
         collector.finishesHere = new CollectionResult(CollectionResult.Outcome.COMPLETED, "MAX_PAGES", "已读完", 1,
                 List.of(listing("student")), 0, null);
-        var arguments = objectMapper.createObjectNode().put("city", "深圳").put("experience", "在校生");
+        var arguments = objectMapper.createObjectNode().put("keyword", "Java 后端").put("city", "深圳").put("experience", "在校生");
         var done = assertInstanceOf(DeferrableTool.Done.class, tool.begin(arguments, context));
         var row = objectMapper.valueToTree(done.result()).path("jobs").path(0);
         assertEquals("在校生", row.path("collectionExperience").asText());
     }
 
     @Test
-    void findingShenzhenInternshipsCanUseTheStudentFilterWithoutInventingAKeyword() {
-        JsonNode arguments = objectMapper.createObjectNode().put("city", "深圳").put("experience", "在校生");
+    void anExplicitBroadSearchCanUseTheStudentFilterWithoutAKeyword() {
+        JsonNode arguments = objectMapper.createObjectNode().put("city", "深圳").put("experience", "在校生").put("broadSearch", true);
         assertTrue(tool.parameters().validate(arguments).isEmpty());
         tool.begin(arguments, context);
         assertEquals(new CollectRequest("", "深圳", 1, "在校生"), collector.started.getFirst());
         assertTrue(tool.description().contains("在校生不保证是实习"));
+    }
+
+    @Test
+    void anExplicitBroadSearchAlsoAllowsSavingTheBrowserResult() {
+        var arguments = objectMapper.createObjectNode().put("city", "深圳").put("keyword", "\u3000\u00a0\uFEFF")
+                .put("broadSearch", true);
+        collector.result = new CollectionResult(CollectionResult.Outcome.COMPLETED, "MAX_PAGES", "已读完", 1,
+                List.of(listing("broad")), 0, null);
+        var summary = (CollectBossJobsTool.Summary) tool.resume(arguments, report(), context);
+        assertEquals("", summary.keyword());
+        assertEquals(1, collector.completions);
+        assertEquals(1, jobs.batches.size());
     }
 
     @Test
@@ -156,6 +195,7 @@ class CollectBossJobsToolTests {
 
     static final class FakeCollector implements JobCollector {
         final List<CollectRequest> started = new ArrayList<>();
+        int completions;
         CollectionResult finishesHere;
         CollectionResult result;
 
@@ -173,6 +213,7 @@ class CollectBossJobsToolTests {
 
         @Override
         public CollectionResult complete(CollectRequest request, JsonNode report) {
+            completions++;
             return result;
         }
     }
