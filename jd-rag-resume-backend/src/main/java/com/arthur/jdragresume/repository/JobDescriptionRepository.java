@@ -14,11 +14,13 @@ public interface JobDescriptionRepository extends JpaRepository<JobDescription, 
     @Query("""
             select j from JobDescription j where j.user.id = :userId
             and (:employmentType = '' or lower(j.employmentType) = lower(:employmentType))
+            and (:collectionExperience = '' or j.collectionExperience = :collectionExperience)
             and (:keyword = '' or locate(lower(:keyword), lower(j.title)) > 0
                 or locate(lower(:keyword), lower(j.companyName)) > 0)
             """)
     Page<JobDescription> searchForUser(@Param("userId") Long userId, @Param("keyword") String keyword,
-                                       @Param("employmentType") String employmentType, Pageable pageable);
+                                       @Param("employmentType") String employmentType,
+                                       @Param("collectionExperience") String collectionExperience, Pageable pageable);
 
     interface TypeCount {
         String getEmploymentType();

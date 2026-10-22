@@ -22,12 +22,12 @@ class SearchJobsToolTests {
 
     @Test
     void zeroResultsMustIncludeTheLibraryScope() {
-        when(jobs.findAll(0, 10, "实习", "实习")).thenReturn(new PageResponse<>(List.of(), 0, 10, 0, 0, true, true));
+        when(jobs.findAll(0, 10, "Python", "", "在校生")).thenReturn(new PageResponse<>(List.of(), 0, 10, 0, 0, true, true));
         when(jobs.libraryCounts()).thenReturn(new JobDescriptionService.LibraryCounts(3, Map.of("全职", 2L, "未标注", 1L)));
         when(history.latest()).thenReturn(Optional.of(new JobCollectionHistory.Latest("BOSS", "Java 后端", "深圳", "在校生",
                 2, 2, "COMPLETED", LocalDateTime.of(2026, 10, 22, 12, 0))));
         var result = mapper.valueToTree(new SearchJobsTool(jobs, history).execute(
-                mapper.createObjectNode().put("keyword", "实习").put("employmentType", "实习"), context));
+                mapper.createObjectNode().put("keyword", "Python").put("collectionExperience", "在校生"), context));
         assertTrue(result.has("libraryContext"), "zero results must explain the library scope");
         var scope = result.path("libraryContext");
         assertEquals(3, scope.path("total").asInt());
@@ -36,12 +36,12 @@ class SearchJobsToolTests {
         assertEquals("深圳", scope.path("latestCollection").path("city").asText());
         assertEquals("在校生", scope.path("latestCollection").path("experience").asText());
         assertTrue(scope.path("note").asText().contains("尚未采集"));
-        verify(jobs).findAll(0, 10, "实习", "实习");
+        verify(jobs).findAll(0, 10, "Python", "", "在校生");
     }
 
     @Test
     void aLibraryWithoutRecordedCollectionConditionsReportsUnknownExplicitly() {
-        when(jobs.findAll(0, 10, "", "")).thenReturn(new PageResponse<>(List.of(), 0, 10, 0, 0, true, true));
+        when(jobs.findAll(0, 10, "", "", "")).thenReturn(new PageResponse<>(List.of(), 0, 10, 0, 0, true, true));
         when(jobs.libraryCounts()).thenReturn(new JobDescriptionService.LibraryCounts(0, Map.of()));
         when(history.latest()).thenReturn(Optional.empty());
         var result = mapper.valueToTree(new SearchJobsTool(jobs, history).execute(mapper.createObjectNode(), context));
@@ -50,13 +50,16 @@ class SearchJobsToolTests {
     }
 
     @Test
-    void matchingJobsIncludeTheirEmploymentType() {
-        JobDescriptionResponse row = mapper.convertValue(Map.of("id", 4L, "title", "开发实习生", "employmentType", "实习"), JobDescriptionResponse.class);
-        when(jobs.findAll(0, 10, "", "实习")).thenReturn(new PageResponse<>(List.of(row), 0, 10, 1, 1, true, true));
+    void studentCollectionSearchReturnsItsFilterAndPreservesTheEmploymentLabel() {
+        JobDescriptionResponse row = mapper.convertValue(Map.of("id", 4L, "title", "开发工程师", "employmentType", "全职",
+                "collectionExperience", "在校生"), JobDescriptionResponse.class);
+        when(jobs.findAll(0, 10, "", "", "在校生")).thenReturn(new PageResponse<>(List.of(row), 0, 10, 1, 1, true, true));
         var result = mapper.valueToTree(new SearchJobsTool(jobs, history).execute(
-                mapper.createObjectNode().put("employmentType", "实习"), context));
-        assertEquals("实习", result.path("jobs").path(0).path("employmentType").asText());
+                mapper.createObjectNode().put("collectionExperience", "在校生"), context));
+        assertEquals("全职", result.path("jobs").path(0).path("employmentType").asText());
+        assertEquals("在校生", result.path("jobs").path(0).path("collectionExperience").asText());
         assertFalse(result.has("libraryContext"));
+        verify(jobs).findAll(0, 10, "", "", "在校生");
         verifyNoInteractions(history);
     }
 }

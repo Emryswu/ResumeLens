@@ -109,11 +109,11 @@ public class CollectBossJobsTool implements DeferrableTool {
                         PLATFORM,
                         listing.sourceUrl(),
                         listing.sourceJobId()))
-                .toList());
+                .toList(), request.experience());
         history.record(request, result);
         List<Job> jobs = saved.saved().stream()
                 .map(item -> new Job(item.job().id(), item.job().title(), item.job().companyName(),
-                        item.job().location(), !item.existingJob()))
+                        item.job().location(), item.job().collectionExperience(), !item.existingJob()))
                 .toList();
         int created = (int) jobs.stream().filter(Job::newlySaved).count();
         boolean stopped = result.outcome() == CollectionResult.Outcome.STOPPED;
@@ -176,6 +176,6 @@ public class CollectBossJobsTool implements DeferrableTool {
     ) {
     }
 
-    record Job(Long jobId, String title, String companyName, String location, boolean newlySaved) {
+    record Job(Long jobId, String title, String companyName, String location, String collectionExperience, boolean newlySaved) {
     }
 }

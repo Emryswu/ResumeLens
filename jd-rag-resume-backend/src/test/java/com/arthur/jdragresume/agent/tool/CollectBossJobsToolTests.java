@@ -52,6 +52,16 @@ class CollectBossJobsToolTests {
     }
 
     @Test
+    void aStudentCollectionKeepsItsFilterSeparateFromTheEmploymentLabel() {
+        collector.finishesHere = new CollectionResult(CollectionResult.Outcome.COMPLETED, "MAX_PAGES", "已读完", 1,
+                List.of(listing("student")), 0, null);
+        var arguments = objectMapper.createObjectNode().put("city", "深圳").put("experience", "在校生");
+        var done = assertInstanceOf(DeferrableTool.Done.class, tool.begin(arguments, context));
+        var row = objectMapper.valueToTree(done.result()).path("jobs").path(0);
+        assertEquals("在校生", row.path("collectionExperience").asText());
+    }
+
+    @Test
     void findingShenzhenInternshipsCanUseTheStudentFilterWithoutInventingAKeyword() {
         JsonNode arguments = objectMapper.createObjectNode().put("city", "深圳").put("experience", "在校生");
         assertTrue(tool.parameters().validate(arguments).isEmpty());
@@ -178,7 +188,7 @@ class CollectBossJobsToolTests {
         }
 
         @Override
-        public ListingCaptureResult captureListings(List<JobCaptureRequest> listings) {
+        public ListingCaptureResult captureListings(List<JobCaptureRequest> listings, String collectionExperience) {
             batches.add(listings);
             List<ListingCaptureResult.Saved> saved = new ArrayList<>();
             int notSaved = 0;
@@ -190,7 +200,7 @@ class CollectBossJobsToolTests {
                     continue;
                 }
                 JobDescriptionResponse job = new JobDescriptionResponse((long) saved.size() + 1, 1L, listing.title(),
-                        listing.companyName(), listing.location(), listing.employmentType(), listing.description(),
+                        listing.companyName(), listing.location(), listing.employmentType(), collectionExperience, listing.description(),
                         listing.requirements(), "BOSS", listing.sourceUrl(), listing.sourceJobId(), null, null,
                         known ? "FULL" : "LISTING", null, null);
                 saved.add(new ListingCaptureResult.Saved(job, known));

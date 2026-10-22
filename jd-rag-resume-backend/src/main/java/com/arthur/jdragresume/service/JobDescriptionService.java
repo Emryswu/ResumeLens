@@ -73,11 +73,11 @@ public class JobDescriptionService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<JobDescriptionResponse> findAll(int page, int size, String keyword, String employmentType) {
+    public PageResponse<JobDescriptionResponse> findAll(int page, int size, String keyword, String employmentType, String collectionExperience) {
         AppUser user = currentUserService.getCurrentUser();
         var pageable = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
         return PageResponse.from(jobDescriptionRepository.searchForUser(user.getId(), normalizeKeyword(keyword),
-                normalizeKeyword(employmentType), pageable).map(JobDescriptionResponse::from));
+                normalizeKeyword(employmentType), normalizeKeyword(collectionExperience), pageable).map(JobDescriptionResponse::from));
     }
 
     @Transactional(readOnly = true)
@@ -193,11 +193,11 @@ public class JobDescriptionService {
     /**
      * Saves search-list summaries collected by the assistant. Unlike {@link #capture}, a listing
      * never overwrites what the library already has for the same source job: a summary is less
-     * than any posting already stored, so a known job only gets its {@code lastSeenAt} refreshed.
+     * than any posting already stored, so a known job only gets its last-seen time and collection filter refreshed.
      * New jobs are saved in order until the quota is reached; the rest are counted, not saved.
      */
     @Transactional
-    public ListingCaptureResult captureListings(List<JobCaptureRequest> listings) {
+    public ListingCaptureResult captureListings(List<JobCaptureRequest> listings, String collectionExperience) {
         AppUser user = lockCurrentUser();
         LocalDateTime now = LocalDateTime.now();
         long count = jobDescriptionRepository.countByUserId(user.getId());
@@ -216,6 +216,7 @@ public class JobDescriptionService {
             if (existing.isPresent()) {
                 JobDescription jobDescription = existing.get();
                 jobDescription.setLastSeenAt(now);
+                jobDescription.setCollectionExperience(collectionExperience);
                 saved.add(new ListingCaptureResult.Saved(JobDescriptionResponse.from(jobDescriptionRepository.save(jobDescription)), true));
                 continue;
             }
@@ -231,6 +232,7 @@ public class JobDescriptionService {
             jobDescription.setSourceJobId(sourceJobId);
             jobDescription.setContentFingerprint(ContentFingerprints.job(jobDescription));
             jobDescription.setCaptureDepth(CaptureDepth.LISTING);
+            jobDescription.setCollectionExperience(collectionExperience);
             jobDescription.setLastSeenAt(now);
             created.add(jobDescription);
             count++;

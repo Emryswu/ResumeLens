@@ -15,6 +15,11 @@ public interface AgentTool {
 
     ToolSchema parameters();
 
+    /** Serialized result ceiling; a bounded text tool can opt into enough room for its documented text limit. */
+    default int resultMaxChars(int configuredLimit) {
+        return configuredLimit;
+    }
+
     /** Write tools pause the loop until the user approves the exact call in the UI. */
     default boolean requiresConfirmation() {
         return false;

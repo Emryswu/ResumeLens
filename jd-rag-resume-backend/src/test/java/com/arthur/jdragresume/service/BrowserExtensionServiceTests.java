@@ -102,7 +102,7 @@ class BrowserExtensionServiceTests {
     private JobDescriptionResponse job() {
         LocalDateTime now = LocalDateTime.now();
         return new JobDescriptionResponse(
-                11L, 1L, "Java 后端", "示例科技", "杭州", "全职",
+                11L, 1L, "Java 后端", "示例科技", "杭州", "全职", null,
                 "Spring Boot", "Java", "BOSS",
                 "https://www.zhipin.com/job_detail/key.html", "key", "fingerprint", now, "FULL", now, now
         );
