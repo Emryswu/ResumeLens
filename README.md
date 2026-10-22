@@ -326,6 +326,7 @@ sequenceDiagram
 | `search_resume_evidence` | 与精析同一条 RAG 链路（`ResumeRagService.retrieve`） | 否 |
 | `get_latest_analysis` | 最近一次完整报告 | 否 |
 | `start_analysis` | 异步完整分析（消耗配额与一次 LLM 调用） | **是** |
+| `collect_boss_jobs` | 交给浏览器插件去 BOSS 搜索页读列表（`JobCollector` 的插件实现），结果以「摘要」入库 | 否（本轮挂起，等插件回报） |
 
 **设计要点**
 
@@ -337,6 +338,13 @@ sequenceDiagram
 - **身份与线程**：service 都从 `SecurityContextHolder` 取当前用户，所以 agent 线程池外包了一层 `DelegatingSecurityContextAsyncTaskExecutor`。SSE 结束时会有一次 ASYNC 回程，JWT 过滤器（`OncePerRequestFilter`）不会处理它，所以过滤器认证成功后会把 context 存进请求级的 `RequestAttributeSecurityContextRepository`，回程从那里恢复身份并照常鉴权，不需要对 ASYNC 放行；否则回程是匿名的，会往已经提交的响应里写 401。这两处都做过红绿自证。
 - **止损**：每人 10 分钟最多 20 轮（先限流再入队，队列满返回 503；对话记录不合法、模型未配置在限流之前就拒绝，不消耗配额）；`SseEmitter` 超时 120 秒（Tomcat 默认的 30 秒短于单轮预算），单轮 90 秒预算和它从同一时刻算起，排队时间也计入；客户端断开后不再继续调用模型。
 - **mock 模式**：`AI_MOCK_ENABLED=true` 时由脚本模型按固定流程出牌，驱动的是**真实的**循环、工具和确认闸，回答里会标注「演示模式」，可以离线完整演示。
+
+**浏览器任务（`collect_boss_jobs`）**
+
+- 采集层抽象为 `JobCollector`：`start` 要么当场给出结果，要么交给别的执行方（`Delegated`）；`complete` 校验执行方回报。浏览器插件是第一个实现，换成服务端或其他平台的采集器不改 agent。
+- 交给插件时本轮以 `AWAITING_BROWSER` 结束，推送 `browser_task_required`（含服务端签发的 `taskId` 和截止时间，默认 `AGENT_BROWSER_TASK_TIMEOUT_SECONDS=180`）。前端经页面内的插件通道执行，带回 `browserResult{toolCallId, taskId, outcome: completed|cancelled|expired, report}` 续上同一轮。用户点取消、超时、任务过期或不认识、改问别的问题，工具结果都由服务端写成对应错误码和说明，下一轮由模型如实告诉用户，不会被当作采集成功。
+- 插件回报是不可信数据：必须与签发时的关键词、城市、页数一致；岗位链接只接受 `https://*.zhipin.com/job_detail/`；字段限长、最多 45 条；对用户说明的文字全部取自服务端，不用插件给的文案。插件未安装、版本过旧、未登录、触发验证码或到了每日页数上限，都如实返回给模型。
+- 列表只有摘要：新岗位以 `capture_depth=LISTING` 入库；库里已有的岗位只更新最近出现时间，不会用摘要覆盖完整 JD。粗排（`rank_jobs_for_resume` 可传 `jobIds` 只排本次采集的岗位）不等于匹配分，完整 JD 仍从详情页采。
 
 **局限（如实说明）**
 

@@ -8,7 +8,9 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,14 +40,32 @@ public class AgentController {
         TranscriptPolicy.Approval approval = request.approval() == null
                 ? null
                 : new TranscriptPolicy.Approval(request.approval().toolCallId(), request.approval().approved());
-        return agentChatService.chat(request.messages(), approval, request.summary(), request.includeTrace());
+        TranscriptPolicy.BrowserReport browserResult = request.browserResult() == null
+                ? null
+                : new TranscriptPolicy.BrowserReport(request.browserResult().toolCallId(), request.browserResult().taskId(),
+                request.browserResult().outcome(), request.browserResult().report());
+        return agentChatService.chat(request.messages(), approval, browserResult, request.summary(), request.includeTrace());
     }
 
     public record ChatRequest(
             @NotEmpty @Size(max = 400) List<AgentMessage> messages,
             @Valid ApprovalRequest approval,
+            @Valid BrowserResultRequest browserResult,
             String summary,
             boolean includeTrace
+    ) {
+    }
+
+    /**
+     * The page's report on a browser task the previous turn handed out. {@code report} is the
+     * executor's final event, required only when {@code outcome} is completed; the collector
+     * validates it, since it passed through the user's browser.
+     */
+    public record BrowserResultRequest(
+            @NotBlank @Size(max = AgentMessage.MAX_TOOL_CALL_ID_CHARS) String toolCallId,
+            @NotBlank @Size(max = 100) String taskId,
+            @NotNull @Pattern(regexp = "completed|cancelled|expired") String outcome,
+            JsonNode report
     ) {
     }
 

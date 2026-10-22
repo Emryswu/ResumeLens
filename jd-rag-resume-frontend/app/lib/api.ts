@@ -30,6 +30,8 @@ export type Job = {
   sourceJobId?: string;
   contentFingerprint?: string;
   lastSeenAt?: string;
+  /** "LISTING" jobs hold only the search-list summary; the full JD was never read. */
+  captureDepth?: "FULL" | "LISTING";
   createdAt?: string;
   updatedAt?: string;
 };
