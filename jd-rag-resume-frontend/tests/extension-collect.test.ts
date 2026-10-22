@@ -186,6 +186,17 @@ test("a turn that ends waiting on the browser keeps the task and locks retry", (
   assert.equal(row.status, "browser");
 });
 
+test("an interrupted stream drops a browser task whose transcript was never received", () => {
+  let state = agentChatReducer(initialAgentChatState, { type: "ask", question: "去 BOSS 找 Java" });
+  state = agentChatReducer(state, { type: "event", event: { type: "browser_task_required", data: TASK } });
+  assert.equal(state.busy, true);
+  state = agentChatReducer(state, { type: "failed", code: "AGENT_STREAM_INTERRUPTED", message: "连接中断" });
+  state = agentChatReducer(state, { type: "settled" });
+  assert.equal(state.pendingBrowser, null);
+  assert.deepEqual(state.transcript, []);
+  assert.throws(() => nextRequest(state, { browser: { outcome: "cancelled" } }), /no browser task/);
+});
+
 test("the report request carries the server's ids and only a completed outcome carries the report", () => {
   const state = awaitingBrowser();
   const completed = nextRequest(state, { browser: { outcome: "completed", report: { type: "result" } } });

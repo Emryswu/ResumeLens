@@ -86,6 +86,7 @@ export default function AssistantPage() {
       active = false;
       // Leaving the page closes the stream; the server stops the turn instead of spending more model calls.
       abortRef.current?.abort();
+      browserTaskRef.current = null;
       browserAbortRef.current?.abort();
     };
   }, []);
@@ -133,8 +134,9 @@ export default function AssistantPage() {
       },
     }).then((outcome) => {
       const current = stateRef.current;
-      // 新对话 or a logout while the extension was working: nobody is waiting for this report any more.
-      if (!isAuthSessionCurrent(sessionId) || current.busy || current.pendingBrowser?.taskId !== task.taskId) return;
+      // Leaving or resetting invalidates ownership before abort resolves, even before React renders again.
+      if (browserTaskRef.current !== task.taskId || !isAuthSessionCurrent(sessionId)
+          || current.busy || current.pendingBrowser?.taskId !== task.taskId) return;
       const body = nextRequest(current, { browser: outcome });
       dispatch({ type: "browser_report", outcome: outcome.outcome });
       void send(body);
@@ -224,6 +226,7 @@ export default function AssistantPage() {
             type="button"
             disabled={state.busy || state.turns.length === 0}
             onClick={() => {
+              browserTaskRef.current = null;
               browserAbortRef.current?.abort();
               followedRef.current = new Set();
               setAnalyses({});
