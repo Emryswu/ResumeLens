@@ -1,6 +1,8 @@
 package com.arthur.jdragresume.agent.tool;
 
 import com.arthur.jdragresume.collect.CollectRequest;
+import com.arthur.jdragresume.collect.JobCollectionHistory;
+import org.springframework.transaction.annotation.Transactional;
 import com.arthur.jdragresume.collect.CollectionResult;
 import com.arthur.jdragresume.collect.JobCollector;
 import com.arthur.jdragresume.dto.job.JobCaptureRequest;
@@ -26,10 +28,13 @@ public class CollectBossJobsTool implements DeferrableTool {
     private final JobCollector collector;
     private final JobDescriptionService jobDescriptionService;
 
-    public CollectBossJobsTool(List<JobCollector> collectors, JobDescriptionService jobDescriptionService) {
+    private final JobCollectionHistory history;
+
+    public CollectBossJobsTool(List<JobCollector> collectors, JobDescriptionService jobDescriptionService, JobCollectionHistory history) {
         this.collector = collectors.stream().filter(candidate -> PLATFORM.equals(candidate.platform())).findFirst()
                 .orElseThrow(() -> new IllegalStateException("no job collector for " + PLATFORM));
         this.jobDescriptionService = jobDescriptionService;
+        this.history = history;
     }
 
     @Override
@@ -40,7 +45,12 @@ public class CollectBossJobsTool implements DeferrableTool {
     @Override
     public String description() {
         return "让用户浏览器里的 ResumeLens 插件打开 BOSS 直聘搜索页，只读采集岗位列表（每次最多 3 页、45 条），存进职位库。"
-                + "只在用户明确要求去 BOSS 找或收集岗位时调用。需要用户装好插件、授权访问 BOSS 并已登录，否则返回 ok=false，"
+                + "用户要求找工作、找实习、校招或去 BOSS 搜索时可调用，不要因已有职位库搜索为空就断言没有岗位。"
+                + "BOSS 用法：城市放 city，技术方向放 keyword，学生身份或年限放 experience，不要把所有条件塞进关键词。"
+                + "例如“找深圳 Java 后端实习”用 city=深圳、keyword=Java 后端、experience=在校生；"
+                + "“找深圳实习”没指定方向时 keyword 可留空、experience=在校生。校招可用 experience=应届生辅助筛选。"
+                + "网页的求职类型是全职/兼职，实习相关人群筛选在工作经验里；在校生不保证是实习，应届生不保证是校招，需结合岗位内容核实。"
+                + "需要用户装好插件、授权访问 BOSS 并已登录，否则返回 ok=false，"
                 + "如实转告原因即可。采集到的是列表摘要（职位名、公司、薪资、标签），不是完整 JD；"
                 + "需要排序时把返回的 jobIds 传给 rank_jobs_for_resume，粗排相似度不是匹配分。";
     }
@@ -48,12 +58,14 @@ public class CollectBossJobsTool implements DeferrableTool {
     @Override
     public ToolSchema parameters() {
         return ToolSchema.object()
-                .string("keyword", "搜索关键词，例如“Java 后端实习”，最多 50 个字符", true, 50)
+                .string("keyword", "岗位方向，如 Java 后端；城市和学生身份用对应筛选参数。指定 experience 时可留空", false, 50)
                 .string("city", "城市：全国、北京、上海、广州、深圳、杭州、南京、苏州、成都、武汉、西安、天津、重庆、长沙、厦门", true, 10)
+                .string("experience", "BOSS 工作经验筛选：不限、在校生、应届生、经验不限、1年以内、1-3年、3-5年、5-10年、10年以上；默认不限。找实习优先在校生", false, 10)
                 .integer("maxPages", "读取页数，默认 1，最多 3", false, 1, 3);
     }
 
     @Override
+    @Transactional
     public Begin begin(JsonNode arguments, AgentToolContext context) {
         JobCollector.Start start = collector.start(request(arguments));
         return switch (start) {
@@ -63,6 +75,7 @@ public class CollectBossJobsTool implements DeferrableTool {
     }
 
     @Override
+    @Transactional
     public Object resume(JsonNode arguments, JsonNode report, AgentToolContext context) {
         CollectRequest request = request(arguments);
         return save(request, collector.complete(request, report));
@@ -72,7 +85,8 @@ public class CollectBossJobsTool implements DeferrableTool {
         return new CollectRequest(
                 arguments.path("keyword").asText(""),
                 arguments.path("city").asText(""),
-                arguments.path("maxPages").asInt(1));
+                arguments.path("maxPages").asInt(1),
+                arguments.path("experience").asText("不限"));
     }
 
     /**
@@ -95,16 +109,18 @@ public class CollectBossJobsTool implements DeferrableTool {
                         PLATFORM,
                         listing.sourceUrl(),
                         listing.sourceJobId()))
-                .toList());
+                .toList(), request.experience());
+        history.record(request, result);
         List<Job> jobs = saved.saved().stream()
                 .map(item -> new Job(item.job().id(), item.job().title(), item.job().companyName(),
-                        item.job().location(), !item.existingJob()))
+                        item.job().location(), item.job().collectionExperience(), !item.existingJob()))
                 .toList();
         int created = (int) jobs.stream().filter(Job::newlySaved).count();
         boolean stopped = result.outcome() == CollectionResult.Outcome.STOPPED;
         return new Summary(
                 request.keyword(),
                 request.city(),
+                request.experience(),
                 result.outcome().name(),
                 stopped ? null : result.code(),
                 stopped ? result.code() : null,
@@ -140,6 +156,7 @@ public class CollectBossJobsTool implements DeferrableTool {
     record Summary(
             String keyword,
             String city,
+            String experience,
             String status,
             String finishReason,
             String stopReason,
@@ -159,6 +176,6 @@ public class CollectBossJobsTool implements DeferrableTool {
     ) {
     }
 
-    record Job(Long jobId, String title, String companyName, String location, boolean newlySaved) {
+    record Job(Long jobId, String title, String companyName, String location, String collectionExperience, boolean newlySaved) {
     }
 }

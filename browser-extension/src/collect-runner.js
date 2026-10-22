@@ -87,7 +87,7 @@
       const state = {
         taskId: command.taskId,
         status: "running",
-        command: { keyword: command.keyword, city: command.city, maxPages: command.maxPages },
+        command: { keyword: command.keyword, city: command.city, maxPages: command.maxPages, experience: command.experience },
         pagesRead: 0,
         jobs: [],
         sources: { api: 0, dom: 0 },

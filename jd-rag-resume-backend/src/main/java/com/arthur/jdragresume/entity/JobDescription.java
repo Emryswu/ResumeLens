@@ -44,6 +44,10 @@ public class JobDescription extends AuditableEntity {
     @Column(length = 60)
     private String employmentType;
 
+    /** Work-experience filter used by the latest listing collection; null means unknown. */
+    @Column(length = 10)
+    private String collectionExperience;
+
     @Lob
     @Column(nullable = false, columnDefinition = "LONGTEXT")
     private String description;
@@ -127,6 +131,10 @@ public class JobDescription extends AuditableEntity {
     public void setEmploymentType(String employmentType) {
         this.employmentType = employmentType;
     }
+
+    public String getCollectionExperience() { return collectionExperience; }
+
+    public void setCollectionExperience(String collectionExperience) { this.collectionExperience = collectionExperience; }
 
     public String getDescription() {
         return description;

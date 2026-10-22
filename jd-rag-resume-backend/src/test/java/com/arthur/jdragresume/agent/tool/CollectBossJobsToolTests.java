@@ -29,7 +29,8 @@ class CollectBossJobsToolTests {
     private final AgentToolContext context = new AgentToolContext(new AppUser());
     private final FakeCollector collector = new FakeCollector();
     private final RecordingJobs jobs = new RecordingJobs();
-    private final CollectBossJobsTool tool = new CollectBossJobsTool(List.of(collector), jobs);
+    private final com.arthur.jdragresume.collect.JobCollectionHistory history = org.mockito.Mockito.mock(com.arthur.jdragresume.collect.JobCollectionHistory.class);
+    private final CollectBossJobsTool tool = new CollectBossJobsTool(List.of(collector), jobs, history);
 
     @Test
     void aDelegatingCollectorTurnsIntoABrowserCommand() {
@@ -47,6 +48,26 @@ class CollectBossJobsToolTests {
                 List.of(listing("a1")), 0, null);
         DeferrableTool.Done done = assertInstanceOf(DeferrableTool.Done.class, tool.begin(arguments(), context));
         assertEquals(1, ((CollectBossJobsTool.Summary) done.result()).created());
+        org.mockito.Mockito.verify(history).record(new CollectRequest("Java", "深圳", 1), collector.finishesHere);
+    }
+
+    @Test
+    void aStudentCollectionKeepsItsFilterSeparateFromTheEmploymentLabel() {
+        collector.finishesHere = new CollectionResult(CollectionResult.Outcome.COMPLETED, "MAX_PAGES", "已读完", 1,
+                List.of(listing("student")), 0, null);
+        var arguments = objectMapper.createObjectNode().put("city", "深圳").put("experience", "在校生");
+        var done = assertInstanceOf(DeferrableTool.Done.class, tool.begin(arguments, context));
+        var row = objectMapper.valueToTree(done.result()).path("jobs").path(0);
+        assertEquals("在校生", row.path("collectionExperience").asText());
+    }
+
+    @Test
+    void findingShenzhenInternshipsCanUseTheStudentFilterWithoutInventingAKeyword() {
+        JsonNode arguments = objectMapper.createObjectNode().put("city", "深圳").put("experience", "在校生");
+        assertTrue(tool.parameters().validate(arguments).isEmpty());
+        tool.begin(arguments, context);
+        assertEquals(new CollectRequest("", "深圳", 1, "在校生"), collector.started.getFirst());
+        assertTrue(tool.description().contains("在校生不保证是实习"));
     }
 
     @Test
@@ -95,6 +116,7 @@ class CollectBossJobsToolTests {
         collector.result = new CollectionResult(CollectionResult.Outcome.STOPPED, "BOSS_NOT_LOGGED_IN", "未登录", 0, List.of(), 0, 30);
         assertEquals("BOSS_NOT_LOGGED_IN", assertThrows(BusinessException.class, () -> tool.resume(arguments(), report(), context)).getCode());
         assertEquals(0, jobs.batches.size());
+        org.mockito.Mockito.verifyNoInteractions(history);
     }
 
     @Test
@@ -112,7 +134,7 @@ class CollectBossJobsToolTests {
     @Test
     void anOversizedResultDropsJobRowsBeforeAnyId() {
         Iterator<String> names = objectMapper.valueToTree(new CollectBossJobsTool.Summary(
-                "k", "c", "COMPLETED", null, null, null, 0, 0, 0, 0, 0, null, Map.of(), 0, null,
+                "k", "c", "在校生", "COMPLETED", null, null, null, 0, 0, 0, 0, 0, null, Map.of(), 0, null,
                 List.of(), List.of(), "n")).fieldNames();
         List<String> order = new ArrayList<>();
         names.forEachRemaining(order::add);
@@ -166,7 +188,7 @@ class CollectBossJobsToolTests {
         }
 
         @Override
-        public ListingCaptureResult captureListings(List<JobCaptureRequest> listings) {
+        public ListingCaptureResult captureListings(List<JobCaptureRequest> listings, String collectionExperience) {
             batches.add(listings);
             List<ListingCaptureResult.Saved> saved = new ArrayList<>();
             int notSaved = 0;
@@ -178,7 +200,7 @@ class CollectBossJobsToolTests {
                     continue;
                 }
                 JobDescriptionResponse job = new JobDescriptionResponse((long) saved.size() + 1, 1L, listing.title(),
-                        listing.companyName(), listing.location(), listing.employmentType(), listing.description(),
+                        listing.companyName(), listing.location(), listing.employmentType(), collectionExperience, listing.description(),
                         listing.requirements(), "BOSS", listing.sourceUrl(), listing.sourceJobId(), null, null,
                         known ? "FULL" : "LISTING", null, null);
                 saved.add(new ListingCaptureResult.Saved(job, known));

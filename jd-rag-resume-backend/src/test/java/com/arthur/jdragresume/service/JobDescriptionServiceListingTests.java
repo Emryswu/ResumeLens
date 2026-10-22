@@ -40,13 +40,14 @@ class JobDescriptionServiceListingTests {
 
     @Test
     void newListingsAreSavedAsListingDepthWithEmbeddings() {
-        ListingCaptureResult result = service().captureListings(List.of(listing("a1", "摘要 A"), listing("b2", "摘要 B")));
+        ListingCaptureResult result = service().captureListings(List.of(listing("a1", "摘要 A"), listing("b2", "摘要 B")), "不限");
 
         assertEquals(2, result.saved().size());
         assertTrue(result.saved().stream().noneMatch(ListingCaptureResult.Saved::existingJob));
         assertEquals("LISTING", result.saved().getFirst().job().captureDepth());
         JobDescription stored = store.get("a1");
         assertEquals(CaptureDepth.LISTING, stored.getCaptureDepth());
+        assertEquals("不限", stored.getCollectionExperience());
         assertNotNull(stored.getSemanticEmbedding(), "summaries must be rankable");
         assertNotNull(stored.getLastSeenAt());
         assertFalse(result.quotaReached());
@@ -61,7 +62,7 @@ class JobDescriptionServiceListingTests {
         before.setLastSeenAt(before.getLastSeenAt().minusDays(3));
         var seenBefore = before.getLastSeenAt();
 
-        ListingCaptureResult result = service.captureListings(List.of(listing("a1", "（BOSS 搜索列表摘要）职位：Java")));
+        ListingCaptureResult result = service.captureListings(List.of(listing("a1", "（BOSS 搜索列表摘要）职位：Java")), "不限");
 
         JobDescription after = store.get("a1");
         assertTrue(result.saved().getFirst().existingJob());
@@ -69,12 +70,23 @@ class JobDescriptionServiceListingTests {
         assertEquals(fingerprint, after.getContentFingerprint());
         assertEquals(CaptureDepth.FULL, after.getCaptureDepth());
         assertTrue(after.getLastSeenAt().isAfter(seenBefore));
+        assertEquals("不限", after.getCollectionExperience());
+    }
+
+    @Test
+    void recollectingAKnownPostingFillsItsPreviouslyUnknownExperienceFilter() {
+        JobDescriptionService service = service();
+        service.capture(full("known", FULL_JD));
+        assertEquals(null, store.get("known").getCollectionExperience());
+        service.captureListings(List.of(listing("known", "摘要不能覆盖全文")), "在校生");
+        assertEquals("在校生", store.get("known").getCollectionExperience());
+        assertEquals(FULL_JD, store.get("known").getDescription());
     }
 
     @Test
     void aDetailCaptureUpgradesASummaryToTheFullPosting() {
         JobDescriptionService service = service();
-        service.captureListings(List.of(listing("a1", "摘要")));
+        service.captureListings(List.of(listing("a1", "摘要")), "不限");
 
         service.capture(full("a1", FULL_JD));
 
@@ -86,10 +98,10 @@ class JobDescriptionServiceListingTests {
     void theQuotaStopsNewListingsButKnownOnesStillCount() {
         quota = 2;
         JobDescriptionService service = service();
-        service.captureListings(List.of(listing("a1", "摘要")));
+        service.captureListings(List.of(listing("a1", "摘要")), "不限");
 
         ListingCaptureResult result = service.captureListings(List.of(
-                listing("b2", "摘要"), listing("c3", "摘要"), listing("a1", "摘要"), listing("d4", "摘要")));
+                listing("b2", "摘要"), listing("c3", "摘要"), listing("a1", "摘要"), listing("d4", "摘要")), "不限");
 
         assertEquals(List.of("a1", "b2"), result.saved().stream().map(saved -> saved.job().sourceJobId()).sorted().toList());
         assertEquals(2, result.notSaved());
@@ -100,7 +112,7 @@ class JobDescriptionServiceListingTests {
 
     @Test
     void duplicatesInOneBatchAreSavedOnce() {
-        ListingCaptureResult result = service().captureListings(List.of(listing("a1", "摘要"), listing("a1", "摘要")));
+        ListingCaptureResult result = service().captureListings(List.of(listing("a1", "摘要"), listing("a1", "摘要")), "不限");
         assertEquals(1, result.saved().size());
         assertEquals(1, store.size());
     }

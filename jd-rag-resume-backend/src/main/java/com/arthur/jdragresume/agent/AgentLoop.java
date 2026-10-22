@@ -69,6 +69,10 @@ public class AgentLoop {
             9. collect_boss_jobs 由用户浏览器里的插件去 BOSS 直聘只读采集，存进职位库的是列表摘要，不是完整 JD。
                ok=false（没装插件、没授权、没登录、超时、用户取消等）时如实转告原因，不要假装采到了，也不要自动重试。
                需要比较采到的岗位时，把 jobIds 传给 rank_jobs_for_resume；摘要上的粗排相似度更不能当匹配分。
+            10. 将用户条件拆成平台实际支持的筛选项和岗位关键词。查询为空只说明当前范围和条件下没找到，不代表平台不存在该类岗位。
+            11. “除了 Java 还能找什么”等开放式职业建议，先 get_resume 读简历正文，再基于技能和项目回答；只有一份简历可省略 resumeId。
+                不要逐个岗位调用 search_resume_evidence 试探职业方向，它只适合核实具体简历与职位的匹配证据。
+                search_jobs 的 employmentType 是落库岗位标签；找实习应按 collectionExperience=在校生 筛选采集条件，是否实习再核实岗位内容；本地职位库搜不到不等于不存在，说明可能尚未采集，并结合 libraryContext 交代采集范围。
             """;
 
     private final AgentModel model;
@@ -557,7 +561,7 @@ public class AgentLoop {
             List<AgentMessage> transcript, long started) {
         JsonNode data = ToolEnvelope.toTree(objectMapper, result);
         String dataJson = data.toString();
-        String content = ToolEnvelope.ok(call.name(), data, dataJson, properties.getToolResultMaxChars());
+        String content = ToolEnvelope.ok(call.name(), data, dataJson, tool.resultMaxChars(properties.getToolResultMaxChars()));
         record(call, sink, transcript, clock.getAsLong() - started, content, true, null, dataJson, tool.stepFacts(result));
     }
 

@@ -111,6 +111,17 @@ test("a captcha on a later page stops at once, keeps earlier jobs and does not r
   assert.equal(browser.calls.filter(([name]) => name === "scrollAndWait").length, 1);
 });
 
+test("the experience condition reaches the opened URL and is echoed in the result", async () => {
+  const browser = fakeBrowser({ steps: [ready(["a"])] });
+  const { runner } = setup({ browser });
+  const { task } = await runToEnd(runner, { ...COMMAND, keyword: "", experience: "在校生", maxPages: 1 });
+  const url = new URL(browser.calls.find(([name]) => name === "open")[1]);
+  assert.equal(url.searchParams.get("experience"), "108");
+  assert.equal(url.searchParams.get("city"), "101280600");
+  assert.equal(task.command.experience, "在校生");
+  assert.equal(task.command.keyword, "");
+});
+
 test("without BOSS permission nothing is opened", async () => {
   const browser = fakeBrowser({ permission: false });
   const { runner } = setup({ browser });
