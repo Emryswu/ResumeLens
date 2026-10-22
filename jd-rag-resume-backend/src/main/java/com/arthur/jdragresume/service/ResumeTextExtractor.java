@@ -9,6 +9,8 @@ import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.AutoDetectParserConfig;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.sax.BodyContentHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import org.xml.sax.ContentHandler;
@@ -42,6 +44,8 @@ public class ResumeTextExtractor {
         }
     };
 
+    private static final Logger log = LoggerFactory.getLogger(ResumeTextExtractor.class);
+
     private final AutoDetectParser parser;
     private final ResumeTextQualityValidator qualityValidator;
 
@@ -49,7 +53,8 @@ public class ResumeTextExtractor {
         this.qualityValidator = qualityValidator;
         AutoDetectParser autoDetectParser = new AutoDetectParser();
         AutoDetectParserConfig config = new AutoDetectParserConfig();
-        config.setMaximumDepth(4);
+        // maximumDepth limits XHTML element nesting, not embedded documents (SKIP_EMBEDDED covers those).
+        // Bold or italic runs in an ordinary DOCX already nest past 4, so keep Tika's default.
         config.setMaximumPackageEntryDepth(2);
         autoDetectParser.setAutoDetectParserConfig(config);
         this.parser = autoDetectParser;
@@ -70,7 +75,8 @@ public class ResumeTextExtractor {
             if (WriteLimitReachedException.isWriteLimitReached(ex)) {
                 throw tooLong();
             }
-            throw new BusinessException("RESUME_PARSE_FAILED", "failed to parse resume text");
+            log.warn("Failed to parse uploaded resume with extension {}", extension, ex);
+            throw new BusinessException("RESUME_PARSE_FAILED", "无法读取简历文件内容，请确认文件未损坏或加密，也可以直接粘贴简历正文");
         }
     }
 
