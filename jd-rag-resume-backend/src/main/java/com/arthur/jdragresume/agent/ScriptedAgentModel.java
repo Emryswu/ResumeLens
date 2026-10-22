@@ -1,6 +1,5 @@
 package com.arthur.jdragresume.agent;
 
-import com.arthur.jdragresume.collect.BrowserExtensionJobCollector;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -13,8 +12,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Stand-in for the LLM when {@code ai.mock-enabled=true}: a fixed plan instead of reasoning
  * (list resumes, rank jobs, fetch evidence, answer; and start an analysis when the question
- * asks for one; first collect BOSS listings through the browser extension when it asks for
- * that). It drives the real loop, real tools, the real confirmation gate and the real browser
+ * asks for one; select/read a resume before collecting BOSS listings when asked to find jobs).
+ * It drives the real loop, real tools, the real confirmation gate and the real browser
  * task round trip, so
  * the whole pipeline can be demonstrated offline. Its answers say so explicitly.
  */
@@ -23,9 +22,11 @@ public class ScriptedAgentModel implements AgentModel {
 
     private final ObjectMapper objectMapper;
     private final AtomicLong callIds = new AtomicLong();
+    private final ScriptedJobSearch jobSearch;
 
     public ScriptedAgentModel(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
+        this.jobSearch = new ScriptedJobSearch(objectMapper, this::call);
     }
 
     @Override
@@ -38,6 +39,9 @@ public class ScriptedAgentModel implements AgentModel {
         int lastUser = lastUserIndex(transcript);
         String question = transcript.get(lastUser).content();
         Map<String, JsonNode> results = toolResultsSince(transcript, lastUser);
+        if (ScriptedJobSearch.handles(question) || ScriptedJobSearch.answeringDirectionChoice(transcript, lastUser)) {
+            return jobSearch.next(question, transcript, lastUser, results, toolResultsSince(transcript, -1));
+        }
         boolean multiStep = question.contains("优先") || question.contains("准备哪") || question.contains("计划");
         boolean submitted = transcript.subList(lastUser + 1, transcript.size()).stream()
                 .filter(AgentMessage::hasToolCalls).flatMap(message -> message.toolCalls().stream())
@@ -50,14 +54,7 @@ public class ScriptedAgentModel implements AgentModel {
                     """);
         }
         boolean wantsAnalysis = question.contains("分析");
-        boolean wantsCollection = question.contains("BOSS") || question.contains("采集") || question.contains("收集");
-
         JsonNode collected = results.get("collect_boss_jobs");
-        if (wantsCollection && collected == null) {
-            String city = BrowserExtensionJobCollector.CITIES.stream().filter(question::contains).findFirst().orElse("全国");
-            String keyword = question.contains("前端") ? "前端开发" : "Java 后端";
-            return call("collect_boss_jobs", "{\"keyword\":\"" + keyword + "\",\"city\":\"" + city + "\",\"maxPages\":1}");
-        }
         if (collected != null && failed(collected)) {
             return Reply.answer(BANNER + "这次没有采集到岗位：" + errorMessage(collected));
         }

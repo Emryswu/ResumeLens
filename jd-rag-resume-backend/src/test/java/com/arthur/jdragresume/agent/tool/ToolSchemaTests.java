@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class ToolSchemaTests {
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -14,6 +15,19 @@ class ToolSchemaTests {
     @Test
     void acceptsAnIdInRange() throws Exception {
         assertEquals(List.of(), schema.validate(objectMapper.readTree("{\"id\":7}")));
+    }
+
+    @Test
+    void optionalBooleansAcceptOnlyJsonBooleansAndHaveNoStringConstraints() throws Exception {
+        ToolSchema flags = ToolSchema.object().bool("broadSearch", "allow broad search", false);
+        assertEquals(List.of(), flags.validate(objectMapper.readTree("{}")));
+        assertEquals(List.of(), flags.validate(objectMapper.readTree("{\"broadSearch\":true}")));
+        assertEquals(List.of(), flags.validate(objectMapper.readTree("{\"broadSearch\":false}")));
+        assertEquals(1, flags.validate(objectMapper.readTree("{\"broadSearch\":\"true\"}")).size());
+        assertEquals(1, flags.validate(objectMapper.readTree("{\"broadSearch\":1}")).size());
+        var property = flags.toJson().path("properties").path("broadSearch");
+        assertEquals("boolean", property.path("type").asText());
+        assertFalse(property.has("maxLength"));
     }
 
     @Test

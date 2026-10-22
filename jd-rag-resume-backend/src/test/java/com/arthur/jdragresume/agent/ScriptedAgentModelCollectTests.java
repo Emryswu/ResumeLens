@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** The offline demo also walks the browser collection: collect first, then rank only what it found. */
+/** The offline demo selects and reads a resume before collecting, then ranks only the collected jobs. */
 class ScriptedAgentModelCollectTests {
     private static final String QUESTION = "去 BOSS 采集深圳的 Java 岗位";
 
@@ -20,14 +20,11 @@ class ScriptedAgentModelCollectTests {
     private final ScriptedAgentModel model = new ScriptedAgentModel(objectMapper);
 
     @Test
-    void aCollectionQuestionStartsWithTheBrowserTool() throws Exception {
+    void aCollectionQuestionStartsByReadingTheResumeList() {
         AgentModel.Reply reply = next(List.of(AgentMessage.user(QUESTION)));
 
         AgentMessage.ToolCall call = reply.toolCalls().getFirst();
-        assertEquals("collect_boss_jobs", call.name());
-        JsonNode arguments = objectMapper.readTree(call.arguments());
-        assertEquals("深圳", arguments.path("city").asText());
-        assertEquals(1, arguments.path("maxPages").asInt());
+        assertEquals("list_resumes", call.name());
     }
 
     @Test
@@ -46,6 +43,8 @@ class ScriptedAgentModelCollectTests {
                 "{\"pagesRead\":1,\"collected\":2,\"created\":2,\"alreadyInLibrary\":0,\"jobIds\":[5,6]}"));
         transcript.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("s2", "list_resumes", "{}"))));
         transcript.add(AgentMessage.tool("s2", ok("list_resumes", "{\"resumes\":[{\"resumeId\":3,\"title\":\"简历\"}]}")));
+        transcript.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("s3", "get_resume", "{\"resumeId\":3}"))));
+        transcript.add(AgentMessage.tool("s3", ok("get_resume", "{\"resumeId\":3,\"title\":\"Java 简历\",\"text\":\"Java Spring Boot\"}")));
 
         AgentModel.Reply reply = next(transcript);
 

@@ -88,6 +88,18 @@ public class ResumeService {
                 .map(ResumeResponse::summary));
     }
 
+    /** Agent-only source for bounded direction excerpts; normal list responses still omit the body. */
+    @Transactional(readOnly = true)
+    public PageResponse<ResumeResponse> findAllForAgent(int page, int size, String keyword) {
+        AppUser user = currentUserService.getCurrentUser();
+        String safeKeyword = normalizeKeyword(keyword);
+        var pageable = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt", "id"));
+        return PageResponse.from(resumeRepository
+                .findByUserIdAndTitleContainingIgnoreCaseOrUserIdAndCandidateNameContainingIgnoreCase(
+                        user.getId(), safeKeyword, user.getId(), safeKeyword, pageable)
+                .map(ResumeResponse::from));
+    }
+
     @Transactional(readOnly = true)
     public ResumeResponse findById(Long id) {
         return ResumeResponse.from(getEntityForCurrentUser(id));
