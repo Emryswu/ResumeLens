@@ -30,7 +30,7 @@ public class ListResumesTool implements AgentTool {
     @Override
     public String description() {
         return "列出当前用户的简历（按更新时间倒序，每页 5 份），返回 resumeId、标题、姓名、updatedAt 和 directionEvidence（意向或技能原文节选，最多 301 字）。"
-                + "结合标题和节选判断方向，不能把节选当成完整简历；选定后 get_resume 读正文。"
+                + "标题和节选只用于选简历，不能替代正文；找岗位时即使只有一份且方向明显，也必须先 get_resume 成功读正文再采集，不能从本工具直接跳到 collect_boss_jobs。本会话已读过所选简历正文时可沿用。"
                 + "用户说方向时选匹配方向的简历；没说方向但各版本同方向时选最近更新的；不同方向时列出各简历方向供用户选。"
                 + "有后续页或结果被截断时先补齐信息，不能仅凭不完整列表假定所有简历同方向。可选 keyword 按标题或姓名过滤。";
     }
