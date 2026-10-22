@@ -33,6 +33,8 @@ function fakeBrowser({ permission = true, loadedUrl = SEARCH_URL, steps = [] } =
   return {
     calls,
     async hasBossPermission() { calls.push(["permission"]); return permission; },
+    async armApiCapture() { calls.push(["arm"]); },
+    async disarmApiCapture() { calls.push(["disarm"]); },
     async openTab(url) { calls.push(["open", url]); return 7; },
     async waitForLoad(tabId) { calls.push(["load", tabId]); return { url: loadedUrl }; },
     async readPage(tabId, operation, options) {
@@ -46,17 +48,20 @@ function fakeBrowser({ permission = true, loadedUrl = SEARCH_URL, steps = [] } =
 
 function setup(overrides = {}) {
   const storage = overrides.storage || memoryStorage();
+  const daily = overrides.daily || memoryStorage();
   const delays = [];
   const browser = overrides.browser || fakeBrowser();
   const runner = collectRunner.create({
     browser,
     storage,
+    daily,
+    today: overrides.today || (() => "2026-10-22"),
     random: overrides.random || (() => 0.5),
     sleep: overrides.sleep || (async (ms) => { delays.push(ms); }),
     now: () => 1_000,
     epoch: overrides.epoch || "worker-1",
   });
-  return { runner, storage, browser, delays };
+  return { runner, storage, daily, browser, delays };
 }
 
 /** Lets queued work run until {@code done()} holds; fails instead of hanging when it never does. */
@@ -232,4 +237,106 @@ test("status alone closes out a stale task, even if recovery has not run yet", a
   const { runner } = setup({ storage, epoch: "worker-2" });
   assert.equal((await runner.status("call_9")).stopReason, "WORKER_RESTARTED");
   assert.equal((await storage.get(`${collectRunner.KEY_PREFIX}call_9`)).status, "stopped");
+});
+
+test("the API hook is armed before the tab opens and removed when the task ends, however it ends", async () => {
+  const finished = setup({ browser: fakeBrowser({ steps: [ready(["a"])] }) });
+  await runToEnd(finished.runner, { ...COMMAND, maxPages: 1 });
+  const names = finished.browser.calls.map(([name]) => name);
+  assert.ok(names.indexOf("arm") < names.indexOf("open"));
+  assert.equal(names.at(-1), "disarm");
+
+  const stopped = setup({ browser: fakeBrowser({ steps: [{ state: { kind: "blocked", code: "CAPTCHA" }, jobs: [] }] }) });
+  await runToEnd(stopped.runner);
+  assert.equal(stopped.browser.calls.at(-1)[0], "disarm");
+});
+
+test("a failing hook registration does not stop collection", async () => {
+  const browser = fakeBrowser({ steps: [ready(["a"])] });
+  browser.armApiCapture = async () => { throw new Error("registerContentScripts failed"); };
+  const { runner } = setup({ browser });
+  const { task } = await runToEnd(runner, { ...COMMAND, maxPages: 1 });
+  assert.equal(task.status, "completed");
+});
+
+test("each job keeps its capture source and the task counts both", async () => {
+  const mixed = { state: { kind: "ready", cardCount: 3 }, jobs: [
+    { ...job("a"), captureSource: "api" },
+    { ...job("b"), captureSource: "api" },
+    { ...job("c"), captureSource: "dom" },
+  ], skippedWithoutId: 0 };
+  const { runner } = setup({ browser: fakeBrowser({ steps: [mixed] }) });
+  const { task } = await runToEnd(runner, { ...COMMAND, maxPages: 1 });
+  assert.deepEqual(task.jobs.map((item) => item.captureSource), ["api", "api", "dom"]);
+  assert.deepEqual(task.sources, { api: 2, dom: 1 });
+});
+
+test("every BOSS page loaded takes one unit of the daily page budget", async () => {
+  const { runner, daily } = setup({ browser: fakeBrowser({ steps: [ready(["a"]), ready(["a", "b"]), ready(["a", "b", "c"])] }) });
+  const { task } = await runToEnd(runner);
+  assert.equal(await daily.get(`${collectRunner.DAILY_PREFIX}2026-10-22`), 3);
+  assert.equal(task.dailyPagesLeft, search.LIMITS.maxPagesPerDay - 3);
+});
+
+test("a spent daily budget rejects the start before anything is stored or opened", async () => {
+  const daily = memoryStorage();
+  await daily.set(`${collectRunner.DAILY_PREFIX}2026-10-22`, search.LIMITS.maxPagesPerDay);
+  const { runner, storage, browser } = setup({ daily });
+  const result = await runner.start(COMMAND);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "DAILY_LIMIT");
+  assert.match(result.error, /每日上限/);
+  assert.equal(storage.data.size, 0);
+  assert.equal(browser.calls.length, 0);
+});
+
+test("a budget that runs out mid-task ends the task with the pages already read", async () => {
+  const daily = memoryStorage();
+  await daily.set(`${collectRunner.DAILY_PREFIX}2026-10-22`, search.LIMITS.maxPagesPerDay - 2);
+  const browser = fakeBrowser({ steps: [ready(["a"]), ready(["a", "b"])] });
+  const { runner } = setup({ daily, browser });
+  const { task } = await runToEnd(runner);
+
+  assert.equal(task.status, "completed");
+  assert.equal(task.finishReason, "DAILY_LIMIT");
+  assert.equal(task.pagesRead, 2);
+  assert.equal(task.dailyPagesLeft, 0);
+  assert.equal(browser.calls.filter(([name]) => name === "scrollAndWait").length, 1);
+});
+
+test("the budget is per local day and survives a new worker; earlier days are cleaned up", async () => {
+  const daily = memoryStorage();
+  await daily.set(`${collectRunner.DAILY_PREFIX}2026-10-21`, search.LIMITS.maxPagesPerDay);
+  await daily.set(`${collectRunner.DAILY_PREFIX}2026-10-22`, search.LIMITS.maxPagesPerDay);
+  await daily.set("unrelated", 1);
+
+  const sameDay = setup({ daily, epoch: "worker-2" });
+  await sameDay.runner.recoverStaleTasks();
+  assert.equal((await sameDay.runner.start(COMMAND)).code, "DAILY_LIMIT");
+  assert.equal(await daily.get(`${collectRunner.DAILY_PREFIX}2026-10-21`), undefined);
+  assert.equal(await daily.get("unrelated"), 1);
+
+  const nextDay = setup({ daily, today: () => "2026-10-23", browser: fakeBrowser({ steps: [ready(["a"])] }) });
+  assert.equal((await nextDay.runner.start({ ...COMMAND, maxPages: 1 })).ok, true);
+});
+
+test("cancelling during the pause does not spend another page", async () => {
+  let release;
+  const { runner, daily } = setup({
+    browser: fakeBrowser({ steps: [ready(["a"])] }),
+    sleep: () => new Promise((resolve) => { release = resolve; }),
+  });
+  await runner.start(COMMAND);
+  await waitUntil(() => release);
+  await runner.cancel(COMMAND.taskId);
+  release();
+  await runner.whenSettled(COMMAND.taskId);
+  assert.equal(await daily.get(`${collectRunner.DAILY_PREFIX}2026-10-22`), 1);
+});
+
+test("worker start-up removes a hook an interrupted task left registered", async () => {
+  const { runner, browser } = setup();
+  await runner.recoverStaleTasks();
+  assert.deepEqual(browser.calls, [["disarm"]]);
 });

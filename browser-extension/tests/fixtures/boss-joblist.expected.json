@@ -1,0 +1,44 @@
+{
+  "jobs": [
+    {
+      "title": "Java 后端开发实习生",
+      "companyName": "示例公司1",
+      "location": "深圳·南山区·科技园",
+      "employmentType": "实习",
+      "salary": "200-300元/天",
+      "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 后端开发实习生\n公司：示例公司1\n地点：深圳·南山区·科技园\n薪资：200-300元/天\n标签：在校/应届、本科、4天/周、6个月、Java、Spring Boot、MySQL",
+      "requirements": "在校/应届、本科、4天/周、6个月、Java、Spring Boot、MySQL",
+      "sourcePlatform": "BOSS",
+      "sourceUrl": "https://www.zhipin.com/job_detail/sampleJob1.html",
+      "sourceJobId": "sampleJob1",
+      "captureSource": "api"
+    },
+    {
+      "title": "Java 开发工程师",
+      "companyName": "示例公司2",
+      "location": "深圳·宝安区·西乡",
+      "employmentType": "全职",
+      "salary": "15-25K·14薪",
+      "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 开发工程师\n公司：示例公司2\n地点：深圳·宝安区·西乡\n薪资：15-25K·14薪\n标签：1-3年、本科、Java、Kafka、Redis\n福利：五险一金，年终奖，带薪年假",
+      "requirements": "1-3年、本科、Java、Kafka、Redis",
+      "sourcePlatform": "BOSS",
+      "sourceUrl": "https://www.zhipin.com/job_detail/sampleJob2.html",
+      "sourceJobId": "sampleJob2",
+      "captureSource": "api"
+    },
+    {
+      "title": "后端开发工程师（Go/Java）",
+      "companyName": "示例公司1",
+      "location": "深圳·南山区",
+      "employmentType": "全职",
+      "salary": "20-35K",
+      "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：后端开发工程师（Go/Java）\n公司：示例公司1\n地点：深圳·南山区\n薪资：20-35K\n标签：3-5年、本科、Go、Java、微服务\n福利：五险一金",
+      "requirements": "3-5年、本科、Go、Java、微服务",
+      "sourcePlatform": "BOSS",
+      "sourceUrl": "https://www.zhipin.com/job_detail/sampleJob3.html",
+      "sourceJobId": "sampleJob3",
+      "captureSource": "api"
+    }
+  ],
+  "skippedWithoutId": 1
+}

@@ -106,19 +106,37 @@
     const linkNode = first(card, SELECTORS.link);
     const rawLink = attribute(linkNode, "href");
     if (!rawLink) return null;
-    const absolute = absoluteUrl(rawLink, href);
-    const sourceJobId = base.sourceJobIdFromUrl(absolute);
+    return listingJob({
+      detailUrl: absoluteUrl(rawLink, href),
+      title: text(first(card, SELECTORS.title)) || text(linkNode),
+      companyName: text(first(card, SELECTORS.company)),
+      location: text(first(card, SELECTORS.location)),
+      salary: text(first(card, SELECTORS.salary)),
+      tags: queryTexts(card, SELECTORS.tags),
+      welfare: text(first(card, SELECTORS.welfare)),
+      captureSource: "dom",
+    });
+  }
+
+  /**
+   * Turns the fields of one list entry into a capture-ready job. The DOM cards and the
+   * intercepted list API both go through here, so the two sources can only differ in where the
+   * fields were read from, never in how they are cleaned, bounded or keyed. Returns null without
+   * a stable BOSS job id, a title or a company.
+   */
+  function listingJob(fields) {
+    const detailUrl = typeof fields.detailUrl === "string" ? fields.detailUrl : "";
+    const sourceJobId = detailUrl ? base.sourceJobIdFromUrl(detailUrl) : "";
     if (!sourceJobId) return null;
 
-    const title = bounded(text(first(card, SELECTORS.title)) || text(linkNode), 160);
-    const companyName = bounded(text(first(card, SELECTORS.company)), 120);
+    const title = bounded(fields.title, 160);
+    const companyName = bounded(fields.companyName, 120);
     if (!title || !companyName) return null;
-    const salaryText = text(first(card, SELECTORS.salary));
-    const salary = PRIVATE_USE.test(salaryText) ? "" : bounded(salaryText, 40);
-    const location = bounded(text(first(card, SELECTORS.location)), 80);
-    const tags = uniqueTexts(card, SELECTORS.tags);
-    const welfare = bounded(text(first(card, SELECTORS.welfare)), 300);
-    const requirements = bounded(tags.join("、"), 2000);
+    const salaryText = bounded(fields.salary, 40);
+    const salary = PRIVATE_USE.test(salaryText) ? "" : salaryText;
+    const location = bounded(fields.location, 80);
+    const welfare = bounded(fields.welfare, 300);
+    const requirements = bounded(cleanTags(fields.tags).join("、"), 2000);
 
     return {
       title,
@@ -129,8 +147,9 @@
       description: summaryDescription({ title, companyName, location, salary, requirements, welfare }),
       requirements,
       sourcePlatform: "BOSS",
-      sourceUrl: base.canonicalizeUrl(absolute, href),
+      sourceUrl: base.canonicalizeUrl(detailUrl),
       sourceJobId: sourceJobId.slice(0, 160),
+      captureSource: fields.captureSource === "api" ? "api" : "dom",
     };
   }
 
@@ -147,20 +166,23 @@
     ].filter(Boolean).join("\n");
   }
 
-  function uniqueTexts(root, selectors) {
-    const values = [];
+  function queryTexts(root, selectors) {
+    return selectors.flatMap((selector) => queryAll(root, selector).map(text));
+  }
+
+  /** Short, readable, de-duplicated tags; obfuscated salary glyphs and long blurbs are dropped. */
+  function cleanTags(values) {
+    const tags = [];
     const seen = new Set();
-    for (const selector of selectors) {
-      for (const node of queryAll(root, selector)) {
-        const value = text(node);
-        const key = value.toLowerCase();
-        if (value && value.length <= 40 && !PRIVATE_USE.test(value) && !seen.has(key)) {
-          seen.add(key);
-          values.push(value);
-        }
+    for (const raw of Array.isArray(values) ? values : []) {
+      const value = bounded(typeof raw === "string" ? raw : "", 41);
+      const key = value.toLowerCase();
+      if (value && value.length <= 40 && !PRIVATE_USE.test(value) && !seen.has(key)) {
+        seen.add(key);
+        tags.push(value);
       }
     }
-    return values;
+    return tags;
   }
 
   function anyVisible(documentRef, selectors) {
@@ -232,5 +254,6 @@
     extractCards,
     findCards,
     inspect,
+    listingJob,
   };
 });

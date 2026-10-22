@@ -10,6 +10,8 @@
   "use strict";
 
   const KEY_PREFIX = "collect-task:";
+  /** Pages read per local day, in persistent storage so a browser restart does not reset it. */
+  const DAILY_PREFIX = "collect-daily-pages:";
   const LOAD_TIMEOUT_MS = 30_000;
   const FIRST_READ_WAIT_MS = 15_000;
   const SCROLL_WAIT_MS = 10_000;
@@ -26,6 +28,7 @@
     UNEXPECTED_PAGE: "BOSS 搜索页跳转到了插件无法读取的页面，已停止采集",
     WORKER_RESTARTED: "插件后台在采集途中被浏览器重启，已停止采集，保留重启前读到的岗位",
     USER_CANCELLED: "已按要求停止采集",
+    DAILY_LIMIT: `今天已读取 ${search.LIMITS.maxPagesPerDay} 页 BOSS 搜索结果，达到每日上限，明天再试`,
     INTERNAL_ERROR: "插件内部错误，已停止采集",
   });
 
@@ -43,11 +46,17 @@
    * happened: the task keeps the epoch of the worker that ran it, and a later worker with a
    * different epoch reports it as stopped with WORKER_RESTARTED instead of leaving it hanging.
    *
-   * Dependencies: browser { hasBossPermission, openTab, waitForLoad, readPage },
-   * storage { get, set, remove, keys }, random() in [0, 1), sleep(ms), now(), epoch.
+   * Every BOSS page the task loads (the first page, and each scroll that loads another) first
+   * takes one unit of the daily page budget; a task that finds the budget spent ends there with
+   * what it has read.
+   *
+   * Dependencies: browser { hasBossPermission, armApiCapture, disarmApiCapture, openTab,
+   * waitForLoad, readPage }, storage { get, set, remove, keys } (per session), daily { get, set,
+   * remove, keys } (persistent), today() → "YYYY-MM-DD" in local time, random() in [0, 1),
+   * sleep(ms), now(), epoch.
    */
   function create(deps) {
-    const { browser, storage, random, sleep, now, epoch } = deps;
+    const { browser, storage, daily, today, random, sleep, now, epoch } = deps;
     const listeners = new Map();
     const cancelled = new Set();
     const running = new Map();
@@ -72,13 +81,18 @@
           return { ok: false, code: "BUSY", error: "插件正在执行另一次采集，请等它结束" };
         }
       }
+      if ((await dailyPagesUsed()) >= search.LIMITS.maxPagesPerDay) {
+        return { ok: false, code: "DAILY_LIMIT", error: STOP_MESSAGES.DAILY_LIMIT };
+      }
       const state = {
         taskId: command.taskId,
         status: "running",
         command: { keyword: command.keyword, city: command.city, maxPages: command.maxPages },
         pagesRead: 0,
         jobs: [],
+        sources: { api: 0, dom: 0 },
         skippedWithoutId: 0,
+        dailyPagesLeft: null,
         stopReason: null,
         stopMessage: null,
         finishReason: null,
@@ -106,8 +120,23 @@
       return status(taskId);
     }
 
-    /** Called once when the worker starts: closes tasks a previous worker left running, drops old ones. */
-    async function recoverStaleTasks() {
+    /**
+     * Called once when the worker starts: closes tasks a previous worker left running, drops old
+     * ones and earlier days' page counts, and removes a capture hook an interrupted task left
+     * registered. Queued with starts, so it cannot remove the hook of a task that starts meanwhile.
+     */
+    function recoverStaleTasks() {
+      const result = startQueue.then(recoverNow);
+      startQueue = result.catch(() => undefined);
+      return result;
+    }
+
+    async function recoverNow() {
+      await quietly(() => browser.disarmApiCapture());
+      const todayKey = DAILY_PREFIX + today();
+      for (const key of await daily.keys()) {
+        if (key.startsWith(DAILY_PREFIX) && key !== todayKey) await daily.remove(key);
+      }
       for (const state of await allTasks()) {
         if (now() - state.updatedAt > RETENTION_MS && state.status !== "running") {
           await storage.remove(KEY_PREFIX + state.taskId);
@@ -131,6 +160,9 @@
     async function run(state, command) {
       try {
         if (!(await browser.hasBossPermission())) throw new CollectStop("PERMISSION_REQUIRED");
+        if (!(await takeDailyPage(state))) throw new CollectStop("DAILY_LIMIT");
+        // Best effort: without the hook every page is simply read from the DOM.
+        await quietly(() => browser.armApiCapture());
         progress(state, "opening");
         const tabId = await browser.openTab(search.buildSearchUrl(command));
         const loaded = await browser.waitForLoad(tabId, LOAD_TIMEOUT_MS);
@@ -153,6 +185,7 @@
           progress(state, "waiting", { page, delayMs });
           await sleep(delayMs);
           checkCancelled(state);
+          if (!(await takeDailyPage(state))) return finish(state, "DAILY_LIMIT");
           progress(state, "scrolling", { page });
           snapshot = await browser.readPage(tabId, "scrollAndWait", { previousCount: cardCount, waitMs: SCROLL_WAIT_MS });
           if (snapshot.state.kind === "blocked") throw new CollectStop(snapshot.state.code);
@@ -169,7 +202,24 @@
       } finally {
         cancelled.delete(state.taskId);
         running.delete(state.taskId);
+        await quietly(() => browser.disarmApiCapture());
       }
+    }
+
+    async function dailyPagesUsed() {
+      return Number(await daily.get(DAILY_PREFIX + today())) || 0;
+    }
+
+    /** Takes one page from today's budget; false when it is spent. */
+    async function takeDailyPage(state) {
+      const used = await dailyPagesUsed();
+      if (used >= search.LIMITS.maxPagesPerDay) {
+        state.dailyPagesLeft = 0;
+        return false;
+      }
+      await daily.set(DAILY_PREFIX + today(), used + 1);
+      state.dailyPagesLeft = search.LIMITS.maxPagesPerDay - used - 1;
+      return true;
     }
 
     async function merge(state, snapshot, page) {
@@ -179,6 +229,7 @@
         if (known.has(job.sourceJobId)) continue;
         known.add(job.sourceJobId);
         state.jobs.push(job);
+        state.sources[job.captureSource === "api" ? "api" : "dom"] += 1;
       }
       // The page re-reports every card it has rendered, so the latest count is the total, not an increment.
       state.skippedWithoutId = Math.max(state.skippedWithoutId, Number(snapshot.skippedWithoutId) || 0);
@@ -252,10 +303,19 @@
     return { cancel, recoverStaleTasks, start, status, subscribe, whenSettled };
   }
 
+  /** Runs a best-effort step whose failure must not end the task. */
+  async function quietly(step) {
+    try {
+      await step();
+    } catch {
+      // The step's only effect is optional; the task goes on without it.
+    }
+  }
+
   function publicView(state) {
     const { epoch: _epoch, ...view } = state;
     return structuredClone(view);
   }
 
-  return { CollectStop, KEY_PREFIX, STOP_MESSAGES, create };
+  return { CollectStop, DAILY_PREFIX, KEY_PREFIX, STOP_MESSAGES, create };
 });
