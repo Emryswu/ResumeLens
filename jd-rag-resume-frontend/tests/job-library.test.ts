@@ -35,7 +35,7 @@ function compile(source: string): string {
   return target;
 }
 
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/#jobs", pretendToBeVisual: true });
+const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost/workspace#jobs", pretendToBeVisual: true });
 Object.assign(globalThis, {
   window: dom.window, document: dom.window.document, HTMLElement: dom.window.HTMLElement,
   Node: dom.window.Node, localStorage: dom.window.localStorage,
@@ -45,7 +45,7 @@ Object.defineProperty(globalThis, "navigator", { value: dom.window.navigator, co
 dom.window.HTMLElement.prototype.scrollIntoView = () => {};
 const { act, createElement } = await import("react");
 const { createRoot } = await import("react-dom/client");
-const { default: Home } = await import(pathToFileURL(compile(join(root, "app/page.tsx"))).href);
+const { default: Home } = await import(pathToFileURL(compile(join(root, "app/workspace/page.tsx"))).href);
 
 for (const hasResume of [false, true]) {
   test(hasResume ? "向量服务 503 时仍能查看、编辑和删除已有岗位" : "没有简历时仍能查看、编辑和删除已有岗位", async (t) => {
@@ -69,7 +69,7 @@ for (const hasResume of [false, true]) {
       return Response.json({ success: true, data });
     };
     document.body.innerHTML = "<div id='root'></div>";
-    window.history.replaceState(null, "", "/#jobs");
+    window.history.replaceState(null, "", "/workspace#jobs");
     window.confirm = () => true;
     const reactRoot = createRoot(document.getElementById("root")!);
     t.after(async () => { await act(() => reactRoot.unmount()); globalThis.fetch = originalFetch; });

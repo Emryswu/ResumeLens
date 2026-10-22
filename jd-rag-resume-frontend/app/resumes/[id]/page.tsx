@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, Skeleton } from "../../components/StateBlock";
 import { useSessionUser } from "../../components/use-session-user";
 import { apiRequest, visibleApiErrorMessage, type Resume } from "../../lib/api";
 import { loadState } from "../../view-states";
+import { workspaceHref } from "../../workspace-nav";
 
 export default function ResumeDetailPage() {
   const { user, logout } = useSessionUser();
@@ -89,7 +90,7 @@ export default function ResumeDetailPage() {
     setError("");
     try {
       await apiRequest<void>(`/api/resumes/${id}`, { method: "DELETE" });
-      router.replace("/");
+      router.replace(workspaceHref("resumes"));
     } catch (reason) {
       const message = visibleApiErrorMessage(reason, "删除失败");
       if (message == null) return;
@@ -107,7 +108,7 @@ export default function ResumeDetailPage() {
     <AppShell
       title={resume ? resume.title : `简历 #${params.id}`}
       activeView="resumes"
-      back={{ href: "/#resumes", label: "我的简历" }}
+      back={{ href: workspaceHref("resumes"), label: "我的简历" }}
       user={user}
       onLogout={logout}
       actions={
@@ -140,7 +141,7 @@ export default function ResumeDetailPage() {
       {view === "error" && (
         <div className="state-panel detail-state">
           <ErrorState title="简历没有加载出来" text={loadError} onRetry={validId ? () => void load() : undefined}
-            action={<Link className="ghost" href="/#resumes">返回我的简历</Link>} />
+            action={<Link className="ghost" href={workspaceHref("resumes")}>返回我的简历</Link>} />
         </div>
       )}
 
@@ -160,7 +161,7 @@ export default function ResumeDetailPage() {
             : <EmptyState compact icon={FileText} title="简历正文是空的" text="点「编辑」补充后，匹配时会用到这部分内容。"
               action={<button className="ghost" type="button" onClick={() => setEditing(true)} disabled={!!busy}>编辑</button>} />}
           <div className="form-actions">
-            <Link className="secondary" href={`/?resumeId=${resume.id}`}>
+            <Link className="secondary" href={workspaceHref("match", { resumeId: resume.id })}>
               用此简历去匹配
             </Link>
           </div>

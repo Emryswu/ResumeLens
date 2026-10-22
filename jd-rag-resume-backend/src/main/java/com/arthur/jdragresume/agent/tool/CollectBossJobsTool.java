@@ -123,6 +123,19 @@ public class CollectBossJobsTool implements DeferrableTool {
                 "这些是 BOSS 搜索列表摘要，不是完整职位描述；粗排相似度不是匹配分。要读完整 JD，需要用户在职位详情页用插件弹窗抓取。");
     }
 
+    @Override
+    public Object stepFacts(Object result) {
+        if (!(result instanceof Summary summary)) return null;
+        return new Facts(summary.pagesRead(), summary.collected(), summary.created(), summary.alreadyInLibrary(),
+                summary.notSaved(), summary.stopReason(), summary.stopReason() == null ? null : summary.statusMessage(),
+                summary.sources());
+    }
+
+    /** {@code stopMessage} is the server's own text for {@code stopReason}, never the extension's. */
+    record Facts(int pagesRead, int collected, int created, int alreadyInLibrary, int notSaved, String stopReason,
+                 String stopMessage, Map<String, Integer> sources) {
+    }
+
     /** {@code jobs} comes before {@code jobIds}: an oversized result drops job rows first and keeps every id. */
     record Summary(
             String keyword,

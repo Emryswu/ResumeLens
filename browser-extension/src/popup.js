@@ -295,7 +295,7 @@
     const report = element("full-report");
     if (analysis.id && state.bridgeTab?.url) {
       const origin = new URL(state.bridgeTab.url).origin;
-      report.href = `${origin}/?resumeId=${analysis.resumeId}&jobId=${analysis.jobDescriptionId}&analysisId=${analysis.id}#result`;
+      report.href = `${origin}/workspace?resumeId=${analysis.resumeId}&jobId=${analysis.jobDescriptionId}&analysisId=${analysis.id}#result`;
       show(report);
     }
   }

@@ -331,6 +331,10 @@ a.secondary {
 /* The step name stays on one line; the arguments give way first. */
 .agent-step strong { flex: 0 0 auto; font-weight: 600; white-space: nowrap; }
 .agent-step-args { overflow: hidden; color: var(--muted); font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+/* What the step found gets a line of its own under the step, so a narrow drawer never cuts it short. */
+.agent-step-line:has(.agent-step-outcome) { flex-wrap: wrap; }
+.agent-step-line:has(.agent-step-outcome) .agent-step-args { flex: 1 1 0; }
+.agent-step-outcome { order: 4; flex: 1 0 100%; padding-left: 36px; color: var(--mint-dark); font-size: var(--text-meta); }
 .agent-step-meta { display: flex; flex-shrink: 0; gap: 10px; margin-left: auto; color: var(--muted); font-size: var(--text-meta); font-variant-numeric: tabular-nums; }
 .agent-step.failed .agent-step-status { color: #a74438; font-weight: 600; }
 .agent-step.running .agent-step-status, .agent-step.awaiting .agent-step-status,
@@ -390,6 +394,7 @@ a.secondary {
   .agent-step strong { flex: 0 1 auto; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
   .agent-step-chevron { order: 1; margin-left: auto; }
   .agent-step-args { order: 2; flex: 1 0 100%; padding-left: 36px; }
+  .agent-step-outcome { order: 2; padding-left: 36px; }
   .agent-step-meta { order: 3; flex: 1 0 100%; margin-left: 0; padding-left: 36px; }
   .agent-step-meta:not(:has(> :not(.quiet))) { display: none; }
   .agent-step:not(:last-child)::before { top: 21px; }
@@ -398,3 +403,8 @@ a.secondary {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+.assistant-onboarding { display: grid; gap: 12px; margin-bottom: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.assistant-onboarding strong { font-size: var(--text-body); font-weight: 600; }
+.assistant-onboarding p { margin: 4px 0 0; color: var(--muted); font-size: var(--text-body); }
+.assistant-onboarding-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.assistant-onboarding-actions a, .assistant-onboarding-actions button { display: inline-flex; align-items: center; gap: 6px; }

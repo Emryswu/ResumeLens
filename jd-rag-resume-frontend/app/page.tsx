@@ -1,1597 +1,514 @@
 "use client";
 
-import { ArrowDownWideNarrow, ArrowRight, ArrowUpRight, Bookmark, BriefcaseBusiness, CalendarDays, ChartNoAxesColumn, CircleAlert, CircleCheck, ClipboardPaste, Clock3, CloudUpload, FileText, History, ListChecks, LoaderCircle, Pencil, Plus, RotateCw, Sparkles, Star, Upload, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { ChangeEvent, FormEvent } from "react";
+import { ArrowRight, ArrowUp, CircleAlert, FlaskConical, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Sparkles, Upload } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AppShell } from "./components/AppShell";
-import { BrandCtaCard } from "./components/BrandArt";
+import { RetryButton } from "./components/StateBlock";
+import { AgentMarkdown } from "./components/assistant/AgentMarkdown";
+import { AnalysisCard } from "./components/assistant/AnalysisCard";
+import { BrowserTaskCard } from "./components/assistant/BrowserTaskCard";
+import { ConfirmationCard } from "./components/assistant/ConfirmationCard";
 import { LoginPage, type AuthForm, type AuthMode } from "./components/LoginPage";
-import { EmptyState, ErrorState, LoadingState, RetryButton, Skeleton } from "./components/StateBlock";
-import { MatchReport } from "./components/MatchReport";
-import { JobCard } from "./components/JobCard";
-import { Workbench } from "./components/Workbench";
-import { ResumeCard } from "./components/ResumeCard";
-import { RESUME_ACCEPT, relativeDay, resumeFileProblem, resumeStats } from "./resume-list";
-import { HistoryRow } from "./components/HistoryRow";
-import { TIME_RANGES, filterHistory, historyStats, type TimeRange } from "./history-view";
-import { EMPTY_PASTE_JOB, pasteJobPayload, workbenchAction, type JobSource, type PasteJobForm } from "./workbench";
-import { reportPanelState, type LoadState } from "./view-states";
-import { bookmarkKey, parseBookmarks } from "./workspace-bookmarks";
-import { hashForView, navLabel, viewFromHash, type HashView } from "./workspace-nav";
+import { ProcessDrawer, StepTimeline } from "./components/assistant/StepTimeline";
+import { useSessionUser } from "./components/use-session-user";
 import {
-  AUTH_EXPIRED_EVENT,
-  SAMPLE_BULK_JOBS,
-  type Analysis,
-  type AnalysisSummary,
+  agentChatReducer,
+  initialAgentChatState,
+  nextRequest,
+  readAgentStream,
+  retryAdvice,
+  retryRequest,
+  staleConversation,
+  type AgentBrowserTask,
+  type AgentChatState,
+  type AgentConfirmation,
+  type AgentTurn,
+} from "./agent-stream";
+import { runExtensionCollect } from "./extension-collect";
+import { analysisPollTimeoutMs, pollAnalysisUntilSettled } from "./analysis-poll";
+import { runtimeModeLabel } from "./runtime-mode";
+import { saveSampleData, submitAnalysis } from "./sample-data";
+import { signInRequest } from "./sign-in";
+import { legacyWorkspaceUrl, reportHref, workspaceHref } from "./workspace-nav";
+import {
+  ApiError,
+  apiRequest,
+  apiStream,
+  getAuthSessionId,
+  isAuthSessionCurrent,
+  setAccessToken,
+  visibleApiErrorMessage,
   type AiStatus,
-  type AuthResponse,
-  type Job,
-  type JobSemanticMatch,
+  type Analysis,
   type PageData,
   type Resume,
   type User,
-  apiRequest,
-  getAuthSessionId,
-  isAuthSessionCurrent,
-  logoutSession,
-  parseJobImportPayload,
-  refreshSession,
-  setAccessToken,
-  visibleApiErrorMessage,
 } from "./lib/api";
-import {
-  buildReportMarkdown,
-  buildReportPrintHtml,
-  downloadTextFile,
-  openPrintableReport,
-  reportFilename,
-} from "./report-export";
-import {
-  analysisPollTimeoutMs,
-  mergeLatestAnalysisSummaries,
-  pollAnalysisUntilSettled,
-} from "./analysis-poll";
-import { appendResumeUploadFields, prepareResumeUploadDraft, resumeFormFrom } from "./resume-upload";
-import {
-  DEFAULT_JOB_SORT,
-  requestSemanticMatches,
-  semanticAnalysisTargets,
-  shouldAutoLoadSemanticMatches,
-} from "./semantic-ranking";
 
-const EMPTY_RESUME_FORM = {
-  title: "",
-  candidateName: "",
-  phone: "",
-  email: "",
-  rawText: "",
-};
-const EMPTY_JOB_FORM = {
-  title: "",
-  companyName: "",
-  location: "",
-  employmentType: "全职",
-  description: "",
-  requirements: "",
-};
-const HISTORY_PAGE_SIZE = 20;
-const JOB_PAGE_SIZE = 50;
-type JobSort = "recent" | "semantic" | "score" | "analyzed";
-type JobFilter = "all" | "unanalyzed";
-type JobAnalysesStatus = "idle" | "loading" | "ready" | "error";
-type JobSemanticStatus = "idle" | "loading" | "ready" | "error";
-type AnalysisRun = { generation: number; resumeId: number; jobId: number };
+const EXAMPLES = [
+  "我最新那份简历最适合投哪几个职位？",
+  "去 BOSS 搜深圳的 Java 后端岗位，看两页",
+  "排第一的职位，我的简历里有哪些证据能支撑？",
+  "帮我对最合适的职位做一次完整分析",
+];
 
-const VIEW_SUBTITLES: Record<HashView, string> = {
-  match: "选一份简历和目标岗位，查看匹配报告和简历里的原文证据。",
-  resumes: "集中管理你的简历，上传后即可用于岗位匹配与优化。",
-  jobs: "浏览职位，结合你的当前简历，快速找到更合适的机会。",
-  saved: "收藏保存在当前浏览器，按账号区分；不会跨设备同步。",
-  history: "查看你已保存的匹配结果，随时回顾历史分析。",
+const ERROR_COPY: Record<string, string> = {
+  AGENT_RATE_LIMITED: "提问太频繁了，请稍后再试",
+  AGENT_BUSY: "助手正忙，请稍后重试",
+  AGENT_STEP_LIMIT: "这个问题步骤太多，请换个更具体的问法",
+  AGENT_TIMEOUT: "本轮处理超时，请把问题拆小一些",
+  AGENT_TRANSCRIPT_TOO_LARGE: "对话太长了，请点「新对话」重新开始",
+  AGENT_STREAM_INTERRUPTED: "连接中断，本轮对话未完整接收。若已同意发起分析，请到分析记录确认结果。",
+  AI_NOT_CONFIGURED: "后端尚未配置大模型",
 };
 
-function analysisTimestamp(item?: AnalysisSummary) {
-  const timestamp = item?.createdAt ? Date.parse(item.createdAt) : Number.NaN;
-  return Number.isFinite(timestamp) ? timestamp : -1;
-}
-
-function analysisScore(item?: AnalysisSummary) {
-  const score = Number(item?.matchScore);
-  return item?.status === "COMPLETED" && Number.isFinite(score) ? score : -1;
-}
-
-function jobTimestamp(item: Job) {
-  const timestamp = item.createdAt ? Date.parse(item.createdAt) : Number.NaN;
-  return Number.isFinite(timestamp) ? timestamp : -1;
-}
-
-const SAMPLE_RESUME = {
-  title: "Java 后端开发简历",
-  candidateName: "张三",
-  phone: "13800000000",
-  email: "zhangsan@example.com",
-  rawText: `技能
-熟练掌握 Java、Spring Boot、MySQL、JWT 与 REST API 开发；有权限体系与全局异常处理实践。
-
-工作经历
-2023-2025 某互联网公司后端开发：维护招聘业务服务，设计简历/职位表结构，完成用户数据隔离；参与登录鉴权改造，引入 JWT。
-
-项目经历
-负责简历匹配系统中的 RAG 模块：文本分块、本地 Embedding、Top-K 召回与证据拼装，支持中英文；对接 DeepSeek Chat Completions，约束 JSON 输出。
-使用 Apache Tika 解析 PDF/DOCX 简历文本，并提供 rawText 校对入口。
-
-教育
-本科 · 计算机科学与技术 · 主修数据结构、操作系统、计算机网络。`,
-};
-
-const SAMPLE_JOB = {
-  title: "RAG 平台工程师",
-  companyName: "某科技",
-  location: "杭州",
-  employmentType: "全职",
-  description: "负责企业知识库与招聘场景的 RAG 链路建设，覆盖解析、分块、向量检索与生成式分析，和业务一起把匹配结果做得可解释。",
-  requirements: "Java / Spring Boot / MySQL；熟悉 Embedding、向量检索；有 JWT/权限与 API 设计经验；加分：DeepSeek/OpenAI 对接、简历解析。",
-};
-
-function configuredModel(status: AiStatus | null) {
-  return status?.model.trim() || "模型未配置";
-}
-
-function runtimeModeLabel(status: AiStatus | null) {
-  if (!status) return "AI 运行模式确认中";
-  return status.mockEnabled
-    ? "演示模式（离线 mock），未调用真实模型"
-    : `当前生成模型：${configuredModel(status)}`;
-}
-
-function generationProgressLabel(status: AiStatus | null) {
-  if (!status) return "生成模式确认中，正在准备分析…";
-  return status.mockEnabled
-    ? "演示模式（离线 mock），未调用真实模型"
-    : `${configuredModel(status)} 正在生成分析…`;
-}
-
-function pendingAnalysisLabel(status: AiStatus | null) {
-  if (!status) return "本地检索与生成分析正在进行（运行模式确认中），完成后会自动更新。";
-  return status.mockEnabled
-    ? "本地检索与离线 mock 演示分析正在进行；演示模式（离线 mock），未调用真实模型。完成后会自动更新。"
-    : `本地检索与 ${configuredModel(status)} 分析正在进行，完成后会自动更新。`;
-}
-
-export default function Home() {
-  const [token, setToken] = useState("");
-  const [pageView, setPageView] = useState<HashView>("match");
-  const [savedJobs, setSavedJobs] = useState<number[]>([]);
-  const [fetchingReport, setFetchingReport] = useState(false);
-  // Bumped by every chooseResume call. Re-selecting the same resume leaves
-  // selectedResumeId unchanged, so without this counter nothing would depend-change
-  // to refetch the per-job scores that chooseResume just cleared.
-  const [resumeScopeEpoch, setResumeScopeEpoch] = useState(0);
-  const [user, setUser] = useState<User | null>(null);
+/** The home page: the assistant, or the sign-in form when there is no session. */
+export default function HomePage() {
+  const router = useRouter();
+  const { user, status, logout, signedIn } = useSessionUser({ signInHere: true });
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [auth, setAuth] = useState<AuthForm>({ username: "", password: "", email: "", displayName: "" });
-  const [resumes, setResumes] = useState<Resume[]>([]);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [jobsTotal, setJobsTotal] = useState(0);
-  const [jobsPage, setJobsPage] = useState(0);
-  const [jobsLoadingMore, setJobsLoadingMore] = useState(false);
-  const [jobSort, setJobSort] = useState<JobSort>(DEFAULT_JOB_SORT);
-  const [jobFilter, setJobFilter] = useState<JobFilter>("all");
-  const [jobLatestAnalyses, setJobLatestAnalyses] = useState<AnalysisSummary[]>([]);
-  const [jobAnalysesResumeId, setJobAnalysesResumeId] = useState<number | null>(null);
-  const [jobAnalysesStatus, setJobAnalysesStatus] = useState<JobAnalysesStatus>("idle");
-  const [jobAnalysesError, setJobAnalysesError] = useState("");
-  const [jobSemanticMatches, setJobSemanticMatches] = useState<JobSemanticMatch[]>([]);
-  const [jobSemanticResumeId, setJobSemanticResumeId] = useState<number | null>(null);
-  const [jobSemanticStatus, setJobSemanticStatus] = useState<JobSemanticStatus>("idle");
-  const [jobSemanticError, setJobSemanticError] = useState("");
-  const [topMatchCount, setTopMatchCount] = useState(5);
-  const [history, setHistory] = useState<Analysis[]>([]);
-  const [historyTotal, setHistoryTotal] = useState(0);
-  const [historyPage, setHistoryPage] = useState(0);
-  const [historyRange, setHistoryRange] = useState<TimeRange>("all");
-  const [historySavedOnly, setHistorySavedOnly] = useState(false);
-  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
-  const [selectedResumeId, setSelectedResumeId] = useState<number | "">("");
-  const [selectedJobId, setSelectedJobId] = useState<number | "">("");
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [resumeForm, setResumeForm] = useState({ ...EMPTY_RESUME_FORM });
-  const [jobForm, setJobForm] = useState({ ...EMPTY_JOB_FORM });
-  const [editingResumeId, setEditingResumeId] = useState<number | null>(null);
-  const [editingJobId, setEditingJobId] = useState<number | null>(null);
-  const [bulkImportText, setBulkImportText] = useState(() => JSON.stringify(SAMPLE_BULK_JOBS, null, 2));
-  const [showBulkImport, setShowBulkImport] = useState(false);
-  const [showJobEditor, setShowJobEditor] = useState(false);
-  const [showResumeEditor, setShowResumeEditor] = useState(false);
-  const [resumeDragging, setResumeDragging] = useState(false);
-  // "N 天前" only needs day precision, so the page reads the clock once instead of during every render.
-  const [pageOpenedAt] = useState(() => Date.now());
-  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
-  // The match page is the workbench (pick a resume and a job) until a report is opened or an analysis starts.
-  const [matchMode, setMatchMode] = useState<"compose" | "report">("compose");
-  const [jobSource, setJobSource] = useState<JobSource>("library");
-  const [pasteJob, setPasteJob] = useState<PasteJobForm>({ ...EMPTY_PASTE_JOB });
-  // Until the first load succeeds the lists are unknown, not empty: show placeholders, then data or a retry.
-  const [workspaceStatus, setWorkspaceStatus] = useState<LoadState>("loading");
-  const [workspaceError, setWorkspaceError] = useState("");
-  const workspaceLoaded = useRef(false);
-  // An empty job library has nothing to pick from, so the workbench opens on the paste tab instead.
-  const effectiveJobSource: JobSource = jobSource === "library" && workspaceStatus === "ready" && jobs.length === 0 ? "paste" : jobSource;
-  const [reportFetchError, setReportFetchError] = useState<{ analysisId: number; message: string } | null>(null);
-  const [reportRetry, setReportRetry] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const analysisRunSequence = useRef(0);
-  const activeAnalysisRun = useRef<AnalysisRun | null>(null);
-  const jobAnalysesRequestGeneration = useRef(0);
-  const jobSemanticRequestGeneration = useRef(0);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState("");
 
-  function reportRequestError(reason: unknown, fallback: string) {
-    const message = visibleApiErrorMessage(reason, fallback);
-    if (message == null) return;
-    setError(message);
-  }
-
-  const chooseResume = useCallback((next: number | "") => {
-    setFetchingReport(false);
-    const run = activeAnalysisRun.current;
-    if (run && run.resumeId !== next) activeAnalysisRun.current = null;
-    jobAnalysesRequestGeneration.current += 1;
-    jobSemanticRequestGeneration.current += 1;
-    setJobLatestAnalyses([]);
-    setJobAnalysesResumeId(null);
-    setJobAnalysesStatus(next ? "loading" : "idle");
-    setJobAnalysesError("");
-    setJobSemanticMatches([]);
-    setJobSemanticResumeId(null);
-    setJobSemanticStatus("idle");
-    setJobSemanticError("");
-    setAnalysis((current) => current && current.resumeId !== next ? null : current);
-    setResumeScopeEpoch((value) => value + 1);
-    setSelectedResumeId(next);
-  }, []);
-
-  const chooseJob = useCallback((next: number | "") => {
-    setFetchingReport(false);
-    const run = activeAnalysisRun.current;
-    if (run && run.jobId !== next) activeAnalysisRun.current = null;
-    setAnalysis((current) => current && current.jobDescriptionId !== next ? null : current);
-    setSelectedJobId(next);
-  }, []);
-
-  function clearAuthenticatedView() {
-    activeAnalysisRun.current = null;
-    jobAnalysesRequestGeneration.current += 1;
-    jobSemanticRequestGeneration.current += 1;
-    setToken("");
-    setUser(null);
-    setSavedJobs([]);
-    setFetchingReport(false);
-    setAnalysis(null);
-    setResumes([]);
-    setJobs([]);
-    setJobsTotal(0);
-    setJobsPage(0);
-    setJobSort(DEFAULT_JOB_SORT);
-    setJobLatestAnalyses([]);
-    setJobAnalysesResumeId(null);
-    setJobAnalysesStatus("idle");
-    setJobAnalysesError("");
-    setJobSemanticMatches([]);
-    setJobSemanticResumeId(null);
-    setJobSemanticStatus("idle");
-    setJobSemanticError("");
-    setHistory([]);
-    setHistoryTotal(0);
-    setHistoryPage(0);
-    setHistoryRange("all");
-    setHistorySavedOnly(false);
-    setSelectedResumeId("");
-    setSelectedJobId("");
-    setEditingResumeId(null);
-    setEditingJobId(null);
-    setFile(null);
-    setResumeForm({ ...EMPTY_RESUME_FORM });
-    setJobForm({ ...EMPTY_JOB_FORM });
-    setAuth({ username: "", password: "", email: "", displayName: "" });
-    setBulkImportText(JSON.stringify(SAMPLE_BULK_JOBS, null, 2));
-    setShowBulkImport(false);
-    setShowResumeEditor(false);
-    setMatchMode("compose");
-    setJobSource("library");
-    setPasteJob({ ...EMPTY_PASTE_JOB });
-    setNotice("");
-    setBusy("");
-    workspaceLoaded.current = false;
-    setWorkspaceStatus("loading");
-    setWorkspaceError("");
-    setReportFetchError(null);
-  }
-
-  function invalidateSemanticMatches() {
-    jobSemanticRequestGeneration.current += 1;
-    setJobSemanticMatches([]);
-    setJobSemanticResumeId(null);
-    setJobSemanticStatus("idle");
-    setJobSemanticError("");
-  }
-
-  function beginAnalysisRun(resumeId: number, jobId: number) {
-    const run = { generation: ++analysisRunSequence.current, resumeId, jobId };
-    activeAnalysisRun.current = run;
-    return run;
-  }
-
-  function isCurrentAnalysisRun(run: AnalysisRun) {
-    return activeAnalysisRun.current?.generation === run.generation;
-  }
-
-  function acceptAnalysisProgress(next: Analysis, run: AnalysisRun) {
-    if (!isCurrentAnalysisRun(run)) return;
-    setAnalysis(next);
-    setHistory((items) => [next, ...items.filter((item) => item.id !== next.id)]);
-    setJobLatestAnalyses((items) => mergeLatestAnalysisSummaries(items, [next]));
-  }
-
-  async function waitForAnalysis(initial: Analysis, run: AnalysisRun) {
-    const { analysis: current, timedOut, cancelled } = await pollAnalysisUntilSettled(initial, {
-      timeoutMs: analysisPollTimeoutMs(aiStatus?.pendingTimeoutMinutes),
-      fetchById: (id) => apiRequest<Analysis>(`/api/analysis-histories/${id}`),
-      shouldContinue: () => isCurrentAnalysisRun(run),
-      onProgress: (next) => acceptAnalysisProgress(next, run),
-    });
-
-    if (cancelled || !isCurrentAnalysisRun(run)) return null;
-    activeAnalysisRun.current = null;
-    if (timedOut) {
-      setNotice("分析仍在后台运行，可稍后在历史记录中查看结果");
-      return current;
-    }
-    if (current.status === "FAILED") throw new Error(current.summary || "AI 分析失败");
-    return current;
-  }
-
-  const loadWorkspace = useCallback(async () => {
-    const sessionId = getAuthSessionId();
-    setBusy("loading");
-    setError("");
-    if (!workspaceLoaded.current) {
-      setWorkspaceStatus("loading");
-      setWorkspaceError("");
-    }
-    try {
-      const [resumePage, jobPage, historyPage] = await Promise.all([
-        apiRequest<PageData<Resume>>("/api/resumes?size=50"),
-        apiRequest<PageData<Job>>(`/api/job-descriptions?page=0&size=${JOB_PAGE_SIZE}`),
-        apiRequest<PageData<Analysis>>(`/api/analysis-histories?page=0&size=${HISTORY_PAGE_SIZE}`),
-      ]);
-      if (!isAuthSessionCurrent(sessionId)) return;
-      setResumes(resumePage.content);
-      setJobs(jobPage.content);
-      setJobsTotal(jobPage.totalElements);
-      setJobsPage(0);
-      jobSemanticRequestGeneration.current += 1;
-      setJobSemanticMatches([]);
-      setJobSemanticResumeId(null);
-      setJobSemanticStatus("idle");
-      setJobSemanticError("");
-      setHistory(historyPage.content);
-      setHistoryTotal(historyPage.totalElements);
-      setHistoryPage(0);
-      workspaceLoaded.current = true;
-      setWorkspaceStatus("ready");
-      if (!selectedResumeId && resumePage.content[0]) chooseResume(resumePage.content[0].id);
-      if (!selectedJobId && jobPage.content[0]) chooseJob(jobPage.content[0].id);
-      if (analysis) {
-        const refreshed = historyPage.content.find(item => item.id === analysis.id);
-        if (refreshed) setAnalysis(refreshed);
-      }
-    } catch (reason) {
-      if (!isAuthSessionCurrent(sessionId)) return;
-      const message = visibleApiErrorMessage(reason, "无法连接后端");
-      if (message == null) return;
-      // A failed refresh keeps what is on screen; a failed first load has nothing to show but the retry.
-      if (workspaceLoaded.current) setError(message);
-      else {
-        setWorkspaceError(message);
-        setWorkspaceStatus("error");
-      }
-    } finally {
-      if (isAuthSessionCurrent(sessionId)) setBusy("");
-    }
-  }, [analysis, chooseJob, chooseResume, selectedJobId, selectedResumeId]);
-
-  const loadJobAnalyses = useCallback(async (resumeId: number) => {
-    const generation = ++jobAnalysesRequestGeneration.current;
-    await Promise.resolve();
-    if (generation !== jobAnalysesRequestGeneration.current) return;
-    setJobLatestAnalyses([]);
-    setJobAnalysesResumeId(null);
-    setJobAnalysesStatus("loading");
-    setJobAnalysesError("");
-    try {
-      const items = await apiRequest<AnalysisSummary[]>(
-        `/api/analysis-histories/latest-by-resume?resumeId=${resumeId}`,
-      );
-      if (generation !== jobAnalysesRequestGeneration.current) return;
-      setJobLatestAnalyses((current) => mergeLatestAnalysisSummaries(items, current));
-      setJobAnalysesResumeId(resumeId);
-      setJobAnalysesStatus("ready");
-    } catch (reason) {
-      if (generation !== jobAnalysesRequestGeneration.current) return;
-      const message = visibleApiErrorMessage(reason, "无法读取职位匹配分");
-      if (message == null) return;
-      setJobAnalysesResumeId(resumeId);
-      setJobAnalysesStatus("error");
-      setJobAnalysesError(message);
-      setError(message);
-    }
-  }, []);
-
-  const loadSemanticMatches = useCallback(async (resumeId: number) => {
-    const generation = ++jobSemanticRequestGeneration.current;
-    setJobSemanticMatches([]);
-    setJobSemanticResumeId(null);
-    setJobSemanticStatus("loading");
-    setJobSemanticError("");
-    try {
-      const items = await requestSemanticMatches(resumeId, apiRequest);
-      if (generation !== jobSemanticRequestGeneration.current) return null;
-      setJobSemanticMatches(items);
-      setJobSemanticResumeId(resumeId);
-      setJobSemanticStatus("ready");
-      // The match endpoint always covers the complete per-user library (maximum 200).
-      setJobs(items.map((item) => item.job));
-      setJobsTotal(items.length);
-      setJobsPage(Math.max(0, Math.ceil(items.length / JOB_PAGE_SIZE) - 1));
-      return items;
-    } catch (reason) {
-      if (generation !== jobSemanticRequestGeneration.current) return null;
-      const message = visibleApiErrorMessage(reason, "无法完成职位向量粗排");
-      if (message == null) return null;
-      setJobSemanticResumeId(resumeId);
-      setJobSemanticStatus("error");
-      setJobSemanticError(message);
-      setError(message);
-      return null;
-    }
-  }, []);
-
+  // The workbench used to live here: old links (bookmarks, an extension popup not yet updated) go on to it.
   useEffect(() => {
-    if (!token || !selectedResumeId) return;
-    const timer = window.setTimeout(() => void loadJobAnalyses(selectedResumeId), 0);
-    return () => window.clearTimeout(timer);
-  }, [loadJobAnalyses, resumeScopeEpoch, selectedResumeId, token]);
-
-  useEffect(() => {
-    if (!shouldAutoLoadSemanticMatches({
-      hasToken: Boolean(token),
-      selectedResumeId,
-      jobSort,
-      jobSemanticResumeId,
-      jobSemanticStatus,
-    })) return;
-    const timer = window.setTimeout(() => void loadSemanticMatches(Number(selectedResumeId)), 0);
-    return () => window.clearTimeout(timer);
-  }, [jobSemanticResumeId, jobSemanticStatus, jobSort, loadSemanticMatches, selectedResumeId, token]);
-
-  async function loadMoreJobs() {
-    if (jobsLoadingMore || jobs.length >= jobsTotal) return;
-    setJobsLoadingMore(true);
-    setError("");
-    try {
-      const nextPage = jobsPage + 1;
-      const page = await apiRequest<PageData<Job>>(
-        `/api/job-descriptions?page=${nextPage}&size=${JOB_PAGE_SIZE}`,
-      );
-      setJobs((items) => {
-        const seen = new Set(items.map((item) => item.id));
-        return [...items, ...page.content.filter((item) => !seen.has(item.id))];
-      });
-      setJobsTotal(page.totalElements);
-      setJobsPage(nextPage);
-    } catch (reason) {
-      reportRequestError(reason, "无法加载更多职位");
-    } finally {
-      setJobsLoadingMore(false);
-    }
-  }
-
-  async function loadAllJobsForRanking() {
-    if (jobsLoadingMore || jobs.length >= jobsTotal) return;
-    setJobsLoadingMore(true);
-    setError("");
-    try {
-      const pageCount = Math.ceil(jobsTotal / JOB_PAGE_SIZE);
-      const pages = await Promise.all(
-        Array.from({ length: pageCount }, (_, page) =>
-          apiRequest<PageData<Job>>(`/api/job-descriptions?page=${page}&size=${JOB_PAGE_SIZE}`),
-        ),
-      );
-      const seen = new Set<number>();
-      setJobs(pages.flatMap((page) => page.content).filter((item) => {
-        if (seen.has(item.id)) return false;
-        seen.add(item.id);
-        return true;
-      }));
-      setJobsTotal(pages[0]?.totalElements ?? jobsTotal);
-      setJobsPage(Math.max(0, pageCount - 1));
-    } catch (reason) {
-      reportRequestError(reason, "无法加载完整职位库");
-    } finally {
-      setJobsLoadingMore(false);
-    }
-  }
-
-  async function loadMoreHistory() {
-    if (historyLoadingMore || history.length >= historyTotal) return;
-    setHistoryLoadingMore(true);
-    setError("");
-    try {
-      const nextPage = historyPage + 1;
-      const page = await apiRequest<PageData<Analysis>>(
-        `/api/analysis-histories?page=${nextPage}&size=${HISTORY_PAGE_SIZE}`,
-      );
-      setHistory((items) => {
-        const seen = new Set(items.map((item) => item.id));
-        return [...items, ...page.content.filter((item) => !seen.has(item.id))];
-      });
-      setHistoryTotal(page.totalElements);
-      setHistoryPage(nextPage);
-    } catch (reason) {
-      reportRequestError(reason, "无法加载更多分析记录");
-    } finally {
-      setHistoryLoadingMore(false);
-    }
-  }
+    const target = legacyWorkspaceUrl(window.location.search, window.location.hash);
+    if (target) router.replace(target);
+  }, [router]);
 
   useEffect(() => {
     let active = true;
-    const params = new URLSearchParams(window.location.search);
-    const resumeIdParam = Number(params.get("resumeId"));
-    const jobIdParam = Number(params.get("jobId"));
-    const analysisIdParam = Number(params.get("analysisId"));
-    const locationTimer = window.setTimeout(() => {
-      if (Number.isFinite(resumeIdParam) && resumeIdParam > 0) chooseResume(resumeIdParam);
-      if (Number.isFinite(jobIdParam) && jobIdParam > 0) chooseJob(jobIdParam);
-    }, 0);
-
-    const handleAuthExpired = () => {
-      clearAuthenticatedView();
-      setError("登录已过期，请重新登录");
-    };
-    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     void apiRequest<AiStatus>("/api/ai/status", {}, { auth: false })
-      .then((status) => {
-        if (active) setAiStatus(status);
+      .then((next) => {
+        if (active) setAiStatus(next);
       })
       .catch(() => {
-        // Keep the UI neutral when runtime mode cannot be confirmed.
+        // The badge is informational; stay neutral when the mode is unknown.
       });
-    void refreshSession().then(async (session) => {
-      if (!session || !active) return;
-      const sessionId = getAuthSessionId();
-      setToken(session.accessToken);
-      setUser(session.user);
-      await loadWorkspace();
-      if (!active || !isAuthSessionCurrent(sessionId)) return;
-      if (Number.isFinite(analysisIdParam) && analysisIdParam > 0) {
-        try {
-          const requestedAnalysis = await apiRequest<Analysis>(`/api/analysis-histories/${analysisIdParam}`);
-          if (!active || !isAuthSessionCurrent(sessionId)) return;
-          chooseResume(requestedAnalysis.resumeId);
-          chooseJob(requestedAnalysis.jobDescriptionId);
-          setAnalysis(requestedAnalysis);
-          setMatchMode("report");
-        } catch (reason) {
-          if (!active || !isAuthSessionCurrent(sessionId)) return;
-          reportRequestError(reason, "无法读取指定分析报告");
-        }
-      }
-    });
     return () => {
       active = false;
-      window.clearTimeout(locationTimer);
-      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function submitAuth(event: FormEvent) {
     event.preventDefault();
-    setBusy("auth");
-    setError("");
+    setAuthBusy(true);
+    setAuthError("");
     try {
-      const path = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
-      const body = authMode === "login"
-        ? { username: auth.username, password: auth.password }
-        : auth;
-      const result = await apiRequest<AuthResponse>(
-        path,
-        { method: "POST", body: JSON.stringify(body) },
-        { auth: false },
-      );
+      const result = await signInRequest(apiRequest, authMode, auth);
       setAccessToken(result.accessToken);
-      setToken(result.accessToken);
-      setUser(result.user);
-      setNotice(`欢迎回来，${result.user.displayName}`);
-      await loadWorkspace();
+      signedIn(result.user);
     } catch (reason) {
-      reportRequestError(reason, "登录失败");
+      setAuthError(visibleApiErrorMessage(reason, "登录失败") ?? "");
     } finally {
-      setBusy("");
+      setAuthBusy(false);
     }
   }
 
-  function logout() {
-    void logoutSession();
-    clearAuthenticatedView();
-  }
-
-  /** A picked or dropped file opens the confirm panel; nothing is uploaded until the user saves it. */
-  function pickResumeFile(nextFile: File | null | undefined) {
-    if (!nextFile) return;
-    const problem = resumeFileProblem(nextFile);
-    if (problem) {
-      setError(problem);
-      return;
-    }
-    setError("");
-    setEditingResumeId(null);
-    setFile(nextFile);
-    setResumeForm((current) => {
-      const draft = prepareResumeUploadDraft(current, nextFile.name);
-      return { ...draft, candidateName: draft.candidateName || user?.displayName || "" };
-    });
-    setShowResumeEditor(true);
-    requestAnimationFrame(() => document.getElementById("resume-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
-
-  function chooseFile(event: ChangeEvent<HTMLInputElement>) {
-    pickResumeFile(event.target.files?.[0]);
-    // Picking the same file again after cancelling must still fire onChange.
-    event.target.value = "";
-  }
-
-  function openPasteResume() {
-    setEditingResumeId(null);
-    setFile(null);
-    setResumeForm({ ...EMPTY_RESUME_FORM, candidateName: user?.displayName || "" });
-    setShowResumeEditor(true);
-    requestAnimationFrame(() => document.getElementById("resume-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
-
-  async function beginEditResume(item: Resume) {
-    setBusy("resume-edit");
-    setError("");
-    try {
-      const detail = await apiRequest<Resume>(`/api/resumes/${item.id}`);
-      navigate("resumes");
-      setEditingResumeId(detail.id);
-      setFile(null);
-      setResumeForm(resumeFormFrom(detail));
-      setShowResumeEditor(true);
-      requestAnimationFrame(() => document.getElementById("resume-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-      chooseResume(detail.id);
-      setNotice(`正在编辑简历 #${detail.id}，保存后将更新并失效旧向量索引`);
-    } catch (reason) {
-      reportRequestError(reason, "加载简历失败");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  function beginEditJob(item: Job) {
-    navigate("jobs");
-    setShowJobEditor(true);
-    requestAnimationFrame(() => document.getElementById("job-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }));
-    setEditingJobId(item.id);
-    setJobForm({
-      title: item.title || "",
-      companyName: item.companyName || "",
-      location: item.location || "",
-      employmentType: item.employmentType || "全职",
-      description: item.description || "",
-      requirements: item.requirements || "",
-    });
-    chooseJob(item.id);
-    setNotice(`正在编辑职位 #${item.id}`);
-  }
-
-  function resetResumeEditor() {
-    setEditingResumeId(null);
-    setFile(null);
-    setResumeForm({ ...EMPTY_RESUME_FORM });
-    setShowResumeEditor(false);
-  }
-
-  function resetJobEditor() {
-    setEditingJobId(null);
-    setJobForm({ ...EMPTY_JOB_FORM });
-  }
-
-  async function saveResume(event: FormEvent) {
-    event.preventDefault();
-    setBusy("resume");
-    setError("");
-    try {
-      let saved: Resume;
-      if (editingResumeId && file) {
-        throw new Error("编辑模式下不支持重新上传文件；请先取消编辑，或清空文件后仅更新文本");
-      }
-      if (editingResumeId) {
-        saved = await apiRequest<Resume>(`/api/resumes/${editingResumeId}`, {
-          method: "PUT",
-          body: JSON.stringify(resumeForm),
-        });
-        setResumes((items) => items.map((item) => (item.id === saved.id ? saved : item)));
-        setNotice(`简历 #${saved.id} 已更新，下次匹配会重建向量`);
-      } else if (file) {
-        const form = new FormData();
-        form.append("file", file);
-        appendResumeUploadFields(form, resumeForm);
-        saved = await apiRequest<Resume>("/api/resumes/upload", { method: "POST", body: form });
-        setResumes((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
-        setNotice("简历已上传保存，等待向量检索");
-      } else {
-        saved = await apiRequest<Resume>("/api/resumes", { method: "POST", body: JSON.stringify(resumeForm) });
-        setResumes((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
-        setNotice("简历已保存，等待向量检索");
-      }
-      chooseResume(saved.id);
-      invalidateSemanticMatches();
-      resetResumeEditor();
-    } catch (reason) {
-      reportRequestError(reason, "简历保存失败");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function saveJob(event: FormEvent) {
-    event.preventDefault();
-    setBusy("job");
-    setError("");
-    try {
-      let saved: Job;
-      if (editingJobId) {
-        saved = await apiRequest<Job>(`/api/job-descriptions/${editingJobId}`, {
-          method: "PUT",
-          body: JSON.stringify(jobForm),
-        });
-        setJobs((items) => items.map((item) => (item.id === saved.id ? saved : item)));
-        setNotice(`职位 #${saved.id} 已更新`);
-      } else {
-        saved = await apiRequest<Job>("/api/job-descriptions", { method: "POST", body: JSON.stringify(jobForm) });
-        setJobs((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
-        setJobsTotal((total) => total + 1);
-        setNotice("职位 JD 已保存，可以开始匹配");
-      }
-      chooseJob(saved.id);
-      invalidateSemanticMatches();
-      setEditingJobId(null);
-      setJobSource("library");
-      setMatchMode("compose");
-      navigate("match");
-    } catch (reason) {
-      reportRequestError(reason, "JD 保存失败");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function deleteResume(id: number) {
-    if (!window.confirm(`确认删除简历 #${id}？将同时清理上传文件与向量索引。`)) return;
-    setBusy("resume-delete");
-    setError("");
-    try {
-      await apiRequest<void>(`/api/resumes/${id}`, { method: "DELETE" });
-      setResumes((items) => items.filter((item) => item.id !== id));
-      if (selectedResumeId === id) chooseResume("");
-      if (editingResumeId === id) resetResumeEditor();
-      if (analysis?.resumeId === id) setAnalysis(null);
-      setNotice(`简历 #${id} 已删除`);
-    } catch (reason) {
-      reportRequestError(reason, "删除简历失败");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function deleteJob(id: number) {
-    if (!window.confirm(`确认删除职位 #${id}？`)) return;
-    setBusy("job-delete");
-    setError("");
-    try {
-      await apiRequest<void>(`/api/job-descriptions/${id}`, { method: "DELETE" });
-      setJobs((items) => items.filter((item) => item.id !== id));
-      setJobsTotal((total) => Math.max(0, total - 1));
-      if (selectedJobId === id) chooseJob("");
-      if (editingJobId === id) resetJobEditor();
-      if (analysis?.jobDescriptionId === id) setAnalysis(null);
-      invalidateSemanticMatches();
-      setNotice(`职位 #${id} 已删除`);
-    } catch (reason) {
-      reportRequestError(reason, "删除职位失败");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function bulkImportJobs() {
-    setBusy("bulk-import");
-    setError("");
-    try {
-      const items = parseJobImportPayload(bulkImportText);
-      const imported = await apiRequest<Job[]>("/api/job-descriptions/import", {
-        method: "POST",
-        body: JSON.stringify({ items }),
-      });
-      setJobs((current) => {
-        const merged = [...imported, ...current];
-        const seen = new Set<number>();
-        return merged.filter((item) => {
-          if (seen.has(item.id)) return false;
-          seen.add(item.id);
-          return true;
-        });
-      });
-      setJobsTotal((total) => total + imported.length);
-      if (imported[0]) chooseJob(imported[0].id);
-      invalidateSemanticMatches();
-      setShowBulkImport(false);
-      setNotice(`已批量导入 ${imported.length} 条职位（POST /api/job-descriptions/import）`);
-    } catch (reason) {
-      reportRequestError(reason, "批量导入失败");
-    } finally {
-      setBusy("");
-    }
-  }
-
-  function fillSampleForms() {
-    setFile(null);
-    setEditingResumeId(null);
-    setEditingJobId(null);
-    setResumeForm({ ...SAMPLE_RESUME });
-    setJobForm({ ...SAMPLE_JOB });
-    setShowResumeEditor(true);
-    setNotice("已填入示例简历与岗位，保存后即可返回岗位匹配");
-  }
-
-  function exportMarkdown() {
-    if (!analysis || analysis.status !== "COMPLETED") {
-      setError("请先完成一次匹配分析，再导出报告");
-      return;
-    }
-    try {
-      const markdown = buildReportMarkdown(analysis);
-      downloadTextFile(reportFilename(analysis, "md"), markdown, "text/markdown;charset=utf-8");
-      setNotice("已下载 Markdown 报告");
-    } catch (reason) {
-      reportRequestError(reason, "导出 Markdown 失败");
-    }
-  }
-
-  function exportPdf() {
-    if (!analysis || analysis.status !== "COMPLETED") {
-      setError("请先完成一次匹配分析，再导出报告");
-      return;
-    }
-    try {
-      openPrintableReport(buildReportPrintHtml(analysis));
-      setNotice("已打开打印预览：请选择「另存为 PDF」");
-    } catch (reason) {
-      reportRequestError(reason, "导出 PDF 失败");
-    }
-  }
-
-  async function saveSampleAndAnalyze() {
-    setBusy("sample");
-    setError("");
-    let run: AnalysisRun | null = null;
-    try {
-      setEditingResumeId(null);
-      setEditingJobId(null);
-      setFile(null);
-      setResumeForm({ ...SAMPLE_RESUME });
-      setJobForm({ ...SAMPLE_JOB });
-      const createdResume = await apiRequest<Resume>("/api/resumes", {
-        method: "POST",
-        body: JSON.stringify(SAMPLE_RESUME),
-      });
-      const createdJob = await apiRequest<Job>("/api/job-descriptions", {
-        method: "POST",
-        body: JSON.stringify(SAMPLE_JOB),
-      });
-      setResumes((items) => [createdResume, ...items.filter((item) => item.id !== createdResume.id)]);
-      setJobs((items) => [createdJob, ...items.filter((item) => item.id !== createdJob.id)]);
-      setJobsTotal((total) => total + 1);
-      chooseResume(createdResume.id);
-      chooseJob(createdJob.id);
-      setNotice("示例数据已保存，正在启动 RAG 匹配分析…");
-      setMatchMode("report");
-      setBusy("analysis");
-      run = beginAnalysisRun(createdResume.id, createdJob.id);
-      const result = await apiRequest<Analysis>("/api/analysis-histories/ai", {
-        method: "POST",
-        body: JSON.stringify({ resumeId: createdResume.id, jobDescriptionId: createdJob.id }),
-      });
-      const completed = await waitForAnalysis(result, run);
-      if (!completed) return;
-      setNotice("示例匹配完成，下方报告已更新");
-      requestAnimationFrame(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth" }));
-    } catch (reason) {
-      if (!run || isCurrentAnalysisRun(run)) {
-        activeAnalysisRun.current = null;
-        reportRequestError(reason, "示例流程失败");
-      }
-    } finally {
-      setBusy("");
-    }
-  }
-
-  /**
-   * Starts an analysis of the given pair. The ids are passed in rather than read from state, because the
-   * workbench calls this right after saving a pasted job, before the new selection has rendered.
-   */
-  async function runAnalysis(resumeId: number | "" = selectedResumeId, jobId: number | "" = selectedJobId) {
-    if (!resumeId || !jobId) {
-      setError("请先选择简历和职位 JD，或点「一键示例匹配」");
-      return;
-    }
-    setMatchMode("report");
-    setBusy("analysis");
-    setError("");
-    setNotice(`正在检索（语义阈值门控 + 关键词重排），${generationProgressLabel(aiStatus)}`);
-    const run = beginAnalysisRun(resumeId, jobId);
-    try {
-      const result = await apiRequest<Analysis>("/api/analysis-histories/ai", {
-        method: "POST",
-        body: JSON.stringify({ resumeId, jobDescriptionId: jobId }),
-      });
-      const completed = await waitForAnalysis(result, run);
-      if (!completed) return;
-      setNotice(completed.status === "PENDING" ? "分析仍在后台运行，可稍后刷新查看" : "分析完成，报告已保存");
-      requestAnimationFrame(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth" }));
-    } catch (reason) {
-      if (isCurrentAnalysisRun(run)) {
-        activeAnalysisRun.current = null;
-        reportRequestError(reason, "AI 分析失败");
-      }
-    } finally {
-      setBusy("");
-    }
-  }
-
-  /** The workbench button: a pasted job is saved to the job library first, then the pair is analysed. */
-  async function startFromWorkbench() {
-    if (!selectedResumeId) {
-      setError("请先选择一份简历");
-      return;
-    }
-    const resumeId = selectedResumeId;
-    if (effectiveJobSource === "library") {
-      await runAnalysis(resumeId, selectedJobId);
-      return;
-    }
-    const checked = pasteJobPayload(pasteJob);
-    if (!checked.ok) {
-      setError(checked.problems.join("；"));
-      return;
-    }
-    const session = getAuthSessionId();
-    setBusy("paste-job");
-    setError("");
-    let saved: Job;
-    try {
-      saved = await apiRequest<Job>("/api/job-descriptions", { method: "POST", body: JSON.stringify(checked.payload) });
-    } catch (reason) {
-      if (isAuthSessionCurrent(session)) {
-        reportRequestError(reason, "职位保存失败，粘贴的内容仍保留");
-        setBusy("");
-      }
-      return;
-    }
-    if (!isAuthSessionCurrent(session)) return;
-    setJobs((items) => [saved, ...items.filter((item) => item.id !== saved.id)]);
-    setJobsTotal((total) => total + 1);
-    invalidateSemanticMatches();
-    chooseJob(saved.id);
-    setPasteJob({ ...EMPTY_PASTE_JOB });
-    setJobSource("library");
-    setBusy("");
-    await runAnalysis(resumeId, saved.id);
-  }
-
-  function openWorkbench() {
-    activeAnalysisRun.current = null;
-    setMatchMode("compose");
-    navigate("match");
-  }
-
-  async function runTopMatchesAnalysis() {
-    if (!selectedResumeId) {
-      setError("请先选择一份简历，再分析向量粗排 Top N");
-      return;
-    }
-    const resumeId = Number(selectedResumeId);
-    setBusy("top-analysis");
-    setError("");
-    let currentRun: AnalysisRun | null = null;
-    try {
-      setJobSort("semantic");
-      const matches = jobSemanticDataReady
-        ? jobSemanticMatches
-        : await loadSemanticMatches(resumeId);
-      if (!matches) return;
-      if (matches.length === 0) {
-        setNotice("岗位库还是空的，先保存 JD 才能做向量粗排");
-        return;
-      }
-
-      const latestItems = jobAnalysisDataReady
-        ? jobLatestAnalyses
-        : await apiRequest<AnalysisSummary[]>(`/api/analysis-histories/latest-by-resume?resumeId=${resumeId}`);
-      setJobLatestAnalyses((current) => mergeLatestAnalysisSummaries(latestItems, current));
-      setJobAnalysesResumeId(resumeId);
-      setJobAnalysesStatus("ready");
-      const candidates = matches.slice(0, topMatchCount);
-      const targets = semanticAnalysisTargets(matches, latestItems, topMatchCount);
-      const skipped = candidates.length - targets.length;
-      if (targets.length === 0) {
-        setNotice(`向量 Top ${candidates.length} 都已有当前版本的完整分析，不重复调用 LLM`);
-        return;
-      }
-
-      let completedCount = 0;
-      for (const [index, match] of targets.entries()) {
-        chooseJob(match.job.id);
-        currentRun = beginAnalysisRun(resumeId, match.job.id);
-        setNotice(
-          `Top N 精析 ${index + 1}/${targets.length}：${match.job.title}（粗排相似度 ${match.similarity.toFixed(3)}）`,
-        );
-        const submitted = await apiRequest<Analysis>("/api/analysis-histories/ai", {
-          method: "POST",
-          body: JSON.stringify({ resumeId, jobDescriptionId: match.job.id }),
-        });
-        const completed = await waitForAnalysis(submitted, currentRun);
-        if (!completed) return;
-        if (completed.status === "PENDING") {
-          setNotice(`已完成 ${completedCount} 个；当前分析仍在后台运行，Top N 队列先暂停`);
-          return;
-        }
-        completedCount += 1;
-      }
-
-      await loadJobAnalyses(resumeId);
-      setNotice(`Top N 精析完成：新增 ${completedCount} 个，复用 ${skipped} 个已有结果`);
-      requestAnimationFrame(() => document.getElementById("result")?.scrollIntoView({ behavior: "smooth" }));
-    } catch (reason) {
-      if (!currentRun || isCurrentAnalysisRun(currentRun)) {
-        activeAnalysisRun.current = null;
-        reportRequestError(reason, "Top N 分析失败");
-      }
-    } finally {
-      setBusy("");
-    }
-  }
-
-  const effectiveHistoryTotal = Math.max(historyTotal, history.length);
-  const effectiveJobsTotal = Math.max(jobsTotal, jobs.length);
-  const jobAnalysesLoading = jobAnalysesStatus === "loading";
-  const jobAnalysisDataReady = Boolean(
-    selectedResumeId
-    && jobAnalysesStatus === "ready"
-    && jobAnalysesResumeId === selectedResumeId,
-  );
-  const jobSemanticDataReady = Boolean(
-    selectedResumeId
-    && jobSemanticStatus === "ready"
-    && jobSemanticResumeId === selectedResumeId,
-  );
-  const jobAnalysisDataRequired = jobSort === "score" || jobSort === "analyzed" || jobFilter === "unanalyzed";
-  const jobSemanticDataRequired = jobSort === "semantic";
-  const latestAnalysisByJob = new Map<number, AnalysisSummary>(jobAnalysisDataReady
-    ? jobLatestAnalyses
-        .filter((item) => item.resumeId === selectedResumeId)
-        .map((item) => [item.jobDescriptionId, item])
-    : []);
-  const semanticSimilarityByJob = new Map<number, number>(jobSemanticDataReady
-    ? jobSemanticMatches.map((item) => [item.job.id, item.similarity])
-    : []);
-  const visibleJobs = (() => {
-    if (jobAnalysisDataRequired && !jobAnalysisDataReady) return [];
-    if (jobSemanticDataRequired && !jobSemanticDataReady) return [];
-    const filtered = jobFilter === "unanalyzed"
-      ? jobs.filter((item) => {
-          const latest = latestAnalysisByJob.get(item.id);
-          return !latest || latest.status === "FAILED";
-        })
-      : [...jobs];
-    if (jobSort === "recent") {
-      filtered.sort((left, right) => jobTimestamp(right) - jobTimestamp(left) || right.id - left.id);
-    } else if (jobSort === "score") {
-      filtered.sort((left, right) =>
-        analysisScore(latestAnalysisByJob.get(right.id)) - analysisScore(latestAnalysisByJob.get(left.id))
-        || right.id - left.id,
-      );
-    } else if (jobSort === "semantic") {
-      filtered.sort((left, right) =>
-        (semanticSimilarityByJob.get(right.id) ?? -1) - (semanticSimilarityByJob.get(left.id) ?? -1)
-        || right.id - left.id,
-      );
-    } else if (jobSort === "analyzed") {
-      filtered.sort((left, right) =>
-        analysisTimestamp(latestAnalysisByJob.get(right.id)) - analysisTimestamp(latestAnalysisByJob.get(left.id))
-        || right.id - left.id,
-      );
-    }
-    return filtered;
-  })();
-  // Managing saved jobs must not depend on resume selection or ranking services.
-  const libraryRankingReady = (!jobAnalysisDataRequired || jobAnalysisDataReady)
-    && (!jobSemanticDataRequired || jobSemanticDataReady);
-  const libraryJobs = libraryRankingReady ? visibleJobs
-    : [...jobs].sort((left, right) => jobTimestamp(right) - jobTimestamp(left) || right.id - left.id);
-  const visibleHistory = filterHistory(history, { range: historyRange, savedOnly: historySavedOnly, savedJobs, now: pageOpenedAt });
-  const hasMoreHistory = history.length < effectiveHistoryTotal;
-
-
-  function navigate(next: HashView) {
-    setPageView(next);
-    window.history.replaceState(null, "", hashForView(next));
-  }
-
-  useEffect(() => {
-    const syncView = () => setPageView(viewFromHash(window.location.hash));
-    const timer = window.setTimeout(syncView, 0);
-    window.addEventListener("hashchange", syncView);
-    return () => { window.clearTimeout(timer); window.removeEventListener("hashchange", syncView); };
-  }, []);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try { setSavedJobs(user ? parseBookmarks(localStorage.getItem(bookmarkKey(user.id))) : []); }
-      catch { setSavedJobs([]); }
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [user]);
-
-  function toggleBookmark(id: number) {
-    if (!user) return;
-    const next = savedJobs.includes(id) ? savedJobs.filter(item => item !== id) : [...savedJobs, id];
-    try { localStorage.setItem(bookmarkKey(user.id), JSON.stringify(next)); setSavedJobs(next); }
-    catch { setError("浏览器无法保存收藏，请检查存储权限后重试"); }
-  }
-
-  const selectedJob = jobs.find(item => item.id === selectedJobId);
-  const latestSelected = latestAnalysisByJob.get(Number(selectedJobId));
-  const selectedAnalysisId = latestSelected?.id;
-  const selectedAnalysisStatus = latestSelected?.status;
-  useEffect(() => {
-    if (!token || !selectedResumeId || !selectedJobId || !selectedAnalysisId || busy) return;
-    // Keep an explicitly opened historical report; only auto-load an empty selection.
-    if (analysis?.resumeId === selectedResumeId && analysis.jobDescriptionId === selectedJobId) return;
-    let active = true;
-    const session = getAuthSessionId();
-    const timer = window.setTimeout(() => {
-      setFetchingReport(true);
-      void apiRequest<Analysis>(`/api/analysis-histories/${selectedAnalysisId}`).then(item => {
-        if (!active || !isAuthSessionCurrent(session)) return;
-        setReportFetchError(null);
-        if (item.resumeId === selectedResumeId && item.jobDescriptionId === selectedJobId) setAnalysis(item);
-      }).catch(reason => {
-        if (!active || !isAuthSessionCurrent(session)) return;
-        const message = visibleApiErrorMessage(reason, "读取报告失败");
-        if (message != null) setReportFetchError({ analysisId: selectedAnalysisId, message });
-      }).finally(() => { if (active) setFetchingReport(false); });
-    }, 0);
-    return () => { active = false; window.clearTimeout(timer); };
-  }, [token, selectedResumeId, selectedJobId, selectedAnalysisId, selectedAnalysisStatus, analysis?.id, analysis?.status, analysis?.resumeId, analysis?.jobDescriptionId, busy, reportRetry]);
-
-  const workbenchNext = workbenchAction({
-    resumeId: selectedResumeId,
-    source: effectiveJobSource,
-    jobId: selectedJobId,
-    paste: pasteJob,
-    latest: latestSelected,
-  });
-  const reportPanel = reportPanelState({
-    workspace: workspaceStatus,
-    analysis,
-    analyzing: busy === "analysis",
-    fetchingReport,
-    fetchError: !!selectedAnalysisId && reportFetchError?.analysisId === selectedAnalysisId,
-    resumeCount: resumes.length,
-    jobCount: jobs.length,
-  });
-  const workspaceLoading = workspaceStatus === "loading";
-  const workspaceFailed = workspaceStatus === "error";
-
-  if (!token) {
+  if (status !== "signedIn" || !user) {
     return (
       <LoginPage
         mode={authMode}
-        onModeChange={(mode) => { setAuthMode(mode); setError(""); }}
+        onModeChange={(mode) => { setAuthMode(mode); setAuthError(""); }}
         form={auth}
         onFormChange={setAuth}
-        busy={busy === "auth"}
-        error={error}
+        busy={authBusy}
+        error={authError}
         onSubmit={submitAuth}
         runtimeLabel={runtimeModeLabel(aiStatus)}
       />
     );
   }
+  // Keyed by user: signing out unmounts the conversation, which also stops its stream and browser task.
+  return <Assistant key={user.id} user={user} onLogout={logout} aiStatus={aiStatus} />;
+}
 
-  function reportStateView() {
-    if (reportPanel === "workspace-loading") return <Skeleton className="report-skeleton" label="正在读取工作台" lines={4} />;
-    const waiting = reportPanel === "analyzing" || reportPanel === "fetching";
-    const pairReady = !busy && !!selectedResumeId && !!selectedJobId;
-    const view = (() => {
-      switch (reportPanel) {
-        case "analyzing":
-          return { title: "正在逐项核对岗位要求", text: pendingAnalysisLabel(aiStatus) };
-        case "fetching":
-          return { title: "正在读取匹配报告…", text: "正在读取当前简历与岗位对应的分析。" };
-        case "fetch-error":
-          return { error: true, title: "匹配报告没有读取出来", text: reportFetchError?.message,
-            action: <RetryButton className="primary" label="重新读取" onClick={() => setReportRetry((value) => value + 1)} /> };
-        case "failed":
-          return { error: true, title: "这次分析没有完成", text: analysis?.summary || "输入仍然保留，可以重试分析。",
-            action: <button className="primary" type="button" disabled={!pairReady} onClick={() => void runAnalysis()}><RotateCw size={16} aria-hidden="true" />重试分析</button> };
-        case "no-resume":
-          return { icon: FileText, title: "还没有简历，上传一份", text: "上传文件或粘贴简历正文，保存后就能和目标岗位匹配。",
-            action: <button className="primary" type="button" onClick={() => navigate("resumes")}><Upload size={16} aria-hidden="true" />上传简历</button> };
-        case "no-job":
-          return { icon: BriefcaseBusiness, title: "还没有目标岗位，添加一个", text: "录入岗位描述后，这里会生成匹配报告和简历里的原文证据。",
-            action: <button className="primary" type="button" onClick={() => navigate("jobs")}><Plus size={16} aria-hidden="true" />添加岗位</button> };
-        default:
-          return { icon: ArrowUpRight, title: selectedJob ? selectedJob.title : "先选一个目标岗位",
-            text: selectedJob
-              ? `${selectedJob.companyName}${selectedJob.location ? ` · ${selectedJob.location}` : ""} · ${selectedResumeId ? "准备好后，生成你的匹配报告。" : "先在上方选择一份简历。"}`
-              : "回到工作台选择简历和岗位，生成你的匹配报告。",
-            action: <button className="primary" type="button" onClick={openWorkbench}>回到工作台<ArrowRight size={16} aria-hidden="true" /></button> };
-      }
-    })();
-    const Icon = view.error ? CircleAlert : view.icon;
-    return (
-      <div className={`report-state${view.error ? " is-error" : ""}`} role={view.error ? "alert" : "status"}>
-        <span className="report-state-mark" aria-hidden="true">{waiting ? <LoaderCircle className="spin" size={24} /> : Icon && <Icon size={24} />}</span>
-        <h2 title={view.title}>{view.title}</h2>
-        {view.text && <p>{view.text}</p>}
-        {waiting
-          ? <><progress aria-label="匹配处理中" /><button className="ghost" disabled={!!busy} onClick={() => void loadWorkspace()}>刷新报告状态</button></>
-          : view.action}
-        <small>{runtimeModeLabel(aiStatus)}</small>
-      </div>
-    );
+type SampleRun =
+  | { status: "saving" }
+  | { status: "started"; analysisId: number }
+  | { status: "failed"; message: string };
+
+function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout: () => void; aiStatus: AiStatus | null }) {
+  const [state, dispatch] = useReducer(agentChatReducer, initialAgentChatState);
+  /** The turn whose process is open in the side panel. */
+  const [processTurn, setProcessTurn] = useState<number | null>(null);
+  const closeProcess = useCallback(() => setProcessTurn(null), []);
+  const [draft, setDraft] = useState("");
+  /** Null until known; zero shows the "prepare a resume first" card. */
+  const [resumeCount, setResumeCount] = useState<number | null>(null);
+  const [sampleRun, setSampleRun] = useState<SampleRun | null>(null);
+  const [analyses, setAnalyses] = useState<Record<number, Analysis>>({});
+  const abortRef = useRef<AbortController | null>(null);
+  const followedRef = useRef<Set<number>>(new Set());
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  /** Aborting it cancels the browser task in progress (the user's 取消, 新对话, or leaving the page). */
+  const browserAbortRef = useRef<AbortController | null>(null);
+  const browserTaskRef = useRef<string | null>(null);
+  const stateRef = useRef<AgentChatState>(state);
+  useEffect(() => {
+    stateRef.current = state;
+  });
+
+  useEffect(() => {
+    let active = true;
+    const sessionId = getAuthSessionId();
+    void apiRequest<PageData<Resume>>("/api/resumes?size=1")
+      .then((page) => {
+        if (active && isAuthSessionCurrent(sessionId)) setResumeCount(page.totalElements);
+      })
+      .catch(() => {
+        // Without the count the examples still work; only the onboarding card is skipped.
+      });
+    return () => {
+      active = false;
+      // Leaving the page closes the stream; the server stops the turn instead of spending more model calls.
+      abortRef.current?.abort();
+      browserAbortRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [state.turns]);
+
+  // Follow analyses the assistant (or the sample button) started until the report is ready.
+  useEffect(() => {
+    const started = state.turns.map((turn) => turn.analysisId);
+    if (sampleRun?.status === "started") started.push(sampleRun.analysisId);
+    for (const id of started) {
+      if (!id || followedRef.current.has(id)) continue;
+      followedRef.current.add(id);
+      const sessionId = getAuthSessionId();
+      void apiRequest<Analysis>(`/api/analysis-histories/${id}`)
+        .then((initial) => pollAnalysisUntilSettled(initial, {
+          fetchById: (analysisId) => apiRequest<Analysis>(`/api/analysis-histories/${analysisId}`),
+          timeoutMs: analysisPollTimeoutMs(aiStatus?.pendingTimeoutMinutes),
+          onProgress: (current) => {
+            if (isAuthSessionCurrent(sessionId)) setAnalyses((previous) => ({ ...previous, [id]: current }));
+          },
+          shouldContinue: () => isAuthSessionCurrent(sessionId),
+        }))
+        .catch(() => {
+          // The report link still works; the inline status just stops updating.
+        });
+    }
+  }, [state.turns, sampleRun, aiStatus]);
+
+  // A turn that ended waiting on the browser: run the task through the extension, then report whatever happened.
+  useEffect(() => {
+    const task = state.pendingBrowser;
+    if (!task || state.busy || browserTaskRef.current === task.taskId) return;
+    browserTaskRef.current = task.taskId;
+    const controller = new AbortController();
+    browserAbortRef.current = controller;
+    const sessionId = getAuthSessionId();
+    void runExtensionCollect({
+      task,
+      target: window,
+      signal: controller.signal,
+      onProgress: (progress) => {
+        if (isAuthSessionCurrent(sessionId)) dispatch({ type: "browser_progress", progress });
+      },
+    }).then((outcome) => {
+      const current = stateRef.current;
+      // 新对话 or a logout while the extension was working: nobody is waiting for this report any more.
+      if (!isAuthSessionCurrent(sessionId) || current.busy || current.pendingBrowser?.taskId !== task.taskId) return;
+      const body = nextRequest(current, { browser: outcome });
+      dispatch({ type: "browser_report", outcome: outcome.outcome });
+      void send(body);
+    });
+  }, [state.pendingBrowser, state.busy]);
+
+  async function send(body: unknown) {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const sessionId = getAuthSessionId();
+    let streamOpened = false;
+    try {
+      const stream = await apiStream("/api/agent/chat", body, controller.signal);
+      streamOpened = true;
+      await readAgentStream(stream, (event) => {
+        if (isAuthSessionCurrent(sessionId)) dispatch({ type: "event", event });
+      });
+    } catch (reason) {
+      if (controller.signal.aborted) return;
+      const message = visibleApiErrorMessage(reason, "助手请求失败");
+      if (message == null) return;
+      const code = streamOpened ? "AGENT_STREAM_INTERRUPTED" : reason instanceof ApiError ? reason.code : "NETWORK_ERROR";
+      dispatch({
+        type: "failed", code, message: ERROR_COPY[code] ?? message,
+        retryConfirmation: !streamOpened && reason instanceof ApiError && reason.status >= 400,
+      });
+    } finally {
+      dispatch({ type: "settled" });
+    }
   }
 
+  /** Same sample as the workbench's 「保存示例并分析」: saves a resume and a job, then starts a full analysis. */
+  async function trySample() {
+    if (sampleRun?.status === "saving" || sampleRun?.status === "started") return;
+    setSampleRun({ status: "saving" });
+    const sessionId = getAuthSessionId();
+    try {
+      const { resume, job } = await saveSampleData(apiRequest);
+      if (!isAuthSessionCurrent(sessionId)) return;
+      setResumeCount((count) => (count ?? 0) + 1);
+      const analysis = await submitAnalysis(apiRequest, resume.id, job.id);
+      if (!isAuthSessionCurrent(sessionId)) return;
+      setAnalyses((previous) => ({ ...previous, [analysis.id]: analysis }));
+      setSampleRun({ status: "started", analysisId: analysis.id });
+    } catch (reason) {
+      const message = visibleApiErrorMessage(reason, "示例数据没有保存成功");
+      if (message != null && isAuthSessionCurrent(sessionId)) setSampleRun({ status: "failed", message });
+    }
+  }
+
+  function ask(question: string) {
+    const text = question.trim();
+    // nextRequest also refuses a stale conversation; checking first keeps the draft instead of throwing.
+    if (!text || state.busy || state.pending || state.pendingBrowser || staleConversation(state)) return;
+    setDraft("");
+    start(text, nextRequest(state, { question: text }));
+  }
+
+  /** Sends exactly what retryRequest built; it refuses whenever the transcript would predate a confirmed write. */
+  function retry() {
+    const request = retryRequest(state);
+    if (request) start(request.question, request.body);
+  }
+
+  function start(question: string, body: unknown) {
+    dispatch({ type: "ask", question });
+    void send(body);
+  }
+
+  function decide(approved: boolean) {
+    if (!state.pending || state.busy) return;
+    const body = nextRequest(state, { approved });
+    dispatch({ type: "decide", approved });
+    void send(body);
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    ask(draft);
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      ask(draft);
+    }
+  }
+
+  const stale = staleConversation(state);
+  const inputLocked = state.busy || !!state.pending || !!state.pendingBrowser || !!stale;
+  const canRetry = retryRequest(state) != null;
+
   return (
-    <AppShell
-      title={pageView === "match" && matchMode === "compose" ? "岗位匹配工作台" : navLabel(pageView)}
-      subtitle={pageView === "match" && matchMode === "compose" ? "选择你的简历与职位描述，开始一次新的匹配分析。" : VIEW_SUBTITLES[pageView]}
-      hero
-      activeView={pageView}
-      user={user}
-      onLogout={logout}
-      onNavigate={navigate}
-      actions={<><button className="ghost" type="button" onClick={() => { navigate("jobs"); resetJobEditor(); setShowJobEditor(true); }}><Plus size={16} aria-hidden="true" />添加岗位</button><button className="ghost" type="button" disabled={!!busy} onClick={() => void loadWorkspace()}>刷新数据</button></>}
-    >
-        {(error || notice) && <div className={`toast ${error ? "error" : "success"}`} role={error ? "alert" : "status"}>{error ? <CircleAlert size={20} aria-hidden="true" /> : <CircleCheck size={20} aria-hidden="true" />}{error || notice}<button aria-label="关闭通知" onClick={() => { setError(""); setNotice(""); }}><X size={18} aria-hidden="true" /></button></div>}
-        {workspaceFailed && <div className="state-panel"><ErrorState title="工作台数据没有加载出来" text={workspaceError} onRetry={() => void loadWorkspace()} retrying={busy === "loading"} /></div>}
-        <section id="workflow" hidden={pageView !== "match" || workspaceFailed}>
-          {matchMode === "compose" ? (
-            <Workbench
-              loading={workspaceLoading}
-              resumes={resumes}
-              jobs={jobs}
-              moreJobs={Math.max(0, effectiveJobsTotal - jobs.length)}
-              loadingMoreJobs={jobsLoadingMore}
-              onLoadMoreJobs={() => void loadMoreJobs()}
-              selectedResumeId={selectedResumeId}
-              selectedJobId={selectedJobId}
-              latestByJob={latestAnalysisByJob}
-              source={effectiveJobSource}
-              paste={pasteJob}
-              action={workbenchNext}
-              busy={!!busy}
-              starting={busy === "paste-job" || busy === "analysis"}
-              onChooseResume={chooseResume}
-              onChooseJob={chooseJob}
-              onSourceChange={setJobSource}
-              onPasteChange={setPasteJob}
-              onClear={() => { setPasteJob({ ...EMPTY_PASTE_JOB }); if (effectiveJobSource === "library") chooseJob(""); }}
-              onAnalyze={() => void startFromWorkbench()}
-              onViewReport={() => setMatchMode("report")}
-              onManageResumes={() => navigate("resumes")}
-              onManageJobs={() => navigate("jobs")} />
-          ) : (
-            <div className="match-main">
-              <div className="report-toolbar">
-                <button className="ghost" type="button" disabled={busy === "analysis"} onClick={openWorkbench}><Plus size={16} aria-hidden="true" />新建匹配</button>
+    <AppShell title="AI 求职助手" activeView="assistant" user={user} onLogout={logout}>
+      <section className="assistant-shell">
+        <div className="assistant-toolbar">
+          <p className="assistant-mode">
+            {aiStatus == null
+              ? "助手会自己调用工具查询你的简历与职位库；涉及消耗配额的操作会先请你确认。"
+              : aiStatus.mockEnabled
+                ? "演示模式：由脚本模型按固定流程调用真实工具，未调用真实大模型。"
+                : `当前模型：${aiStatus.model || "未配置"}。助手会自己调用工具；发起完整分析前会先请你确认。`}
+          </p>
+          <button
+            className="ghost"
+            type="button"
+            disabled={state.busy || state.turns.length === 0}
+            onClick={() => {
+              browserAbortRef.current?.abort();
+              followedRef.current = new Set();
+              setAnalyses({});
+              setProcessTurn(null);
+              dispatch({ type: "reset" });
+            }}
+          >
+            <MessageSquarePlus size={16} aria-hidden="true" />新对话
+          </button>
+        </div>
+
+        {state.turns.length === 0 && (
+          <div className="assistant-empty">
+            <div className="assistant-empty-head">
+              <span className="state-icon" aria-hidden="true"><Sparkles size={22} /></span>
+              <div>
+                <h2>还没有对话，可以这样问我</h2>
+                <p>点一个例子直接提问，或在下方输入你的问题。</p>
               </div>
-              <section className="match-report" id="result" aria-label="岗位匹配报告" aria-busy={busy === "analysis" || fetchingReport || analysis?.status === "PENDING"}>
-                {analysis?.status === "COMPLETED" && busy !== "analysis" ? <MatchReport key={analysis.id} analysis={analysis} job={jobs.find(item => item.id === analysis.jobDescriptionId)} saved={savedJobs.includes(analysis.jobDescriptionId)} disabled={!!busy} onBookmark={() => toggleBookmark(analysis.jobDescriptionId)} onExportMarkdown={exportMarkdown} onExportPdf={exportPdf} onSaveCopy={copy => { setResumes(items => [copy, ...items.filter(item => item.id !== copy.id)]); chooseResume(copy.id); invalidateSemanticMatches(); setNotice("修改版已另存为新简历，原简历未覆盖；可重新分析对比。"); }} /> : reportStateView()}
-                {analysis?.status === "COMPLETED" && <div className="report-rerun"><small>{runtimeModeLabel(aiStatus)}</small><button className="text-action" disabled={!!busy || !selectedResumeId || !selectedJobId || analysis.resumeId !== selectedResumeId || analysis.jobDescriptionId !== selectedJobId} onClick={() => void runAnalysis()}><RotateCw size={16} aria-hidden="true" />重新分析当前组合</button></div>}
-              </section>
-              <BrandCtaCard />
             </div>
-          )}
-        </section>
-        <section className="resume-view" id="resumes" hidden={pageView !== "resumes" || workspaceFailed}>
-          <label className={`resume-drop${resumeDragging ? " dragging" : ""}${busy ? " disabled" : ""}`}
-            onDragOver={(event) => { event.preventDefault(); if (!busy) setResumeDragging(true); }}
-            onDragLeave={() => setResumeDragging(false)}
-            onDrop={(event) => { event.preventDefault(); setResumeDragging(false); if (!busy) pickResumeFile(event.dataTransfer.files?.[0]); }}>
-            <input ref={fileInputRef} type="file" accept={RESUME_ACCEPT} onChange={chooseFile} disabled={!!busy} />
-            <span className="resume-drop-icon" aria-hidden="true"><CloudUpload size={34} /></span>
-            <strong>拖拽简历到这里，或<em>点击上传</em></strong>
-            <small>支持 PDF / DOC / DOCX / TXT / MD 格式，文件不超过 20MB</small>
-          </label>
-          <p className="resume-drop-alt">没有文件？<button type="button" className="text-action" onClick={openPasteResume}><ClipboardPaste size={15} aria-hidden="true" />直接粘贴简历正文</button><button type="button" className="text-action" onClick={fillSampleForms}>填入示例</button></p>
-          {showResumeEditor && <div className="library-editor" id="resume-editor">
-            <button className="icon-button library-editor-close" type="button" aria-label="收起简历表单" onClick={resetResumeEditor}><X size={18} aria-hidden="true" /></button>
-            <form className="step-card" onSubmit={saveResume}>
-              <div className="step-title">
-                <span>{editingResumeId ? <Pencil size={16} aria-hidden="true" /> : file ? <Upload size={16} aria-hidden="true" /> : <ClipboardPaste size={16} aria-hidden="true" />}</span>
+            {(resumeCount === 0 || sampleRun) && (
+              <div className="assistant-onboarding">
                 <div>
-                  <h3>{editingResumeId ? "编辑简历" : file ? "确认后上传" : "粘贴简历正文"}</h3>
-                  <p>{editingResumeId ? "修改正文后保存，重新匹配时将使用新内容" : file ? <>文件：<strong className="truncate" title={file.name}>{file.name}</strong>，正文由服务端解析</> : "把简历正文粘贴进来，保存后即可用于匹配"}</p>
+                  <strong>先准备一份简历</strong>
+                  <p>助手的回答都基于你保存的简历和职位。可以上传自己的简历，也可以先用示例数据走一遍完整分析。</p>
                 </div>
-              </div>
-              <div className="field-row"><label>简历标题<input required maxLength={120} value={resumeForm.title} onChange={(e) => setResumeForm({ ...resumeForm, title: e.target.value })} placeholder="Java 后端开发简历" /></label><label>姓名<input required maxLength={80} value={resumeForm.candidateName} onChange={(e) => setResumeForm({ ...resumeForm, candidateName: e.target.value })} placeholder="你的姓名" /></label></div>
-              <div className="field-row"><label>手机<input maxLength={40} value={resumeForm.phone} onChange={(e) => setResumeForm({ ...resumeForm, phone: e.target.value })} placeholder="可选" /></label><label>邮箱<input type="email" maxLength={128} value={resumeForm.email} onChange={(e) => setResumeForm({ ...resumeForm, email: e.target.value })} placeholder="可选" /></label></div>
-              {!file && <label>简历正文<textarea required rows={10} value={resumeForm.rawText} onChange={(e) => setResumeForm({ ...resumeForm, rawText: e.target.value })} placeholder="可直接粘贴简历正文" /></label>}
-              <div className="form-actions">
-                <button className="secondary" disabled={!!busy}>{busy === "resume" ? file ? "上传与解析中…" : "保存中…" : editingResumeId ? "更新简历" : file ? "上传简历" : "保存简历"}</button>
-                <button className="ghost" type="button" onClick={resetResumeEditor}>取消</button>
-              </div>
-            </form>
-          </div>}
-          {!workspaceLoading && resumes.length > 0 && (() => {
-            const stats = resumeStats(resumes, pageOpenedAt);
-            return (
-              <div className="stat-row">
-                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><FileText size={22} /></span><div><strong>{stats.count}<small>份简历</small></strong><p>{stats.uploaded > 0 ? `其中 ${stats.uploaded} 份为上传文件` : "都由粘贴正文保存"}</p></div></div>
-                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><ChartNoAxesColumn size={22} /></span><div><strong>{effectiveHistoryTotal}<small>次分析</small></strong><p>用这些简历做过的匹配</p></div></div>
-                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><Clock3 size={22} /></span><div><strong>{stats.latest ?? "—"}</strong><p>最近更新时间</p></div></div>
-              </div>
-            );
-          })()}
-          <div className="library-head"><h2>我的简历列表<em>{resumes.length}</em></h2></div>
-          {workspaceLoading ? (
-            <Skeleton className="skeleton-rows" label="正在读取简历" lines={3} />
-          ) : resumes.length === 0 ? (
-            <div className="state-panel"><EmptyState icon={FileText} art="empty-resumes" title="还没有简历" text="上传一份简历文件，或直接粘贴正文，保存后就能用于岗位匹配。"
-              action={<button className="primary" type="button" onClick={() => fileInputRef.current?.click()}><Upload size={16} aria-hidden="true" />上传简历</button>} /></div>
-          ) : (
-            <div className="resume-list">
-              {resumes.map((item) => (
-                <ResumeCard key={item.id} resume={item} selected={selectedResumeId === item.id} disabled={!!busy}
-                  onUse={() => { chooseResume(item.id); openWorkbench(); }}
-                  onEdit={() => void beginEditResume(item)}
-                  onDelete={() => void deleteResume(item.id)} />
-              ))}
-            </div>
-          )}
-        </section>
-        <section className="job-library" id="jobs" hidden={pageView !== "jobs" || workspaceFailed}>
-          <div className="library-toolbar">
-            <div className="library-filters">
-              <label className="filter-field"><span><ArrowDownWideNarrow size={15} aria-hidden="true" />排序</span>
-                <select aria-label="职位排序" value={jobSort} onChange={(event) => {
-                  const next = event.target.value as JobSort;
-                  setJobSort(next);
-                  if (next === "score" || next === "analyzed") void loadAllJobsForRanking();
-                }} disabled={jobsLoadingMore}>
-                  <option value="semantic">按与当前简历的语义相关度</option>
-                  <option value="score">按已分析匹配分</option>
-                  <option value="analyzed">按最近分析</option>
-                  <option value="recent">按最近保存</option>
-                </select>
-              </label>
-              <label className="filter-check">
-                <input type="checkbox" checked={jobFilter === "unanalyzed"} disabled={jobsLoadingMore} onChange={(event) => {
-                  const next = event.target.checked ? "unanalyzed" : "all";
-                  setJobFilter(next);
-                  if (next === "unanalyzed") void loadAllJobsForRanking();
-                }} />
-                仅看未分析
-              </label>
-              <div className="filter-topn">
-                <select aria-label="精析数量" value={topMatchCount} onChange={(event) => setTopMatchCount(Number(event.target.value))}>
-                  <option value={3}>前 3 个</option>
-                  <option value={5}>前 5 个</option>
-                  <option value={10}>前 10 个</option>
-                </select>
-                <button className="ghost" type="button" disabled={!!busy || !selectedResumeId} onClick={() => void runTopMatchesAnalysis()} title="把语义相关度最高的几个岗位逐个做完整分析">
-                  <Sparkles size={15} aria-hidden="true" />{busy === "top-analysis" ? "逐个精析中…" : "精析"}
-                </button>
-              </div>
-            </div>
-            <label className="library-resume">
-              <span className="library-resume-icon" aria-hidden="true"><FileText size={20} /></span>
-              <span className="library-resume-copy"><small>当前用于匹配</small>
-                <select aria-label="当前用于匹配的简历" value={selectedResumeId} disabled={!!busy} onChange={(event) => chooseResume(event.target.value ? Number(event.target.value) : "")}>
-                  <option value="">请选择简历</option>
-                  {resumes.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-                </select>
-              </span>
-            </label>
-          </div>
-          <div className="library-head">
-            <h2>全部岗位<em>{effectiveJobsTotal}</em></h2>
-            <small>语义相关度用于初筛，综合匹配分来自单独的完整分析。</small>
-            <div className="library-actions">
-              <button className="ghost" type="button" aria-expanded={showJobEditor} onClick={() => { if (showJobEditor && !editingJobId) { setShowJobEditor(false); return; } resetJobEditor(); setShowJobEditor(true); }}><Plus size={16} aria-hidden="true" />添加岗位</button>
-              <button className="ghost" type="button" onClick={() => { setShowJobEditor(true); setShowBulkImport(true); }}><Upload size={16} aria-hidden="true" />批量导入</button>
-            </div>
-          </div>
-          {showJobEditor && <div className="library-editor" id="job-editor">
-            <button className="icon-button library-editor-close" type="button" aria-label="收起岗位表单" onClick={() => { resetJobEditor(); setShowJobEditor(false); }}><X size={18} aria-hidden="true" /></button>
-            <form className="step-card" onSubmit={saveJob}>
-              <div className="step-title">
-                <span>02</span>
-                <div>
-                  <h3>{editingJobId ? `编辑职位 #${editingJobId}` : "录入职位 JD"}</h3>
-                  <p>{editingJobId ? "修改岗位要求后保存" : "告诉 AI 目标岗位要求"}</p>
+                <div className="assistant-onboarding-actions">
+                  <Link className="secondary" href={workspaceHref("resumes")}><Upload size={16} aria-hidden="true" />上传简历</Link>
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={sampleRun?.status === "saving" || sampleRun?.status === "started"}
+                    onClick={() => void trySample()}
+                  >
+                    {sampleRun?.status === "saving"
+                      ? <LoaderCircle className="spin" size={16} aria-hidden="true" />
+                      : <FlaskConical size={16} aria-hidden="true" />}
+                    试试示例数据
+                  </button>
                 </div>
-              </div>
-              <div className="field-row"><label>职位名称<input required value={jobForm.title} onChange={(e) => setJobForm({ ...jobForm, title: e.target.value })} placeholder="Java RAG 工程师" /></label><label>公司名称<input required value={jobForm.companyName} onChange={(e) => setJobForm({ ...jobForm, companyName: e.target.value })} placeholder="公司" /></label></div>
-              <div className="field-row"><label>工作地点<input value={jobForm.location} onChange={(e) => setJobForm({ ...jobForm, location: e.target.value })} placeholder="杭州" /></label><label>用工类型<input value={jobForm.employmentType} onChange={(e) => setJobForm({ ...jobForm, employmentType: e.target.value })} /></label></div>
-              <label>岗位描述<textarea required rows={4} value={jobForm.description} onChange={(e) => setJobForm({ ...jobForm, description: e.target.value })} placeholder="岗位职责、业务方向…" /></label>
-              <label>任职要求<textarea rows={4} value={jobForm.requirements} onChange={(e) => setJobForm({ ...jobForm, requirements: e.target.value })} placeholder="技术栈、经验要求…" /></label>
-              <div className="form-actions">
-                <button className="secondary" disabled={!!busy}>{busy === "job" ? "保存中…" : editingJobId ? "更新职位" : "保存职位"}</button>
-                {editingJobId && (
-                  <button className="ghost" type="button" onClick={resetJobEditor}>取消编辑</button>
+                {sampleRun?.status === "failed" && <div className="assistant-error" role="alert"><CircleAlert size={16} aria-hidden="true" />{sampleRun.message}</div>}
+                {sampleRun?.status === "started" && (
+                  <AnalysisCard analysisId={sampleRun.analysisId} analysis={analyses[sampleRun.analysisId]} />
                 )}
-                <button className="ghost" type="button" onClick={() => setShowBulkImport((v) => !v)} disabled={!!busy}>
-                  {showBulkImport ? "收起批量导入" : "批量导入"}
-                </button>
-              </div>
-              {showBulkImport && (
-                <div className="bulk-import-panel">
-                  <div className="bulk-import-head">
-                    <strong>批量导入 JD</strong>
-                    <small>支持 JSON 数组 / {"{ items }"} / NDJSON</small>
-                  </div>
-                  <textarea
-                    rows={8}
-                    value={bulkImportText}
-                    onChange={(e) => setBulkImportText(e.target.value)}
-                    placeholder='[{"title":"...","companyName":"...","description":"..."}]'
-                  />
-                  <div className="form-actions">
-                    <button className="secondary" type="button" disabled={!!busy} onClick={() => void bulkImportJobs()}>
-                      {busy === "bulk-import" ? "导入中…" : "确认导入"}
-                    </button>
-                    <button className="ghost" type="button" onClick={() => setBulkImportText(JSON.stringify(SAMPLE_BULK_JOBS, null, 2))}>
-                      填入示例 JSON
-                    </button>
-                  </div>
-                </div>
-              )}
-            </form>
-            <details className="sample-action"><summary>用示例数据体验</summary><p>会在当前账号中保存示例简历和岗位，并提交一次分析。</p><button className="ghost" disabled={!!busy} onClick={() => { navigate("match"); void saveSampleAndAnalyze(); }}>保存示例并分析</button></details>
-          </div>}
-          {!workspaceLoading && (jobAnalysesLoading || jobsLoadingMore || jobSemanticStatus === "loading") && <LoadingState compact text="正在整理完整岗位库…" />}
-          {jobs.length > 0 && (jobAnalysisDataRequired || jobSemanticDataRequired) && !selectedResumeId && (
-            <EmptyState compact icon={FileText} title="请先选择一份简历" text="选好简历后，才能按语义相关度或分析结果排序。" />
-          )}
-          {jobAnalysisDataRequired && jobAnalysesStatus === "error" && (
-            <ErrorState compact text={`匹配信息加载失败：${jobAnalysesError || "请稍后重试"}`}
-              onRetry={selectedResumeId ? () => void loadJobAnalyses(Number(selectedResumeId)) : undefined} />
-          )}
-          {jobSemanticDataRequired && jobSemanticStatus === "error" && (
-            <ErrorState compact text={`向量粗排失败：${jobSemanticError || "请稍后重试"}`}
-              onRetry={selectedResumeId ? () => void loadSemanticMatches(Number(selectedResumeId)) : undefined} />
-          )}
-          {jobs.length > 0 && !libraryRankingReady && <p className="review-caveat" role="status">匹配数据尚未就绪，以下按最近保存展示全部已加载岗位；匹配排序和「仅看未分析」暂未应用。</p>}
-          {workspaceLoading ? (
-            <Skeleton className="skeleton-rows" label="正在读取岗位" lines={4} />
-          ) : jobs.length === 0 ? (
-            <div className="state-panel"><EmptyState icon={BriefcaseBusiness} art="empty-jobs" title="职位库还是空的" text="添加一个目标岗位，或用浏览器插件从招聘页一键导入。"
-              action={<button className="primary" type="button" onClick={() => { resetJobEditor(); setShowJobEditor(true); }}><Plus size={16} aria-hidden="true" />添加岗位</button>} /></div>
-          ) : libraryJobs.length === 0 ? (
-            <EmptyState compact icon={ListChecks} title="这份简历的岗位都分析过了" text="取消「仅看未分析」可以查看全部岗位。"
-              action={<button className="ghost" type="button" onClick={() => setJobFilter("all")}>显示全部岗位</button>} />
-          ) : (
-            <div className="job-list">
-              {libraryJobs.map((item) => (
-                <JobCard key={item.id} job={item}
-                  analysis={latestAnalysisByJob.get(item.id)}
-                  similarity={semanticSimilarityByJob.get(item.id)}
-                  prefer={jobSort === "semantic" ? "semantic" : "score"}
-                  selected={selectedJobId === item.id}
-                  saved={savedJobs.includes(item.id)}
-                  disabled={!!busy}
-                  onUse={() => { chooseJob(item.id); setJobSource("library"); openWorkbench(); }}
-                  onToggleSave={() => toggleBookmark(item.id)}
-                  onEdit={() => beginEditJob(item)}
-                  onDelete={() => void deleteJob(item.id)} />
-              ))}
-            </div>
-          )}
-          {jobs.length < effectiveJobsTotal && (
-            <div className="entity-load-more">
-              <button className="ghost" type="button" disabled={jobsLoadingMore} onClick={() => void loadMoreJobs()}>
-                {jobsLoadingMore ? <><LoaderCircle className="spin" size={14} aria-hidden="true" />加载中…</> : `继续加载（还有 ${effectiveJobsTotal - jobs.length} 个）`}
-              </button>
-            </div>
-          )}
-        </section>
-        <section id="saved" className="saved-view" hidden={pageView !== "saved" || workspaceFailed}>{savedJobs.length === 0 ? <div className="state-panel"><EmptyState icon={Bookmark} art="empty-jobs" title="还没有保存的岗位" text="在岗位或报告旁点「保存」，就能在这里继续准备。" action={<button className="primary" type="button" onClick={() => navigate("match")}>去看目标岗位<ArrowRight size={16} aria-hidden="true" /></button>} /></div> : <><div className="job-list">{jobs.filter(item => savedJobs.includes(item.id)).map(item => (
-            <JobCard key={item.id} job={item}
-              analysis={latestAnalysisByJob.get(item.id)}
-              similarity={semanticSimilarityByJob.get(item.id)}
-              prefer="score"
-              selected={selectedJobId === item.id}
-              saved
-              disabled={!!busy}
-              onUse={() => { chooseJob(item.id); setJobSource("library"); openWorkbench(); }}
-              onToggleSave={() => toggleBookmark(item.id)} />
-          ))}</div>{jobs.length < effectiveJobsTotal && <button className="ghost" disabled={jobsLoadingMore} onClick={() => void loadAllJobsForRanking()}>加载其余岗位中的收藏</button>}<p className="review-caveat">仅展示仍可访问的岗位。收藏范围：当前浏览器、当前账号。</p></>}</section>
-        <section className="history" id="history" hidden={pageView !== "history" || workspaceFailed}>
-          {!workspaceLoading && history.length > 0 && (() => {
-            const stats = historyStats(history, effectiveHistoryTotal);
-            const scope = stats.partial ? `已加载 ${stats.loaded} / ${stats.total} 条中` : "";
-            return (
-              <div className="stat-row history-stats">
-                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><FileText size={22} /></span><div><strong>{stats.total}<small>条</small></strong><p>已保存的分析记录</p></div></div>
-                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><ChartNoAxesColumn size={22} /></span><div><strong>{stats.best ?? "—"}{stats.best != null && <small>分</small>}</strong><p>{scope ? `最高匹配分（${scope}）` : "历史最高匹配分"}</p></div></div>
-                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><Clock3 size={22} /></span><div><strong className="stat-text">{stats.latest ? relativeDay(Date.parse(stats.latest.createdAt), pageOpenedAt) : "—"}</strong><p title={stats.latest?.jobTitle}>最近分析{stats.latest ? ` · ${stats.latest.jobTitle}` : ""}</p></div></div>
-                <div className="stat-card"><span className="stat-icon" aria-hidden="true"><Star size={22} /></span><div><strong>{stats.strong}<small>个</small></strong><p>{scope ? `匹配分 ≥ 80（${scope}）` : "匹配分 ≥ 80 的记录"}</p></div></div>
-              </div>
-            );
-          })()}
-          <div className="history-panel">
-            {!workspaceLoading && history.length > 0 && (
-              <div className="history-filters">
-                <label className="history-select"><CalendarDays size={16} aria-hidden="true" />
-                  <select aria-label="时间范围" value={historyRange} onChange={(event) => setHistoryRange(event.target.value as TimeRange)}>
-                    {TIME_RANGES.map((range) => <option key={range.value} value={range.value}>{range.label}</option>)}
-                  </select>
-                </label>
-                <button type="button" className="ghost" aria-pressed={historySavedOnly} onClick={() => setHistorySavedOnly((value) => !value)}><Bookmark size={16} aria-hidden="true" />仅看已收藏岗位</button>
-                <small>{historyRange === "all" && !historySavedOnly ? `${effectiveHistoryTotal} 条记录` : `筛选出 ${visibleHistory.length} 条（已加载的记录中）`}</small>
               </div>
             )}
-            <div className="history-grid" role="table" aria-label="分析记录">
-              {(workspaceLoading || history.length > 0) && (
-                <div className="history-item history-header" role="row">
-                  <span role="columnheader">简历</span><span role="columnheader">职位</span><span role="columnheader">匹配分</span><span role="columnheader">分析时间</span><span role="columnheader">操作</span>
-                </div>
-              )}
-              {workspaceLoading ? (
-                <Skeleton className="skeleton-rows history-skeleton" label="正在读取分析记录" lines={4} />
-              ) : history.length === 0 ? (
-                <EmptyState icon={History} art="empty-history" title="还没有分析记录" text="选择简历和岗位，完成第一次分析后会显示在这里。"
-                  action={<button className="primary" type="button" onClick={openWorkbench}>去做第一次匹配<ArrowRight size={16} aria-hidden="true" /></button>} />
-              ) : visibleHistory.length === 0 ? (
-                <EmptyState compact icon={ListChecks} title="没有符合条件的记录" text="换个时间范围，或取消「仅看已收藏岗位」。"
-                  action={<button className="ghost" type="button" onClick={() => { setHistoryRange("all"); setHistorySavedOnly(false); }}>显示全部记录</button>} />
-              ) : visibleHistory.map((item) => (
-                <HistoryRow key={item.id} item={item}
-                  resume={resumes.find((resume) => resume.id === item.resumeId)}
-                  job={jobs.find((job) => job.id === item.jobDescriptionId)}
-                  saved={savedJobs.includes(item.jobDescriptionId)}
-                  onOpen={() => { activeAnalysisRun.current = null; chooseResume(item.resumeId); chooseJob(item.jobDescriptionId); setAnalysis(item); setMatchMode("report"); navigate("match"); }} />
+            <div className="assistant-examples">
+              {EXAMPLES.map((example) => (
+                <button key={example} type="button" className="ghost" onClick={() => ask(example)}>
+                  <MessageCircleQuestion size={16} aria-hidden="true" />{example}
+                </button>
               ))}
             </div>
-            {hasMoreHistory && !workspaceLoading && (
-              <div className="history-more">
-                <button className="ghost" type="button" disabled={historyLoadingMore} onClick={() => void loadMoreHistory()}>
-                  {historyLoadingMore ? <><LoaderCircle className="spin" size={14} aria-hidden="true" />加载中…</> : `继续加载（还有 ${effectiveHistoryTotal - history.length} 条）`}
-                </button>
-              </div>
-            )}
           </div>
-        </section>
+        )}
+
+        <ol className="assistant-turns">
+          {state.turns.map((turn, index) => (
+            <TurnView
+              key={index}
+              turn={turn}
+              live={index === state.turns.length - 1 && state.busy}
+              pending={index === state.turns.length - 1 ? state.pending : null}
+              pendingBrowser={index === state.turns.length - 1 ? state.pendingBrowser : null}
+              onCancelBrowser={() => browserAbortRef.current?.abort()}
+              analysis={turn.analysisId ? analyses[turn.analysisId] : undefined}
+              onDecide={decide}
+              onRetry={index === state.turns.length - 1 && canRetry ? retry : undefined}
+              disabled={state.busy}
+              processOpen={processTurn === index}
+              onOpenProcess={() => setProcessTurn(index)}
+            />
+          ))}
+        </ol>
+        {processTurn != null && state.turns[processTurn] && (
+          <ProcessDrawer
+            turn={state.turns[processTurn]}
+            turnKey={processTurn}
+            pendingId={processTurn === state.turns.length - 1 ? state.pending?.toolCallId ?? null : null}
+            onClose={closeProcess}
+          />
+        )}
+        <div className="assistant-bottom" ref={bottomRef} />
+
+        <form className="assistant-input" onSubmit={submit}>
+          <textarea
+            rows={2}
+            value={draft}
+            placeholder={stale ? "这段对话的记录没有同步完整，不能继续提问：请查看上面的报告入口，或点「新对话」重新开始"
+              : state.pending ? "请先确认或拒绝上面的操作"
+                : state.pendingBrowser ? "浏览器插件正在采集，完成或取消后才能继续提问"
+                  : "问点什么，例如：我的简历最适合哪个职位？（Enter 发送，Shift+Enter 换行）"}
+            disabled={inputLocked}
+            maxLength={4000}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={onKeyDown}
+          />
+          <button className="assistant-send" aria-label="发送" title={state.busy ? "处理中" : "发送"} disabled={inputLocked || !draft.trim()}>
+            {state.busy
+              ? <LoaderCircle className="spin" size={20} aria-hidden="true" />
+              : <ArrowUp size={20} strokeWidth={2.25} aria-hidden="true" />}
+          </button>
+        </form>
+      </section>
     </AppShell>
+  );
+}
+
+function TurnView({
+  turn, live, pending, pendingBrowser, onCancelBrowser, analysis, onDecide, onRetry, disabled, processOpen, onOpenProcess,
+}: {
+  turn: AgentTurn;
+  live: boolean;
+  pending: AgentConfirmation | null;
+  pendingBrowser: AgentBrowserTask | null;
+  onCancelBrowser: () => void;
+  analysis?: Analysis;
+  onDecide: (approved: boolean) => void;
+  /** Only on the last failed turn, when asking the same question again is safe. */
+  onRetry?: () => void;
+  disabled: boolean;
+  processOpen: boolean;
+  onOpenProcess: () => void;
+}) {
+  const advice = retryAdvice(turn);
+  return (
+    <li className="assistant-turn">
+      <div className="assistant-question">{turn.question}</div>
+
+      <StepTimeline turn={turn} pendingId={pending?.toolCallId ?? null} thinking={live} open={processOpen} onOpen={onOpenProcess} />
+
+      {/* Text the model writes next to its tool calls; before a confirmation it often carries the actual conclusion. */}
+      {turn.notes.map((note, index) => <AgentMarkdown key={index} className="assistant-note" text={note} />)}
+
+      {turn.confirmation && (
+        <ConfirmationCard
+          confirmation={turn.confirmation}
+          decision={turn.decision}
+          approvalSent={turn.approvedCallId === turn.confirmation.toolCallId}
+          active={pending?.toolCallId === turn.confirmation.toolCallId}
+          disabled={disabled}
+          onDecide={onDecide}
+        />
+      )}
+
+      {turn.browserTask && (
+        <BrowserTaskCard
+          task={turn.browserTask}
+          progress={turn.browserProgress}
+          outcome={turn.browserOutcome}
+          active={pendingBrowser?.taskId === turn.browserTask.taskId}
+          onCancel={onCancelBrowser}
+        />
+      )}
+
+      {turn.analysisId && <AnalysisCard analysisId={turn.analysisId} analysis={analysis} />}
+
+      {turn.answer && (
+        <section className="assistant-reply" aria-label="回答">
+          <h3><Sparkles size={16} aria-hidden="true" />回答</h3>
+          <AgentMarkdown className="assistant-answer" text={turn.answer} />
+        </section>
+      )}
+      {turn.error && (
+        <div className="assistant-error" role="alert">
+          <CircleAlert size={18} aria-hidden="true" />
+          <span>
+            {ERROR_COPY[turn.error.code] ?? turn.error.message}
+            {advice.kind === "check-report" && (
+              <span className="assistant-error-hint">
+                {advice.analysisId
+                  ? "分析已经发起，但对话记录没有同步完整。为避免助手误以为没有执行，这段对话不能继续，请直接查看已生成的报告，或点「新对话」重新开始。"
+                  : "你已同意发起分析，但无法确定是否已经执行。为避免重复发起，这段对话不能继续，请先到分析记录核实，或点「新对话」重新开始。"}
+              </span>
+            )}
+          </span>
+          {onRetry && <RetryButton className="ghost compact" onClick={onRetry} />}
+          {advice.kind === "check-report" && (
+            <Link className="ghost compact" href={advice.analysisId ? reportHref({ analysisId: advice.analysisId }) : workspaceHref("history")}>
+              {advice.analysisId ? "查看报告" : "去分析记录"}<ArrowRight size={14} aria-hidden="true" />
+            </Link>
+          )}
+        </div>
+      )}
+    </li>
   );
 }

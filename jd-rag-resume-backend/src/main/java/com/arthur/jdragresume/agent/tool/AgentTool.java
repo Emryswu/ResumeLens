@@ -31,4 +31,12 @@ public interface AgentTool {
     default Object preview(JsonNode arguments, AgentToolContext context) {
         return null;
     }
+
+    /**
+     * A few fields of a successful result for the step bar, such as counts and how the call ended. The preview is
+     * clipped text, so the page should not have to parse it. Null shows only the size and the preview.
+     */
+    default Object stepFacts(Object result) {
+        return null;
+    }
 }

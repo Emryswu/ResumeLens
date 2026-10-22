@@ -153,8 +153,9 @@
 │   ├── src/test/java/...
 │   └── start-backend-background.ps1
 ├── jd-rag-resume-frontend/        # ResumeLens 工作台
-│   ├── app/page.tsx               # 岗位匹配、列表、收藏与分析记录
-│   ├── app/assistant/page.tsx     # AI 助手与 SSE 对话
+│   ├── app/page.tsx               # 首页：AI 助手与 SSE 对话（未登录时为登录页）
+│   ├── app/workspace/page.tsx     # 工作台：岗位匹配、列表、收藏与分析记录
+│   ├── app/workspace-nav.ts       # 站内链接与旧链接跳转的唯一出处
 │   ├── app/components/            # 共用壳层、结构化报告、原文与过程抽屉
 │   ├── app/workspace.css          # 工作台样式与设计变量
 │   ├── app/report-export.ts       # 报告 Markdown / PDF 导出
@@ -290,7 +291,7 @@ flowchart TD
 
 ## AI 助手（Tool-calling Agent）
 
-`/assistant` 页面是一个会自己调用工具的对话助手：用户问「我的简历最适合投哪几个职位？第一名差在哪？」，它会依次列出简历、对职位库排序、对第一名检索简历证据，然后作答；用户想要完整报告时，它会发起分析，但**必须先由用户在确认卡上点同意**。
+首页 `/` 是一个会自己调用工具的对话助手（工作台在 `/workspace`；旧的 `/?analysisId=…#result`、`/#jobs` 等链接会自动转过去）：用户问「我的简历最适合投哪几个职位？第一名差在哪？」，它会依次列出简历、对职位库排序、对第一名检索简历证据，然后作答；用户想要完整报告时，它会发起分析，但**必须先由用户在确认卡上点同意**。
 
 agent 循环是手写的（`agent/AgentLoop.java`），没有用 Spring AI 等框架：直接在既有的 `AiClient` 上实现 OpenAI 兼容的 function calling。
 

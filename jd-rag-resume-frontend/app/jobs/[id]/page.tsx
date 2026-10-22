@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, Skeleton } from "../../components/StateBlock";
 import { useSessionUser } from "../../components/use-session-user";
 import { apiRequest, visibleApiErrorMessage, type Job } from "../../lib/api";
 import { loadState } from "../../view-states";
+import { workspaceHref } from "../../workspace-nav";
 
 export default function JobDetailPage() {
   const { user, logout } = useSessionUser();
@@ -91,7 +92,7 @@ export default function JobDetailPage() {
     setError("");
     try {
       await apiRequest<void>(`/api/job-descriptions/${id}`, { method: "DELETE" });
-      router.replace("/");
+      router.replace(workspaceHref("jobs"));
     } catch (reason) {
       const message = visibleApiErrorMessage(reason, "删除失败");
       if (message == null) return;
@@ -109,7 +110,7 @@ export default function JobDetailPage() {
     <AppShell
       title={job ? job.title : `职位 #${params.id}`}
       activeView="jobs"
-      back={{ href: "/#jobs", label: "职位库" }}
+      back={{ href: workspaceHref("jobs"), label: "职位库" }}
       user={user}
       onLogout={logout}
       actions={
@@ -142,7 +143,7 @@ export default function JobDetailPage() {
       {view === "error" && (
         <div className="state-panel detail-state">
           <ErrorState title="职位没有加载出来" text={loadError} onRetry={validId ? () => void load() : undefined}
-            action={<Link className="ghost" href="/#jobs">返回职位库</Link>} />
+            action={<Link className="ghost" href={workspaceHref("jobs")}>返回职位库</Link>} />
         </div>
       )}
 
@@ -166,7 +167,7 @@ export default function JobDetailPage() {
             : <EmptyState compact icon={FileText} title="还没有填写任职要求" text="点「编辑」补充后，匹配时会用到这部分内容。"
               action={<button className="ghost" type="button" onClick={() => setEditing(true)} disabled={!!busy}>编辑</button>} />}
           <div className="form-actions">
-            <Link className="secondary" href={`/?jobId=${job.id}`}>
+            <Link className="secondary" href={workspaceHref("match", { jobId: job.id })}>
               用此职位去匹配
             </Link>
           </div>

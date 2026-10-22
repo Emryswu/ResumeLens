@@ -69,6 +69,20 @@ class CollectBossJobsToolTests {
         assertEquals(List.of(1L, 2L), summary.jobIds());
         assertEquals(Map.of("dom", 2), summary.sources());
         assertTrue(summary.note().contains("不是完整职位描述"));
+
+        CollectBossJobsTool.Facts facts = (CollectBossJobsTool.Facts) tool.stepFacts(summary);
+        assertEquals(new CollectBossJobsTool.Facts(1, 2, 1, 1, 0, "CAPTCHA", "需要验证", Map.of("dom", 2)), facts);
+    }
+
+    @Test
+    void aFinishedRunHasNoStopInItsFacts() {
+        collector.result = new CollectionResult(CollectionResult.Outcome.COMPLETED, "MAX_PAGES", "已读完", 2,
+                List.of(listing("a1")), 0, 28);
+        CollectBossJobsTool.Facts facts = (CollectBossJobsTool.Facts) tool.stepFacts(tool.resume(arguments(), report(), context));
+        assertEquals(2, facts.pagesRead());
+        assertEquals(null, facts.stopReason());
+        assertEquals(null, facts.stopMessage(), "a finished run's status message is not a stop reason");
+        assertEquals(null, tool.stepFacts("something else"));
     }
 
     @Test
