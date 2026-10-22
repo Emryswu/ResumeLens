@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "test": "node --check src/popup.js && node --check src/content-boss.js && node --check src/content-resumelens.js && node --check src/report-list.js && node --check src/background.js && node --check src/boss-search.js && node --check src/boss-list-extractor.js && node --check src/content-boss-list.js && node --check src/collect-runner.js && node --check src/command-relay.js && node --test tests/*.test.cjs",
+    "test": "node --check src/popup.js && node --check src/content-boss.js && node --check src/content-resumelens.js && node --check src/report-list.js && node --check src/background.js && node --check src/boss-search.js && node --check src/boss-list-extractor.js && node --check src/content-boss-list.js && node --check src/collect-runner.js && node --check src/command-relay.js && node --check src/boss-api-hook.js && node --check src/boss-api-extractor.js && node --check scripts/sanitize-boss-sample.cjs && node --test tests/*.test.cjs",
     "pack": "node scripts/pack.cjs"
   }
 }

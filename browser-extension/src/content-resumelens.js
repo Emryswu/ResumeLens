@@ -51,7 +51,7 @@
         window.postMessage({ channel: CHANNEL, direction: "event", requestId, event }, window.location.origin);
       },
       version: chrome.runtime.getManifest().version,
-      capabilities: ["collectBossJobs"],
+      capabilities: ["collectBossJobs", "listApiCapture", "dailyPageLimit"],
     });
     window.addEventListener("message", (event) => {
       if (event.source !== window || event.origin !== window.location.origin) return;

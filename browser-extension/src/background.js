@@ -1,5 +1,12 @@
 /* global importScripts */
-importScripts("boss-extractor.js", "boss-list-extractor.js", "boss-search.js", "collect-runner.js", "command-relay.js");
+importScripts(
+  "boss-extractor.js",
+  "boss-list-extractor.js",
+  "boss-api-extractor.js",
+  "boss-search.js",
+  "collect-runner.js",
+  "command-relay.js",
+);
 
 (function startServiceWorker() {
   "use strict";
@@ -7,11 +14,25 @@ importScripts("boss-extractor.js", "boss-list-extractor.js", "boss-search.js", "
   const { CollectStop } = globalThis.ResumeLensCollectRunner;
   const { PORT_NAME } = globalThis.ResumeLensCommandRelay;
   const { blockerFromUrl } = globalThis.ResumeLensBossListExtractor;
+  const { BUFFER_KEY, combine } = globalThis.ResumeLensBossApiExtractor;
   const { isBossUrl, PERMISSION_ORIGINS } = globalThis.ResumeLensBossSearch;
 
   const ALLOWED_ORIGINS = new Set(["http://localhost:3000", "http://127.0.0.1:3000"]);
   const BOSS_ORIGINS = [...PERMISSION_ORIGINS];
   const PAGE_SCRIPTS = ["src/boss-extractor.js", "src/boss-list-extractor.js", "src/content-boss-list.js"];
+  /**
+   * The list API hook, registered only while a task runs. It must be a registered content script
+   * rather than an executeScript call: only registration runs it at document_start, before the
+   * page sends its first list request.
+   */
+  const API_HOOK = Object.freeze({
+    id: "resumelens-boss-api-hook",
+    matches: ["https://www.zhipin.com/web/geek/job*"],
+    js: ["src/boss-api-hook.js"],
+    runAt: "document_start",
+    world: "MAIN",
+    persistAcrossSessions: false,
+  });
 
   // Session storage survives a service worker restart but not a browser restart, and is not
   // readable from content scripts by default.
@@ -33,6 +54,16 @@ importScripts("boss-extractor.js", "boss-list-extractor.js", "boss-search.js", "
   const browser = {
     hasBossPermission() {
       return chrome.permissions.contains({ origins: BOSS_ORIGINS });
+    },
+
+    async armApiCapture() {
+      await browser.disarmApiCapture();
+      await chrome.scripting.registerContentScripts([{ ...API_HOOK }]);
+    },
+
+    async disarmApiCapture() {
+      const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [API_HOOK.id] });
+      if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [API_HOOK.id] });
     },
 
     async openTab(url) {
@@ -96,7 +127,7 @@ importScripts("boss-extractor.js", "boss-list-extractor.js", "boss-search.js", "
           args: [operation, options],
         });
         if (!injection || !injection.result || !injection.result.state) throw new CollectStop("STRUCTURE_CHANGED");
-        return injection.result;
+        return combine(injection.result, await drainApiCapture(tabId));
       } catch (reason) {
         if (reason instanceof CollectStop) throw reason;
         if (!(await chrome.permissions.contains({ origins: BOSS_ORIGINS }))) throw new CollectStop("PERMISSION_REQUIRED");
@@ -106,9 +137,51 @@ importScripts("boss-extractor.js", "boss-list-extractor.js", "boss-search.js", "
     },
   };
 
+  /** List responses the hook copied since the last read; null when there is no hook in the page. */
+  async function drainApiCapture(tabId) {
+    try {
+      const [injection] = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: "MAIN",
+        func: (key) => {
+          const buffer = globalThis[key];
+          return buffer && typeof buffer.drain === "function" ? buffer.drain() : null;
+        },
+        args: [BUFFER_KEY],
+      });
+      return injection ? injection.result : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Unlike the task state, the daily page count must survive a browser restart.
+  const daily = {
+    async get(key) {
+      return (await chrome.storage.local.get(key))[key];
+    },
+    set(key, value) {
+      return chrome.storage.local.set({ [key]: value });
+    },
+    remove(key) {
+      return chrome.storage.local.remove(key);
+    },
+    async keys() {
+      return Object.keys(await chrome.storage.local.get(null));
+    },
+  };
+
+  function today() {
+    const date = new Date();
+    const pad = (value) => String(value).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+
   const runner = globalThis.ResumeLensCollectRunner.create({
     browser,
     storage,
+    daily,
+    today,
     random: Math.random,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     now: Date.now,

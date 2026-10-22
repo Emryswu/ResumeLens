@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ResumeLens 岗位助手",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "从 BOSS 直聘抓取当前 JD，在 ResumeLens 中查重、保存并完成简历匹配；授权后可由 AI 助手在 BOSS 搜索页只读采集岗位列表。",
   "permissions": ["scripting", "activeTab", "storage"],
   "host_permissions": [
