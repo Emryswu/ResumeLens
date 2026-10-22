@@ -11,7 +11,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The JSON Schema subset the tools need (flat objects of integers and strings), plus a
+ * The JSON Schema subset the tools need (flat objects of integers, strings and integer
+ * arrays), plus a
  * validator for exactly that subset. The schema sent to the model and the one enforced
  * before execution are the same object, so they cannot drift apart.
  */
@@ -32,6 +33,12 @@ public final class ToolSchema {
         return this;
     }
 
+    /** An array of at most {@code maxItems} integers, each within [minimum, maximum]. */
+    public ToolSchema integerArray(String name, String description, boolean required, long minimum, long maximum, int maxItems) {
+        properties.put(name, new Property("array", description, required, minimum, maximum, maxItems));
+        return this;
+    }
+
     public JsonNode toJson() {
         JsonNodeFactory factory = JsonNodeFactory.instance;
         ObjectNode root = factory.objectNode();
@@ -45,6 +52,12 @@ public final class ToolSchema {
             if (property.type().equals("integer")) {
                 node.put("minimum", property.minimum());
                 node.put("maximum", property.maximum());
+            } else if (property.type().equals("array")) {
+                ObjectNode items = node.putObject("items");
+                items.put("type", "integer");
+                items.put("minimum", property.minimum());
+                items.put("maximum", property.maximum());
+                node.put("maxItems", property.maxLength());
             } else {
                 node.put("maxLength", property.maxLength());
             }
@@ -80,13 +93,16 @@ public final class ToolSchema {
                 return;
             }
             if (property.type().equals("integer")) {
-                if (!value.isIntegralNumber()) {
-                    problems.add("'" + name + "' must be an integer");
-                } else if (!value.canConvertToLong()) {
-                    // asLong() would keep only the low 64 bits and quietly turn 2^64+1 into 1.
-                    problems.add("'" + name + "' must be between " + property.minimum() + " and " + property.maximum());
-                } else if (value.asLong() < property.minimum() || value.asLong() > property.maximum()) {
-                    problems.add("'" + name + "' must be between " + property.minimum() + " and " + property.maximum());
+                checkInteger(name, value, property, problems);
+            } else if (property.type().equals("array")) {
+                if (!value.isArray()) {
+                    problems.add("'" + name + "' must be an array of integers");
+                } else if (value.size() > property.maxLength()) {
+                    problems.add("'" + name + "' must have at most " + property.maxLength() + " items");
+                } else {
+                    for (JsonNode item : value) {
+                        checkInteger(name + "[]", item, property, problems);
+                    }
                 }
             } else if (!value.isTextual()) {
                 problems.add("'" + name + "' must be a string");
@@ -97,6 +113,18 @@ public final class ToolSchema {
         return problems;
     }
 
+    private static void checkInteger(String name, JsonNode value, Property property, List<String> problems) {
+        if (!value.isIntegralNumber()) {
+            problems.add("'" + name + "' must be an integer");
+        } else if (!value.canConvertToLong()) {
+            // asLong() would keep only the low 64 bits and quietly turn 2^64+1 into 1.
+            problems.add("'" + name + "' must be between " + property.minimum() + " and " + property.maximum());
+        } else if (value.asLong() < property.minimum() || value.asLong() > property.maximum()) {
+            problems.add("'" + name + "' must be between " + property.minimum() + " and " + property.maximum());
+        }
+    }
+
+    /** {@code maxLength} is the item limit for arrays. */
     private record Property(String type, String description, boolean required, long minimum, long maximum, int maxLength) {
     }
 }

@@ -2,6 +2,8 @@ package com.arthur.jdragresume.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -73,6 +75,10 @@ public class JobDescription extends AuditableEntity {
     private String semanticEmbeddingModelKey;
 
     private LocalDateTime lastSeenAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "capture_depth", nullable = false, length = 16)
+    private CaptureDepth captureDepth = CaptureDepth.FULL;
 
     public Long getId() {
         return id;
@@ -200,5 +206,13 @@ public class JobDescription extends AuditableEntity {
 
     public void setLastSeenAt(LocalDateTime lastSeenAt) {
         this.lastSeenAt = lastSeenAt;
+    }
+
+    public CaptureDepth getCaptureDepth() {
+        return captureDepth;
+    }
+
+    public void setCaptureDepth(CaptureDepth captureDepth) {
+        this.captureDepth = captureDepth;
     }
 }

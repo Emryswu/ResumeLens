@@ -1,0 +1,78 @@
+{
+  "type": "result",
+  "task": {
+    "taskId": "t_1",
+    "status": "completed",
+    "command": {
+      "keyword": "Java",
+      "city": "深圳",
+      "maxPages": 2
+    },
+    "pagesRead": 2,
+    "jobs": [
+      {
+        "title": "API-p1a",
+        "companyName": "接口公司",
+        "location": "深圳·南山区",
+        "employmentType": "全职",
+        "salary": "15-25K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：API-p1a\n公司：接口公司\n地点：深圳·南山区\n薪资：15-25K\n标签：1-3年、本科、Java",
+        "requirements": "1-3年、本科、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/p1a.html",
+        "sourceJobId": "p1a",
+        "captureSource": "api"
+      },
+      {
+        "title": "API-p1b",
+        "companyName": "接口公司",
+        "location": "深圳·南山区",
+        "employmentType": "全职",
+        "salary": "15-25K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：API-p1b\n公司：接口公司\n地点：深圳·南山区\n薪资：15-25K\n标签：1-3年、本科、Java",
+        "requirements": "1-3年、本科、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/p1b.html",
+        "sourceJobId": "p1b",
+        "captureSource": "api"
+      },
+      {
+        "captureSource": "dom",
+        "companyName": "页面公司",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：DOM-domonly\n公司：页面公司",
+        "employmentType": "全职",
+        "location": "",
+        "requirements": "",
+        "salary": "",
+        "sourceJobId": "domonly",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/domonly.html",
+        "title": "DOM-domonly"
+      },
+      {
+        "title": "API-p2a",
+        "companyName": "接口公司",
+        "location": "深圳·南山区",
+        "employmentType": "全职",
+        "salary": "15-25K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：API-p2a\n公司：接口公司\n地点：深圳·南山区\n薪资：15-25K\n标签：1-3年、本科、Java",
+        "requirements": "1-3年、本科、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/p2a.html",
+        "sourceJobId": "p2a",
+        "captureSource": "api"
+      }
+    ],
+    "sources": {
+      "api": 3,
+      "dom": 1
+    },
+    "skippedWithoutId": 0,
+    "dailyPagesLeft": 28,
+    "stopReason": null,
+    "stopMessage": null,
+    "finishReason": "MAX_PAGES",
+    "startedAt": 1792654310296,
+    "updatedAt": 1792654314070
+  }
+}

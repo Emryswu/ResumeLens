@@ -12,8 +12,10 @@ import com.arthur.jdragresume.security.CurrentUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class JobSemanticMatchService {
@@ -42,12 +44,25 @@ public class JobSemanticMatchService {
      */
     @Transactional(readOnly = true)
     public List<JobSemanticMatchResponse> rank(Long resumeId, int limit) {
+        return rank(resumeId, limit, null);
+    }
+
+    /**
+     * Ranks only the given jobs when {@code jobIds} is not null (ids that are not the user's are
+     * simply absent from the result), otherwise the whole library.
+     */
+    @Transactional(readOnly = true)
+    public List<JobSemanticMatchResponse> rank(Long resumeId, int limit, Collection<Long> jobIds) {
         AppUser user = currentUserService.getCurrentUser();
         Resume resume = resumeRepository.findByIdAndUserId(resumeId, user.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("resume", resumeId));
         requireResumeText(resume);
 
         List<JobDescription> jobs = jobDescriptionRepository.findAllByUserId(user.getId());
+        if (jobIds != null) {
+            Set<Long> wanted = Set.copyOf(jobIds);
+            jobs = jobs.stream().filter(job -> wanted.contains(job.getId())).toList();
+        }
         if (!semanticEmbeddingService.isCurrent(resume)
                 || jobs.stream().anyMatch(job -> !semanticEmbeddingService.isCurrent(job))) {
             throw new BusinessException(

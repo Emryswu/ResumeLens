@@ -44,6 +44,13 @@ class AgentControllerTests {
             ]%s}
             """;
 
+    private static final String COLLECTING = """
+            {"messages":[
+              {"role":"user","content":"去 BOSS 找岗位"},
+              {"role":"assistant","content":null,"tool_calls":[{"id":"b1","type":"function","function":{"name":"collect_boss_jobs","arguments":"{\\"keyword\\":\\"Java\\",\\"city\\":\\"深圳\\"}"}}]}
+            ]%s}
+            """;
+
     private AgentProperties properties;
     private AtomicInteger modelCalls;
     private TaskExecutor executor;
@@ -111,6 +118,60 @@ class AgentControllerTests {
         mockMvc().perform(chat(PAUSED.formatted(",\"approval\":{\"toolCallId\":\"forged\",\"approved\":true}")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("AGENT_APPROVAL_MISMATCH"));
+    }
+
+    @Test
+    void anApprovalCannotRunABrowserTask() throws Exception {
+        browserMockMvc().perform(chat(COLLECTING.formatted(",\"approval\":{\"toolCallId\":\"b1\",\"approved\":true}")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("AGENT_APPROVAL_MISMATCH"));
+        assertEquals(0, modelCalls.get());
+    }
+
+    @Test
+    void aBrowserResultCannotStandInForAnApproval() throws Exception {
+        browserMockMvc().perform(chat(PAUSED.formatted(
+                        ",\"browserResult\":{\"toolCallId\":\"c2\",\"taskId\":\"bt_1\",\"outcome\":\"completed\",\"report\":{}}")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("AGENT_APPROVAL_MISMATCH"));
+        assertEquals(0, modelCalls.get());
+    }
+
+    @Test
+    void approvalAndBrowserResultTogetherAreRejected() throws Exception {
+        browserMockMvc().perform(chat(COLLECTING.formatted(",\"approval\":{\"toolCallId\":\"b1\",\"approved\":true},"
+                        + "\"browserResult\":{\"toolCallId\":\"b1\",\"taskId\":\"bt_1\",\"outcome\":\"completed\"}")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("AGENT_APPROVAL_MISMATCH"));
+    }
+
+    @Test
+    void aBrowserResultNeedsAKnownOutcome() throws Exception {
+        browserMockMvc().perform(chat(COLLECTING.formatted(
+                        ",\"browserResult\":{\"toolCallId\":\"b1\",\"taskId\":\"bt_1\",\"outcome\":\"done\"}")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void anOversizedBrowserReportIsRejectedBeforeTheStream() throws Exception {
+        properties.setMaxBrowserReportChars(100);
+        browserMockMvc().perform(chat(COLLECTING.formatted(",\"browserResult\":{\"toolCallId\":\"b1\",\"taskId\":\"bt_1\","
+                        + "\"outcome\":\"completed\",\"report\":{\"pad\":\"" + "x".repeat(200) + "\"}}")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("AGENT_TRANSCRIPT_TOO_LARGE"));
+    }
+
+    @Test
+    void aMatchingBrowserResultOpensTheStreamAndAnUnknownTaskIsExplainedNotRejected() throws Exception {
+        MockMvc mvc = browserMockMvc();
+        MvcResult started = mvc.perform(chat(COLLECTING.formatted(
+                        ",\"browserResult\":{\"toolCallId\":\"b1\",\"taskId\":\"bt_never_issued\",\"outcome\":\"completed\",\"report\":{}}")))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        String body = mvc.perform(asyncDispatch(started)).andReturn().getResponse().getContentAsString();
+        assertTrue(body.contains("BROWSER_TASK_UNKNOWN"), body);
+        assertTrue(body.contains("\"state\":\"COMPLETED\""), body);
     }
 
     @Test
@@ -202,7 +263,20 @@ class AgentControllerTests {
         });
     }
 
+    /** A registry with a browser tool (collect_boss_jobs) and a confirmation tool (start_analysis). */
+    private MockMvc browserMockMvc() {
+        AgentToolRegistry tools = new AgentToolRegistry(List.of(new AgentBrowserTaskTests.CollectTool(), new AgentLoopTests.WriteTool()));
+        return mockMvc((system, transcript, tools2, timeout) -> {
+            modelCalls.incrementAndGet();
+            return AgentModel.Reply.answer("好的");
+        }, tools);
+    }
+
     private MockMvc mockMvc(AgentModel model) {
+        return mockMvc(model, new AgentToolRegistry(List.of()));
+    }
+
+    private MockMvc mockMvc(AgentModel model, AgentToolRegistry tools) {
         AppUser user = new AppUser();
         ReflectionTestUtils.setField(user, "id", 1L);
         CurrentUserService currentUser = new CurrentUserService(null) {
@@ -211,7 +285,8 @@ class AgentControllerTests {
                 return user;
             }
         };
-        AgentLoop loop = new AgentLoop(model, new AgentToolRegistry(List.of()), new ObjectMapper(), properties, System::currentTimeMillis);
+        BrowserTaskRegistry browserTasks = new BrowserTaskRegistry();
+        AgentLoop loop = new AgentLoop(model, tools, new ObjectMapper(), properties, System::currentTimeMillis, browserTasks);
         AgentChatService service = new AgentChatService(currentUser, new TranscriptPolicy(properties), loop,
                 rateLimiter, executor, properties, new AgentMemoryService(null, currentUser, new AgentMemorySearch(), properties) {
                     @Override
@@ -219,7 +294,7 @@ class AgentControllerTests {
                         memoryQuestions.add(question);
                         return List.of(new MemoryView(1L, "target_city", "我的目标城市是上海", null));
                     }
-                });
+                }, tools, browserTasks);
         return MockMvcBuilders.standaloneSetup(new AgentController(service))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();

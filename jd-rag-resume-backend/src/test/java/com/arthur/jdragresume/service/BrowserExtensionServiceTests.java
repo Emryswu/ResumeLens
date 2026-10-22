@@ -104,7 +104,7 @@ class BrowserExtensionServiceTests {
         return new JobDescriptionResponse(
                 11L, 1L, "Java 后端", "示例科技", "杭州", "全职",
                 "Spring Boot", "Java", "BOSS",
-                "https://www.zhipin.com/job_detail/key.html", "key", "fingerprint", now, now, now
+                "https://www.zhipin.com/job_detail/key.html", "key", "fingerprint", now, "FULL", now, now
         );
     }
 

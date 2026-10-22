@@ -39,9 +39,35 @@ export type AgentConfirmation = {
   preview?: Record<string, unknown> | null;
 };
 
+/**
+ * Work the server handed to the page: run {@code action} with {@code command} through {@code executor} (the
+ * browser extension) and report back with the same taskId. {@code expiresAt} is on the server's clock; the page
+ * counts {@code timeoutSeconds} from when it received the event.
+ */
+export type AgentBrowserTask = {
+  toolCallId: string;
+  tool: string;
+  taskId: string;
+  executor: string;
+  action: string;
+  command: Record<string, unknown>;
+  expiresAt: number;
+  timeoutSeconds: number;
+};
+
+/** How a browser task ended on the page; only "completed" carries the executor's final event. */
+export type BrowserTaskOutcome =
+  | { outcome: "completed"; report: unknown }
+  | { outcome: "cancelled" }
+  | { outcome: "expired" };
+
+/** Latest progress the extension reported, for the task card. */
+export type BrowserTaskProgress = { phase: string; page?: number; jobCount?: number };
+
 export type AgentDoneState =
   | "COMPLETED"
   | "AWAITING_CONFIRMATION"
+  | "AWAITING_BROWSER"
   | "STEP_LIMIT"
   | "REPLAN_LIMIT"
   | "TIMED_OUT"
@@ -53,6 +79,7 @@ export type AgentEvent =
   | { type: "step"; data: AgentStep }
   | { type: "note"; data: { content: string } }
   | { type: "confirmation_required"; data: AgentConfirmation }
+  | { type: "browser_task_required"; data: AgentBrowserTask }
   | { type: "message"; data: { content: string } }
   | { type: "error"; data: { code: string; message: string } }
   | { type: "done"; data: { state: AgentDoneState; steps: number; transcript: AgentMessage[]; summary?: string | null } };
@@ -112,9 +139,11 @@ export function createSseParser() {
   };
 }
 
-const EVENT_TYPES = new Set(["step_started", "step", "note", "confirmation_required", "message", "error", "done"]);
+const EVENT_TYPES = new Set([
+  "step_started", "step", "note", "confirmation_required", "browser_task_required", "message", "error", "done",
+]);
 const DONE_STATES = new Set<AgentDoneState>([
-  "COMPLETED", "AWAITING_CONFIRMATION", "STEP_LIMIT", "REPLAN_LIMIT", "TIMED_OUT", "FAILED", "CANCELLED",
+  "COMPLETED", "AWAITING_CONFIRMATION", "AWAITING_BROWSER", "STEP_LIMIT", "REPLAN_LIMIT", "TIMED_OUT", "FAILED", "CANCELLED",
 ]);
 const RETRYABLE_REJECTIONS = new Set(["AGENT_RATE_LIMITED", "AGENT_BUSY", "AI_NOT_CONFIGURED"]);
 
@@ -197,6 +226,11 @@ export type AgentTurn = {
   approvedCallId?: string;
   /** Set when start_analysis ran; the page follows it to the finished report. */
   analysisId?: number;
+  /** Work this turn handed to the browser extension. */
+  browserTask?: AgentBrowserTask;
+  browserProgress?: BrowserTaskProgress;
+  /** How the page ended the browser task; set once its report is on the way to the server. */
+  browserOutcome?: BrowserTaskOutcome["outcome"];
   /**
    * The done frame of this turn's latest request arrived, so state.transcript records everything the turn did.
    * A tool result alone is not enough: without done the transcript still predates the call, and resending it
@@ -212,17 +246,21 @@ export type AgentChatState = {
   busy: boolean;
   /** Present while the server waits for the user to approve or reject a write action. */
   pending: AgentConfirmation | null;
+  /** Present while the server waits for the page to run a browser task and report back. */
+  pendingBrowser: AgentBrowserTask | null;
 };
 
 export type AgentChatAction =
   | { type: "ask"; question: string }
   | { type: "decide"; approved: boolean }
+  | { type: "browser_progress"; progress: BrowserTaskProgress }
+  | { type: "browser_report"; outcome: BrowserTaskOutcome["outcome"] }
   | { type: "event"; event: AgentEvent }
   | { type: "failed"; code: string; message: string; retryConfirmation?: boolean }
   | { type: "settled" }
   | { type: "reset" };
 
-export const initialAgentChatState: AgentChatState = { transcript: [], turns: [], busy: false, pending: null };
+export const initialAgentChatState: AgentChatState = { transcript: [], turns: [], busy: false, pending: null, pendingBrowser: null };
 
 export function agentChatReducer(state: AgentChatState, action: AgentChatAction): AgentChatState {
   switch (action.type) {
@@ -231,6 +269,7 @@ export function agentChatReducer(state: AgentChatState, action: AgentChatAction)
         ...state,
         busy: true,
         pending: null,
+        pendingBrowser: null,
         turns: [...state.turns, { question: action.question, steps: [], started: [], unfinished: [], notes: [] }],
       };
     case "decide":
@@ -252,6 +291,8 @@ export function agentChatReducer(state: AgentChatState, action: AgentChatAction)
         ...state,
         busy: false,
         pending: refused ? state.pending : null,
+        // Without done, the transcript does not contain the browser call needed for its report.
+        pendingBrowser: null,
         turns: updateLast(state.turns, (turn) => ({
           ...closeOpenSteps(turn),
           approvedCallId: refused ? undefined : turn.approvedCallId,
@@ -259,6 +300,16 @@ export function agentChatReducer(state: AgentChatState, action: AgentChatAction)
         })),
       };
     }
+    case "browser_progress":
+      return { ...state, turns: updateLast(state.turns, (turn) => ({ ...turn, browserProgress: action.progress })) };
+    case "browser_report":
+      // The report is on its way: the task is no longer pending, whatever the server makes of it.
+      return {
+        ...state,
+        busy: true,
+        pendingBrowser: null,
+        turns: updateLast(state.turns, (turn) => ({ ...turn, error: undefined, synced: false, browserOutcome: action.outcome })),
+      };
     case "settled":
       // Whatever ended the request, nothing can still be running afterwards.
       return { ...state, busy: false, turns: updateLast(state.turns, closeOpenSteps) };
@@ -305,6 +356,14 @@ function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
         pending: event.data,
         turns: updateLast(state.turns, (turn) => ({ ...turn, confirmation: event.data, decision: undefined })),
       };
+    case "browser_task_required":
+      return {
+        ...state,
+        pendingBrowser: event.data,
+        turns: updateLast(state.turns, (turn) => ({
+          ...turn, browserTask: event.data, browserProgress: undefined, browserOutcome: undefined,
+        })),
+      };
     case "done":
       // Even a failed turn returns a consistent transcript; keep it so the next question has context.
       return {
@@ -313,14 +372,32 @@ function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
         transcript: event.data.transcript,
         summary: event.data.summary ?? undefined,
         pending: event.data.state === "AWAITING_CONFIRMATION" ? state.pending : null,
+        pendingBrowser: event.data.state === "AWAITING_BROWSER" ? state.pendingBrowser : null,
         turns: updateLast(state.turns, (turn) => ({ ...closeOpenSteps(turn), synced: true })),
       };
   }
 }
 
 /** The request body for the next call, built from state so it cannot drift from what was shown. */
-export function nextRequest(state: AgentChatState, input: { question: string } | { approved: boolean }) {
+export function nextRequest(
+  state: AgentChatState,
+  input: { question: string } | { approved: boolean } | { browser: BrowserTaskOutcome },
+) {
   if (state.busy) throw new Error("assistant request is in progress");
+  if ("browser" in input) {
+    const task = state.pendingBrowser;
+    if (!task) throw new Error("no browser task to report on");
+    return {
+      messages: state.transcript,
+      ...(state.summary ? { summary: state.summary } : {}),
+      browserResult: {
+        toolCallId: task.toolCallId,
+        taskId: task.taskId,
+        outcome: input.browser.outcome,
+        ...(input.browser.outcome === "completed" ? { report: input.browser.report } : {}),
+      },
+    };
+  }
   const question = "question" in input;
   if (!question && !state.pending) throw new Error("no pending action to decide");
   // Every way of sending (typing, examples, 重试, a decision) builds its body here, so none can resend a stale transcript.
@@ -382,7 +459,7 @@ export function staleConversation(state: AgentChatState): { analysisId?: number 
 /** The request "重试" sends: the last question on the current transcript, or null when retrying is not safe. */
 export function retryRequest(state: AgentChatState): { question: string; body: ReturnType<typeof nextRequest> } | null {
   const turn = state.turns.at(-1);
-  if (!turn || state.busy || state.pending || retryAdvice(turn).kind !== "retry") return null;
+  if (!turn || state.busy || state.pending || state.pendingBrowser || retryAdvice(turn).kind !== "retry") return null;
   return { question: turn.question, body: nextRequest(state, { question: turn.question }) };
 }
 

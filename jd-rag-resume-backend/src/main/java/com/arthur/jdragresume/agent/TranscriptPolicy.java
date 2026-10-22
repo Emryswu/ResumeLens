@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Validates and normalizes the client-held transcript before any work starts. The client
@@ -27,6 +28,15 @@ public class TranscriptPolicy {
     }
 
     public Normalized normalize(List<AgentMessage> raw, Approval approval) {
+        return normalize(raw, approval == null ? null : approval.toolCallId(), TranscriptPolicy::notConfirmed);
+    }
+
+    /**
+     * {@code resumedCallId} is the open call the request answers (an approval or a browser
+     * report), or null for a new question. {@code leftBehind} builds the result for an open call
+     * the user walked away from by asking something new.
+     */
+    public Normalized normalize(List<AgentMessage> raw, String resumedCallId, Function<AgentMessage.ToolCall, String> leftBehind) {
         if (raw == null || raw.isEmpty()) {
             throw invalid("messages must not be empty");
         }
@@ -48,10 +58,9 @@ public class TranscriptPolicy {
             }
             switch (message.role()) {
                 case AgentMessage.USER -> {
-                    // A new question while a write call awaits approval: the user moved on.
+                    // A new question while a call awaits approval or the browser: the user moved on.
                     // Close the dangling call so the provider sees a complete tool round.
-                    open.values().forEach(call -> messages.add(AgentMessage.tool(call.id(),
-                            ToolEnvelope.error(call.name(), DID_NOT_CONFIRM, "用户没有确认就继续提问，此操作未执行"))));
+                    open.values().forEach(call -> messages.add(AgentMessage.tool(call.id(), leftBehind.apply(call))));
                     open.clear();
                     messages.add(message);
                 }
@@ -81,18 +90,18 @@ public class TranscriptPolicy {
         }
 
         AgentMessage.ToolCall pending = null;
-        if (approval == null) {
+        if (resumedCallId == null) {
             if (!AgentMessage.USER.equals(messages.get(messages.size() - 1).role())) {
                 if (!open.isEmpty()) {
-                    throw new BusinessException("AGENT_CONFIRMATION_PENDING", "an action is waiting for confirmation");
+                    throw new BusinessException("AGENT_CONFIRMATION_PENDING", "an action is waiting for confirmation or the browser");
                 }
                 throw invalid("the last message must be the user's new question");
             }
         } else {
-            if (open.size() != 1 || !open.containsKey(approval.toolCallId())) {
-                throw new BusinessException("AGENT_APPROVAL_MISMATCH", "approval does not match the pending action");
+            if (open.size() != 1 || !open.containsKey(resumedCallId)) {
+                throw new BusinessException("AGENT_APPROVAL_MISMATCH", "approval or browser result does not match the pending action");
             }
-            pending = open.get(approval.toolCallId());
+            pending = open.get(resumedCallId);
         }
 
         List<Integer> turns = new ArrayList<>();
@@ -213,11 +222,26 @@ public class TranscriptPolicy {
         return -1;
     }
 
+    private static String notConfirmed(AgentMessage.ToolCall call) {
+        return ToolEnvelope.error(call.name(), DID_NOT_CONFIRM, "用户没有确认就继续提问，此操作未执行");
+    }
+
     private static BusinessException invalid(String message) {
         return new BusinessException("AGENT_TRANSCRIPT_INVALID", message);
     }
 
     public record Approval(String toolCallId, boolean approved) {
+    }
+
+    /**
+     * What the page reports for a browser task: {@code outcome} is "completed" (with the
+     * executor's final event as {@code report}), "cancelled" by the user, or "expired" when the
+     * page gave up waiting. The server's own deadline still decides whether it came in time.
+     */
+    public record BrowserReport(String toolCallId, String taskId, String outcome, com.fasterxml.jackson.databind.JsonNode report) {
+        public static final String COMPLETED = "completed";
+        public static final String CANCELLED = "cancelled";
+        public static final String EXPIRED = "expired";
     }
 
     /** {@code pending} is set only when an approval was supplied and matched. */

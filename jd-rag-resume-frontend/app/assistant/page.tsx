@@ -7,6 +7,7 @@ import { AppShell } from "../components/AppShell";
 import { RetryButton } from "../components/StateBlock";
 import { AgentMarkdown } from "../components/assistant/AgentMarkdown";
 import { AnalysisCard } from "../components/assistant/AnalysisCard";
+import { BrowserTaskCard } from "../components/assistant/BrowserTaskCard";
 import { ConfirmationCard } from "../components/assistant/ConfirmationCard";
 import { ProcessDrawer, StepTimeline } from "../components/assistant/StepTimeline";
 import { useSessionUser } from "../components/use-session-user";
@@ -18,9 +19,12 @@ import {
   retryAdvice,
   retryRequest,
   staleConversation,
+  type AgentBrowserTask,
+  type AgentChatState,
   type AgentConfirmation,
   type AgentTurn,
 } from "../agent-stream";
+import { runExtensionCollect } from "../extension-collect";
 import { analysisPollTimeoutMs, pollAnalysisUntilSettled } from "../analysis-poll";
 import {
   ApiError,
@@ -61,6 +65,13 @@ export default function AssistantPage() {
   const abortRef = useRef<AbortController | null>(null);
   const followedRef = useRef<Set<number>>(new Set());
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  /** Aborting it cancels the browser task in progress (the user's 取消, 新对话, or leaving the page). */
+  const browserAbortRef = useRef<AbortController | null>(null);
+  const browserTaskRef = useRef<string | null>(null);
+  const stateRef = useRef<AgentChatState>(state);
+  useEffect(() => {
+    stateRef.current = state;
+  });
 
   useEffect(() => {
     let active = true;
@@ -75,6 +86,8 @@ export default function AssistantPage() {
       active = false;
       // Leaving the page closes the stream; the server stops the turn instead of spending more model calls.
       abortRef.current?.abort();
+      browserTaskRef.current = null;
+      browserAbortRef.current?.abort();
     };
   }, []);
 
@@ -104,6 +117,32 @@ export default function AssistantPage() {
     }
   }, [state.turns, aiStatus]);
 
+  // A turn that ended waiting on the browser: run the task through the extension, then report whatever happened.
+  useEffect(() => {
+    const task = state.pendingBrowser;
+    if (!task || state.busy || browserTaskRef.current === task.taskId) return;
+    browserTaskRef.current = task.taskId;
+    const controller = new AbortController();
+    browserAbortRef.current = controller;
+    const sessionId = getAuthSessionId();
+    void runExtensionCollect({
+      task,
+      target: window,
+      signal: controller.signal,
+      onProgress: (progress) => {
+        if (isAuthSessionCurrent(sessionId)) dispatch({ type: "browser_progress", progress });
+      },
+    }).then((outcome) => {
+      const current = stateRef.current;
+      // Leaving or resetting invalidates ownership before abort resolves, even before React renders again.
+      if (browserTaskRef.current !== task.taskId || !isAuthSessionCurrent(sessionId)
+          || current.busy || current.pendingBrowser?.taskId !== task.taskId) return;
+      const body = nextRequest(current, { browser: outcome });
+      dispatch({ type: "browser_report", outcome: outcome.outcome });
+      void send(body);
+    });
+  }, [state.pendingBrowser, state.busy]);
+
   async function send(body: unknown) {
     const controller = new AbortController();
     abortRef.current = controller;
@@ -132,7 +171,7 @@ export default function AssistantPage() {
   function ask(question: string) {
     const text = question.trim();
     // nextRequest also refuses a stale conversation; checking first keeps the draft instead of throwing.
-    if (!text || state.busy || state.pending || staleConversation(state)) return;
+    if (!text || state.busy || state.pending || state.pendingBrowser || staleConversation(state)) return;
     setDraft("");
     start(text, nextRequest(state, { question: text }));
   }
@@ -168,7 +207,7 @@ export default function AssistantPage() {
   }
 
   const stale = staleConversation(state);
-  const inputLocked = state.busy || !!state.pending || !!stale;
+  const inputLocked = state.busy || !!state.pending || !!state.pendingBrowser || !!stale;
   const canRetry = retryRequest(state) != null;
 
   return (
@@ -187,6 +226,8 @@ export default function AssistantPage() {
             type="button"
             disabled={state.busy || state.turns.length === 0}
             onClick={() => {
+              browserTaskRef.current = null;
+              browserAbortRef.current?.abort();
               followedRef.current = new Set();
               setAnalyses({});
               setProcessTurn(null);
@@ -223,6 +264,8 @@ export default function AssistantPage() {
               turn={turn}
               live={index === state.turns.length - 1 && state.busy}
               pending={index === state.turns.length - 1 ? state.pending : null}
+              pendingBrowser={index === state.turns.length - 1 ? state.pendingBrowser : null}
+              onCancelBrowser={() => browserAbortRef.current?.abort()}
               analysis={turn.analysisId ? analyses[turn.analysisId] : undefined}
               onDecide={decide}
               onRetry={index === state.turns.length - 1 && canRetry ? retry : undefined}
@@ -247,7 +290,9 @@ export default function AssistantPage() {
             rows={2}
             value={draft}
             placeholder={stale ? "这段对话的记录没有同步完整，不能继续提问：请查看上面的报告入口，或点「新对话」重新开始"
-              : state.pending ? "请先确认或拒绝上面的操作" : "问点什么，例如：我的简历最适合哪个职位？（Enter 发送，Shift+Enter 换行）"}
+              : state.pending ? "请先确认或拒绝上面的操作"
+                : state.pendingBrowser ? "浏览器插件正在采集，完成或取消后才能继续提问"
+                  : "问点什么，例如：我的简历最适合哪个职位？（Enter 发送，Shift+Enter 换行）"}
             disabled={inputLocked}
             maxLength={4000}
             onChange={(event) => setDraft(event.target.value)}
@@ -264,10 +309,14 @@ export default function AssistantPage() {
   );
 }
 
-function TurnView({ turn, live, pending, analysis, onDecide, onRetry, disabled, processOpen, onOpenProcess }: {
+function TurnView({
+  turn, live, pending, pendingBrowser, onCancelBrowser, analysis, onDecide, onRetry, disabled, processOpen, onOpenProcess,
+}: {
   turn: AgentTurn;
   live: boolean;
   pending: AgentConfirmation | null;
+  pendingBrowser: AgentBrowserTask | null;
+  onCancelBrowser: () => void;
   analysis?: Analysis;
   onDecide: (approved: boolean) => void;
   /** Only on the last failed turn, when asking the same question again is safe. */
@@ -294,6 +343,16 @@ function TurnView({ turn, live, pending, analysis, onDecide, onRetry, disabled, 
           active={pending?.toolCallId === turn.confirmation.toolCallId}
           disabled={disabled}
           onDecide={onDecide}
+        />
+      )}
+
+      {turn.browserTask && (
+        <BrowserTaskCard
+          task={turn.browserTask}
+          progress={turn.browserProgress}
+          outcome={turn.browserOutcome}
+          active={pendingBrowser?.taskId === turn.browserTask.taskId}
+          onCancel={onCancelBrowser}
         />
       )}
 

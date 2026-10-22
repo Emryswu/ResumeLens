@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.agent;
 
+import com.arthur.jdragresume.collect.BrowserExtensionJobCollector;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -12,7 +13,9 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Stand-in for the LLM when {@code ai.mock-enabled=true}: a fixed plan instead of reasoning
  * (list resumes, rank jobs, fetch evidence, answer; and start an analysis when the question
- * asks for one). It drives the real loop, real tools and the real confirmation gate, so
+ * asks for one; first collect BOSS listings through the browser extension when it asks for
+ * that). It drives the real loop, real tools, the real confirmation gate and the real browser
+ * task round trip, so
  * the whole pipeline can be demonstrated offline. Its answers say so explicitly.
  */
 public class ScriptedAgentModel implements AgentModel {
@@ -47,6 +50,17 @@ public class ScriptedAgentModel implements AgentModel {
                     """);
         }
         boolean wantsAnalysis = question.contains("分析");
+        boolean wantsCollection = question.contains("BOSS") || question.contains("采集") || question.contains("收集");
+
+        JsonNode collected = results.get("collect_boss_jobs");
+        if (wantsCollection && collected == null) {
+            String city = BrowserExtensionJobCollector.CITIES.stream().filter(question::contains).findFirst().orElse("全国");
+            String keyword = question.contains("前端") ? "前端开发" : "Java 后端";
+            return call("collect_boss_jobs", "{\"keyword\":\"" + keyword + "\",\"city\":\"" + city + "\",\"maxPages\":1}");
+        }
+        if (collected != null && failed(collected)) {
+            return Reply.answer(BANNER + "这次没有采集到岗位：" + errorMessage(collected));
+        }
 
         JsonNode resumes = results.get("list_resumes");
         if (resumes == null) {
@@ -63,7 +77,10 @@ public class ScriptedAgentModel implements AgentModel {
 
         JsonNode ranking = results.get("rank_jobs_for_resume");
         if (ranking == null) {
-            return call("rank_jobs_for_resume", "{\"resumeId\":" + resumeId + ",\"limit\":3}");
+            // Collected jobs are ranked on their own, so the answer is about what was just found.
+            JsonNode jobIds = collected == null ? null : collected.path("untrusted_data").path("jobIds");
+            String only = jobIds == null || jobIds.isEmpty() ? "" : ",\"jobIds\":" + jobIds;
+            return call("rank_jobs_for_resume", "{\"resumeId\":" + resumeId + ",\"limit\":3" + only + "}");
         }
         if (failed(ranking)) {
             return Reply.answer(BANNER + "职位排序失败：" + errorMessage(ranking));
@@ -85,7 +102,17 @@ public class ScriptedAgentModel implements AgentModel {
         }
         String omitted = resumes.path("truncated").asBoolean()
                 ? "本轮简历列表省略了 " + resumes.path("omittedItems").asInt() + " 份，以下按第一份简历演示。\n" : "";
-        return Reply.answer(BANNER + omitted + summary(firstResume, matches, evidence, started));
+        return Reply.answer(BANNER + omitted + collection(collected) + summary(firstResume, matches, evidence, started));
+    }
+
+    private static String collection(JsonNode collected) {
+        if (collected == null) {
+            return "";
+        }
+        JsonNode data = collected.path("untrusted_data");
+        return "从 BOSS 读了 " + data.path("pagesRead").asInt() + " 页，采到 " + data.path("collected").asInt()
+                + " 条岗位摘要（新增 " + data.path("created").asInt() + " 条，职位库里已有 " + data.path("alreadyInLibrary").asInt()
+                + " 条）。这些只是列表摘要，不是完整 JD。\n";
     }
 
     private String summary(JsonNode resume, JsonNode matches, JsonNode evidence, JsonNode started) {

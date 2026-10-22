@@ -26,13 +26,19 @@ public class AgentConfig {
     }
 
     @Bean
+    public BrowserTaskRegistry browserTaskRegistry() {
+        return new BrowserTaskRegistry();
+    }
+
+    @Bean
     public AgentLoop agentLoop(
             AgentModel agentModel,
             AgentToolRegistry registry,
             ObjectMapper objectMapper,
-            AgentProperties properties
+            AgentProperties properties,
+            BrowserTaskRegistry browserTaskRegistry
     ) {
-        return new AgentLoop(agentModel, registry, objectMapper, properties, System::currentTimeMillis);
+        return new AgentLoop(agentModel, registry, objectMapper, properties, System::currentTimeMillis, browserTaskRegistry);
     }
 
     /** Small and bounded: each turn holds a thread for up to the turn budget while waiting on the model. */

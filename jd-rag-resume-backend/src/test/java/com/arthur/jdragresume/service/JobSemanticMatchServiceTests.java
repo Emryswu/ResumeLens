@@ -38,6 +38,16 @@ class JobSemanticMatchServiceTests {
     }
 
     @Test
+    void rankCanBeLimitedToGivenJobsAndIgnoresStaleVectorsOutsideThem() {
+        // 21 is stale, but only 22 is asked for: the collected batch ranks without a refresh.
+        Fixture fixture = fixture(null, 21L);
+
+        var result = fixture.service.rank(11L, 5, List.of(22L, 999L));
+
+        assertEquals(List.of(22L), result.stream().map(match -> match.job().id()).toList());
+    }
+
+    @Test
     void rankReportsStaleVectorsWithoutRefreshingOrSavingThem() {
         Fixture fixture = fixture(null, 21L);
 
