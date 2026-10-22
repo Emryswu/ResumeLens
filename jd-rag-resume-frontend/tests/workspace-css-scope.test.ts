@@ -98,6 +98,18 @@ test("与登录页共用的选择器在外壳内被覆盖到字号基线以上",
   }
 });
 
+test("操作结果提示吸在顶栏下方，滚到页面下部操作时也看得见", () => {
+  const toast = rules(workspaceCss).find((rule) => rule.selector === ".refined-workspace .toast" && /position:/.test(rule.body));
+  assert.ok(toast, "workspace.css 缺少 .refined-workspace .toast 的定位规则");
+  assert.match(toast.body, /position:\s*sticky/, "提示框不能是 static，否则在页面下部上传失败时用户看不到报错");
+  const topbar = rules(workspaceCss).find((rule) => rule.selector === ".app-topbar" && /position:\s*sticky/.test(rule.body));
+  assert.ok(topbar, "找不到吸顶的 .app-topbar");
+  const top = toast.body.match(/(?:^|[;\s])top:\s*([^;]+)/)?.[1];
+  const barHeight = topbar.body.match(/min-height:\s*([^;]+)/)?.[1];
+  assert.ok(top && barHeight, "提示框需要 top，顶栏需要 min-height");
+  assert.ok(pixels(top) > pixels(barHeight), "提示框的 top 要让出吸顶顶栏的高度，否则会被顶栏盖住");
+});
+
 function luminance(hex: string): number {
   const full = hex.length === 4 ? `#${[...hex.slice(1)].map((c) => c + c).join("")}` : hex;
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(full.slice(i, i + 2), 16) / 255)

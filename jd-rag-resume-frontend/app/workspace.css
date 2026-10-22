@@ -96,7 +96,8 @@
 .state-panel.detail-state { margin-top: 18px; }
 .refined-workspace .history { margin-top: 0; padding-top: 0; }
 .refined-workspace .message { font-size: var(--text-body); }
-.refined-workspace .toast { position: static; margin: 15px 0 24px; box-shadow: none; font-size: var(--text-body); }
+/* Sticky under the top bar: a result must stay visible when the action that caused it sits far down the page. */
+.refined-workspace .toast { position: sticky; top: 72px; z-index: 6; margin: 15px 0 24px; box-shadow: 0 8px 24px rgba(17,44,50,.1); font-size: var(--text-body); }
 .refined-workspace .toast > svg { color: var(--mint-dark); }
 .refined-workspace .toast.error > svg { color: #9c5142; }
 .refined-workspace .detail-card { box-shadow: none; }
@@ -472,6 +473,7 @@
   .app-sidebar nav .nav-icon { display: none; }
   .app-sidebar .nav-label { position: static; width: auto; height: auto; overflow: visible; clip: auto; }
   .app-topbar { position: static; padding-inline: 20px; }
+  .refined-workspace .toast { top: 12px; }
   .account-name { display: none; }
   .refined-workspace .workspace { margin: 0; padding: 26px 20px 50px; }
   /* Narrow screens keep a short, faint banner and drop the slogan so the content starts right away. */
