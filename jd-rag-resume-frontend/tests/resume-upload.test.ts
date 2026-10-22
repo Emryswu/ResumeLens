@@ -50,7 +50,7 @@ test("file upload serialization ignores stale rawText even if async state races"
 });
 
 test("the rawText field is not rendered while a file is attached", async () => {
-  const pageSrc = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSrc = await readFile(new URL("../app/workspace/page.tsx", import.meta.url), "utf8");
   // A file upload takes its text from the server's parser only; the paste box is not even on screen meanwhile.
   assert.match(pageSrc, /\{!file && <label>简历正文<textarea/);
   assert.doesNotMatch(pageSrc, /nextFile\.text\(\)/);
@@ -68,7 +68,7 @@ test("list-to-editor form does not invent resume text when rawText is omitted", 
 });
 
 test("workbench reloads resume detail before editing so list DTO can omit rawText", async () => {
-  const pageSrc = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const pageSrc = await readFile(new URL("../app/workspace/page.tsx", import.meta.url), "utf8");
   assert.match(pageSrc, /apiRequest<Resume>\(`\/api\/resumes\/\$\{item\.id\}`\)/);
   assert.match(pageSrc, /resumeFormFrom\(detail\)/);
 });

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeftRight, Ban, CircleCheck, CircleDashed, CircleHelp, Hand, LoaderCircle } from "lucide-react";
 import type { AgentConfirmation } from "../../agent-stream";
 import { toolLabel } from "../../agent-steps";
+import { workspaceHref } from "../../workspace-nav";
 
 /** A write action the server paused on. Only the active, undecided card can approve or refuse. */
 export function ConfirmationCard({ confirmation, decision, approvalSent, active, disabled, onDecide }: {
@@ -34,7 +35,7 @@ export function ConfirmationCard({ confirmation, decision, approvalSent, active,
         <small>这会消耗一次分析配额并调用一次大模型。</small>
         {unknown && (
           <p className="agent-confirm-unknown">
-            连接在返回结果前中断，无法确定分析是否已经发起。请先到<Link href="/#history">分析记录</Link>核实，不要直接重新发起。
+            连接在返回结果前中断，无法确定分析是否已经发起。请先到<Link href={workspaceHref("history")}>分析记录</Link>核实，不要直接重新发起。
           </p>
         )}
       </div>

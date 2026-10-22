@@ -4,6 +4,7 @@ import { ChevronRight, Clock, LoaderCircle } from "lucide-react";
 import type { AgentTurn } from "../../agent-stream";
 import {
   describeArguments,
+  describeOutcome,
   formatArguments,
   formatDuration,
   processSummary,
@@ -113,6 +114,7 @@ function StepRow({ row }: { row: TimelineStep }) {
   const Icon = toolMeta(row.tool).icon;
   const spinning = row.status === "running" || row.status === "approving" || row.status === "browser" || row.status === "reporting";
   const finished = row.status === "done" || row.status === "failed" || row.status === "rejected";
+  const outcome = describeOutcome(row);
   return (
     <li className={`agent-step ${row.status}`}>
       <details>
@@ -122,6 +124,7 @@ function StepRow({ row }: { row: TimelineStep }) {
           </span>
           <strong>{row.label}</strong>
           <span className="agent-step-args">{describeArguments(row.arguments)}</span>
+          {outcome && <span className="agent-step-outcome">{outcome}</span>}
           <span className="agent-step-meta">
             {/* Only a finished step goes without a word; every other state says what happened. */}
             <span className={`agent-step-status${row.status === "done" ? " quiet" : ""}`}>{STATUS_LABELS[row.status]}</span>
@@ -133,6 +136,7 @@ function StepRow({ row }: { row: TimelineStep }) {
           <div><dt>工具</dt><dd><code>{row.tool}</code></dd></div>
           {row.status === "failed" && row.errorCode && <div><dt>错误码</dt><dd><code>{row.errorCode}</code></dd></div>}
           <div><dt>参数</dt><dd><pre>{formatArguments(row.arguments)}</pre></dd></div>
+          {outcome && <div><dt>结论</dt><dd>{outcome}</dd></div>}
           <div>
             <dt>结果</dt>
             <dd>

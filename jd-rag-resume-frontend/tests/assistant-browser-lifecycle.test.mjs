@@ -15,7 +15,7 @@ const TASK = {
   action: "collectBossJobs", command: { keyword: "Java", city: "深圳", maxPages: 1 },
   expiresAt: 180_000, timeoutSeconds: 180,
 };
-const source = readFileSync(new URL("../app/assistant/page.tsx", import.meta.url), "utf8");
+const source = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const code = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
 }).outputText;

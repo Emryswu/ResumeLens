@@ -6,7 +6,7 @@ import {
   type AgentChatState, type AgentEvent, type AgentMessage, type AgentStep,
 } from "../app/agent-stream.ts";
 import {
-  describeArguments, formatDuration, processSummary, timelineSteps, toolTimeMs, type StepStatus, type TimelineStep,
+  describeArguments, describeOutcome, formatDuration, processSummary, timelineSteps, toolTimeMs, type StepStatus, type TimelineStep,
 } from "../app/agent-steps.ts";
 
 const start = (toolCallId: string, tool = "list_resumes", args = "{}"): AgentEvent =>
@@ -304,4 +304,24 @@ test("total time adds up only what the server reported: failed calls count, refu
   assert.equal(summary?.totalMs, 150);
   assert.equal(formatDuration(summary?.totalMs ?? 0), "150 ms");
   assert.equal(processSummary([step("search_jobs", "unfinished"), step("get_job", "unfinished")])?.totalMs, null);
+});
+
+test("a collection step says what it found, from the facts the server sent", () => {
+  const facts = { pagesRead: 2, collected: 4, created: 3, alreadyInLibrary: 1, notSaved: 0, stopReason: null, stopMessage: null };
+  const state = run(start("c1", "collect_boss_jobs"), finish("c1", { tool: "collect_boss_jobs", facts }), done("COMPLETED"));
+  const [row] = rows(state);
+  assert.deepEqual(row.facts, facts);
+  assert.equal(describeOutcome(row), "读了 2 页 · 新入库 3 个 · 库里已有 1 个");
+
+  const stopped = { ...facts, pagesRead: 1, notSaved: 2, stopReason: "CAPTCHA", stopMessage: "BOSS 要求验证" };
+  assert.equal(describeOutcome({ ...row, facts: stopped }),
+    "读了 1 页 · 新入库 3 个 · 库里已有 1 个 · 2 个未保存（职位库已满） · 提前停止：BOSS 要求验证");
+});
+
+test("no outcome line without facts, for an unfinished step, or for counts that are not numbers", () => {
+  const facts = { pagesRead: 2, created: 3, alreadyInLibrary: 1 };
+  assert.equal(describeOutcome({ tool: "collect_boss_jobs", status: "done", facts: undefined }), null);
+  assert.equal(describeOutcome({ tool: "collect_boss_jobs", status: "failed", facts }), null);
+  assert.equal(describeOutcome({ tool: "list_resumes", status: "done", facts }), null);
+  assert.equal(describeOutcome({ tool: "collect_boss_jobs", status: "done", facts: { ...facts, created: "3" } }), null);
 });

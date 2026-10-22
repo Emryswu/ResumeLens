@@ -240,6 +240,19 @@ class AgentBrowserTaskTests {
         assertEquals(AgentLoop.State.COMPLETED, outcome.state());
         assertEquals(List.of("step_started", "step", "message", "done"), sink.names());
         assertTrue(sink.steps().getFirst().ok());
+        assertEquals(Map.of("facts", Map.of("saved", 0)), Map.of("facts", sink.steps().getFirst().facts()),
+                "the step event carries the tool's facts about its result");
+    }
+
+    @Test
+    void failedStepsCarryNoFacts() {
+        RecordingSink sink = new RecordingSink();
+        loop(new ScriptedModel(
+                transcript -> AgentModel.Reply.call(call("c1", "{\"keyword\":\"Java\"}")),
+                transcript -> AgentModel.Reply.answer("缺城市")))
+                .run(fresh("采集"), null, context, sink, () -> false);
+
+        assertNull(sink.steps().getFirst().facts());
     }
 
     @Test
@@ -343,6 +356,11 @@ class AgentBrowserTaskTests {
             return ToolSchema.object()
                     .string("keyword", "keyword", true, 50)
                     .string("city", "city", true, 10);
+        }
+
+        @Override
+        public Object stepFacts(Object result) {
+            return result;
         }
 
         @Override

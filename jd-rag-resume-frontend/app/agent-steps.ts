@@ -41,6 +41,7 @@ export type TimelineStep = {
   resultChars?: number;
   resultPreview?: string;
   errorCode?: string | null;
+  facts?: Record<string, unknown> | null;
 };
 
 export type ToolMeta = { label: string; icon: LucideIcon };
@@ -139,6 +140,7 @@ export function timelineSteps(turn: AgentTurn, pendingId: string | null): Timeli
     resultChars: step.resultChars,
     resultPreview: step.resultPreview,
     errorCode: step.errorCode,
+    facts: step.facts,
   }));
   for (const start of turn.started) {
     if (finished.has(start.toolCallId)) continue;
@@ -212,6 +214,29 @@ export function describeArguments(raw: string): string {
     .filter(([, value]) => value != null && value !== "")
     .map(([key, value]) => ARGUMENT_TEXT[key]?.(value) ?? `${key}=${typeof value === "object" ? JSON.stringify(value) : String(value)}`);
   return parts.length > 0 ? parts.join(" · ") : "无参数";
+}
+
+const count = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
+
+/** One line per tool that reports facts, built only from those server-sent fields. */
+const OUTCOME_TEXT: Record<string, (facts: Record<string, unknown>) => string | null> = {
+  collect_boss_jobs: (facts) => {
+    const pages = count(facts.pagesRead);
+    const created = count(facts.created);
+    const existing = count(facts.alreadyInLibrary);
+    const notSaved = count(facts.notSaved);
+    if (pages == null || created == null || existing == null) return null;
+    const parts = [`读了 ${pages} 页`, `新入库 ${created} 个`, `库里已有 ${existing} 个`];
+    if (notSaved) parts.push(`${notSaved} 个未保存（职位库已满）`);
+    if (typeof facts.stopMessage === "string" && facts.stopMessage) parts.push(`提前停止：${facts.stopMessage}`);
+    return parts.join(" · ");
+  },
+};
+
+/** What a finished step found, e.g. "读了 2 页 · 新入库 3 个 · 库里已有 1 个"; null when the tool reports no facts. */
+export function describeOutcome(row: Pick<TimelineStep, "tool" | "status" | "facts">): string | null {
+  if (row.status !== "done" || !row.facts || typeof row.facts !== "object") return null;
+  return OUTCOME_TEXT[row.tool]?.(row.facts) ?? null;
 }
 
 /** Arguments pretty-printed for the expanded view. */

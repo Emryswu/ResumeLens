@@ -63,7 +63,7 @@ test("报告页文案：第二人称、无 MATCH REVIEW 眉标、不暗示证据
     "components/MatchReport.tsx",
     ...readdirSync(join(appDir, "components/report")).map((name) => `components/report/${name}`),
   ];
-  for (const file of [...reportFiles, "page.tsx", "resumes/[id]/page.tsx", "preview-evidence.ts"]) {
+  for (const file of [...reportFiles, "workspace/page.tsx", "resumes/[id]/page.tsx", "preview-evidence.ts"]) {
     assert.doesNotMatch(readFileSync(join(appDir, file), "utf8"), /候选人/, file);
   }
   for (const file of reportFiles) {

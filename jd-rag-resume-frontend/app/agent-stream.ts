@@ -23,6 +23,8 @@ export type AgentStep = {
   latencyMs: number;
   resultChars: number;
   resultPreview: string;
+  /** Fields the tool picked from a successful result (counts, how it ended); absent for most tools. */
+  facts?: Record<string, unknown> | null;
 };
 
 /** Sent when the server is about to run a tool; the matching step event carries the result. */

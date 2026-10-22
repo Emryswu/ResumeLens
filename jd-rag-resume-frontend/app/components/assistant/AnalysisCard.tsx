@@ -4,12 +4,13 @@ import Link from "next/link";
 import { ArrowRight, CircleAlert, CircleCheck, LoaderCircle } from "lucide-react";
 import type { Analysis } from "../../lib/api";
 import { scoreLabel } from "../../report-export";
+import { reportHref } from "../../workspace-nav";
 
 /** Progress of an analysis the assistant started, followed until the report settles. */
 export function AnalysisCard({ analysisId, analysis }: { analysisId: number; analysis?: Analysis }) {
   const href = analysis
-    ? `/?resumeId=${analysis.resumeId}&jobId=${analysis.jobDescriptionId}&analysisId=${analysisId}`
-    : `/?analysisId=${analysisId}`;
+    ? reportHref({ resumeId: analysis.resumeId, jobId: analysis.jobDescriptionId, analysisId })
+    : reportHref({ analysisId });
   const status = !analysis || analysis.status === "PENDING" ? "pending" : analysis.status === "COMPLETED" ? "completed" : "failed";
   const score = analysis?.matchScore != null && Number.isFinite(Number(analysis.matchScore)) ? Number(analysis.matchScore) : null;
   return (

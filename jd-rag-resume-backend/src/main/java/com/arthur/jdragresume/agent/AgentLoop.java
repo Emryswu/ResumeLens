@@ -412,7 +412,7 @@ public class AgentLoop {
         }
         if (begin instanceof DeferrableTool.Done done) {
             sink.emit("step_started", new StepStartedEvent(call.id(), call.name(), call.arguments()));
-            recordResult(call, done.result(), sink, transcript, started);
+            recordResult(tool, call, done.result(), sink, transcript, started);
             return null;
         }
         DeferrableTool.InBrowser inBrowser = (DeferrableTool.InBrowser) begin;
@@ -468,7 +468,7 @@ public class AgentLoop {
         requireActive(deadline, cancelled);
         sink.emit("step_started", new StepStartedEvent(pending.id(), pending.name(), pending.arguments()));
         try {
-            recordResult(pending, deferrable.resume(prepared.arguments(), report.report(), context), sink, transcript, started);
+            recordResult(deferrable, pending, deferrable.resume(prepared.arguments(), report.report(), context), sink, transcript, started);
         } catch (RuntimeException ex) {
             ToolFailure failure = ToolFailure.of(ex, pending.name());
             record(pending, sink, transcript, clock.getAsLong() - started,
@@ -478,11 +478,12 @@ public class AgentLoop {
     }
 
     /** Serialized once: the tree goes into the envelope, its text feeds the size check and the preview. */
-    private void recordResult(AgentMessage.ToolCall call, Object result, AgentEventSink sink, List<AgentMessage> transcript, long started) {
+    private void recordResult(AgentTool tool, AgentMessage.ToolCall call, Object result, AgentEventSink sink,
+            List<AgentMessage> transcript, long started) {
         JsonNode data = ToolEnvelope.toTree(objectMapper, result);
         String dataJson = data.toString();
         String content = ToolEnvelope.ok(call.name(), data, dataJson, properties.getToolResultMaxChars());
-        record(call, sink, transcript, clock.getAsLong() - started, content, true, null, dataJson);
+        record(call, sink, transcript, clock.getAsLong() - started, content, true, null, dataJson, tool.stepFacts(result));
     }
 
     /**
@@ -539,7 +540,7 @@ public class AgentLoop {
         // Every step_started is followed by this call's step event, from the success or the failure branch below.
         sink.emit("step_started", new StepStartedEvent(call.id(), call.name(), call.arguments()));
         try {
-            recordResult(call, tool.execute(prepared.arguments(), context), sink, transcript, started);
+            recordResult(tool, call, tool.execute(prepared.arguments(), context), sink, transcript, started);
         } catch (RuntimeException ex) {
             ToolFailure failure = ToolFailure.of(ex, call.name());
             record(call, sink, transcript, clock.getAsLong() - started,
@@ -573,6 +574,20 @@ public class AgentLoop {
             String errorCode,
             String previewSource
     ) {
+        record(call, sink, transcript, latencyMs, content, ok, errorCode, previewSource, null);
+    }
+
+    private void record(
+            AgentMessage.ToolCall call,
+            AgentEventSink sink,
+            List<AgentMessage> transcript,
+            long latencyMs,
+            String content,
+            boolean ok,
+            String errorCode,
+            String previewSource,
+            Object facts
+    ) {
         transcript.add(AgentMessage.tool(call.id(), content));
         sink.emit("step", new StepEvent(
                 call.id(),
@@ -582,7 +597,8 @@ public class AgentLoop {
                 errorCode,
                 latencyMs,
                 content.length(),
-                Objects.requireNonNullElse(ToolText.clip(previewSource, properties.getResultPreviewChars()), "")
+                Objects.requireNonNullElse(ToolText.clip(previewSource, properties.getResultPreviewChars()), ""),
+                facts
         ));
     }
 
@@ -626,7 +642,9 @@ public class AgentLoop {
             String errorCode,
             long latencyMs,
             int resultChars,
-            String resultPreview
+            String resultPreview,
+            /** What {@link AgentTool#stepFacts} picked from a successful result; null otherwise. */
+            Object facts
     ) {
     }
 
