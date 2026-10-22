@@ -57,7 +57,9 @@ importScripts(
     },
 
     async armApiCapture() {
-      await browser.disarmApiCapture();
+      // Clearing leftovers is best effort here: one BOSS tab that refuses the script (still
+      // loading, discarded) must not cost this task its capture. The registration is gone either way.
+      await browser.disarmApiCapture().catch(() => {});
       await chrome.scripting.registerContentScripts([{ ...API_HOOK }]);
     },
 
