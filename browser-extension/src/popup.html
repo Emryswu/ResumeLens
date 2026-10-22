@@ -17,6 +17,11 @@
         <button id="refresh-job" class="icon-button" type="button" title="重新抓取当前岗位">↻</button>
       </header>
 
+      <section id="collect-permission" class="permission hidden" aria-live="polite">
+        <p id="collect-permission-text"></p>
+        <button id="collect-permission-toggle" class="secondary" type="button"></button>
+      </section>
+
       <div id="status" class="status" data-tone="working">正在读取当前岗位…</div>
       <button id="open-resumelens" class="connection-button hidden" type="button">打开 ResumeLens 并登录</button>
       <div id="duplicate" class="duplicate hidden"></div>
@@ -50,6 +55,7 @@
         <a id="full-report" class="report-link hidden" target="_blank" rel="noreferrer">在 ResumeLens 查看完整报告 →</a>
       </section>
     </main>
+    <script src="boss-search.js"></script>
     <script src="popup-request-gate.js"></script>
     <script src="report-list.js"></script>
     <script src="popup.js"></script>

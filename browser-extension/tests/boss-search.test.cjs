@@ -1,0 +1,58 @@
+const assert = require("node:assert/strict");
+const test = require("node:test");
+
+const search = require("../src/boss-search.js");
+
+const valid = { taskId: "call_1", keyword: " Java  后端 实习 ", city: "深圳", maxPages: 2 };
+
+test("a valid command is normalized and frozen", () => {
+  const result = search.validateCommand(valid);
+  assert.equal(result.ok, true);
+  assert.deepEqual({ ...result.command }, { taskId: "call_1", keyword: "Java 后端 实习", city: "深圳", maxPages: 2 });
+  assert.ok(Object.isFrozen(result.command));
+});
+
+test("the search URL is built here, on BOSS, from the city table only", () => {
+  const url = new URL(search.buildSearchUrl(search.validateCommand(valid).command));
+  assert.equal(url.origin, "https://www.zhipin.com");
+  assert.equal(url.pathname, "/web/geek/job");
+  assert.equal(url.searchParams.get("query"), "Java 后端 实习");
+  assert.equal(url.searchParams.get("city"), "101280600");
+});
+
+test("commands cannot smuggle a URL, an unknown city or extra pages", () => {
+  const cases = [
+    { ...valid, city: "https://evil.example/" },
+    { ...valid, city: "toString" },
+    { ...valid, maxPages: search.LIMITS.maxPages + 1 },
+    { ...valid, maxPages: 0 },
+    { ...valid, maxPages: 1.5 },
+    { ...valid, maxPages: "2" },
+    { ...valid, keyword: "" },
+    { ...valid, keyword: "x".repeat(search.LIMITS.keywordMaxChars + 1) },
+    { ...valid, taskId: "../etc" },
+    { ...valid, taskId: "" },
+    null,
+    "collect",
+  ];
+  for (const command of cases) {
+    assert.equal(search.validateCommand(command).ok, false, JSON.stringify(command));
+  }
+});
+
+test("page delays stay inside the configured random window", () => {
+  assert.equal(search.pageDelayMs(() => 0), search.LIMITS.pageDelayMinMs);
+  assert.equal(search.pageDelayMs(() => 0.999999), search.LIMITS.pageDelayMaxMs);
+  for (let index = 0; index < 200; index += 1) {
+    const delay = search.pageDelayMs(Math.random);
+    assert.ok(delay >= search.LIMITS.pageDelayMinMs && delay <= search.LIMITS.pageDelayMaxMs, String(delay));
+  }
+});
+
+test("only https zhipin.com hosts count as BOSS", () => {
+  assert.equal(search.isBossUrl("https://www.zhipin.com/web/geek/job"), true);
+  assert.equal(search.isBossUrl("https://zhipin.com/"), true);
+  assert.equal(search.isBossUrl("http://www.zhipin.com/"), false);
+  assert.equal(search.isBossUrl("https://zhipin.com.evil.example/"), false);
+  assert.equal(search.isBossUrl("not a url"), false);
+});

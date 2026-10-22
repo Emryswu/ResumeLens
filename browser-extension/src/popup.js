@@ -2,6 +2,7 @@
   "use strict";
 
   const RESUMELENS_MATCHES = ["http://localhost:3000/*", "http://127.0.0.1:3000/*"];
+  const BOSS_ORIGINS = [...globalThis.ResumeLensBossSearch.PERMISSION_ORIGINS];
   const requestGate = globalThis.ResumeLensPopupRequestGate.create();
   const { asList } = globalThis.ResumeLensReportList;
   const state = {
@@ -32,8 +33,28 @@
     });
     resumeSelect.addEventListener("change", () => void loadPreviousAnalysis());
     reanalyzeButton.addEventListener("click", () => void analyze(true));
+    element("collect-permission-toggle").addEventListener("click", () => void toggleCollectPermission());
+    void renderCollectPermission();
     void initialize();
   });
+
+  // Optional, so the extension still holds no standing BOSS access until the user opts in here.
+  // chrome.permissions.request must run inside the click handler's user gesture.
+  async function toggleCollectPermission() {
+    const granted = await chrome.permissions.contains({ origins: BOSS_ORIGINS });
+    if (granted) await chrome.permissions.remove({ origins: BOSS_ORIGINS });
+    else await chrome.permissions.request({ origins: BOSS_ORIGINS });
+    await renderCollectPermission();
+  }
+
+  async function renderCollectPermission() {
+    const granted = await chrome.permissions.contains({ origins: BOSS_ORIGINS });
+    element("collect-permission-text").textContent = granted
+      ? "已允许 AI 助手在 BOSS 直聘只读采集岗位：打开搜索页、滚动、读取列表，不会点击或发送消息。"
+      : "允许后，ResumeLens 的 AI 助手可以在这个浏览器里打开 BOSS 搜索页并读取岗位列表。";
+    element("collect-permission-toggle").textContent = granted ? "撤销授权" : "允许访问 BOSS 直聘";
+    show(element("collect-permission"));
+  }
 
   async function initialize() {
     requestGate.cancel();
@@ -207,7 +228,7 @@
     const response = await sendWithInjection(
       state.bridgeTab.id,
       { type: "RESUMELENS_BRIDGE_CALL", action, payload },
-      ["src/content-resumelens.js"],
+      ["src/command-relay.js", "src/content-resumelens.js"],
     );
     if (!response || !response.ok) throw new Error(response?.error || "ResumeLens 请求失败");
     return response.result;
