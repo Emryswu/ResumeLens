@@ -40,6 +40,16 @@ public class AgentProperties {
     private int summaryMaxChars = 2000;
     @Min(1)
     private int memoryRecallLimit = 5;
+    /**
+     * How long the server waits for the browser to report on a task it handed out. A full
+     * collection is at most 3 pages with a 3-7 s pause and a 30 s load limit each, so this leaves
+     * room; past it the report is refused and the model says the task expired.
+     */
+    @Min(10)
+    private long browserTaskTimeoutSeconds = 180;
+    /** Upper bound on the serialized browser report; 45 listings fit in well under this. */
+    @Min(1)
+    private int maxBrowserReportChars = 200_000;
 
     public int getMaxPlanningSteps() { return maxPlanningSteps; }
     public void setMaxPlanningSteps(int value) { maxPlanningSteps = value; }
@@ -53,6 +63,10 @@ public class AgentProperties {
     public void setSummaryMaxChars(int value) { summaryMaxChars = value; }
     public int getMemoryRecallLimit() { return memoryRecallLimit; }
     public void setMemoryRecallLimit(int value) { memoryRecallLimit = value; }
+    public long getBrowserTaskTimeoutSeconds() { return browserTaskTimeoutSeconds; }
+    public void setBrowserTaskTimeoutSeconds(long value) { browserTaskTimeoutSeconds = value; }
+    public int getMaxBrowserReportChars() { return maxBrowserReportChars; }
+    public void setMaxBrowserReportChars(int value) { maxBrowserReportChars = value; }
 
     public int getMaxSteps() {
         return maxSteps;

@@ -23,6 +23,8 @@ const NO_RESULT: Partial<Record<StepStatus, string>> = {
   unknown: "已提交你的同意，但连接在返回结果前中断，无法确定是否已经执行。请先到「分析记录」核实，不要直接重新发起。",
   unconfirmed: "没有执行",
   unfinished: "这一步没有返回结果",
+  browser: "还没有结果：浏览器插件正在执行",
+  reporting: "已把插件的结果交给服务端，等待它处理",
 };
 
 export const PROCESS_DRAWER_ID = "process-drawer";
@@ -109,7 +111,7 @@ function Timeline({ rows, thinking }: { rows: TimelineStep[]; thinking: boolean 
 
 function StepRow({ row }: { row: TimelineStep }) {
   const Icon = toolMeta(row.tool).icon;
-  const spinning = row.status === "running" || row.status === "approving";
+  const spinning = row.status === "running" || row.status === "approving" || row.status === "browser" || row.status === "reporting";
   const finished = row.status === "done" || row.status === "failed" || row.status === "rejected";
   return (
     <li className={`agent-step ${row.status}`}>

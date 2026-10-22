@@ -18,6 +18,8 @@ public record JobDescriptionResponse(
         String sourceJobId,
         String contentFingerprint,
         LocalDateTime lastSeenAt,
+        /** FULL or LISTING; a LISTING job holds only the search-list summary, not the full JD. */
+        String captureDepth,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
@@ -36,6 +38,7 @@ public record JobDescriptionResponse(
                 jobDescription.getSourceJobId(),
                 jobDescription.getContentFingerprint(),
                 jobDescription.getLastSeenAt(),
+                jobDescription.getCaptureDepth().name(),
                 jobDescription.getCreatedAt(),
                 jobDescription.getUpdatedAt()
         );

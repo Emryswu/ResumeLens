@@ -7,8 +7,10 @@ import com.arthur.jdragresume.dto.job.JobCaptureResponse;
 import com.arthur.jdragresume.dto.job.JobDescriptionRequest;
 import com.arthur.jdragresume.dto.job.JobDescriptionResponse;
 import com.arthur.jdragresume.dto.job.JobSourceLookupResponse;
+import com.arthur.jdragresume.dto.job.ListingCaptureResult;
 import com.arthur.jdragresume.entity.AnalysisStatus;
 import com.arthur.jdragresume.entity.AppUser;
+import com.arthur.jdragresume.entity.CaptureDepth;
 import com.arthur.jdragresume.entity.JobDescription;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
@@ -23,7 +25,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Locale;
 
 @Service
@@ -145,6 +150,8 @@ public class JobDescriptionService {
                 jobDescription.setContentFingerprint(fingerprint);
                 semanticEmbeddingService.refresh(jobDescription);
             }
+            // A detail-page capture is the full posting, also when it replaces a list summary.
+            jobDescription.setCaptureDepth(CaptureDepth.FULL);
             jobDescription.setSourceUrl(request.sourceUrl().trim());
             jobDescription.setLastSeenAt(now);
             JobDescription saved = jobDescriptionRepository.save(jobDescription);
@@ -163,6 +170,59 @@ public class JobDescriptionService {
         semanticEmbeddingService.refresh(jobDescription);
         JobDescription saved = jobDescriptionRepository.save(jobDescription);
         return new JobCaptureResponse(JobDescriptionResponse.from(saved), false, false);
+    }
+
+    /**
+     * Saves search-list summaries collected by the assistant. Unlike {@link #capture}, a listing
+     * never overwrites what the library already has for the same source job: a summary is less
+     * than any posting already stored, so a known job only gets its {@code lastSeenAt} refreshed.
+     * New jobs are saved in order until the quota is reached; the rest are counted, not saved.
+     */
+    @Transactional
+    public ListingCaptureResult captureListings(List<JobCaptureRequest> listings) {
+        AppUser user = lockCurrentUser();
+        LocalDateTime now = LocalDateTime.now();
+        long count = jobDescriptionRepository.countByUserId(user.getId());
+        List<ListingCaptureResult.Saved> saved = new ArrayList<>();
+        List<JobDescription> created = new ArrayList<>();
+        int notSaved = 0;
+        Set<String> seen = new HashSet<>();
+        for (JobCaptureRequest request : listings) {
+            String sourcePlatform = normalizeSourcePlatform(request.sourcePlatform());
+            String sourceJobId = normalizeSourceJobId(request.sourceJobId());
+            if (!seen.add(sourcePlatform + ":" + sourceJobId)) {
+                continue;
+            }
+            var existing = jobDescriptionRepository.findByUserIdAndSourcePlatformAndSourceJobId(
+                    user.getId(), sourcePlatform, sourceJobId);
+            if (existing.isPresent()) {
+                JobDescription jobDescription = existing.get();
+                jobDescription.setLastSeenAt(now);
+                saved.add(new ListingCaptureResult.Saved(JobDescriptionResponse.from(jobDescriptionRepository.save(jobDescription)), true));
+                continue;
+            }
+            if (count >= maxJobDescriptionsPerUser) {
+                notSaved++;
+                continue;
+            }
+            JobDescription jobDescription = new JobDescription();
+            jobDescription.setUser(user);
+            applyCaptureRequest(jobDescription, request);
+            jobDescription.setSourcePlatform(sourcePlatform);
+            jobDescription.setSourceUrl(request.sourceUrl().trim());
+            jobDescription.setSourceJobId(sourceJobId);
+            jobDescription.setContentFingerprint(ContentFingerprints.job(jobDescription));
+            jobDescription.setCaptureDepth(CaptureDepth.LISTING);
+            jobDescription.setLastSeenAt(now);
+            created.add(jobDescription);
+            count++;
+        }
+        // One batch embedding call for every new summary, as bulkImport does.
+        semanticEmbeddingService.refreshJobs(created);
+        for (JobDescription jobDescription : created) {
+            saved.add(new ListingCaptureResult.Saved(JobDescriptionResponse.from(jobDescriptionRepository.save(jobDescription)), false));
+        }
+        return new ListingCaptureResult(saved, notSaved, notSaved > 0, maxJobDescriptionsPerUser);
     }
 
     @Transactional

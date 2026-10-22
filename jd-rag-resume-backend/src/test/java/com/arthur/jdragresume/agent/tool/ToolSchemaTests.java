@@ -23,4 +23,18 @@ class ToolSchemaTests {
 
         assertEquals(1, problems.size(), problems.toString());
     }
+
+    @Test
+    void integerArraysCheckTypeSizeAndEveryItem() throws Exception {
+        ToolSchema ids = ToolSchema.object().integerArray("jobIds", "ids", false, 1, Long.MAX_VALUE, 3);
+
+        assertEquals(List.of(), ids.validate(objectMapper.readTree("{\"jobIds\":[1,2,3]}")));
+        assertEquals(List.of(), ids.validate(objectMapper.readTree("{}")));
+        assertEquals(1, ids.validate(objectMapper.readTree("{\"jobIds\":[1,2,3,4]}")).size());
+        assertEquals(1, ids.validate(objectMapper.readTree("{\"jobIds\":[1,\"2\"]}")).size());
+        assertEquals(1, ids.validate(objectMapper.readTree("{\"jobIds\":[0]}")).size());
+        assertEquals(1, ids.validate(objectMapper.readTree("{\"jobIds\":7}")).size());
+        assertEquals("integer", ids.toJson().path("properties").path("jobIds").path("items").path("type").asText());
+        assertEquals(3, ids.toJson().path("properties").path("jobIds").path("maxItems").asInt());
+    }
 }

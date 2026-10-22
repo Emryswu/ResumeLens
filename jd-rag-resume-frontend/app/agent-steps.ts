@@ -3,7 +3,7 @@
  * pending confirmation; durations and result sizes are only ever the numbers the server reported.
  */
 import {
-  BriefcaseBusiness, FileSearch, FileStack, Gauge, History, ListOrdered, Search, Wrench, type LucideIcon,
+  BriefcaseBusiness, FileSearch, FileStack, Gauge, History, ListOrdered, ScanSearch, Search, Wrench, type LucideIcon,
 } from "lucide-react";
 import type { AgentTurn } from "./agent-stream";
 
@@ -23,7 +23,11 @@ export type StepStatus =
   /** Asked for confirmation, but no approval was sent; the tool never ran. */
   | "unconfirmed"
   /** Started, but the request ended before a result arrived. Not counted as done. */
-  | "unfinished";
+  | "unfinished"
+  /** Handed to the browser extension; its report has not been sent yet. */
+  | "browser"
+  /** The page sent the browser's report and the request is still open; no result yet. */
+  | "reporting";
 
 export type TimelineStep = {
   id: string;
@@ -53,6 +57,7 @@ export const AGENT_TOOLS: Record<string, ToolMeta> = {
   search_resume_evidence: { label: "检索简历证据（RAG）", icon: FileSearch },
   get_latest_analysis: { label: "读取最近一次分析", icon: History },
   start_analysis: { label: "发起完整分析", icon: Gauge },
+  collect_boss_jobs: { label: "去 BOSS 采集岗位", icon: ScanSearch },
 };
 
 /** A tool this page does not know yet still shows, under its raw name and a generic icon. */
@@ -70,6 +75,8 @@ export const STATUS_LABELS: Record<StepStatus, string> = {
   unknown: "已同意，结果未知",
   unconfirmed: "未确认，未执行",
   unfinished: "未完成，没有返回结果",
+  browser: "插件执行中",
+  reporting: "正在回传采集结果",
 };
 
 export function toolLabel(tool: string): string {
@@ -143,6 +150,16 @@ export function timelineSteps(turn: AgentTurn, pendingId: string | null): Timeli
       status: turn.unfinished.includes(start.toolCallId) ? "unfinished" : "running",
     });
   }
+  const task = turn.browserTask;
+  if (task && !finished.has(task.toolCallId) && !turn.started.some((start) => start.toolCallId === task.toolCallId)) {
+    rows.push({
+      id: task.toolCallId,
+      tool: task.tool,
+      label: toolLabel(task.tool),
+      arguments: JSON.stringify(task.command),
+      status: turn.browserOutcome ? (turn.synced ? "unfinished" : "reporting") : "browser",
+    });
+  }
   const confirmation = turn.confirmation;
   if (confirmation && !finished.has(confirmation.toolCallId)
       && !turn.started.some((start) => start.toolCallId === confirmation.toolCallId)) {
@@ -177,6 +194,8 @@ const ARGUMENT_TEXT: Record<string, (value: unknown) => string> = {
   jobId: (value) => `职位 #${String(value)}`,
   limit: (value) => `前 ${String(value)} 个`,
   keyword: (value) => `关键词「${String(value)}」`,
+  city: (value) => String(value),
+  maxPages: (value) => `最多 ${String(value)} 页`,
   page: (value) => `第 ${Number(value) + 1} 页`,
 };
 
