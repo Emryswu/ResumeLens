@@ -63,9 +63,9 @@
     if (anyVisible(documentRef, SELECTORS.captcha) || CAPTCHA_TEXT.test(shortBodyText(documentRef))) {
       return { kind: "blocked", code: "CAPTCHA" };
     }
+    if (anyVisible(documentRef, SELECTORS.login)) return { kind: "blocked", code: "BOSS_NOT_LOGGED_IN" };
     const cards = findCards(documentRef);
     if (cards.length > 0) return { kind: "ready", cardCount: cards.length };
-    if (anyVisible(documentRef, SELECTORS.login)) return { kind: "blocked", code: "BOSS_NOT_LOGGED_IN" };
     if (anyVisible(documentRef, SELECTORS.empty) || EMPTY_TEXT.test(shortBodyText(documentRef))) {
       return { kind: "empty" };
     }

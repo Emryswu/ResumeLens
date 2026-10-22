@@ -98,6 +98,20 @@ test("a captcha overlay wins even when cards are still rendered underneath", () 
   assert.deepEqual(list.inspect(documentRef, SEARCH_URL), { kind: "blocked", code: "CAPTCHA" });
 });
 
+test("a visible login dialog blocks collection even when cards remain underneath", () => {
+  const documentRef = page([card({ id: "a", title: "A", company: "B" })], {
+    ".login-dialog": [{ getClientRects: () => [{}] }],
+  });
+  assert.deepEqual(list.inspect(documentRef, SEARCH_URL), { kind: "blocked", code: "BOSS_NOT_LOGGED_IN" });
+});
+
+test("a hidden login dialog does not block readable cards", () => {
+  const documentRef = page([card({ id: "a", title: "A", company: "B" })], {
+    ".login-dialog": [{ getClientRects: () => [] }],
+  });
+  assert.deepEqual(list.inspect(documentRef, SEARCH_URL), { kind: "ready", cardCount: 1 });
+});
+
 test("redirects to login or verification pages are recognized from the URL alone", () => {
   assert.equal(list.blockerFromUrl("https://www.zhipin.com/web/user/?ka=header-login"), "BOSS_NOT_LOGGED_IN");
   assert.equal(list.blockerFromUrl("https://login.zhipin.com/"), "BOSS_NOT_LOGGED_IN");

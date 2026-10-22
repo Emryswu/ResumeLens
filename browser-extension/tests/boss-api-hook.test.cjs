@@ -140,3 +140,87 @@ test("installing twice wraps fetch only once", () => {
   hook.install(win);
   assert.equal(win.fetch, wrapped);
 });
+
+test("stop restores fetch and XHR, clears buffered responses and permits another task", async () => {
+  const { win } = fakeWindow({ "/wapi/": BODY });
+  const original = { fetch: win.fetch, open: win.XMLHttpRequest.prototype.open, send: win.XMLHttpRequest.prototype.send };
+  hook.install(win);
+  const capture = win[hook.BUFFER_KEY];
+  await win.fetch(LIST_URL);
+  await settle();
+  capture.stop();
+
+  assert.equal(win.fetch, original.fetch);
+  assert.equal(win.XMLHttpRequest.prototype.open, original.open);
+  assert.equal(win.XMLHttpRequest.prototype.send, original.send);
+  assert.deepEqual(capture.drain(), []);
+  assert.equal(win[hook.BUFFER_KEY], undefined);
+  await win.fetch(LIST_URL);
+  await settle();
+  assert.deepEqual(capture.drain(), []);
+
+  hook.install(win);
+  capture.stop(); // A stale cleanup must not stop the new task.
+  await win.fetch(LIST_URL);
+  await settle();
+  assert.deepEqual(drain(win), [{ path: "/wapi/zpgeek/search/joblist.json", body: BODY }]);
+});
+
+test("responses already in flight cannot refill the buffer after stop", async () => {
+  let respond;
+  let cloned = false;
+  const { win } = fakeWindow();
+  win.fetch = () => new Promise((resolve) => { respond = resolve; });
+  hook.install(win);
+  const capture = win[hook.BUFFER_KEY];
+  const pending = win.fetch(LIST_URL);
+  const xhr = new win.XMLHttpRequest();
+  xhr.open("GET", LIST_URL);
+  xhr.send(null);
+  capture.stop();
+  respond({ clone() { cloned = true; return new Response(BODY); } });
+  await pending;
+  xhr.respond(BODY);
+  await settle();
+
+  assert.equal(cloned, false);
+  assert.deepEqual(capture.drain(), []);
+});
+
+test("a body read started before stop cannot refill the cleared buffer", async () => {
+  let finishBody;
+  const { win } = fakeWindow();
+  win.fetch = async () => ({ clone: () => ({ text: () => new Promise((resolve) => { finishBody = resolve; }) }) });
+  hook.install(win);
+  const capture = win[hook.BUFFER_KEY];
+  await win.fetch(LIST_URL);
+  capture.stop();
+  finishBody(BODY);
+  await settle();
+  assert.deepEqual(capture.drain(), []);
+});
+
+test("stopping leaves the page's later wrappers intact but disables capture through them", async () => {
+  const { win } = fakeWindow({ "/wapi/": BODY });
+  hook.install(win);
+  const capture = win[hook.BUFFER_KEY];
+  const installed = { fetch: win.fetch, open: win.XMLHttpRequest.prototype.open, send: win.XMLHttpRequest.prototype.send };
+  const laterFetch = (...args) => installed.fetch(...args);
+  const laterOpen = function (...args) { return installed.open.apply(this, args); };
+  const laterSend = function (...args) { return installed.send.apply(this, args); };
+  win.fetch = laterFetch;
+  win.XMLHttpRequest.prototype.open = laterOpen;
+  win.XMLHttpRequest.prototype.send = laterSend;
+  capture.stop();
+
+  assert.equal(win.fetch, laterFetch);
+  assert.equal(win.XMLHttpRequest.prototype.open, laterOpen);
+  assert.equal(win.XMLHttpRequest.prototype.send, laterSend);
+  await win.fetch(LIST_URL);
+  const xhr = new win.XMLHttpRequest();
+  xhr.open("GET", LIST_URL);
+  xhr.send(null);
+  xhr.respond(BODY);
+  await settle();
+  assert.deepEqual(capture.drain(), []);
+});

@@ -64,6 +64,18 @@ importScripts(
     async disarmApiCapture() {
       const registered = await chrome.scripting.getRegisteredContentScripts({ ids: [API_HOOK.id] });
       if (registered.length > 0) await chrome.scripting.unregisterContentScripts({ ids: [API_HOOK.id] });
+      // Unregistering only prevents future injection. Stop hooks in existing pages too,
+      // including tabs left open by a restarted worker or moved within BOSS by the user.
+      const tabs = await chrome.tabs.query({ url: BOSS_ORIGINS });
+      const stopped = await Promise.allSettled(tabs.map((tab) => chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        world: "MAIN",
+        func: (key) => globalThis[key]?.stop(),
+        args: [BUFFER_KEY],
+      })));
+      // Try every tab even if one closed or lost permission during cleanup, then report failure.
+      const failure = stopped.find((result) => result.status === "rejected");
+      if (failure) throw failure.reason;
     },
 
     async openTab(url) {

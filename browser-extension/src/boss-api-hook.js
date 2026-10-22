@@ -17,7 +17,7 @@
   /**
    * Runs in the page's own JavaScript world at document_start, before BOSS's scripts, and only
    * while a collection task is running (the service worker registers it for the task and
-   * unregisters it afterwards).
+   * unregisters it and stops already injected hooks afterwards).
    *
    * It wraps fetch and XMLHttpRequest for one purpose: keeping a copy of the job list responses
    * the page itself asked for. Requests go out unchanged, responses reach the page unchanged, and
@@ -27,31 +27,49 @@
   function install(win) {
     if (!win || win[BUFFER_KEY]) return;
     const entries = [];
+    const restorers = [];
+    let active = true;
     Object.defineProperty(win, BUFFER_KEY, {
-      value: Object.freeze({ drain: () => entries.splice(0) }),
+      configurable: true,
+      value: Object.freeze({
+        drain: () => entries.splice(0),
+        stop() {
+          // Cleanup can be repeated after a later task installed its own hook.
+          if (!active) return;
+          active = false;
+          entries.length = 0;
+          restorers.forEach((restore) => restore());
+          delete win[BUFFER_KEY];
+        },
+      }),
     });
 
     const pageHref = () => (win.location && win.location.href) || undefined;
     const record = (path, body) => {
-      if (typeof body !== "string" || body.length > MAX_BODY_CHARS) return;
+      if (!active || typeof body !== "string" || body.length > MAX_BODY_CHARS) return;
       entries.push({ path, body });
       if (entries.length > MAX_ENTRIES) entries.shift();
     };
 
     const originalFetch = win.fetch;
     if (typeof originalFetch === "function") {
-      win.fetch = function fetch(input) {
+      const wrappedFetch = function fetch(input) {
         const pending = originalFetch.apply(this, arguments);
         const path = listApiPath(requestUrl(input), pageHref());
-        if (path) {
+        if (active && path) {
           // Registered before the page sees the promise, so the clone happens before the page
           // reads the body. Failures here never reach the page.
           pending
-            .then((response) => response.clone().text())
+            .then((response) => active ? response.clone().text() : null)
             .then((body) => record(path, body), () => {});
         }
         return pending;
       };
+      win.fetch = wrappedFetch;
+      restorers.push(() => {
+        // The page may have wrapped fetch since installation; keep its newer wrapper intact.
+        if (win.fetch === wrappedFetch) win.fetch = originalFetch;
+      });
     }
 
     const Xhr = win.XMLHttpRequest;
@@ -59,16 +77,17 @@
       const paths = new WeakMap();
       const originalOpen = Xhr.prototype.open;
       const originalSend = Xhr.prototype.send;
-      Xhr.prototype.open = function open(method, url) {
+      const wrappedOpen = function open(method, url) {
         const path = listApiPath(String(url), pageHref());
         if (path) paths.set(this, path);
         else paths.delete(this);
         return originalOpen.apply(this, arguments);
       };
-      Xhr.prototype.send = function send() {
+      const wrappedSend = function send() {
         const path = paths.get(this);
-        if (path) {
+        if (active && path) {
           this.addEventListener("load", () => {
+            if (!active) return;
             try {
               record(path, xhrBody(this));
             } catch {
@@ -78,6 +97,12 @@
         }
         return originalSend.apply(this, arguments);
       };
+      Xhr.prototype.open = wrappedOpen;
+      Xhr.prototype.send = wrappedSend;
+      restorers.push(() => {
+        if (Xhr.prototype.open === wrappedOpen) Xhr.prototype.open = originalOpen;
+        if (Xhr.prototype.send === wrappedSend) Xhr.prototype.send = originalSend;
+      });
     }
   }
 
