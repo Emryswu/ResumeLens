@@ -129,6 +129,20 @@ test("an extension without the capability is reported as outdated and gets no co
   assert.equal(run.posted.length, 1);
 });
 
+test("experience filtering requires a capable extension and reaches it unchanged", async () => {
+  const task = { ...TASK, command: { ...TASK.command, keyword: "", experience: "在校生" } };
+  const old = start({ task });
+  old.reply("r1", { type: "pong", capabilities: ["collectBossJobs"] });
+  assert.deepEqual(await old.result, { outcome: "completed", report: { type: "rejected", code: "EXTENSION_OUTDATED" } });
+  assert.equal(old.posted.length, 1);
+  const current = start({ task });
+  current.reply("r1", { type: "pong", capabilities: ["collectBossJobs", "experienceFilter"] });
+  assert.equal(current.posted[1].payload?.experience, "在校生");
+  assert.equal(current.posted[1].payload?.keyword, "");
+  current.reply("r2", { type: "result", task: {} });
+  await current.result;
+});
+
 test("the user's cancel stops the extension and reports cancelled", async () => {
   const run = start();
   run.reply("r1", { type: "pong", capabilities: ["collectBossJobs"] });

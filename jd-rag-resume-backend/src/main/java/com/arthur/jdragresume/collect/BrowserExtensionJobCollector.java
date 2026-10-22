@@ -35,6 +35,8 @@ public class BrowserExtensionJobCollector implements JobCollector {
     static final int MAX_PAGES = 3;
     static final int MAX_JOBS = 45;
     static final int KEYWORD_MAX_CHARS = 50;
+    public static final List<String> EXPERIENCES = List.of(
+            "不限", "在校生", "应届生", "经验不限", "1年以内", "1-3年", "3-5年", "5-10年", "10年以上");
 
     private static final Pattern CODE = Pattern.compile("[A-Z_]{1,40}");
     private static final Pattern JOB_ID = Pattern.compile("[^\\s/?#]{1,160}");
@@ -80,8 +82,11 @@ public class BrowserExtensionJobCollector implements JobCollector {
 
     @Override
     public Start start(CollectRequest request) {
-        if (request.keyword().isEmpty() || request.keyword().length() > KEYWORD_MAX_CHARS) {
-            throw invalidRequest("keyword 不能为空，且不超过 " + KEYWORD_MAX_CHARS + " 个字符");
+        if (!EXPERIENCES.contains(request.experience())) {
+            throw invalidRequest("experience 必须是 BOSS 网页支持的工作经验选项：" + String.join("、", EXPERIENCES));
+        }
+        if ((request.keyword().isEmpty() && "不限".equals(request.experience())) || request.keyword().length() > KEYWORD_MAX_CHARS) {
+            throw invalidRequest("请指定岗位关键词或工作经验筛选；keyword 不超过 " + KEYWORD_MAX_CHARS + " 个字符");
         }
         if (!CITIES.contains(request.city())) {
             throw invalidRequest("暂不支持城市「" + request.city() + "」，可选：" + String.join("、", CITIES));
@@ -93,6 +98,7 @@ public class BrowserExtensionJobCollector implements JobCollector {
         command.put("keyword", request.keyword());
         command.put("city", request.city());
         command.put("maxPages", request.maxPages());
+        command.put("experience", request.experience());
         return new Delegated(EXECUTOR, ACTION, command);
     }
 
@@ -144,7 +150,8 @@ public class BrowserExtensionJobCollector implements JobCollector {
         CollectRequest reported = new CollectRequest(
                 command.path("keyword").asText(""),
                 command.path("city").asText(""),
-                command.path("maxPages").isIntegralNumber() ? command.path("maxPages").asInt() : -1);
+                command.path("maxPages").isIntegralNumber() ? command.path("maxPages").asInt() : -1,
+                command.path("experience").asText("不限"));
         if (!reported.equals(request)) {
             throw invalidReport("report is for a different search");
         }

@@ -73,6 +73,24 @@ public class JobDescriptionService {
     }
 
     @Transactional(readOnly = true)
+    public PageResponse<JobDescriptionResponse> findAll(int page, int size, String keyword, String employmentType) {
+        AppUser user = currentUserService.getCurrentUser();
+        var pageable = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        return PageResponse.from(jobDescriptionRepository.searchForUser(user.getId(), normalizeKeyword(keyword),
+                normalizeKeyword(employmentType), pageable).map(JobDescriptionResponse::from));
+    }
+
+    @Transactional(readOnly = true)
+    public LibraryCounts libraryCounts() {
+        Long userId = currentUserService.getCurrentUser().getId();
+        java.util.Map<String, Long> counts = new java.util.TreeMap<>();
+        jobDescriptionRepository.countTypesForUser(userId).forEach(row -> counts.put(row.getEmploymentType(), row.getTotal()));
+        return new LibraryCounts(counts.values().stream().mapToLong(Long::longValue).sum(), counts);
+    }
+
+    public record LibraryCounts(long total, java.util.Map<String, Long> byEmploymentType) { }
+
+    @Transactional(readOnly = true)
     public JobDescriptionResponse findById(Long id) {
         return JobDescriptionResponse.from(getEntityForCurrentUser(id));
     }

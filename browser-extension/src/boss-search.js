@@ -27,6 +27,13 @@
     厦门: "101230200",
   });
 
+  // BOSS /wapi/zpgeek/pc/all/filter/conditions.json, verified 2026-10-22.
+  // These are work-experience filters. 在校生 narrows the pool; it does not certify an internship.
+  const EXPERIENCE_CODES = Object.freeze({
+    不限: "", 在校生: "108", 应届生: "102", 经验不限: "101", "1年以内": "103",
+    "1-3年": "104", "3-5年": "105", "5-10年": "106", "10年以上": "107",
+  });
+
   const LIMITS = Object.freeze({
     /** Hard ceiling enforced here, whatever the backend asks for. */
     maxPages: 3,
@@ -50,8 +57,12 @@
     const taskId = typeof value.taskId === "string" ? value.taskId : "";
     if (!TASK_ID_PATTERN.test(taskId)) return invalid("taskId 只能包含字母、数字、下划线和短横线，最长 100 个字符");
     const keyword = typeof value.keyword === "string" ? value.keyword.replace(/\s+/g, " ").trim() : "";
-    if (!keyword || keyword.length > LIMITS.keywordMaxChars) {
-      return invalid(`关键词不能为空，且不超过 ${LIMITS.keywordMaxChars} 个字符`);
+    const experience = value.experience === undefined ? "不限" : value.experience;
+    if (typeof experience !== "string" || !Object.prototype.hasOwnProperty.call(EXPERIENCE_CODES, experience)) {
+      return invalid("experience 必须是 BOSS 网页支持的工作经验选项");
+    }
+    if ((!keyword && experience === "不限") || keyword.length > LIMITS.keywordMaxChars) {
+      return invalid(`请指定岗位关键词或工作经验筛选；关键词不超过 ${LIMITS.keywordMaxChars} 个字符`);
     }
     const city = typeof value.city === "string" ? value.city.trim() : "";
     if (!Object.prototype.hasOwnProperty.call(CITY_CODES, city)) {
@@ -61,13 +72,14 @@
     if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > LIMITS.maxPages) {
       return invalid(`maxPages 必须是 1 到 ${LIMITS.maxPages} 之间的整数`);
     }
-    return { ok: true, command: Object.freeze({ taskId, keyword, city, maxPages }) };
+    return { ok: true, command: Object.freeze({ taskId, keyword, city, maxPages, experience }) };
   }
 
   function buildSearchUrl(command) {
     const url = new URL("/web/geek/job", SEARCH_ORIGIN);
     url.searchParams.set("query", command.keyword);
     url.searchParams.set("city", CITY_CODES[command.city]);
+    if (EXPERIENCE_CODES[command.experience]) url.searchParams.set("experience", EXPERIENCE_CODES[command.experience]);
     return url.toString();
   }
 
@@ -92,6 +104,7 @@
 
   return {
     CITY_CODES,
+    EXPERIENCE_CODES,
     LIMITS,
     PERMISSION_ORIGINS,
     buildSearchUrl,

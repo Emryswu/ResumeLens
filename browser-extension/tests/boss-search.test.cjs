@@ -8,7 +8,7 @@ const valid = { taskId: "call_1", keyword: " Java  后端 实习 ", city: "深�
 test("a valid command is normalized and frozen", () => {
   const result = search.validateCommand(valid);
   assert.equal(result.ok, true);
-  assert.deepEqual({ ...result.command }, { taskId: "call_1", keyword: "Java 后端 实习", city: "深圳", maxPages: 2 });
+  assert.deepEqual({ ...result.command }, { taskId: "call_1", keyword: "Java 后端 实习", city: "深圳", maxPages: 2, experience: "不限" });
   assert.ok(Object.isFrozen(result.command));
 });
 
@@ -18,6 +18,22 @@ test("the search URL is built here, on BOSS, from the city table only", () => {
   assert.equal(url.pathname, "/web/geek/job");
   assert.equal(url.searchParams.get("query"), "Java 后端 实习");
   assert.equal(url.searchParams.get("city"), "101280600");
+});
+
+test("student and graduate filters use the website experience condition, independently of keywords", () => {
+  for (const [experience, code] of [["在校生", "108"], ["应届生", "102"]]) {
+    const result = search.validateCommand({ ...valid, keyword: "Java 后端", experience });
+    assert.equal(result.ok, true);
+    assert.equal(result.command.experience, experience);
+    const url = new URL(search.buildSearchUrl(result.command));
+    assert.equal(url.searchParams.get("city"), "101280600");
+    assert.equal(url.searchParams.get("experience"), code);
+    assert.equal(url.searchParams.get("query"), "Java 后端");
+  }
+  assert.equal(search.validateCommand({ ...valid, experience: "实习" }).ok, false);
+  const withoutKeyword = search.validateCommand({ ...valid, keyword: "", experience: "在校生" });
+  assert.equal(withoutKeyword.ok, true);
+  assert.equal(new URL(search.buildSearchUrl(withoutKeyword.command)).searchParams.get("experience"), "108");
 });
 
 test("commands cannot smuggle a URL, an unknown city or extra pages", () => {

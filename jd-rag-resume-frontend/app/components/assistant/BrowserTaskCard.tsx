@@ -23,6 +23,7 @@ export function BrowserTaskCard({ task, progress, outcome, active, onCancel }: {
   const running = active && !outcome;
   const keyword = String(task.command.keyword ?? "");
   const city = String(task.command.city ?? "");
+  const experience = String(task.command.experience ?? "不限");
   const pages = Number(task.command.maxPages ?? 1);
   const phase = progress ? PHASES[progress.phase]?.(progress) : null;
   return (
@@ -30,7 +31,7 @@ export function BrowserTaskCard({ task, progress, outcome, active, onCancel }: {
       <ScanSearch className="agent-confirm-icon" size={20} aria-hidden="true" />
       <div className="agent-confirm-body">
         <h3>浏览器插件去 BOSS 采集岗位</h3>
-        <p>关键词「{keyword}」 · {city} · 最多 {pages} 页</p>
+        <p>{keyword ? `关键词「${keyword}」` : "不限岗位关键词"} · {city}{experience !== "不限" ? ` · 工作经验：${experience}` : ""} · 最多 {pages} 页</p>
         <small>
           插件只读取搜索列表，不会点击沟通或发送消息；存进职位库的是列表摘要，不是完整 JD。
           {running && <> {phase ?? "正在联系浏览器插件"}{progress?.jobCount != null ? `，已读到 ${progress.jobCount} 条` : ""}。<Countdown seconds={task.timeoutSeconds} /></>}

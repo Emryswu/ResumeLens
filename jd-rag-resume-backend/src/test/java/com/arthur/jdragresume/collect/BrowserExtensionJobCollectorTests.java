@@ -37,13 +37,28 @@ class BrowserExtensionJobCollectorTests {
         JobCollector.Delegated delegated = assertInstanceOf(JobCollector.Delegated.class, start);
         assertEquals("browser-extension", delegated.executor());
         assertEquals("collectBossJobs", delegated.action());
-        assertEquals(Map.of("keyword", "Java 后端", "city", "深圳", "maxPages", 2), delegated.command());
+        assertEquals(Map.of("keyword", "Java 后端", "city", "深圳", "maxPages", 2, "experience", "不限"), delegated.command());
     }
 
     @Test
     void keywordsAreNormalizedLikeTheExtensionDoesSoItsEchoMatches() {
         // The extension collapses JavaScript \s, which includes the full-width space; Java's plain \s does not.
         assertEquals("Java 后端 实习", new CollectRequest(" Java\u3000后端\u00a0\t实习\uFEFF", "深圳", 1).keyword());
+    }
+
+    @Test
+    void studentFilterIsDelegatedAndAReportThatDropsItIsRefused() throws Exception {
+        CollectRequest request = objectMapper.readValue("""
+                {"keyword":"Java 后端","city":"深圳","maxPages":2,"experience":"在校生"}
+                """, CollectRequest.class);
+        JobCollector.Delegated start = assertInstanceOf(JobCollector.Delegated.class, collector.start(request));
+        assertEquals("在校生", start.command().get("experience"));
+        assertEquals("BROWSER_REPORT_INVALID", code(() -> collector.complete(request, result(task -> { }))));
+        CollectionResult accepted = collector.complete(request, result(task ->
+                ((ObjectNode) task.get("command")).put("experience", "在校生")));
+        assertEquals(CollectionResult.Outcome.COMPLETED, accepted.outcome());
+        assertInstanceOf(JobCollector.Delegated.class, collector.start(new CollectRequest("", "深圳", 1, "在校生")));
+        assertEquals("INVALID_ARGUMENTS", code(() -> collector.start(new CollectRequest("Java", "深圳", 1, "实习"))));
     }
 
     @Test

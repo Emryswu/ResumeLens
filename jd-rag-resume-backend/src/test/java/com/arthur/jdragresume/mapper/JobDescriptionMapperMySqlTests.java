@@ -150,4 +150,50 @@ class JobDescriptionMapperMySqlTests {
     private static List<Long> idsOf(List<JobListItem> items) {
         return items.stream().map(JobListItem::getId).toList();
     }
+
+    @Autowired
+    private com.arthur.jdragresume.repository.JobDescriptionRepository jobs;
+
+    @Test
+    void agentEmploymentTypeSearchAndCountsAreScopedToTheCurrentUser() {
+        LocalDateTime now = LocalDateTime.now();
+        long intern = insertJob(owner, "后端开发", now);
+        long fullTime = insertJob(owner, "C_ Backend", now);
+        long untyped = insertJob(owner, "助理", now);
+        long foreign = insertJob(otherUser, "后端开发", now);
+        jdbcTemplate.update("UPDATE job_description SET employment_type = ? WHERE id IN (?, ?)", "实习", intern, foreign);
+        jdbcTemplate.update("UPDATE job_description SET employment_type = ? WHERE id = ?", "全职", fullTime);
+        var pageable = org.springframework.data.domain.PageRequest.of(0, 10);
+        assertEquals(List.of(intern), jobs.searchForUser(owner.getId(), "", "实习", pageable)
+                .stream().map(com.arthur.jdragresume.entity.JobDescription::getId).toList());
+        assertEquals(List.of(fullTime), jobs.searchForUser(owner.getId(), "C_", "全职", pageable)
+                .stream().map(com.arthur.jdragresume.entity.JobDescription::getId).toList());
+        assertTrue(jobs.searchForUser(owner.getId(), "%", "", pageable).isEmpty(), "keyword is literal, not a LIKE pattern");
+        var counts = jobs.countTypesForUser(owner.getId()).stream().collect(java.util.stream.Collectors.toMap(
+                com.arthur.jdragresume.repository.JobDescriptionRepository.TypeCount::getEmploymentType,
+                com.arthur.jdragresume.repository.JobDescriptionRepository.TypeCount::getTotal));
+        assertEquals(java.util.Map.of("实习", 1L, "全职", 1L, "未标注", 1L), counts);
+    }
+
+    @Test
+    void latestCollectionPersistsEmptyResultsAndUpdatesOnlyItsOwnersRow() {
+        var users = org.mockito.Mockito.mock(com.arthur.jdragresume.security.CurrentUserService.class);
+        org.mockito.Mockito.when(users.getCurrentUser()).thenReturn(owner);
+        var history = new com.arthur.jdragresume.collect.JobCollectionHistory(jdbcTemplate, users);
+        assertTrue(history.latest().isEmpty());
+        var empty = new com.arthur.jdragresume.collect.CollectionResult(
+                com.arthur.jdragresume.collect.CollectionResult.Outcome.COMPLETED, "NO_MORE_RESULTS", "没有更多结果", 1,
+                List.of(), 0, null);
+        history.record(new com.arthur.jdragresume.collect.CollectRequest("", "深圳", 2, "在校生"), empty);
+        var restarted = new com.arthur.jdragresume.collect.JobCollectionHistory(jdbcTemplate, users);
+        assertEquals("在校生", restarted.latest().orElseThrow().experience());
+        history.record(new com.arthur.jdragresume.collect.CollectRequest("Python", "广州", 1, "应届生"), empty);
+        assertEquals("Python", restarted.latest().orElseThrow().keyword());
+        assertEquals(1, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM latest_job_collection WHERE user_id = ?", Integer.class, owner.getId()));
+        org.mockito.Mockito.when(users.getCurrentUser()).thenReturn(otherUser);
+        assertTrue(restarted.latest().isEmpty());
+        history.record(new com.arthur.jdragresume.collect.CollectRequest("Java", "深圳", 1), empty);
+        org.mockito.Mockito.when(users.getCurrentUser()).thenReturn(owner);
+        assertEquals("Python", restarted.latest().orElseThrow().keyword());
+    }
 }

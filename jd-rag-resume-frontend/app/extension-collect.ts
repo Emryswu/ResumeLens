@@ -77,7 +77,8 @@ export function runExtensionCollect(options: ExtensionCollectOptions): Promise<B
       if (!payload || typeof payload !== "object") return;
       if (data.requestId === pingId && payload.type === "pong") {
         const capabilities = Array.isArray(payload.capabilities) ? payload.capabilities : [];
-        if (!capabilities.includes(task.action)) {
+        const needsExperienceFilter = typeof task.command.experience === "string" && task.command.experience !== "不限";
+        if (!capabilities.includes(task.action) || (needsExperienceFilter && !capabilities.includes("experienceFilter"))) {
           rejected("EXTENSION_OUTDATED");
           return;
         }

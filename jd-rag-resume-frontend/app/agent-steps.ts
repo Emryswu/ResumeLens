@@ -52,6 +52,7 @@ export type ToolMeta = { label: string; icon: LucideIcon };
  */
 export const AGENT_TOOLS: Record<string, ToolMeta> = {
   list_resumes: { label: "读取简历列表", icon: FileStack },
+  get_resume: { label: "读取简历正文", icon: FileSearch },
   search_jobs: { label: "搜索职位库", icon: Search },
   get_job: { label: "读取职位详情", icon: BriefcaseBusiness },
   rank_jobs_for_resume: { label: "按语义相似度排序职位", icon: ListOrdered },
