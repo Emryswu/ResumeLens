@@ -48,7 +48,9 @@ public class CollectBossJobsTool implements DeferrableTool {
                 + "用户要求找工作、找实习、校招或去 BOSS 搜索时可调用，不要因已有职位库搜索为空就断言没有岗位。"
                 + "BOSS 用法：城市放 city，技术方向放 keyword，学生身份或年限放 experience，不要把所有条件塞进关键词。"
                 + "例如“找深圳 Java 后端实习”用 city=深圳、keyword=Java 后端、experience=在校生；"
-                + "“找深圳实习”没指定方向时 keyword 可留空、experience=在校生。校招可用 experience=应届生辅助筛选。"
+                + "“找深圳实习”没指定方向时先 list_resumes 选简历、get_resume 读正文，按简历方向填写非空 keyword，并说明“按你的《xxx》简历推断”；不要直接用空关键词泛搜。"
+                + "多份简历遵循系统的方向与更新时间选择规则，同一会话沿用已选简历。校招可用 experience=应届生辅助筛选。"
+                + "采集后用选定的 resumeId 与本次 jobIds 调 rank_jobs_for_resume，优先展示对口岗位；大多明显不对口时直接说明并提议换关键词，不要把不相关岗位当成推荐。"
                 + "网页的求职类型是全职/兼职，实习相关人群筛选在工作经验里；在校生不保证是实习，应届生不保证是校招，需结合岗位内容核实。"
                 + "需要用户装好插件、授权访问 BOSS 并已登录，否则返回 ok=false，"
                 + "如实转告原因即可。采集到的是列表摘要（职位名、公司、薪资、标签），不是完整 JD；"
@@ -58,7 +60,7 @@ public class CollectBossJobsTool implements DeferrableTool {
     @Override
     public ToolSchema parameters() {
         return ToolSchema.object()
-                .string("keyword", "岗位方向，如 Java 后端；城市和学生身份用对应筛选参数。指定 experience 时可留空", false, 50)
+                .string("keyword", "岗位方向，如 Java 后端；城市和学生身份用对应筛选参数。未指定方向时先读选定简历推断；仅用户明确要求不限方向时可留空", false, 50)
                 .string("city", "城市：全国、北京、上海、广州、深圳、杭州、南京、苏州、成都、武汉、西安、天津、重庆、长沙、厦门", true, 10)
                 .string("experience", "BOSS 工作经验筛选：不限、在校生、应届生、经验不限、1年以内、1-3年、3-5年、5-10年、10年以上；默认不限。找实习优先在校生", false, 10)
                 .integer("maxPages", "读取页数，默认 1，最多 3", false, 1, 3);

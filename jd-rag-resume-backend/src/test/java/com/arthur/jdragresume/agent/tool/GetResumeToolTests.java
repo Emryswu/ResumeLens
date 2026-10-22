@@ -88,12 +88,23 @@ class GetResumeToolTests {
     }
 
     @Test
-    void missingAndMultipleResumesAskForExplicitResolution() {
-        for (long total : List.of(0L, 2L)) {
-            when(resumes.findAll(0, 1, "")).thenReturn(new PageResponse<>(List.of(), 0, 1, total, 1, true, true));
-            var error = assertThrows(BusinessException.class, () -> tool.execute(mapper.createObjectNode(), context));
-            assertEquals(total == 0 ? "RESUME_NOT_FOUND" : "RESUME_SELECTION_REQUIRED", error.getCode());
-        }
+    void aMissingResumeIsStillAnExplicitError() {
+        when(resumes.findAll(0, 1, "")).thenReturn(new PageResponse<>(List.of(), 0, 1, 0, 0, true, true));
+        var error = assertThrows(BusinessException.class, () -> tool.execute(mapper.createObjectNode(), context));
+        assertEquals("RESUME_NOT_FOUND", error.getCode());
+        verify(resumes, never()).findById(anyLong());
+    }
+
+    @Test
+    void multipleResumesReturnDirectionChoicesWithoutClaimingTheBodyWasRead() {
+        var row = resume("专业技能：Java Spring Boot");
+        when(resumes.findAll(0, 1, "")).thenReturn(new PageResponse<>(List.of(row), 0, 1, 2, 2, true, false));
+        when(resumes.findAllForAgent(0, 5, "")).thenReturn(new PageResponse<>(List.of(row), 0, 5, 2, 1, true, true));
+        var result = mapper.valueToTree(tool.execute(mapper.createObjectNode(), context));
+        assertTrue(result.path("selectionRequired").asBoolean());
+        assertTrue(result.path("choices").path("resumes").path(0).path("directionEvidence").asText().contains("Java"));
+        assertFalse(result.has("text"));
+        assertFalse(result.has("error"));
         verify(resumes, never()).findById(anyLong());
     }
 
