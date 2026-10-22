@@ -9,7 +9,7 @@ import jakarta.validation.constraints.Min;
 @ConfigurationProperties(prefix = "app.agent")
 @Validated
 public class AgentProperties {
-    /** Model calls per user turn; each call may request several tools. */
+    /** Regular model calls per turn; one additional read-only call closes a turn at the limit. */
     private int maxSteps = 6;
     /** Wall-clock budget for one turn. Checked between steps: a running tool is not interrupted. */
     private long turnTimeoutSeconds = 90;

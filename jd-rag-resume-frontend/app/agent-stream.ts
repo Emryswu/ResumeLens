@@ -12,7 +12,16 @@ export type AgentMessage = {
   content?: string | null;
   tool_calls?: AgentToolCall[];
   tool_call_id?: string;
+  reasoning_content?: string | null;
 };
+
+export type ReasoningEffort = "off" | "low" | "high" | "max";
+export const REASONING_EFFORT_KEY = "resumelens-agent-reasoning-effort";
+
+/** Stored preferences are external input; an absent or stale value uses the product default. */
+export function savedReasoningEffort(value: string | null): ReasoningEffort {
+  return value === "low" || value === "high" || value === "max" ? value : "high";
+}
 
 export type AgentStep = {
   toolCallId: string;
@@ -322,6 +331,16 @@ export function agentChatReducer(state: AgentChatState, action: AgentChatAction)
   }
 }
 
+export function displayAgentAnswer(content: string): string {
+  const fallback = "查询结果已保留，请在处理过程中查看；本轮未能生成完整回答。";
+  if (content.includes('"untrusted_data"')) return fallback;
+  try {
+    const parsed: unknown = JSON.parse(content);
+    if (parsed !== null && typeof parsed === "object") return fallback;
+  } catch { /* Normal prose is not JSON. */ }
+  return content;
+}
+
 function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
   switch (event.type) {
     case "step_started":
@@ -349,7 +368,7 @@ function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
     case "note":
       return { ...state, turns: updateLast(state.turns, (turn) => ({ ...turn, notes: [...turn.notes, event.data.content] })) };
     case "message":
-      return { ...state, turns: updateLast(state.turns, (turn) => ({ ...turn, answer: event.data.content })) };
+      return { ...state, turns: updateLast(state.turns, (turn) => ({ ...turn, answer: displayAgentAnswer(event.data.content) })) };
     case "error":
       return { ...state, turns: updateLast(state.turns, (turn) => ({ ...turn, error: event.data })) };
     case "confirmation_required":

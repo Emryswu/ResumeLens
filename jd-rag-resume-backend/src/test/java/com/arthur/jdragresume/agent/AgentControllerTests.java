@@ -23,6 +23,11 @@ import java.time.Duration;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import com.arthur.jdragresume.ai.ReasoningEffort;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -111,6 +116,41 @@ class AgentControllerTests {
         mockMvc().perform(chat("{\"messages\":[]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void unknownReasoningEffortIsRejectedBeforeOpeningTheStream() throws Exception {
+        mockMvc().perform(chat("""
+                {"messages":[{"role":"user","content":"你好"}],"reasoningEffort":"turbo"}
+                """))
+                .andExpect(status().isBadRequest());
+        assertEquals(0, modelCalls.get());
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"off", "low", "high", "max"})
+    void requestEffortReachesTheModelAndOmissionDefaultsToHigh(String effort) throws Exception {
+        AtomicReference<ReasoningEffort> seen = new AtomicReference<>();
+        AgentModel model = new AgentModel() {
+            @Override
+            public Reply next(String system, List<AgentMessage> transcript, List<ToolDefinition> tools, Duration timeout) {
+                throw new AssertionError("request effort was lost");
+            }
+
+            @Override
+            public Reply next(String system, List<AgentMessage> transcript, List<ToolDefinition> tools, Duration timeout,
+                              ReasoningEffort selected) {
+                seen.set(selected);
+                return Reply.answer("你好");
+            }
+        };
+        MockMvc mvc = mockMvc(model);
+        String setting = effort == null ? "" : ",\"reasoningEffort\":\"" + effort + "\"";
+        MvcResult started = mvc.perform(chat("{\"messages\":[{\"role\":\"user\",\"content\":\"你好\"}]" + setting + "}"))
+                .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(asyncDispatch(started)).andExpect(status().isOk());
+        assertEquals(effort == null ? ReasoningEffort.HIGH : ReasoningEffort.valueOf(effort.toUpperCase(java.util.Locale.ROOT)), seen.get());
     }
 
     @Test

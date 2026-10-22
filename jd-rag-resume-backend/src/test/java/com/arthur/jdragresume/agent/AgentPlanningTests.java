@@ -70,7 +70,8 @@ class AgentPlanningTests {
     @Test
     void oversizedPlanStopsAfterSixExecutionsAndReturnsPartialDataAndReason() {
         AtomicInteger calls = new AtomicInteger();
-        var outcome = run((system, transcript, tools, timeout) -> calls.incrementAndGet() == 1 ? plan(8) : call("lookup"), true);
+        var outcome = run((system, transcript, tools, timeout) -> tools.isEmpty() ? AgentModel.Reply.answer("已查到公司甲，6 个工具步骤已用完，其他方向尚未核实")
+                : calls.incrementAndGet() == 1 ? plan(8) : call("lookup"), true);
         assertEquals(AgentLoop.State.STEP_LIMIT, outcome.state());
         assertEquals(6, executions.get());
         assertFalse(done().partialResults().isEmpty());

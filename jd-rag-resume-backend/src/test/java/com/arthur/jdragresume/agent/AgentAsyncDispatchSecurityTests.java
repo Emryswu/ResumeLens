@@ -1,6 +1,7 @@
 package com.arthur.jdragresume.agent;
 
 import com.arthur.jdragresume.controller.AgentController;
+import com.arthur.jdragresume.ai.ReasoningEffort;
 import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.repository.AppUserRepository;
 import com.arthur.jdragresume.security.JwtAuthenticationFilter;
@@ -104,7 +105,8 @@ class AgentAsyncDispatchSecurityTests {
             return new AgentChatService(null, null, null, null, null, null, null, null, null) {
                 @Override
                 public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval,
-                                       TranscriptPolicy.BrowserReport browserReport, String summary, boolean includeTrace) {
+                                       TranscriptPolicy.BrowserReport browserReport, String summary, boolean includeTrace,
+                                       ReasoningEffort reasoningEffort) {
                     SseEmitter emitter = new SseEmitter(5_000L);
                     Thread.ofVirtual().start(() -> {
                         try {

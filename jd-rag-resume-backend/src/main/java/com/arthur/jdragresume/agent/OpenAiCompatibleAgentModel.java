@@ -1,6 +1,7 @@
 package com.arthur.jdragresume.agent;
 
 import com.arthur.jdragresume.ai.AiClient;
+import com.arthur.jdragresume.ai.ReasoningEffort;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -27,6 +28,12 @@ public class OpenAiCompatibleAgentModel implements AgentModel {
 
     @Override
     public Reply next(String systemPrompt, List<AgentMessage> transcript, List<ToolDefinition> tools, Duration timeout) {
+        return next(systemPrompt, transcript, tools, timeout, ReasoningEffort.HIGH);
+    }
+
+    @Override
+    public Reply next(String systemPrompt, List<AgentMessage> transcript, List<ToolDefinition> tools, Duration timeout,
+                      ReasoningEffort effort) {
         List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(Map.of("role", "system", "content", systemPrompt));
         transcript.forEach(message -> messages.add(message.toProviderMessage()));
@@ -41,7 +48,7 @@ public class OpenAiCompatibleAgentModel implements AgentModel {
                 ))
                 .toList();
 
-        JsonNode message = aiClient.chatWithTools(messages, toolPayload, timeout);
+        JsonNode message = aiClient.chatWithTools(messages, toolPayload, timeout, effort);
         JsonNode contentNode = message.path("content");
         String content = contentNode.isTextual() && !contentNode.asText().isBlank() ? contentNode.asText() : null;
 
@@ -72,6 +79,7 @@ public class OpenAiCompatibleAgentModel implements AgentModel {
         if (content == null && calls.isEmpty()) {
             throw new BusinessException("AI_RESPONSE_EMPTY", "AI response has neither content nor tool calls");
         }
-        return new Reply(content, calls);
+        JsonNode reasoning = message.path("reasoning_content");
+        return new Reply(content, calls, reasoning.isTextual() ? reasoning.asText() : null);
     }
 }
