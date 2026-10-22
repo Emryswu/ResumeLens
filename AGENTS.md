@@ -55,6 +55,7 @@ CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
 
 ## 前端约定
 
+- 前端禁止直接使用浏览器原生 select 等表单控件样式，统一使用项目自定义组件；选择菜单复用 `ChoiceMenu`，保持主题样式与键盘交互一致。
 - 样式沿用 `app/workspace.css` 里的变量，图标用 `lucide-react`，不另起一套风格。`tests/icon-glyphs.test.ts` 禁止用 Unicode 字符充当图标。
 - 图片统一通过 `app/components/BrandArt.tsx` 的 `BrandImage` 输出。`tests/brand-assets.test.ts` 会检查其他地方不能直接写 `<img>`。
 

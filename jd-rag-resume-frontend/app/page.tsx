@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowRight, ArrowUp, CircleAlert, FlaskConical, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Sparkles, Upload } from "lucide-react";
+import { ArrowRight, ArrowUp, Brain, CircleAlert, FlaskConical, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Sparkles, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AppShell } from "./components/AppShell";
 import { RetryButton } from "./components/StateBlock";
+import { ChoiceMenu } from "./components/ChoiceMenu";
 import { AgentMarkdown } from "./components/assistant/AgentMarkdown";
 import { AnalysisCard } from "./components/assistant/AnalysisCard";
 import { BrowserTaskCard } from "./components/assistant/BrowserTaskCard";
@@ -20,15 +21,19 @@ import {
   readAgentStream,
   retryAdvice,
   retryRequest,
+  REASONING_EFFORT_KEY,
+  savedReasoningEffort,
   staleConversation,
   type AgentBrowserTask,
   type AgentChatState,
   type AgentConfirmation,
   type AgentTurn,
+  type ReasoningEffort,
 } from "./agent-stream";
 import { runExtensionCollect } from "./extension-collect";
 import { analysisPollTimeoutMs, pollAnalysisUntilSettled } from "./analysis-poll";
 import { runtimeModeLabel } from "./runtime-mode";
+import { modelDisplayName, REASONING_OPTIONS } from "./agent-model-display";
 import { saveSampleData, submitAnalysis } from "./sample-data";
 import { signInRequest } from "./sign-in";
 import { legacyWorkspaceUrl, reportHref, workspaceHref } from "./workspace-nav";
@@ -57,7 +62,7 @@ const EXAMPLES = [
 const ERROR_COPY: Record<string, string> = {
   AGENT_RATE_LIMITED: "提问太频繁了，请稍后再试",
   AGENT_BUSY: "助手正忙，请稍后重试",
-  AGENT_STEP_LIMIT: "这个问题步骤太多，请换个更具体的问法",
+  AGENT_STEP_LIMIT: "本轮查询已达到步骤上限，已根据已有结果收尾",
   AGENT_TIMEOUT: "本轮处理超时，请把问题拆小一些",
   AGENT_TRANSCRIPT_TOO_LARGE: "对话太长了，请点「新对话」重新开始",
   AGENT_STREAM_INTERRUPTED: "连接中断，本轮对话未完整接收。若已同意发起分析，请到分析记录确认结果。",
@@ -138,6 +143,8 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   const [processTurn, setProcessTurn] = useState<number | null>(null);
   const closeProcess = useCallback(() => setProcessTurn(null), []);
   const [draft, setDraft] = useState("");
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(() =>
+    typeof window === "undefined" ? "high" : savedReasoningEffort(window.localStorage.getItem(REASONING_EFFORT_KEY)));
   /** Null until known; zero shows the "prepare a resume first" card. */
   const [resumeCount, setResumeCount] = useState<number | null>(null);
   const [sampleRun, setSampleRun] = useState<SampleRun | null>(null);
@@ -199,6 +206,31 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     }
   }, [state.turns, sampleRun, aiStatus]);
 
+  const send = useCallback(async (body: ReturnType<typeof nextRequest>) => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const sessionId = getAuthSessionId();
+    let streamOpened = false;
+    try {
+      const stream = await apiStream("/api/agent/chat", { ...body, reasoningEffort }, controller.signal);
+      streamOpened = true;
+      await readAgentStream(stream, (event) => {
+        if (isAuthSessionCurrent(sessionId)) dispatch({ type: "event", event });
+      });
+    } catch (reason) {
+      if (controller.signal.aborted) return;
+      const message = visibleApiErrorMessage(reason, "助手请求失败");
+      if (message == null) return;
+      const code = streamOpened ? "AGENT_STREAM_INTERRUPTED" : reason instanceof ApiError ? reason.code : "NETWORK_ERROR";
+      dispatch({
+        type: "failed", code, message: ERROR_COPY[code] ?? message,
+        retryConfirmation: !streamOpened && reason instanceof ApiError && reason.status >= 400,
+      });
+    } finally {
+      dispatch({ type: "settled" });
+    }
+  }, [reasoningEffort]);
+
   // A turn that ended waiting on the browser: run the task through the extension, then report whatever happened.
   useEffect(() => {
     const task = state.pendingBrowser;
@@ -223,32 +255,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
       dispatch({ type: "browser_report", outcome: outcome.outcome });
       void send(body);
     });
-  }, [state.pendingBrowser, state.busy]);
-
-  async function send(body: unknown) {
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const sessionId = getAuthSessionId();
-    let streamOpened = false;
-    try {
-      const stream = await apiStream("/api/agent/chat", body, controller.signal);
-      streamOpened = true;
-      await readAgentStream(stream, (event) => {
-        if (isAuthSessionCurrent(sessionId)) dispatch({ type: "event", event });
-      });
-    } catch (reason) {
-      if (controller.signal.aborted) return;
-      const message = visibleApiErrorMessage(reason, "助手请求失败");
-      if (message == null) return;
-      const code = streamOpened ? "AGENT_STREAM_INTERRUPTED" : reason instanceof ApiError ? reason.code : "NETWORK_ERROR";
-      dispatch({
-        type: "failed", code, message: ERROR_COPY[code] ?? message,
-        retryConfirmation: !streamOpened && reason instanceof ApiError && reason.status >= 400,
-      });
-    } finally {
-      dispatch({ type: "settled" });
-    }
-  }
+  }, [state.pendingBrowser, state.busy, send]);
 
   /** Same sample as the workbench's 「保存示例并分析」: saves a resume and a job, then starts a full analysis. */
   async function trySample() {
@@ -283,7 +290,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     if (request) start(request.question, request.body);
   }
 
-  function start(question: string, body: unknown) {
+  function start(question: string, body: ReturnType<typeof nextRequest>) {
     dispatch({ type: "ask", question });
     void send(body);
   }
@@ -310,6 +317,8 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   const stale = staleConversation(state);
   const inputLocked = state.busy || !!state.pending || !!state.pendingBrowser || !!stale;
   const canRetry = retryRequest(state) != null;
+  const displayModel = modelDisplayName(aiStatus?.model);
+  const effortLabel = REASONING_OPTIONS.find((option) => option.value === reasoningEffort)!.label;
 
   return (
     <AppShell title="AI 求职助手" activeView="assistant" user={user} onLogout={logout}>
@@ -320,7 +329,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
               ? "助手会自己调用工具查询你的简历与职位库；涉及消耗配额的操作会先请你确认。"
               : aiStatus.mockEnabled
                 ? "演示模式：由脚本模型按固定流程调用真实工具，未调用真实大模型。"
-                : `当前模型：${aiStatus.model || "未配置"}。助手会自己调用工具；发起完整分析前会先请你确认。`}
+                : `当前模型：${modelDisplayName(aiStatus.model)}。助手会自己调用工具；发起完整分析前会先请你确认。`}
           </p>
           <button
             className="ghost"
@@ -425,11 +434,24 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
           />
-          <button className="assistant-send" aria-label="发送" title={state.busy ? "处理中" : "发送"} disabled={inputLocked || !draft.trim()}>
-            {state.busy
-              ? <LoaderCircle className="spin" size={20} aria-hidden="true" />
-              : <ArrowUp size={20} strokeWidth={2.25} aria-hidden="true" />}
-          </button>
+          <div className="assistant-input-actions">
+            <ChoiceMenu label={`模型与思考档位：${displayModel}，${effortLabel}`}
+              value={reasoningEffort} options={REASONING_OPTIONS} disabled={inputLocked}
+              onChange={(effort) => {
+                window.localStorage.setItem(REASONING_EFFORT_KEY, effort);
+                setReasoningEffort(effort);
+              }}>
+              <Brain size={16} aria-hidden="true" />
+              <span>{displayModel}</span>
+              <span className="choice-menu-separator" aria-hidden="true">·</span>
+              <span>{effortLabel}</span>
+            </ChoiceMenu>
+            <button className="assistant-send" aria-label="发送" title={state.busy ? "处理中" : "发送"} disabled={inputLocked || !draft.trim()}>
+              {state.busy
+                ? <LoaderCircle className="spin" size={20} aria-hidden="true" />
+                : <ArrowUp size={20} strokeWidth={2.25} aria-hidden="true" />}
+            </button>
+          </div>
         </form>
       </section>
     </AppShell>

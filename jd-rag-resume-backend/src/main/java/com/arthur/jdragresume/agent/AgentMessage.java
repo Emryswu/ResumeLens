@@ -18,8 +18,13 @@ public record AgentMessage(
         String role,
         String content,
         @JsonProperty("tool_calls") List<ToolCall> toolCalls,
-        @JsonProperty("tool_call_id") String toolCallId
+        @JsonProperty("tool_call_id") String toolCallId,
+        @JsonProperty("reasoning_content") String reasoningContent
 ) {
+    public AgentMessage(String role, String content, List<ToolCall> toolCalls, String toolCallId) {
+        this(role, content, toolCalls, toolCallId, null);
+    }
+
     public static final String USER = "user";
     public static final String ASSISTANT = "assistant";
     public static final String TOOL = "tool";
@@ -38,6 +43,10 @@ public record AgentMessage(
         return new AgentMessage(ASSISTANT, content, toolCalls, null);
     }
 
+    public static AgentMessage assistant(String content, List<ToolCall> toolCalls, String reasoningContent) {
+        return new AgentMessage(ASSISTANT, content, toolCalls, null, reasoningContent);
+    }
+
     public static AgentMessage tool(String toolCallId, String content) {
         return new AgentMessage(TOOL, content, null, toolCallId);
     }
@@ -48,14 +57,15 @@ public record AgentMessage(
     }
 
     public AgentMessage withContent(String newContent) {
-        return new AgentMessage(role, newContent, toolCalls, toolCallId);
+        return new AgentMessage(role, newContent, toolCalls, toolCallId, reasoningContent);
     }
 
     /** Characters counted against the transcript budget. */
     @JsonIgnore
     public long size() {
         long total = (long) role.length() + (content == null ? 0 : content.length())
-                + (toolCallId == null ? 0 : toolCallId.length());
+                + (toolCallId == null ? 0 : toolCallId.length())
+                + (reasoningContent == null ? 0 : reasoningContent.length());
         if (toolCalls != null) {
             for (ToolCall call : toolCalls) {
                 total += (long) call.id().length() + call.type().length()
@@ -70,6 +80,10 @@ public record AgentMessage(
         Map<String, Object> message = new LinkedHashMap<>();
         message.put("role", role);
         message.put("content", content);
+        if (ASSISTANT.equals(role)) {
+            // Non-thinking and older replies have no reasoning. The thinking tool API still needs this field.
+            message.put("reasoning_content", reasoningContent == null ? "" : reasoningContent);
+        }
         if (hasToolCalls()) {
             message.put("tool_calls", toolCalls.stream().map(ToolCall::toProviderMap).toList());
         }

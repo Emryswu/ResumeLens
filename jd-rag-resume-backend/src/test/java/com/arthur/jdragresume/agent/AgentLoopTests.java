@@ -77,8 +77,108 @@ class AgentLoopTests {
         AgentLoop.Outcome outcome = loop(model).run(fresh("循环"), null, context, sink, () -> false);
 
         assertEquals(AgentLoop.State.STEP_LIMIT, outcome.state());
-        assertEquals(3, model.inputs.size());
+        assertEquals(4, model.inputs.size());
         assertEquals("AGENT_STEP_LIMIT", sink.payload("error").get("code"));
+    }
+
+    @Test
+    void reasoningSurvivesToolExecutionAndTheBrowserTranscriptRoundTrip() throws Exception {
+        ScriptedModel model = new ScriptedModel(
+                transcript -> new AgentModel.Reply(null, List.of(call("c1", "lookup", "{\"id\":7}")), "tool reasoning"),
+                transcript -> new AgentModel.Reply("找到 7 号", List.of(), "answer reasoning")
+        );
+        AgentLoop.Outcome outcome = loop(model).run(fresh("查一下 7 号"), null, context, new RecordingSink(), () -> false);
+
+        assertEquals("tool reasoning", model.inputs.get(1).get(1).toProviderMessage().get("reasoning_content"));
+        List<AgentMessage> restored = objectMapper.readValue(objectMapper.writeValueAsString(outcome.transcript()),
+                objectMapper.getTypeFactory().constructCollectionType(List.class, AgentMessage.class));
+        assertEquals("tool reasoning", restored.get(1).reasoningContent());
+        assertEquals("answer reasoning", restored.getLast().toProviderMessage().get("reasoning_content"));
+        List<AgentMessage> nextTurn = new ArrayList<>(restored);
+        nextTurn.add(AgentMessage.user("继续"));
+        assertEquals("answer reasoning", new TranscriptPolicy(properties).normalize(nextTurn, null)
+                .messages().get(3).toProviderMessage().get("reasoning_content"));
+        assertEquals(AgentMessage.assistant("ok", null).size() + "reasoning".length(),
+                AgentMessage.assistant("ok", null, "reasoning").size());
+    }
+
+    @Test
+    void toolBudgetEndsWithAReadOnlySummaryInsteadOfDumpingCurrentAndOlderJson() {
+        properties.setMaxPlanningSteps(2);
+        AtomicInteger calls = new AtomicInteger();
+        AgentModel model = (system, transcript, tools, timeout) -> {
+            if (calls.incrementAndGet() == 1) {
+                return AgentModel.Reply.call(call("c1", "lookup", "{\"id\":1}"),
+                        call("c2", "lookup", "{\"id\":2}"), call("c3", "lookup", "{\"id\":3}"));
+            }
+            assertTrue(tools.isEmpty(), "the closing round must not expose tools");
+            return new AgentModel.Reply("已查到两个方向，第三个方向尚未核实。", List.of(), "closing reasoning");
+        };
+        List<AgentMessage> input = List.of(AgentMessage.user("旧问题"),
+                AgentMessage.assistant(null, List.of(call("old", "lookup", "{\"id\":99}"))),
+                AgentMessage.tool("old", "old-result"), AgentMessage.assistant("旧答案", null), AgentMessage.user("比较三个方向"));
+        RecordingSink sink = new RecordingSink();
+        AgentLoop.Outcome outcome = loop(model).run(policy().normalize(input, null), null, context, sink, () -> false);
+
+        assertEquals(AgentLoop.State.STEP_LIMIT, outcome.state());
+        assertEquals(2, calls.get());
+        assertEquals(List.of(1L, 2L), lookup.seenIds);
+        assertEquals("已查到两个方向，第三个方向尚未核实。", outcome.transcript().getLast().content());
+        assertEquals("closing reasoning", outcome.transcript().getLast().reasoningContent());
+        AgentLoop.DoneEvent done = (AgentLoop.DoneEvent) sink.events.stream().filter(event -> event.name().equals("done"))
+                .findFirst().orElseThrow().payload();
+        assertTrue(done.partialResults().stream().noneMatch(message -> "old".equals(message.toolCallId())));
+    }
+
+    @Test
+    void endlesslyCallingScriptedAgentModelMustFinishWithTextAndRemainingBudget() {
+        AtomicInteger calls = new AtomicInteger();
+        ScriptedAgentModel model = new ScriptedAgentModel(objectMapper) {
+            @Override
+            public Reply next(String system, List<AgentMessage> transcript, List<ToolDefinition> tools, Duration timeout) {
+                int count = calls.incrementAndGet();
+                assertTrue(system.contains("本轮最多执行 6 个工具步骤"));
+                var results = toolMessages(transcript);
+                if (!results.isEmpty()) assertEquals(6 - results.size(),
+                        json(results.getLast().content()).path("remainingSteps").asInt(-1));
+                if (tools.isEmpty()) return Reply.answer("从已查到的经历看，可以优先考虑后端测试开发和 AI 应用开发；其他方向尚未核实。");
+                return Reply.call(call("loop" + count, "lookup", "{\"id\":1}"));
+            }
+        };
+        RecordingSink sink = new RecordingSink();
+        var outcome = loop(model).run(fresh("除了 Java 还能找什么"), null, context, sink, () -> false);
+        assertEquals(7, calls.get());
+        assertEquals(6, lookup.seenIds.size());
+        assertEquals(AgentLoop.State.STEP_LIMIT, outcome.state());
+        String answer = outcome.transcript().getLast().content();
+        assertTrue(answer.contains("AI 应用开发"));
+        assertFalse(answer.contains("untrusted_data"));
+        assertThrows(com.fasterxml.jackson.core.JsonProcessingException.class, () -> objectMapper.readTree(answer));
+        assertEquals(answer, sink.payload("message").get("content"));
+    }
+
+    @Test
+    void failedClosingCallUsesFixedTextAndDoesNotExecuteAnotherTool() {
+        properties.setMaxSteps(1);
+        AtomicInteger calls = new AtomicInteger();
+        var outcome = loop((system, transcript, tools, timeout) -> {
+            if (calls.incrementAndGet() == 1) return AgentModel.Reply.call(call("c1", "lookup", "{\"id\":1}"));
+            assertTrue(tools.isEmpty());
+            throw new com.arthur.jdragresume.exception.BusinessException("AI_RATE_LIMITED", "provider failed");
+        }).run(fresh("查询"), null, context, new RecordingSink(), () -> false);
+        assertEquals(2, calls.get());
+        assertEquals(1, lookup.seenIds.size());
+        assertTrue(outcome.transcript().getLast().content().contains("部分方向尚未核实"));
+        assertFalse(outcome.transcript().getLast().content().contains("untrusted_data"));
+    }
+
+    @Test
+    void rawModelToolEnvelopeCannotBecomeAnswerText() {
+        var outcome = loop((system, transcript, tools, timeout) -> AgentModel.Reply.answer(
+                "{\"tool\":\"lookup\",\"ok\":true,\"untrusted_data\":{\"secret\":1}}"))
+                .run(fresh("查询"), null, context, new RecordingSink(), () -> false);
+        assertFalse(outcome.transcript().getLast().content().contains("untrusted_data"));
+        assertFalse(outcome.transcript().getLast().content().contains("secret"));
     }
 
     @Test

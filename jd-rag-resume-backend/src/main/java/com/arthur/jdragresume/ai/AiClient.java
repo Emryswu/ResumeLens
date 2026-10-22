@@ -90,12 +90,24 @@ public class AiClient {
      * would both be distorted by it. The caller passes the remaining turn budget as timeout.
      */
     public JsonNode chatWithTools(List<Map<String, Object>> messages, List<Map<String, Object>> tools, Duration timeout) {
+        return chatWithTools(messages, tools, timeout, ReasoningEffort.HIGH);
+    }
+
+    public JsonNode chatWithTools(List<Map<String, Object>> messages, List<Map<String, Object>> tools, Duration timeout,
+                                  ReasoningEffort effort) {
         validateConfig();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", aiProperties.getModel());
-        body.put("temperature", 0.2);
-        body.put("thinking", Map.of("type", "disabled"));
-        body.put("max_tokens", 1500);
+        if (effort == ReasoningEffort.OFF) {
+            body.put("temperature", 0.2);
+            body.put("thinking", Map.of("type", "disabled"));
+            body.put("max_tokens", 1500);
+        } else {
+            body.put("thinking", Map.of("type", "enabled"));
+            body.put("reasoning_effort", effort.providerValue());
+            // Reasoning and the answer share this budget; the old 1500 limit could exhaust it before a tool call.
+            body.put("max_tokens", 16384);
+        }
         body.put("messages", messages);
         if (!tools.isEmpty()) {
             body.put("tools", tools);

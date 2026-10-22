@@ -5,6 +5,7 @@ import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.agent.tool.DeferrableTool;
 import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.exception.BusinessException;
+import com.arthur.jdragresume.ai.ReasoningEffort;
 import com.arthur.jdragresume.security.CurrentUserService;
 import com.arthur.jdragresume.security.SlidingWindowRateLimiter;
 import org.slf4j.Logger;
@@ -72,6 +73,12 @@ public class AgentChatService {
     /** {@code approval} and {@code browserReport} each answer an open call; at most one may be given. */
     public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval,
                            TranscriptPolicy.BrowserReport browserReport, String summary, boolean includeTrace) {
+        return chat(messages, approval, browserReport, summary, includeTrace, ReasoningEffort.HIGH);
+    }
+
+    public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval,
+                           TranscriptPolicy.BrowserReport browserReport, String summary, boolean includeTrace,
+                           ReasoningEffort reasoningEffort) {
         long acceptedAt = System.currentTimeMillis();
         AppUser user = currentUserService.getCurrentUser();
         if (summary != null && summary.length() > properties.getSummaryMaxChars()) {
@@ -111,7 +118,7 @@ public class AgentChatService {
         AgentToolContext context = new AgentToolContext(user);
         try {
             agentTaskExecutor.execute(() -> runTurn(emitter, cancelled, normalized, approval, browserReport, context,
-                    acceptedAt, summary, includeTrace));
+                    acceptedAt, summary, includeTrace, reasoningEffort));
         } catch (TaskRejectedException ex) {
             throw new BusinessException("AGENT_BUSY", "assistant is busy, please retry shortly");
         }
@@ -143,7 +150,8 @@ public class AgentChatService {
             AgentToolContext context,
             long acceptedAt,
             String summary,
-            boolean includeTrace
+            boolean includeTrace,
+            ReasoningEffort reasoningEffort
     ) {
         long queuedMs = System.currentTimeMillis() - acceptedAt;
         AgentEventSink sink = (event, payload) -> {
@@ -166,7 +174,7 @@ public class AgentChatService {
             var memories = memoryService.rememberAndRecall(question, approval == null && browserReport == null);
             // The emitter's timeout has been running since the request was accepted; so does the turn budget.
             AgentLoop.Outcome outcome = agentLoop.run(normalized, approval, context, sink, cancelled::get, acceptedAt,
-                    new AgentLoop.TurnOptions(summary, memories, includeTrace, browserReport));
+                    new AgentLoop.TurnOptions(summary, memories, includeTrace, browserReport, reasoningEffort));
             log.info("agent turn user={} state={} steps={} queuedMs={} elapsedMs={}", context.user().getId(),
                     outcome.state(), outcome.steps(), queuedMs, System.currentTimeMillis() - acceptedAt);
         } catch (AgentEventSink.ClientGoneException ex) {

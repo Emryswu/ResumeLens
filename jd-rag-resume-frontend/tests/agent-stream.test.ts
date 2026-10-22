@@ -332,3 +332,19 @@ test("apiStream surfaces the JSON error of a rejected turn instead of reading it
     return true;
   });
 });
+
+test("raw tool envelopes never render as answer body, normal closing text survives done", () => {
+  const asked = agentChatReducer(initialAgentChatState, { type: "ask", question: "除了 Java 呢" });
+  for (const raw of ['{"tool":"lookup","untrusted_data":{"jobs":[]}}',
+    '已获得结果：\n{"untrusted_data":{"name":"秘密"}}', '[{"jobId":1}]']) {
+    const shown = agentChatReducer(asked, { type: "event", event: { type: "message", data: { content: raw } } });
+    assert.ok(!shown.turns[0].answer?.includes("untrusted_data"));
+    assert.ok(!shown.turns[0].answer?.includes("jobId"));
+  }
+  const answer = "可以考虑后端测试开发；其他方向还未核实。";
+  const shown = agentChatReducer(asked, { type: "event", event: { type: "message", data: { content: answer } } });
+  const done = agentChatReducer(shown, { type: "event", event: { type: "done", data: {
+    state: "STEP_LIMIT", steps: 7, transcript: [{ role: "user", content: "除了 Java 呢" }],
+  } } });
+  assert.equal(done.turns[0].answer, answer);
+});

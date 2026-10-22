@@ -1,6 +1,7 @@
 package com.arthur.jdragresume.agent;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.arthur.jdragresume.ai.ReasoningEffort;
 
 import java.time.Duration;
 import java.util.List;
@@ -12,6 +13,11 @@ import java.util.List;
 public interface AgentModel {
     Reply next(String systemPrompt, List<AgentMessage> transcript, List<ToolDefinition> tools, Duration timeout);
 
+    default Reply next(String systemPrompt, List<AgentMessage> transcript, List<ToolDefinition> tools, Duration timeout,
+                       ReasoningEffort effort) {
+        return next(systemPrompt, transcript, tools, timeout);
+    }
+
     /** Throws when the model cannot be called at all, so the request is refused before a stream opens. */
     default void requireReady() {
     }
@@ -19,7 +25,11 @@ public interface AgentModel {
     record ToolDefinition(String name, String description, JsonNode parameters) {
     }
 
-    record Reply(String content, List<AgentMessage.ToolCall> toolCalls) {
+    record Reply(String content, List<AgentMessage.ToolCall> toolCalls, String reasoningContent) {
+        public Reply(String content, List<AgentMessage.ToolCall> toolCalls) {
+            this(content, toolCalls, null);
+        }
+
         public Reply {
             toolCalls = toolCalls == null ? List.of() : List.copyOf(toolCalls);
         }

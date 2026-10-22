@@ -3,6 +3,7 @@ package com.arthur.jdragresume.controller;
 import com.arthur.jdragresume.agent.AgentChatService;
 import com.arthur.jdragresume.agent.AgentMessage;
 import com.arthur.jdragresume.agent.TranscriptPolicy;
+import com.arthur.jdragresume.ai.ReasoningEffort;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -44,7 +45,8 @@ public class AgentController {
                 ? null
                 : new TranscriptPolicy.BrowserReport(request.browserResult().toolCallId(), request.browserResult().taskId(),
                 request.browserResult().outcome(), request.browserResult().report());
-        return agentChatService.chat(request.messages(), approval, browserResult, request.summary(), request.includeTrace());
+        return agentChatService.chat(request.messages(), approval, browserResult, request.summary(), request.includeTrace(),
+                request.reasoningEffort());
     }
 
     public record ChatRequest(
@@ -52,8 +54,12 @@ public class AgentController {
             @Valid ApprovalRequest approval,
             @Valid BrowserResultRequest browserResult,
             String summary,
-            boolean includeTrace
+            boolean includeTrace,
+            ReasoningEffort reasoningEffort
     ) {
+        public ChatRequest {
+            reasoningEffort = reasoningEffort == null ? ReasoningEffort.HIGH : reasoningEffort;
+        }
     }
 
     /**

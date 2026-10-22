@@ -10,6 +10,8 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -142,7 +144,7 @@ class AiClientTests {
     }
 
     @Test
-    void toolRoundSendsToolsWithoutJsonModeAndKeepsThinkingDisabled() throws Exception {
+    void toolRoundDefaultsToHighThinkingWithoutJsonMode() throws Exception {
         AtomicReference<String> requestBody = new AtomicReference<>();
         startServer(exchange -> {
             requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
@@ -159,7 +161,9 @@ class AiClientTests {
         JsonNode body = objectMapper.readTree(requestBody.get());
         assertEquals("list_resumes", body.path("tools").path(0).path("function").path("name").asText());
         assertEquals("auto", body.path("tool_choice").asText());
-        assertEquals("disabled", body.path("thinking").path("type").asText());
+        assertEquals("enabled", body.path("thinking").path("type").asText());
+        assertEquals("high", body.path("reasoning_effort").asText());
+        assertTrue(body.path("max_tokens").asInt() >= 8192, "thinking shares the output token budget");
         // JSON mode would force the final natural-language answer into an object.
         assertTrue(body.path("response_format").isMissingNode());
     }
@@ -167,7 +171,7 @@ class AiClientTests {
     @Test
     void agentModelParsesToolCallsWhenContentIsNull() throws Exception {
         startServer(exchange -> respond(exchange, 200, """
-                {"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[
+                {"choices":[{"message":{"role":"assistant","content":null,"reasoning_content":"read the resume first","tool_calls":[
                   {"id":"call_1","type":"function","function":{"name":"list_resumes","arguments":"{\\"keyword\\":\\"java\\"}"}}
                 ]}}]}
                 """));
@@ -176,10 +180,35 @@ class AiClientTests {
                 .next("system", List.of(AgentMessage.user("hi")), List.of(), Duration.ofSeconds(5));
 
         assertNull(reply.content());
+        assertEquals("read the resume first", reply.reasoningContent());
         assertEquals(1, reply.toolCalls().size());
         assertEquals("call_1", reply.toolCalls().get(0).id());
         assertEquals("list_resumes", reply.toolCalls().get(0).name());
         assertEquals("{\"keyword\":\"java\"}", reply.toolCalls().get(0).arguments());
+    }
+
+    @ParameterizedTest
+    @EnumSource(ReasoningEffort.class)
+    void chosenEffortReachesTheProviderAndKeepsEarlierReasoning(ReasoningEffort effort) throws Exception {
+        AtomicReference<String> requestBody = new AtomicReference<>();
+        startServer(exchange -> {
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 200, "{\"choices\":[{\"message\":{\"content\":\"done\"}}]}");
+        });
+        List<AgentMessage> transcript = List.of(AgentMessage.user("hi"),
+                AgentMessage.assistant("earlier answer", null, "earlier reasoning"), AgentMessage.user("continue"));
+        new OpenAiCompatibleAgentModel(new AiClient(properties(), objectMapper)).next("system", transcript,
+                List.of(), Duration.ofSeconds(5), effort);
+
+        JsonNode body = objectMapper.readTree(requestBody.get());
+        assertEquals("earlier reasoning", body.path("messages").path(2).path("reasoning_content").asText());
+        assertEquals(effort == ReasoningEffort.OFF ? "disabled" : "enabled", body.path("thinking").path("type").asText());
+        if (effort == ReasoningEffort.OFF) {
+            assertTrue(body.path("reasoning_effort").isMissingNode());
+        } else {
+            assertEquals(effort.providerValue(), body.path("reasoning_effort").asText());
+        }
+        assertEquals("", AgentMessage.assistant("old non-thinking reply", null).toProviderMessage().get("reasoning_content"));
     }
 
     @Test
