@@ -293,6 +293,8 @@ export function agentChatReducer(state: AgentChatState, action: AgentChatAction)
         ...state,
         busy: false,
         pending: refused ? state.pending : null,
+        // Without done, the transcript does not contain the browser call needed for its report.
+        pendingBrowser: null,
         turns: updateLast(state.turns, (turn) => ({
           ...closeOpenSteps(turn),
           approvedCallId: refused ? undefined : turn.approvedCallId,
