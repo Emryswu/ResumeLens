@@ -61,6 +61,7 @@ export const AGENT_TOOLS: Record<string, ToolMeta> = {
   get_latest_analysis: { label: "读取最近一次分析", icon: History },
   start_analysis: { label: "发起完整分析", icon: Gauge },
   collect_boss_jobs: { label: "去 BOSS 采集岗位", icon: ScanSearch },
+  verify_boss_job: { label: "核实完整职位 JD", icon: FileSearch },
 };
 
 /** A tool this page does not know yet still shows, under its raw name and a generic icon. */

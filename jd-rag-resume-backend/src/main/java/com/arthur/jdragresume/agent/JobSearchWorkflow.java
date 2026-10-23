@@ -21,11 +21,20 @@ import java.util.Set;
  */
 final class JobSearchWorkflow {
     static final String TOOL = "collect_boss_jobs";
+    static final String VERIFY_TOOL = "verify_boss_job";
+    /** Every tool that loads BOSS pages must be listed here so AgentLoop checks it against the budget. */
+    static final Set<String> BOSS_TOOLS = Set.of(TOOL, VERIFY_TOOL);
+    static final String BUDGET_ERROR = "JOB_SEARCH_BUDGET";
     static final int MAX_SEARCHES = 3;
     static final int MAX_PAGES = 6;
+    static final int MAX_VERIFICATIONS = 5;
     static final int SOFT_TARGET = 5;
 
     private JobSearchWorkflow() { }
+
+    static boolean governs(String toolName) {
+        return BOSS_TOOLS.contains(toolName);
+    }
 
     static boolean applies(List<AgentMessage> transcript) {
         for (int i = transcript.size() - 1; i >= 0; i--) {
@@ -56,7 +65,9 @@ final class JobSearchWorkflow {
             }
         }
         Map<String, Attempt> pending = new LinkedHashMap<>();
+        Map<String, Long> pendingVerifications = new LinkedHashMap<>();
         List<Attempt> attempts = new ArrayList<>();
+        Map<String, Long> verifications = new LinkedHashMap<>();
         Set<Long> jobIds = new LinkedHashSet<>();
         Integer dailyPagesLeft = null;
         int pagesRead = 0;
@@ -64,7 +75,16 @@ final class JobSearchWorkflow {
             AgentMessage message = transcript.get(i);
             if (message.hasToolCalls()) {
                 for (AgentMessage.ToolCall call : message.toolCalls()) {
-                    if (!TOOL.equals(call.name()) || call.id().equals(excludeCallId)) continue;
+                    if (call.id().equals(excludeCallId)) continue;
+                    if (VERIFY_TOOL.equals(call.name())) {
+                        long jobId = parse(mapper, call.arguments()).path("jobId").asLong(-1);
+                        verifications.put(call.id(), jobId);
+                        pendingVerifications.put(call.id(), jobId);
+                        // Every verification takes one page from the extension's daily budget when it runs.
+                        if (dailyPagesLeft != null) dailyPagesLeft = Math.max(0, dailyPagesLeft - 1);
+                        continue;
+                    }
+                    if (!TOOL.equals(call.name())) continue;
                     JsonNode args = parse(mapper, call.arguments());
                     Attempt attempt = new Attempt(call.id(), args.path("keyword").asText("").trim(),
                             args.path("city").asText(""), args.path("experience").asText("不限"),
@@ -74,9 +94,21 @@ final class JobSearchWorkflow {
                 }
             }
             if (!AgentMessage.TOOL.equals(message.role())) continue;
+            if (pendingVerifications.remove(message.toolCallId()) != null) {
+                if (refusedByBudget(parse(mapper, message.content()))) {
+                    verifications.remove(message.toolCallId());
+                    if (dailyPagesLeft != null) dailyPagesLeft++;
+                }
+                continue;
+            }
             Attempt attempt = pending.remove(message.toolCallId());
             if (attempt == null) continue;
             JsonNode result = parse(mapper, message.content());
+            // A call this workflow refused never reached the browser and must not use up the budget.
+            if (refusedByBudget(result)) {
+                attempts.remove(attempt);
+                continue;
+            }
             if (!result.path("ok").asBoolean(false)) continue;
             JsonNode data = result.path("untrusted_data");
             pagesRead += Math.max(0, data.path("pagesRead").asInt(0));
@@ -89,7 +121,28 @@ final class JobSearchWorkflow {
             }
         }
         int requestedPages = attempts.stream().mapToInt(Attempt::pages).sum();
-        return new Snapshot(List.copyOf(attempts), requestedPages, pagesRead, jobIds.size(), dailyPagesLeft);
+        return new Snapshot(List.copyOf(attempts), requestedPages, pagesRead, jobIds.size(), dailyPagesLeft,
+                List.copyOf(verifications.values()));
+    }
+
+    private static boolean refusedByBudget(JsonNode result) {
+        return BUDGET_ERROR.equals(result.path("error").path("code").asText());
+    }
+
+    /** The budget check for any tool in {@link #BOSS_TOOLS}; null means the call may run. */
+    static String refuse(Snapshot snapshot, String toolName, JsonNode arguments) {
+        if (!VERIFY_TOOL.equals(toolName)) return refuse(snapshot, arguments);
+        if (snapshot.verifiedJobIds().size() >= MAX_VERIFICATIONS) {
+            return "本次找岗位已核实 " + MAX_VERIFICATIONS + " 个岗位的完整 JD，达到核实上限；请根据已核实结果收尾，其余标为待核实";
+        }
+        if (snapshot.dailyPagesLeft() != null && snapshot.dailyPagesLeft() < 1) {
+            return "BOSS 插件今日剩余页数已用完，不能再核实完整 JD；请按已有结果收尾";
+        }
+        long jobId = arguments.path("jobId").asLong(-1);
+        if (snapshot.verifiedJobIds().contains(jobId)) {
+            return "这个岗位本次已经发起过核实，直接调用 get_job 读取结果，不要重复打开详情页";
+        }
+        return null;
     }
 
     static String refuse(Snapshot snapshot, JsonNode arguments) {
@@ -129,6 +182,7 @@ final class JobSearchWorkflow {
                 .append(" 次采集，申请 ").append(progress.requestedPages()).append('/').append(MAX_PAGES)
                 .append(" 页，已读取 ").append(progress.pagesRead()).append(" 页，")
                 .append("去重后候选岗位 ").append(progress.uniqueJobs()).append(" 条（未经完整 JD 核实）。");
+        info.append(" 已核实完整 JD ").append(progress.verifiedJobIds().size()).append('/').append(MAX_VERIFICATIONS).append(" 个。");
         if (progress.dailyPagesLeft() != null) info.append(" 插件今日剩余 ").append(progress.dailyPagesLeft()).append(" 页。");
         info.append(" 已搜条件：");
         for (Attempt attempt : progress.attempts()) {
@@ -162,5 +216,5 @@ final class JobSearchWorkflow {
 
     record Attempt(String callId, String keyword, String city, String experience, int pages) { }
     record Snapshot(List<Attempt> attempts, int requestedPages, int pagesRead, int uniqueJobs,
-                    Integer dailyPagesLeft) { }
+                    Integer dailyPagesLeft, List<Long> verifiedJobIds) { }
 }

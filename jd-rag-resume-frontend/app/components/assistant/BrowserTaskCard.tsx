@@ -10,6 +10,7 @@ const PHASES: Record<string, (progress: BrowserTaskProgress) => string> = {
   waiting: (progress) => `随机等待几秒后读第 ${progress.page ?? 2} 页`,
   scrolling: (progress) => `正在加载第 ${progress.page ?? 2} 页`,
   read: (progress) => `已读完第 ${progress.page ?? 1} 页`,
+  verifying: () => "正在核实完整职位描述",
 };
 
 /** A task the assistant handed to the browser extension. Only the active, unfinished card can be cancelled. */
@@ -30,6 +31,7 @@ export function BrowserTaskCard({ task, progress, outcome, active, running: coll
     return () => clearInterval(timer);
   }, []);
   const expired = now > 0 && task.expiresAt <= now;
+  const detailTask = task.action === "verifyBossJob";
   const keyword = String(task.command.keyword ?? "");
   const city = String(task.command.city ?? "");
   const experience = String(task.command.experience ?? "不限");
@@ -39,17 +41,17 @@ export function BrowserTaskCard({ task, progress, outcome, active, running: coll
     <div className={`agent-confirm${running ? " open" : ""}`} role="group" aria-label="浏览器插件任务">
       <ScanSearch className="agent-confirm-icon" size={20} aria-hidden="true" />
       <div className="agent-confirm-body">
-        <h3>浏览器插件去 BOSS 采集岗位</h3>
-        <p>{keyword ? `关键词「${keyword}」` : "不限岗位关键词"} · {city}{experience !== "不限" ? ` · 工作经验：${experience}` : ""} · 最多 {pages} 页</p>
+        <h3>{detailTask ? "浏览器插件核实 BOSS 完整 JD" : "浏览器插件去 BOSS 采集岗位"}</h3>
+        <p>{detailTask ? `岗位 ID：${task.command.jobId}` : <>{keyword ? `关键词「${keyword}」` : "不限岗位关键词"} · {city}{experience !== "不限" ? ` · 工作经验：${experience}` : ""} · 最多 {pages} 页</>}</p>
         <small>
-          插件只读取搜索列表，不会点击沟通或发送消息；存进职位库的是列表摘要，不是完整 JD。
+          {detailTask ? "插件只读取指定岗位的详情页，不会联系 HR；成功核实后才会保存完整 JD。" : "插件只读取搜索列表，不会点击沟通或发送消息；存进职位库的是列表摘要，不是完整 JD。"}
           {running && <> {phase ?? "正在联系浏览器插件"}{progress?.jobCount != null ? `，已读到 ${progress.jobCount} 条` : ""}。<Countdown expiresAt={task.expiresAt} /></>}
         </small>
       </div>
       {waiting ? (
         <div className="agent-confirm-actions">
           {running ? <button className="ghost" type="button" onClick={onCancel}>取消采集</button>
-            : <button className="ghost" type="button" onClick={onContinue}>{expired ? "结束已过期任务" : "继续采集"}</button>}
+            : <button className="ghost" type="button" onClick={onContinue}>{expired ? "结束已过期任务" : detailTask ? "继续核实" : "继续采集"}</button>}
         </div>
       ) : (
         <span className={`agent-confirm-result ${outcome === "completed" ? "approved" : outcome ? "rejected" : "none"}`}>

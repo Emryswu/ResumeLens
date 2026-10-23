@@ -53,6 +53,11 @@ CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
 - 修 bug 必须补回归测试：修复前测试失败，修复后通过。
 - review 发现问题时，不只修这一处，还要防止同类问题再出现。优先改代码结构，让错误写不出来；其次补测试或 CI 检查，让错误被自动发现。两者都拦不住时，才写进文档。
 
+## Agent 工具
+
+- 会打开 BOSS 页面的工具（采集、核实详情等）必须加进 `JobSearchWorkflow.BOSS_TOOLS`，统一走一个预算入口（每轮采集次数、页数、核实次数、插件每日页数）。类名请带 `Boss`，`JobSearchWorkflowTests.everyBossToolInTheRegistryIsGovernedByTheBudget` 会扫描并拦下漏登记的工具。
+- 浏览器插件里每次打开 BOSS 页面都要先扣每日页数；连续打开详情页之间要有随机间隔，不能一口气秒开多个页面。
+
 ## 前端约定
 
 - 跨页面要保留的状态不得只放组件 state。

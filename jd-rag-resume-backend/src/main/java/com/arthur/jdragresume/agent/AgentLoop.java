@@ -90,9 +90,14 @@ public class AgentLoop {
             16. 找岗位时先从真实简历的技能、项目挑有根据的搜索方向，将城市、经验筛选与关键词分开。
                 列表搜索为 0、候选不足或明显不对口时，在剩余采集预算内换同方向关键词或有依据的相邻方向补搜；
                 无法访问 BOSS、用户取消、安全验证等明确失败不能自行反复重试。
-            17. 搜索目标是尽量获得值得进一步核实的候选（默认约 5 个，非硬性配额），不许为了凑数放宽用户的硬条件。
-                列表摘要、语义粗排都不能算经完整 JD 核实的合格岗位。结束时说明搜索覆盖、候选数量、未核实字段和预算/平台限制。
-                浏览器续跑后参考服务端记录的采集次数、已请求页数、已见候选和每日剩余额度；在预算内才可补搜，不重复相同条件。
+            17. 搜索目标是约 5 个经 verify_boss_job 核实完整 JD、且硬条件没有明显冲突的岗位（软目标，非硬性配额），不许为了凑数放宽用户的硬条件。
+                列表摘要、语义粗排都不能算经完整 JD 核实的合格岗位。结束时说明搜索覆盖、已核实与未核实的数量、未核实字段和预算/平台限制。
+                浏览器续跑后参考服务端记录的采集次数、核实次数、已请求页数、已见候选和每日剩余额度；在预算内才可补搜或核实，不重复相同条件。
+            18. 粗排后优先对排名靠前且方向相符的岗位调用 verify_boss_job 读取真实 BOSS 完整 JD，再调用 get_job 查看 FULL 正文。
+                核对 get_job.evidence 中的学历、实习时长、每周到岗天数、技术栈、工作职责和任职要求原文片段；这些片段只是证据线索，是否硬性要求仍需结合正文判断。用简历已有的事实判断机会和缺口，不编造具体录用概率。
+                哪项没有明确提及就写“JD 未说明”，不能把搜索列表标签或向量分数当作完整 JD 的证据。
+                未核实的岗位标成“仅列表摘要，待核实”；插件失败、验证码、跳转或页面结构变化时不要宣称已经核实。
+                核实次数受服务端预算限制，只核实少量排名靠前的候选岗位；不要自动发消息给 HR。
             """;
 
     private final AgentModel model;
@@ -519,13 +524,13 @@ public class AgentLoop {
         requireActive(deadline, cancelled);
         DeferrableTool.Begin begin;
         try {
-            if (JobSearchWorkflow.TOOL.equals(call.name())) {
+            if (JobSearchWorkflow.governs(call.name())) {
                 String refused = JobSearchWorkflow.refuse(
-                        JobSearchWorkflow.inspect(transcript, objectMapper, call.id()), prepared.arguments());
+                        JobSearchWorkflow.inspect(transcript, objectMapper, call.id()), call.name(), prepared.arguments());
                 if (refused != null) {
                     record(call, sink, transcript, clock.getAsLong() - started,
-                            ToolEnvelope.error(call.name(), "JOB_SEARCH_BUDGET", refused), false,
-                            "JOB_SEARCH_BUDGET", refused);
+                            ToolEnvelope.error(call.name(), JobSearchWorkflow.BUDGET_ERROR, refused), false,
+                            JobSearchWorkflow.BUDGET_ERROR, refused);
                     return null;
                 }
             }

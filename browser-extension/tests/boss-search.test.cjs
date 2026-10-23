@@ -3,6 +3,7 @@ const test = require("node:test");
 
 const search = require("../src/boss-search.js");
 
+
 const valid = { taskId: "call_1", keyword: " Java  后端 实习 ", city: "深圳", maxPages: 2 };
 
 test("a valid command is normalized and frozen", () => {
@@ -71,4 +72,16 @@ test("only https zhipin.com hosts count as BOSS", () => {
   assert.equal(search.isBossUrl("http://www.zhipin.com/"), false);
   assert.equal(search.isBossUrl("https://zhipin.com.evil.example/"), false);
   assert.equal(search.isBossUrl("not a url"), false);
+});
+
+
+test("detail command only accepts a matching BOSS job detail URL", () => {
+  const command = { taskId: "detail_1", mode: "detail", jobId: 1,
+    sourceJobId: "abc123", sourceUrl: "https://www.zhipin.com/job_detail/abc123.html" };
+  assert.equal(search.validateDetailCommand(command).ok, true);
+  assert.equal(search.validateDetailCommand({ ...command, sourceJobId: "other" }).ok, false);
+  assert.equal(search.validateDetailCommand({ ...command,
+    sourceUrl: "https://evil.example/job_detail/abc123.html" }).ok, false);
+  assert.equal(search.validateDetailCommand({ ...command,
+    sourceUrl: "https://www.zhipin.com/job_detail/abc123.html?next=1" }).ok, false);
 });

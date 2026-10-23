@@ -75,6 +75,38 @@
     return { ok: true, command: Object.freeze({ taskId, keyword, city, maxPages, experience }) };
   }
 
+  /** Detail verification accepts only an existing BOSS posting, never an arbitrary URL. */
+  function validateDetailCommand(value) {
+    const taskId = typeof value?.taskId === "string" ? value.taskId : "";
+    if (!TASK_ID_PATTERN.test(taskId)) return invalid("taskId 格式不正确");
+    const jobId = value.jobId;
+    const sourceJobId = value.sourceJobId;
+    if (!Number.isSafeInteger(jobId) || jobId < 1) return invalid("jobId 格式不正确");
+    if (typeof sourceJobId !== "string" || !/^[^\s/?#]{1,160}$/.test(sourceJobId)) {
+      return invalid("sourceJobId 格式不正确");
+    }
+    let url;
+    try {
+      url = new URL(value.sourceUrl);
+    } catch {
+      return invalid("sourceUrl 格式不正确");
+    }
+    const match = url.pathname.match(/^\/job_detail\/([^/]+)\.html\/?$/i);
+    let urlJobId = "";
+    try {
+      if (match) urlJobId = decodeURIComponent(match[1]);
+    } catch {
+      return invalid("sourceUrl 岗位 ID 编码不正确");
+    }
+    if (!isBossUrl(url.href) || !match || urlJobId !== sourceJobId
+        || url.search || url.hash || url.username || url.password) {
+      return invalid("只能核实 BOSS 岗位详情页，且岗位 ID 必须一致");
+    }
+    return { ok: true, command: Object.freeze({
+      taskId, mode: "detail", jobId, sourceJobId, sourceUrl: url.href,
+    }) };
+  }
+
   function buildSearchUrl(command) {
     const url = new URL("/web/geek/job", SEARCH_ORIGIN);
     url.searchParams.set("query", command.keyword);
@@ -111,5 +143,6 @@
     isBossUrl,
     pageDelayMs,
     validateCommand,
+    validateDetailCommand,
   };
 });

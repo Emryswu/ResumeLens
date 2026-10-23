@@ -146,7 +146,7 @@ public class CollectBossJobsTool implements DeferrableTool {
                 result.dailyPagesLeft(),
                 jobs,
                 jobs.stream().map(Job::jobId).toList(),
-                "这些是 BOSS 搜索列表摘要，不是完整职位描述；粗排相似度不是匹配分。要读完整 JD，需要用户在职位详情页用插件弹窗抓取。");
+                "这些是 BOSS 搜索列表摘要，不是完整职位描述；粗排相似度不是匹配分。可对排序靠前的岗位调用 verify_boss_job，由插件自动打开详情页核实完整 JD。");
     }
 
     @Override
