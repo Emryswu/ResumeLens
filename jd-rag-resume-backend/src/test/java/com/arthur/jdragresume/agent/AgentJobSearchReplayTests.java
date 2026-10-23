@@ -104,7 +104,8 @@ class AgentJobSearchReplayTests {
         assertEquals(steps.size() + (nextAllowed ? 1 : 0), begun.get(),
                 "policy gate must intercept a prohibited browser request before invoking the collector");
         var progress = JobSearchWorkflow.inspect(outcome.transcript(), mapper);
-        assertEquals(steps.size() + (nextAllowed ? 1 : 0), progress.attempts().size());
+        assertEquals(steps.size() + 1, progress.attempts().size(),
+                "rejected proposals stay visible in the transcript, but must not execute");
         if (!nextAllowed) {
             var results = outcome.transcript().stream()
                     .filter(m -> AgentMessage.TOOL.equals(m.role())).toList();
