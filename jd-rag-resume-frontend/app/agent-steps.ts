@@ -55,6 +55,7 @@ export const AGENT_TOOLS: Record<string, ToolMeta> = {
   get_resume: { label: "读取简历正文", icon: FileSearch },
   search_jobs: { label: "搜索职位库", icon: Search },
   get_job: { label: "读取职位详情", icon: BriefcaseBusiness },
+  list_job_applications: { label: "读取投递进度", icon: History },
   rank_jobs_for_resume: { label: "按语义相似度排序职位", icon: ListOrdered },
   search_resume_evidence: { label: "检索简历证据（RAG）", icon: FileSearch },
   get_latest_analysis: { label: "读取最近一次分析", icon: History },

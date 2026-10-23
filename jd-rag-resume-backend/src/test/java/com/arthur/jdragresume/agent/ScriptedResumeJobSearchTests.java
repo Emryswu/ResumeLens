@@ -33,6 +33,19 @@ class ScriptedResumeJobSearchTests {
     }
 
     @Test
+    void emptyResultsTriggerOneAlternativeSearchAndStopWithoutInventingJobs() {
+        jobs = List.of();
+        var result = run("帮我找深圳实习");
+        assertEquals(List.of("list_resumes", "get_resume", "collect_boss_jobs", "collect_boss_jobs"), calls);
+        assertEquals("Java 后端", collections.getFirst().path("keyword").asText());
+        assertEquals("Java开发", collections.getLast().path("keyword").asText());
+        assertEquals("在校生", collections.getLast().path("experience").asText());
+        assertEquals("深圳", collections.getLast().path("city").asText());
+        assertTrue(answer(result).contains("不能据此断定市场上没有实习"));
+        assertTrue(rankings.isEmpty());
+    }
+
+    @Test
     void theBrowserReportResumesRankingWithTheSameSelectedResume() {
         var browser = new DeferrableTool() {
             public String name() { return "collect_boss_jobs"; }
