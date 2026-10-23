@@ -47,7 +47,8 @@ public class BrowserExtensionJobCollector implements JobCollector {
             "NO_MORE_RESULTS", "列表没有更多结果了",
             "NO_RESULTS", "这次搜索没有找到岗位",
             "MAX_JOBS", "已达到单次最多 " + MAX_JOBS + " 条的上限",
-            "DAILY_LIMIT", "插件今天的采集页数已用完，读到的岗位已保留");
+            "DAILY_LIMIT", "插件今天的采集页数已用完，读到的岗位已保留",
+            "DETAIL_READ", "已读取完整职位描述");
 
     static final Map<String, String> STOP_MESSAGES = Map.ofEntries(
             Map.entry("PERMISSION_REQUIRED", "插件还没获得 BOSS 直聘的访问授权，需要用户在插件弹窗里允许访问 BOSS 直聘"),
@@ -60,7 +61,8 @@ public class BrowserExtensionJobCollector implements JobCollector {
             Map.entry("WORKER_RESTARTED", "插件后台在采集途中被浏览器重启，插件已停止"),
             Map.entry("USER_CANCELLED", "用户在插件里停止了采集"),
             Map.entry("DAILY_LIMIT", "插件今天的采集页数已用完"),
-            Map.entry("INTERNAL_ERROR", "插件内部错误，已停止采集"));
+            Map.entry("INTERNAL_ERROR", "插件内部错误，已停止采集"),
+            Map.entry("DETAIL_UNAVAILABLE", "完整 JD 没有加载出来或与目标岗位不一致，未将摘要标记为已核实"));
 
     /** Rejections from the extension, plus the ones the page reports when it cannot reach a usable extension. */
     static final Map<String, String> REJECTIONS = Map.ofEntries(
@@ -125,6 +127,7 @@ public class BrowserExtensionJobCollector implements JobCollector {
         Integer dailyPagesLeft = task.path("dailyPagesLeft").isIntegralNumber()
                 ? integer(task.path("dailyPagesLeft"), 0, 10_000, "dailyPagesLeft") : null;
         List<CollectedListing> listings = listings(task.path("jobs"));
+        List<CollectionResult.PageRead> pageLog = pageLog(task.path("pageLog"), pagesRead, listings);
         String status = task.path("status").asText("");
         if ("completed".equals(status)) {
             String code = task.path("finishReason").asText("");
@@ -132,7 +135,8 @@ public class BrowserExtensionJobCollector implements JobCollector {
             if (message == null) {
                 throw invalidReport("unknown finishReason");
             }
-            return new CollectionResult(CollectionResult.Outcome.COMPLETED, code, message, pagesRead, listings, skipped, dailyPagesLeft);
+            if (pagesRead == 1 && "NO_MORE_RESULTS".equals(code)) message += "；可能未登录 BOSS，只能看到第一页";
+            return new CollectionResult(CollectionResult.Outcome.COMPLETED, code, message, pagesRead, listings, skipped, dailyPagesLeft, pageLog);
         }
         if ("stopped".equals(status)) {
             String code = task.path("stopReason").asText("");
@@ -140,9 +144,28 @@ public class BrowserExtensionJobCollector implements JobCollector {
                 throw invalidReport("invalid stopReason");
             }
             String message = STOP_MESSAGES.getOrDefault(code, "插件停止了采集（" + code + "）");
-            return new CollectionResult(CollectionResult.Outcome.STOPPED, code, message, pagesRead, listings, skipped, dailyPagesLeft);
+            return new CollectionResult(CollectionResult.Outcome.STOPPED, code, message, pagesRead, listings, skipped, dailyPagesLeft, pageLog);
         }
         throw invalidReport("unknown task status");
+    }
+
+    private static List<CollectionResult.PageRead> pageLog(JsonNode rows, int pagesRead, List<CollectedListing> listings) {
+        if (rows.isMissingNode()) return List.of(); // Reports from an older installed extension have no per-page history.
+        if (!rows.isArray() || rows.size() != pagesRead) throw invalidReport("pageLog must match pagesRead");
+        List<CollectionResult.PageRead> log = new ArrayList<>();
+        int api = 0;
+        int dom = 0;
+        for (JsonNode row : rows) {
+            int page = integer(row.path("page"), log.size() + 1, log.size() + 1, "pageLog.page");
+            int pageApi = integer(row.path("api"), 0, MAX_JOBS, "pageLog.api");
+            int pageDom = integer(row.path("dom"), 0, MAX_JOBS, "pageLog.dom");
+            api += pageApi;
+            dom += pageDom;
+            log.add(new CollectionResult.PageRead(page, pageApi, pageDom));
+        }
+        long apiListings = listings.stream().filter(listing -> "api".equals(listing.captureSource())).count();
+        if (api != apiListings || dom != listings.size() - apiListings) throw invalidReport("pageLog counts must match jobs");
+        return List.copyOf(log);
     }
 
     /** The extension echoes the command it ran; a report for any other search is refused. */

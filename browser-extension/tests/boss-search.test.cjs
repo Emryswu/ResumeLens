@@ -9,7 +9,7 @@ const valid = { taskId: "call_1", keyword: " Java  后端 实习 ", city: "深�
 test("a valid command is normalized and frozen", () => {
   const result = search.validateCommand(valid);
   assert.equal(result.ok, true);
-  assert.deepEqual({ ...result.command }, { taskId: "call_1", keyword: "Java 后端 实习", city: "深圳", maxPages: 2, experience: "不限" });
+  assert.deepEqual({ ...result.command }, { taskId: "call_1", keyword: "Java 后端 实习", city: "深圳", maxPages: 2, experience: "不限", conversationId: "call_1" });
   assert.ok(Object.isFrozen(result.command));
 });
 

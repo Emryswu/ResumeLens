@@ -81,6 +81,41 @@ class BrowserExtensionJobCollectorTests {
         assertEquals(28, result.dailyPagesLeft());
     }
 
+    @Test
+    void pageLogSurvivesTheReportBoundaryAndInvalidSourceCountsAreRejected() {
+        JsonNode report = result(task -> {
+            ArrayNode log = task.putArray("pageLog");
+            log.addObject().put("page", 1).put("api", 1).put("dom", 0);
+            log.addObject().put("page", 2).put("api", 0).put("dom", 1);
+        });
+        assertEquals(List.of(new CollectionResult.PageRead(1, 1, 0), new CollectionResult.PageRead(2, 0, 1)),
+                collector.complete(REQUEST, report).pageLog());
+        ((ObjectNode) report.path("task").path("pageLog").get(0)).put("api", 45);
+        assertInvalid(report);
+    }
+
+    @Test
+    void firstPageExhaustionWarnsAboutLogin() {
+        CollectionResult result = collector.complete(REQUEST, result(task -> task.put("pagesRead", 1)
+                .put("finishReason", "NO_MORE_RESULTS")));
+        assertEquals("列表没有更多结果了；可能未登录 BOSS，只能看到第一页", result.message());
+    }
+
+    @Test
+    void everyExtensionReasonHasAServerTranslation() throws Exception {
+        String source = Files.readString(Path.of("..", "browser-extension", "src", "collect-status.js"));
+        for (var table : Map.of("FINISH_MESSAGES", BrowserExtensionJobCollector.FINISH_MESSAGES,
+                "STOP_MESSAGES", BrowserExtensionJobCollector.STOP_MESSAGES).entrySet()) {
+            Matcher block = Pattern.compile(table.getKey() + " = Object\\.freeze\\(\\{(.*?)\\}\\)", Pattern.DOTALL).matcher(source);
+            assertEquals(true, block.find());
+            var keys = new LinkedHashSet<String>();
+            Matcher key = Pattern.compile("\\b([A-Z_]+):").matcher(block.group(1));
+            while (key.find()) keys.add(key.group(1));
+            assertEquals(keys, table.getValue().keySet(), table.getKey());
+            table.getValue().forEach((code, message) -> assertEquals(true, Pattern.compile("[\\p{IsHan}]").matcher(message).find(), code));
+        }
+    }
+
     /**
      * The final event the extension (0.3.0) actually sent, recorded by driving it in Chromium against a local stub of
      * the BOSS search page: three listings copied from the page's list API, one read from the page only.

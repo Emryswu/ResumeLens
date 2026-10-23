@@ -359,6 +359,7 @@ a.secondary {
 .agent-confirm-pair { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; color: var(--ink); font-size: var(--text-body); overflow-wrap: anywhere; }
 .agent-confirm-pair svg { flex-shrink: 0; color: var(--muted); }
 .agent-confirm small { color: var(--muted); font-size: var(--text-meta); }
+.collection-log { display: grid; gap: 5px; margin: 8px 0 0; padding-left: 20px; color: var(--ink); font-size: var(--text-meta); line-height: 1.6; }
 .agent-confirm-actions { display: flex; gap: 16px; margin-left: auto; flex-shrink: 0; }
 .agent-confirm-result { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; color: var(--muted); font-size: var(--text-meta); font-weight: 600; }
 .agent-confirm-result.approved { color: var(--mint-dark); }

@@ -80,6 +80,7 @@ async function mount(t, { interrupted = false, savedEffort, autoAsk = true, auto
     AppShell: ({ children }) => React.createElement("div", null, children),
     RetryButton: empty, AgentMarkdown: empty, AnalysisCard: empty, ConfirmationCard: empty,
     ProcessDrawer: empty, StepTimeline: empty, LoginPage: empty,
+    CompletedCollectionCards: empty,
     BrowserTaskCard: ({ active, running, onCancel, onContinue }) => active ? React.createElement("button", { onClick: running ? onCancel : onContinue }, running ? "取消采集" : "继续采集") : null,
   };
   const exports = {};

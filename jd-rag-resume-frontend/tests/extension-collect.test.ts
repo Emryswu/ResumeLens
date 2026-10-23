@@ -111,7 +111,8 @@ test("pings first, then sends the task with the server's taskId and reports the 
   run.reply("r2", final);
 
   assert.deepEqual(await run.result, { outcome: "completed", report: final });
-  assert.deepEqual(run.progress, [{ phase: "reading", page: 1, jobCount: 0 }]);
+  assert.deepEqual(run.progress, [{ phase: "reading", page: 1, jobCount: 0 },
+    { phase: "finished", pageLog: [], pagesRead: 0, finishReason: null, stopReason: null }]);
   assert.equal(run.listeners.size, 0, "the listener is removed once settled");
 });
 

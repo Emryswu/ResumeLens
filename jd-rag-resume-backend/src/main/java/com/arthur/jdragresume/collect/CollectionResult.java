@@ -17,11 +17,20 @@ public record CollectionResult(
         int pagesRead,
         List<CollectedListing> listings,
         int skippedWithoutId,
-        Integer dailyPagesLeft
+        Integer dailyPagesLeft,
+        List<PageRead> pageLog
 ) {
     public CollectionResult {
         listings = List.copyOf(listings);
+        pageLog = List.copyOf(pageLog);
     }
+
+    public CollectionResult(Outcome outcome, String code, String message, int pagesRead,
+                            List<CollectedListing> listings, int skippedWithoutId, Integer dailyPagesLeft) {
+        this(outcome, code, message, pagesRead, listings, skippedWithoutId, dailyPagesLeft, List.of());
+    }
+
+    public record PageRead(int page, int api, int dom) { }
 
     public static CollectionResult failed(String code, String message) {
         return new CollectionResult(Outcome.FAILED, code, message, 0, List.of(), 0, null);

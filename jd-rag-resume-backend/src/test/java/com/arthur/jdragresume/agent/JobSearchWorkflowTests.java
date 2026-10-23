@@ -21,6 +21,20 @@ class JobSearchWorkflowTests {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
+    void guidanceOnlyRequestsStudentFilterForExplicitInternshipIntent() {
+        for (String question : List.of("找深圳 Java 实习", "找在校兼职", "暑期找岗位")) {
+            assertTrue(JobSearchWorkflow.guidance(JobSearchWorkflow.inspect(List.of(AgentMessage.user(question)), mapper))
+                    .contains("experience=在校生"), question);
+        }
+        for (String question : List.of("找深圳 Java 后端全职", "帮我找岗位", "找深圳 Java 社招")) {
+            String guidance = JobSearchWorkflow.guidance(JobSearchWorkflow.inspect(List.of(AgentMessage.user(question)), mapper));
+            assertFalse(guidance.contains("在校生"), question);
+            assertTrue(guidance.contains("experience=不限"), question);
+            assertTrue(guidance.contains("没限制经验"), question);
+        }
+    }
+
+    @Test
     void countsRequestedPagesAndUniqueJobsAcrossBrowserResultsWithoutClaimingVerification() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳 Java 实习")));
         add(log, "a", "Java 后端", 2, "{\"pagesRead\":2,\"jobIds\":[1,2],\"dailyPagesLeft\":27}");

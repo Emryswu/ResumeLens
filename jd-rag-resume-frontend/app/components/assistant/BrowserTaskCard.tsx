@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Ban, CircleCheck, Clock, LoaderCircle, ScanSearch } from "lucide-react";
 import type { AgentBrowserTask, BrowserTaskOutcome, BrowserTaskProgress } from "../../agent-stream";
+import { collectionLog, type CollectionActivity } from "../../collection-log";
+import type { AgentTurn } from "../../agent-stream";
 
 const PHASES: Record<string, (progress: BrowserTaskProgress) => string> = {
   opening: () => "正在打开 BOSS 搜索页",
@@ -14,9 +16,10 @@ const PHASES: Record<string, (progress: BrowserTaskProgress) => string> = {
 };
 
 /** A task the assistant handed to the browser extension. Only the active, unfinished card can be cancelled. */
-export function BrowserTaskCard({ task, progress, outcome, active, running: collecting, onCancel, onContinue }: {
+export function BrowserTaskCard({ task, progress, facts, outcome, active, running: collecting, onCancel, onContinue }: {
   task: AgentBrowserTask;
   progress?: BrowserTaskProgress;
+  facts?: CollectionActivity;
   outcome?: BrowserTaskOutcome["outcome"];
   active: boolean;
   onCancel: () => void;
@@ -37,6 +40,7 @@ export function BrowserTaskCard({ task, progress, outcome, active, running: coll
   const experience = String(task.command.experience ?? "不限");
   const pages = Number(task.command.maxPages ?? 1);
   const phase = progress ? PHASES[progress.phase]?.(progress) : null;
+  const log = detailTask ? [] : collectionLog(facts ?? progress ?? {});
   return (
     <div className={`agent-confirm${running ? " open" : ""}`} role="group" aria-label="浏览器插件任务">
       <ScanSearch className="agent-confirm-icon" size={20} aria-hidden="true" />
@@ -47,6 +51,9 @@ export function BrowserTaskCard({ task, progress, outcome, active, running: coll
           {detailTask ? "插件只读取指定岗位的详情页，不会联系 HR；成功核实后才会保存完整 JD。" : "插件只读取搜索列表，不会点击沟通或发送消息；存进职位库的是列表摘要，不是完整 JD。"}
           {running && <> {phase ?? "正在联系浏览器插件"}{progress?.jobCount != null ? `，已读到 ${progress.jobCount} 条` : ""}。<Countdown expiresAt={task.expiresAt} /></>}
         </small>
+        {log.length > 0 && <ol className="collection-log" aria-label="采集操作日志" aria-live="polite">
+          {log.map((line, index) => <li key={index}>{line}</li>)}
+        </ol>}
       </div>
       {waiting ? (
         <div className="agent-confirm-actions">
@@ -63,6 +70,17 @@ export function BrowserTaskCard({ task, progress, outcome, active, running: coll
       )}
     </div>
   );
+}
+
+/** A turn can collect several batches before verifying details; keep every completed batch visible. */
+export function CompletedCollectionCards({ turn }: { turn: AgentTurn }) {
+  return turn.steps.filter((step) => step.tool === "collect_boss_jobs" && step.ok && step.facts
+    && step.toolCallId !== turn.browserTask?.toolCallId).map((step) => (
+    <BrowserTaskCard key={step.toolCallId} task={{ toolCallId: step.toolCallId, tool: step.tool,
+      taskId: step.toolCallId, executor: "browser-extension", action: "collectBossJobs",
+      command: JSON.parse(step.arguments), expiresAt: 0, timeoutSeconds: 0 }}
+      facts={step.facts!} outcome="completed" active={false} running={false} onCancel={() => {}} onContinue={() => {}} />
+  ));
 }
 
 /** Seconds left before the page stops waiting; counted from when the card first rendered. */

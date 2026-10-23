@@ -72,7 +72,9 @@
     if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > LIMITS.maxPages) {
       return invalid(`maxPages 必须是 1 到 ${LIMITS.maxPages} 之间的整数`);
     }
-    return { ok: true, command: Object.freeze({ taskId, keyword, city, maxPages, experience }) };
+    const conversationId = value.conversationId === undefined ? taskId : value.conversationId;
+    if (typeof conversationId !== "string" || !TASK_ID_PATTERN.test(conversationId)) return invalid("conversationId 格式不正确");
+    return { ok: true, command: Object.freeze({ taskId, keyword, city, maxPages, experience, conversationId }) };
   }
 
   /** Detail verification accepts only an existing BOSS posting, never an arbitrary URL. */
@@ -102,8 +104,10 @@
         || url.search || url.hash || url.username || url.password) {
       return invalid("只能核实 BOSS 岗位详情页，且岗位 ID 必须一致");
     }
+    const conversationId = value.conversationId === undefined ? taskId : value.conversationId;
+    if (typeof conversationId !== "string" || !TASK_ID_PATTERN.test(conversationId)) return invalid("conversationId 格式不正确");
     return { ok: true, command: Object.freeze({
-      taskId, mode: "detail", jobId, sourceJobId, sourceUrl: url.href,
+      taskId, mode: "detail", jobId, sourceJobId, sourceUrl: url.href, conversationId,
     }) };
   }
 

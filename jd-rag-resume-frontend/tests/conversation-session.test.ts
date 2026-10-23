@@ -9,6 +9,24 @@ const detail = (id = 1, state = "COMPLETED"): ConversationDetail => ({
   turns: [{ question: `提问 ${id}`, steps: [], started: [], unfinished: [], notes: ["已保存的过程"], answer: "已保存的回答" }], events: [],
 });
 
+test("polling the server while collection runs preserves the live operation log for that task", async (t) => {
+  const saved = detail(1, "AWAITING_BROWSER");
+  saved.turns[0].browserTask = { toolCallId: "c", taskId: "bt_1", tool: "collect_boss_jobs",
+    executor: "browser-extension", action: "collectBossJobs", command: {}, expiresAt: Date.now() + 10000, timeoutSeconds: 10 };
+  const client = new ConversationSession({ request: async <T>(path: string) =>
+    structuredClone(path.endsWith("conversations") ? [saved.conversation] : saved) as T,
+    stream: async () => { throw new Error("unused"); }, current: () => true });
+  t.after(client.clear);
+  await client.open(1, 1);
+  const progress = { phase: "read", pagesRead: 1, pageLog: [{ page: 1, api: 2, dom: 1 }] };
+  client.progress({ type: "browser_progress", progress });
+  await client.refresh();
+  assert.deepEqual(client.getSnapshot().chat.turns[0].browserProgress, progress);
+  saved.turns[0].browserTask.taskId = "bt_2";
+  await client.refresh();
+  assert.equal(client.getSnapshot().chat.turns[0].browserProgress, undefined);
+});
+
 test("a new browser session restores full turns and does not submit any history", async (t) => {
   const saved = detail();
   const client = new ConversationSession({ request: async <T>(path: string) =>

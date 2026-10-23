@@ -6,6 +6,7 @@ import {
   BriefcaseBusiness, FileSearch, FileStack, Gauge, History, ListOrdered, ScanSearch, Search, Wrench, type LucideIcon,
 } from "lucide-react";
 import type { AgentTurn } from "./agent-stream";
+import { collectionReason } from "./collection-log.ts";
 
 export type StepStatus =
   /** The server said the tool is about to run and no result has arrived yet. */
@@ -234,6 +235,10 @@ const OUTCOME_TEXT: Record<string, (facts: Record<string, unknown>) => string | 
     const parts = [`读了 ${pages} 页`, `新入库 ${created} 个`, `库里已有 ${existing} 个`];
     if (notSaved) parts.push(`${notSaved} 个未保存（职位库已满）`);
     if (typeof facts.stopMessage === "string" && facts.stopMessage) parts.push(`提前停止：${facts.stopMessage}`);
+    else if (typeof facts.finishReason === "string") {
+      const reason = collectionReason({ finishReason: facts.finishReason, pagesRead: pages });
+      if (reason) parts.push(`结束原因：${reason}`);
+    }
     return parts.join(" · ");
   },
 };

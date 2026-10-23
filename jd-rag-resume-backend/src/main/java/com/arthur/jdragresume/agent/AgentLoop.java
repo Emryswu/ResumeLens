@@ -552,8 +552,10 @@ public class AgentLoop {
         long timeoutSeconds = properties.getBrowserTaskTimeoutSeconds();
         BrowserTaskRegistry.Task task = browserTasks.issue(context, call.id(), call.name(),
                 call.arguments(), clock.getAsLong(), timeoutSeconds * 1000);
+        Map<String, Object> command = new java.util.LinkedHashMap<>(inBrowser.command());
+        if (context.run() != null) command.put("conversationId", Long.toString(context.run().conversationId()));
         return new BrowserTaskEvent(call.id(), call.name(), task.taskId(), inBrowser.executor(), inBrowser.action(),
-                inBrowser.command(), task.expiresAt(), timeoutSeconds);
+                command, task.expiresAt(), timeoutSeconds);
     }
 
     /**

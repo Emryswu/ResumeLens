@@ -92,8 +92,19 @@ export function runExtensionCollect(options: ExtensionCollectOptions): Promise<B
           phase: String(payload.phase ?? ""),
           page: typeof payload.page === "number" ? payload.page : undefined,
           jobCount: typeof payload.jobCount === "number" ? payload.jobCount : undefined,
+          ...(Array.isArray(payload.pageLog) ? { pageLog: payload.pageLog.filter(validPageRead) } : {}),
+          ...(typeof payload.pagesRead === "number" ? { pagesRead: payload.pagesRead } : {}),
         });
       } else if (FINAL_EVENTS.has(String(payload.type))) {
+        const result = payload.task as Record<string, unknown> | undefined;
+        if (result && typeof result === "object") {
+          onProgress?.({ phase: "finished",
+            pageLog: Array.isArray(result.pageLog) ? result.pageLog.filter(validPageRead) : [],
+            pagesRead: typeof result.pagesRead === "number" ? result.pagesRead : 0,
+            finishReason: typeof result.finishReason === "string" ? result.finishReason : null,
+            stopReason: typeof result.stopReason === "string" ? result.stopReason : null,
+          });
+        }
         finish({ outcome: "completed", report: payload });
       }
     }
@@ -126,4 +137,12 @@ export function runExtensionCollect(options: ExtensionCollectOptions): Promise<B
     }, Math.max(0, deadline - now())));
     send(pingId, "ping");
   });
+}
+
+/** Extension progress crosses a window message boundary; discard malformed rows before rendering counts. */
+function validPageRead(value: unknown): value is { page: number; api: number; dom: number } {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Record<string, unknown>;
+  return [row.page, row.api, row.dom].every((count) => Number.isSafeInteger(count) && Number(count) >= 0)
+    && Number(row.page) >= 1 && Number(row.page) <= 3;
 }
