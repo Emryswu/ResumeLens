@@ -85,11 +85,11 @@ class AgentJobSearchReplayTests {
             if (responses > steps.size()) return AgentModel.Reply.answer("已按现有结果收尾，未知条件待核实");
             JsonNode planned = responses == steps.size() ? next : steps.get((int) responses);
             return AgentModel.Reply.call(AgentMessage.ToolCall.of("case-" + (responses + 1),
-                    JobSearchWorkflow.TOOL, mapper.writeValueAsString(Map.of(
+                    JobSearchWorkflow.TOOL, mapper.valueToTree(Map.of(
                             "keyword", planned.path("keyword").asText(),
                             "city", planned.path("city").asText(),
                             "experience", planned.path("experience").asText(),
-                            "maxPages", planned.path("maxPages").asInt()))));
+                            "maxPages", planned.path("maxPages").asInt())).toString()));
         };
 
         AgentProperties properties = new AgentProperties();
