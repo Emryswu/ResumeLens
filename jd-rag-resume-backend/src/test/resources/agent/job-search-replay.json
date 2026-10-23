@@ -1,0 +1,200 @@
+{
+  "version": 1,
+  "source": "browser-extension/tests/fixtures/boss-joblist.sample.json (redacted captured BOSS payload; job IDs below are synthetic local IDs)",
+  "scenarios": [
+    {
+      "id": "java-internships-deduplicate-across-keywords",
+      "question": "找深圳 Java 实习",
+      "steps": [
+        {
+          "keyword": "Java开发",
+          "city": "深圳",
+          "experience": "在校生",
+          "maxPages": 1,
+          "pagesRead": 1,
+          "jobIds": [
+            101,
+            102
+          ],
+          "dailyPagesLeft": 20
+        },
+        {
+          "keyword": "Java后端",
+          "city": "深圳",
+          "experience": "在校生",
+          "maxPages": 1,
+          "pagesRead": 1,
+          "jobIds": [
+            102,
+            103
+          ],
+          "dailyPagesLeft": 19
+        }
+      ],
+      "next": {
+        "keyword": "Java后端",
+        "city": "深圳",
+        "experience": "在校生",
+        "maxPages": 1
+      },
+      "expected": {
+        "requestedPages": 2,
+        "pagesRead": 2,
+        "uniqueJobs": 3,
+        "allowed": false,
+        "reasonContains": "相同"
+      }
+    },
+    {
+      "id": "adjacent-ai-direction-budget-stop",
+      "question": "除了 Java 还能投啥实习",
+      "steps": [
+        {
+          "keyword": "Java开发",
+          "city": "深圳",
+          "experience": "在校生",
+          "maxPages": 1,
+          "pagesRead": 1,
+          "jobIds": [
+            101
+          ],
+          "dailyPagesLeft": 10
+        },
+        {
+          "keyword": "大模型应用",
+          "city": "深圳",
+          "experience": "在校生",
+          "maxPages": 1,
+          "pagesRead": 1,
+          "jobIds": [
+            101,
+            105
+          ],
+          "dailyPagesLeft": 9
+        },
+        {
+          "keyword": "AI应用",
+          "city": "深圳",
+          "experience": "在校生",
+          "maxPages": 1,
+          "pagesRead": 1,
+          "jobIds": [],
+          "dailyPagesLeft": 8
+        }
+      ],
+      "next": {
+        "keyword": "RAG开发",
+        "city": "深圳",
+        "experience": "在校生",
+        "maxPages": 1
+      },
+      "expected": {
+        "requestedPages": 3,
+        "pagesRead": 3,
+        "uniqueJobs": 2,
+        "allowed": false,
+        "reasonContains": "次采集上限"
+      }
+    },
+    {
+      "id": "daily-cap-prevents-extra-pages",
+      "question": "找深圳的后端实习",
+      "steps": [
+        {
+          "keyword": "后端开发",
+          "city": "深圳",
+          "experience": "在校生",
+          "maxPages": 1,
+          "pagesRead": 1,
+          "jobIds": [
+            101
+          ],
+          "dailyPagesLeft": 1
+        }
+      ],
+      "next": {
+        "keyword": "Java开发",
+        "city": "深圳",
+        "experience": "在校生",
+        "maxPages": 2
+      },
+      "expected": {
+        "requestedPages": 1,
+        "pagesRead": 1,
+        "uniqueJobs": 1,
+        "allowed": false,
+        "reasonContains": "每日"
+      }
+    },
+    {
+      "id": "zero-results-can-retry",
+      "question": "找深圳 Java 实习",
+      "steps": [
+        {
+          "keyword": "Java后端",
+          "city": "深圳",
+          "experience": "在校生",
+          "maxPages": 1,
+          "pagesRead": 1,
+          "jobIds": [],
+          "dailyPagesLeft": 9
+        }
+      ],
+      "next": {
+        "keyword": "Java开发",
+        "city": "深圳",
+        "experience": "在校生",
+        "maxPages": 1
+      },
+      "expected": {
+        "requestedPages": 1,
+        "pagesRead": 1,
+        "uniqueJobs": 0,
+        "allowed": true,
+        "reasonContains": ""
+      }
+    },
+    {
+      "id": "requested-pages-must-be-bounded",
+      "question": "继续找深圳实习",
+      "steps": [
+        {
+          "keyword": "Java开发",
+          "city": "深圳",
+          "experience": "在校生",
+          "maxPages": 3,
+          "pagesRead": 2,
+          "jobIds": [
+            101
+          ],
+          "dailyPagesLeft": 15
+        },
+        {
+          "keyword": "AI应用",
+          "city": "深圳",
+          "experience": "在校生",
+          "maxPages": 2,
+          "pagesRead": 1,
+          "jobIds": [
+            101,
+            105
+          ],
+          "dailyPagesLeft": 14
+        }
+      ],
+      "next": {
+        "keyword": "Spring Boot",
+        "city": "深圳",
+        "experience": "在校生",
+        "maxPages": 2
+      },
+      "expected": {
+        "requestedPages": 5,
+        "pagesRead": 3,
+        "uniqueJobs": 2,
+        "allowed": false,
+        "reasonContains": "最多请求"
+      }
+    }
+  ]
+}
