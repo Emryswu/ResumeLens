@@ -34,7 +34,7 @@ public class GlobalExceptionHandler {
             // 串行注册被应用层查重拦下、并发注册被唯一约束拦下，是同一件事的两条路径。
             // ANALYSIS_DELETE_PENDING 同理：请求本身合法，但与当前资源状态冲突。
             case "ANALYSIS_ALREADY_PENDING", "ANALYSIS_DELETE_PENDING", "ACCOUNT_CONFLICT",
-                 "SEMANTIC_EMBEDDING_STALE" -> HttpStatus.CONFLICT;
+                  "SEMANTIC_EMBEDDING_STALE", "AGENT_CONVERSATION_BUSY", "AGENT_RUN_EXPIRED" -> HttpStatus.CONFLICT;
             case "AI_TIMEOUT" -> HttpStatus.GATEWAY_TIMEOUT;
             // 队列满是服务端暂时容纳不下，客户端应当稍后重试；落到 400 会与
             // "please retry later" 的提示自相矛盾，也让重试与熔断策略失去依据。
