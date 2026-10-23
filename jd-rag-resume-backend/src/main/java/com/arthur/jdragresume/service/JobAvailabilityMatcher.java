@@ -47,7 +47,9 @@ public final class JobAvailabilityMatcher {
         }
         boolean blocked = "BLOCKED".equals(months.status()) || "BLOCKED".equals(days.status())
                 || "BLOCKED".equals(district.status());
-        boolean verified = full && !blocked
+        boolean verified = full && own.configured() && !blocked
+                && !"NOT_SET".equals(months.status()) && !"NOT_SET".equals(days.status())
+                && !"NOT_SET".equals(start.status()) && !"NOT_SET".equals(district.status())
                 && !"UNKNOWN".equals(months.status())
                 && !"UNKNOWN".equals(days.status())
                 && !"UNKNOWN".equals(start.status())
