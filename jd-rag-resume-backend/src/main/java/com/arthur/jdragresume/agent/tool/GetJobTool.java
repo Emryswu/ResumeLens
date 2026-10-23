@@ -44,7 +44,9 @@ public class GetJobTool implements AgentTool {
                 job.captureDepth(),
                 job.sourceUrl(),
                 ToolText.clip(job.description(), TEXT_LIMIT),
-                ToolText.clip(job.requirements(), TEXT_LIMIT)
+                ToolText.clip(job.requirements(), TEXT_LIMIT),
+                "FULL".equals(job.captureDepth())
+                        ? JobRequirementEvidence.extract(job.description(), job.requirements()) : null
         );
     }
 
@@ -57,7 +59,8 @@ public class GetJobTool implements AgentTool {
             String captureDepth,
             String sourceUrl,
             String description,
-            String requirements
+            String requirements,
+            JobRequirementEvidence.Fields evidence
     ) {
     }
 }
