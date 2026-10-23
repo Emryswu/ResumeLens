@@ -23,6 +23,40 @@ function workerAdapter(chrome) {
   return adapter;
 }
 
+test("collection and verification reuse one owned tab across turns, reopen closed tabs and isolate conversations", async () => {
+  const data = {};
+  const tabs = new Map([[99, { id: 99, url: "https://www.zhipin.com/web/geek/job" }]]);
+  const created = [];
+  const updated = [];
+  const chrome = {
+    storage: { session: {
+      async get(key) { return { [key]: data[key] }; },
+      async set(values) { Object.assign(data, values); },
+    } },
+    tabs: {
+      async get(id) { if (!tabs.has(id)) throw new Error("No tab"); return tabs.get(id); },
+      async create(options) { const tab = { id: created.length + 1, ...options }; tabs.set(tab.id, tab); created.push(tab); return tab; },
+      async update(id, options) { assert.ok(tabs.has(id)); Object.assign(tabs.get(id), options); updated.push({ id, ...options }); return tabs.get(id); },
+    },
+  };
+  let adapter = workerAdapter(chrome);
+  const search = "https://www.zhipin.com/web/geek/job?query=Java";
+  const detail = "https://www.zhipin.com/job_detail/abc.html";
+  for (const url of [search, search, search, detail, detail]) await adapter.openTab(url, "42");
+  assert.equal(created.length, 1, "three searches and two verifications create only one tab");
+  adapter = workerAdapter(chrome); // Later turn and service-worker restart.
+  await adapter.openTab(search, "42");
+  assert.equal(created.length, 1, "换一批 reuses the persisted tab");
+  assert.ok(created.every((tab) => tab.active === true));
+  assert.ok(updated.every((tab) => tab.active === true && tab.id !== 99));
+  await adapter.openTab(search, "43");
+  assert.equal(created.length, 2);
+  tabs.delete(1);
+  await adapter.openTab(search, "42");
+  assert.equal(created.length, 3, "a closed owned tab is recreated");
+  assert.equal(tabs.get(99).url, "https://www.zhipin.com/web/geek/job");
+});
+
 test("worker cleanup stops already injected hooks as well as unregistering future injections", async () => {
   const page = { location: { href: "https://www.zhipin.com/web/geek/job" }, fetch: async () => new Response("{}") };
   const originalFetch = page.fetch;

@@ -73,7 +73,11 @@ export type BrowserTaskOutcome =
   | { outcome: "expired" };
 
 /** Latest progress the extension reported, for the task card. */
-export type BrowserTaskProgress = { phase: string; page?: number; jobCount?: number };
+export type BrowserTaskProgress = {
+  phase: string; page?: number; jobCount?: number;
+  pageLog?: { page: number; api: number; dom: number }[];
+  pagesRead?: number; finishReason?: string | null; stopReason?: string | null;
+};
 
 export type AgentDoneState =
   | "COMPLETED"

@@ -3,10 +3,11 @@
   const runner = factory(
     node ? require("./boss-search.js") : root.ResumeLensBossSearch,
     node ? require("./boss-list-extractor.js") : root.ResumeLensBossListExtractor,
+    node ? require("./collect-status.js") : root.ResumeLensCollectStatus,
   );
   if (node) module.exports = runner;
   root.ResumeLensCollectRunner = runner;
-})(typeof globalThis !== "undefined" ? globalThis : this, function createCollectRunnerModule(search, list) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function createCollectRunnerModule(search, list, messages) {
   "use strict";
 
   const KEY_PREFIX = "collect-task:";
@@ -19,23 +20,8 @@
   const RETENTION_MS = 2 * 60 * 60 * 1000;
   /** When the last detail page was opened, so back-to-back verifications are spaced like page turns. */
   const DETAIL_LAST_OPENED_KEY = "collect-detail-last-opened";
-  /** The tab the last verification used; the next one closes it so detail tabs never pile up. */
-  const DETAIL_TAB_KEY = "collect-detail-tab";
 
-  const STOP_MESSAGES = Object.freeze({
-    PERMISSION_REQUIRED: "插件还没获得 BOSS 直聘的访问授权：请点开插件弹窗，允许访问 BOSS 直聘后再试",
-    BOSS_NOT_LOGGED_IN: "BOSS 直聘未登录：请先在这个浏览器里登录 BOSS 直聘",
-    CAPTCHA: "BOSS 直聘要求安全验证，已停止采集；请手动完成验证后再试",
-    STRUCTURE_CHANGED: "BOSS 搜索页的结构和插件认识的不一致，已停止采集，可能需要更新插件",
-    PAGE_LOAD_TIMEOUT: "BOSS 搜索页加载超时，已停止采集",
-    TAB_CLOSED: "采集用的标签页被关闭，已停止采集",
-    UNEXPECTED_PAGE: "BOSS 搜索页跳转到了插件无法读取的页面，已停止采集",
-    WORKER_RESTARTED: "插件后台在采集途中被浏览器重启，已停止采集，保留重启前读到的岗位",
-    USER_CANCELLED: "已按要求停止采集",
-    DAILY_LIMIT: `今天已读取 ${search.LIMITS.maxPagesPerDay} 页 BOSS 搜索结果，达到每日上限，明天再试`,
-    INTERNAL_ERROR: "插件内部错误，已停止采集",
-    DETAIL_UNAVAILABLE: "完整 JD 没有加载出来或与目标岗位不一致，未将摘要标记为已核实",
-  });
+  const { STOP_MESSAGES } = messages;
 
   /** A failure the browser adapter reports with one of the stop codes above. */
   class CollectStop extends Error {
@@ -60,7 +46,7 @@
    * the previous verification's tab before opening its own.
    *
    * Dependencies: browser { hasBossPermission, armApiCapture, disarmApiCapture, openTab,
-   * closeDetailTab, waitForLoad, readPage, readDetail }, storage { get, set, remove, keys } (per session), daily { get, set,
+   * showProgress, waitForLoad, readPage, readDetail }, storage { get, set, remove, keys } (per session), daily { get, set,
    * remove, keys } (persistent), today() → "YYYY-MM-DD" in local time, random() in [0, 1),
    * sleep(ms), now(), epoch.
    */
@@ -101,6 +87,9 @@
         command: command.mode === "detail"
           ? { mode: "detail", jobId: command.jobId, sourceJobId: command.sourceJobId, sourceUrl: command.sourceUrl }
           : { keyword: command.keyword, city: command.city, maxPages: command.maxPages, experience: command.experience },
+        conversationId: command.conversationId,
+        returnUrl: rawCommand.returnUrl,
+        pageLog: [],
         pagesRead: 0,
         jobs: [],
         sources: { api: 0, dom: 0 },
@@ -176,20 +165,19 @@
         if (command.mode === "detail") {
           await paceDetail(state);
           if (!(await takeDailyPage(state))) throw new CollectStop("DAILY_LIMIT");
-          progress(state, "opening");
-          const previousTab = await storage.get(DETAIL_TAB_KEY);
-          if (previousTab != null) await quietly(() => browser.closeDetailTab(previousTab));
-          const tabId = await browser.openTab(command.sourceUrl);
-          await storage.set(DETAIL_TAB_KEY, tabId);
+          await progress(state, "opening");
+          const tabId = await browser.openTab(command.sourceUrl, command.conversationId);
+          state.tabId = tabId;
           await storage.set(DETAIL_LAST_OPENED_KEY, now());
           const loaded = await browser.waitForLoad(tabId, LOAD_TIMEOUT_MS);
+          await updateBanner(state);
           const blocker = list.blockerFromUrl(loaded.url);
           if (blocker) throw new CollectStop(blocker);
           if (loaded.url.split("?")[0].split("#")[0] !== command.sourceUrl) {
             throw new CollectStop("DETAIL_UNAVAILABLE");
           }
           checkCancelled(state);
-          progress(state, "verifying");
+          await progress(state, "verifying");
           const detail = await browser.readDetail(tabId);
           if (detail?.blocked === "CAPTCHA" || detail?.blocked === "BOSS_NOT_LOGGED_IN") {
             throw new CollectStop(detail.blocked);
@@ -209,15 +197,17 @@
         if (!(await takeDailyPage(state))) throw new CollectStop("DAILY_LIMIT");
         // Best effort: without the hook every page is simply read from the DOM.
         await quietly(() => browser.armApiCapture());
-        progress(state, "opening");
-        const tabId = await browser.openTab(search.buildSearchUrl(command));
+        await progress(state, "opening");
+        const tabId = await browser.openTab(search.buildSearchUrl(command), command.conversationId);
+        state.tabId = tabId;
         const loaded = await browser.waitForLoad(tabId, LOAD_TIMEOUT_MS);
+        await updateBanner(state);
         const urlBlocker = list.blockerFromUrl(loaded.url);
         if (urlBlocker) throw new CollectStop(urlBlocker);
         if (!search.isBossUrl(loaded.url)) throw new CollectStop("UNEXPECTED_PAGE");
         checkCancelled(state);
 
-        progress(state, "reading", { page: 1 });
+        await progress(state, "reading", { page: 1 });
         let snapshot = await browser.readPage(tabId, "read", { waitMs: FIRST_READ_WAIT_MS });
         if (snapshot.state.kind === "blocked") throw new CollectStop(snapshot.state.code);
         if (snapshot.state.kind === "empty") return finish(state, "NO_RESULTS");
@@ -228,11 +218,11 @@
         for (let page = 2; page <= command.maxPages; page += 1) {
           if (state.jobs.length >= search.LIMITS.maxJobs) return finish(state, "MAX_JOBS");
           const delayMs = search.pageDelayMs(random);
-          progress(state, "waiting", { page, delayMs });
+          await progress(state, "waiting", { page, delayMs });
           await sleep(delayMs);
           checkCancelled(state);
           if (!(await takeDailyPage(state))) return finish(state, "DAILY_LIMIT");
-          progress(state, "scrolling", { page });
+          await progress(state, "scrolling", { page });
           snapshot = await browser.readPage(tabId, "scrollAndWait", { previousCount: cardCount, waitMs: SCROLL_WAIT_MS });
           if (snapshot.state.kind === "blocked") throw new CollectStop(snapshot.state.code);
           if (snapshot.state.kind !== "ready" || snapshot.state.cardCount <= cardCount) {
@@ -258,7 +248,7 @@
       if (!lastOpened) return;
       const waitMs = lastOpened + search.pageDelayMs(random) - now();
       if (waitMs <= 0) return;
-      progress(state, "waiting", { delayMs: waitMs });
+      await progress(state, "waiting", { delayMs: waitMs });
       await sleep(waitMs);
       checkCancelled(state);
     }
@@ -280,19 +270,23 @@
     }
 
     async function merge(state, snapshot, page) {
+      const counts = { page, api: 0, dom: 0 };
       const known = new Set(state.jobs.map((job) => job.sourceJobId));
       for (const job of snapshot.jobs) {
         if (state.jobs.length >= search.LIMITS.maxJobs) break;
         if (known.has(job.sourceJobId)) continue;
         known.add(job.sourceJobId);
         state.jobs.push(job);
-        state.sources[job.captureSource === "api" ? "api" : "dom"] += 1;
+        const source = job.captureSource === "api" ? "api" : "dom";
+        state.sources[source] += 1;
+        counts[source] += 1;
       }
       // The page re-reports every card it has rendered, so the latest count is the total, not an increment.
       state.skippedWithoutId = Math.max(state.skippedWithoutId, Number(snapshot.skippedWithoutId) || 0);
       state.pagesRead = page;
+      state.pageLog.push(counts);
       await save(state);
-      progress(state, "read", { page });
+      await progress(state, "read", { page });
     }
 
     function checkCancelled(state) {
@@ -303,6 +297,7 @@
       state.status = "completed";
       state.finishReason = finishReason;
       await save(state);
+      await updateBanner(state);
       announce(state);
       return state;
     }
@@ -312,6 +307,7 @@
       state.stopReason = code;
       state.stopMessage = STOP_MESSAGES[code] || STOP_MESSAGES.INTERNAL_ERROR;
       await save(state);
+      await updateBanner(state);
       announce(state);
       return state;
     }
@@ -321,6 +317,7 @@
       state.stopReason = "WORKER_RESTARTED";
       state.stopMessage = STOP_MESSAGES.WORKER_RESTARTED;
       await save(state);
+      await updateBanner(state);
       return state;
     }
 
@@ -339,8 +336,17 @@
       return tasks;
     }
 
-    function progress(state, phase, extra) {
-      emit(state.taskId, { type: "progress", taskId: state.taskId, phase, jobCount: state.jobs.length, ...extra });
+    async function updateBanner(state) {
+      // UI injection is optional: a closed or navigating tab must still yield a final report.
+      if (state.tabId != null && browser.showProgress) await quietly(() => browser.showProgress(state.tabId, { ...publicView(state), returnUrl: state.returnUrl }));
+    }
+
+    async function progress(state, phase, extra) {
+      state.phase = phase;
+      await save(state);
+      await updateBanner(state);
+      emit(state.taskId, { type: "progress", taskId: state.taskId, phase, jobCount: state.jobs.length,
+        pageLog: structuredClone(state.pageLog), pagesRead: state.pagesRead, ...extra });
     }
 
     function announce(state) {
@@ -370,7 +376,7 @@
   }
 
   function publicView(state) {
-    const { epoch: _epoch, ...view } = state;
+    const { epoch: _epoch, tabId: _tabId, returnUrl: _returnUrl, ...view } = state;
     return structuredClone(view);
   }
 

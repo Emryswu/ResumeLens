@@ -146,6 +146,7 @@ public class CollectBossJobsTool implements DeferrableTool {
                 result.dailyPagesLeft(),
                 jobs,
                 jobs.stream().map(Job::jobId).toList(),
+                result.pageLog(),
                 "这些是 BOSS 搜索列表摘要，不是完整职位描述；粗排相似度不是匹配分。可对排序靠前的岗位调用 verify_boss_job，由插件自动打开详情页核实完整 JD。");
     }
 
@@ -154,12 +155,13 @@ public class CollectBossJobsTool implements DeferrableTool {
         if (!(result instanceof Summary summary)) return null;
         return new Facts(summary.pagesRead(), summary.collected(), summary.created(), summary.alreadyInLibrary(),
                 summary.notSaved(), summary.stopReason(), summary.stopReason() == null ? null : summary.statusMessage(),
-                summary.sources());
+                summary.sources(), summary.finishReason(), summary.statusMessage(), summary.pageLog());
     }
 
     /** {@code stopMessage} is the server's own text for {@code stopReason}, never the extension's. */
     record Facts(int pagesRead, int collected, int created, int alreadyInLibrary, int notSaved, String stopReason,
-                 String stopMessage, Map<String, Integer> sources) {
+                 String stopMessage, Map<String, Integer> sources, String finishReason, String statusMessage,
+                 List<CollectionResult.PageRead> pageLog) {
     }
 
     /** {@code jobs} comes before {@code jobIds}: an oversized result drops job rows first and keeps every id. */
@@ -182,6 +184,7 @@ public class CollectBossJobsTool implements DeferrableTool {
             Integer dailyPagesLeft,
             List<Job> jobs,
             List<Long> jobIds,
+            List<CollectionResult.PageRead> pageLog,
             String note
     ) {
     }

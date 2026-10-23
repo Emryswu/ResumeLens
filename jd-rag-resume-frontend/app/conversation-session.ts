@@ -120,9 +120,15 @@ export class ConversationSession {
   private hydrate(detail: ConversationDetail) {
     const last = detail.turns.at(-1);
     const header = detail.conversation;
+    const turns = detail.turns.map((turn) => {
+      const previous = header.id === this.snapshot.detail?.conversation.id && turn.browserTask
+        ? this.snapshot.chat.turns.find((item) => item.browserTask?.taskId === turn.browserTask?.taskId) : undefined;
+      return previous?.browserProgress && !turn.browserProgress
+        ? { ...turn, browserProgress: previous.browserProgress } : turn;
+    });
     this.update({ detail, loading: false, error: "", chat: {
       ...initialAgentChatState,
-      turns: detail.turns,
+      turns,
       busy: header.activeRun != null,
       pending: header.state === "AWAITING_CONFIRMATION" ? last?.confirmation ?? null : null,
       pendingBrowser: header.state === "AWAITING_BROWSER" ? last?.browserTask ?? null : null,

@@ -131,7 +131,8 @@ class CollectBossJobsToolTests {
         assertTrue(summary.note().contains("不是完整职位描述"));
 
         CollectBossJobsTool.Facts facts = (CollectBossJobsTool.Facts) tool.stepFacts(summary);
-        assertEquals(new CollectBossJobsTool.Facts(1, 2, 1, 1, 0, "CAPTCHA", "需要验证", Map.of("dom", 2)), facts);
+        assertEquals(new CollectBossJobsTool.Facts(1, 2, 1, 1, 0, "CAPTCHA", "需要验证", Map.of("dom", 2),
+                null, "需要验证", List.of()), facts);
     }
 
     @Test
@@ -140,6 +141,8 @@ class CollectBossJobsToolTests {
                 List.of(listing("a1")), 0, 28);
         CollectBossJobsTool.Facts facts = (CollectBossJobsTool.Facts) tool.stepFacts(tool.resume(arguments(), report(), context));
         assertEquals(2, facts.pagesRead());
+        assertEquals("MAX_PAGES", facts.finishReason());
+        assertEquals("已读完", facts.statusMessage());
         assertEquals(null, facts.stopReason());
         assertEquals(null, facts.stopMessage(), "a finished run's status message is not a stop reason");
         assertEquals(null, tool.stepFacts("something else"));
@@ -174,7 +177,7 @@ class CollectBossJobsToolTests {
     void anOversizedResultDropsJobRowsBeforeAnyId() {
         Iterator<String> names = objectMapper.valueToTree(new CollectBossJobsTool.Summary(
                 "k", "c", "在校生", "COMPLETED", null, null, null, 0, 0, 0, 0, 0, null, Map.of(), 0, null,
-                List.of(), List.of(), "n")).fieldNames();
+                List.of(), List.of(), List.of(), "n")).fieldNames();
         List<String> order = new ArrayList<>();
         names.forEachRemaining(order::add);
         assertTrue(order.indexOf("jobs") < order.indexOf("jobIds"), "ToolEnvelope trims the first list it finds");

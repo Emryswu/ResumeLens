@@ -9,7 +9,7 @@ import { RetryButton } from "./components/StateBlock";
 import { ChoiceMenu } from "./components/ChoiceMenu";
 import { AgentMarkdown } from "./components/assistant/AgentMarkdown";
 import { AnalysisCard } from "./components/assistant/AnalysisCard";
-import { BrowserTaskCard } from "./components/assistant/BrowserTaskCard";
+import { BrowserTaskCard, CompletedCollectionCards } from "./components/assistant/BrowserTaskCard";
 import { ConfirmationCard } from "./components/assistant/ConfirmationCard";
 import { LoginPage, type AuthForm, type AuthMode } from "./components/LoginPage";
 import { ProcessDrawer, StepTimeline } from "./components/assistant/StepTimeline";
@@ -475,10 +475,12 @@ function TurnView({
         />
       )}
 
+      <CompletedCollectionCards turn={turn} />
       {turn.browserTask && (
         <BrowserTaskCard
           task={turn.browserTask}
           progress={turn.browserProgress}
+          facts={turn.steps.find((step) => step.toolCallId === turn.browserTask?.toolCallId)?.facts ?? undefined}
           outcome={turn.browserOutcome}
           active={pendingBrowser?.taskId === turn.browserTask.taskId}
           onCancel={onCancelBrowser}

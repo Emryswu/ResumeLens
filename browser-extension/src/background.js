@@ -4,6 +4,7 @@ importScripts(
   "boss-list-extractor.js",
   "boss-api-extractor.js",
   "boss-search.js",
+  "collect-status.js",
   "collect-runner.js",
   "command-relay.js",
 );
@@ -80,19 +81,30 @@ importScripts(
       if (failure) throw failure.reason;
     },
 
-    async openTab(url) {
+    async openTab(url, conversationId) {
       // A visible tab: the user can see what the assistant is doing, and background tabs are
       // throttled enough that lazy-loaded results may never arrive.
+      const key = "collect-conversation-tab:" + conversationId;
+      const previousId = (await chrome.storage.session.get(key))[key];
+      if (previousId != null) {
+        const existing = await chrome.tabs.get(previousId).then(() => true, () => false);
+        if (existing) {
+          const tab = await chrome.tabs.update(previousId, { url, active: true });
+          return tab.id;
+        }
+      }
       const tab = await chrome.tabs.create({ url, active: true });
+      await chrome.storage.session.set({ [key]: tab.id });
       return tab.id;
     },
 
-    /** Closes a previous verification tab, but only while it still shows a BOSS job detail page. */
-    async closeDetailTab(tabId) {
-      const tab = await chrome.tabs.get(tabId);
-      if (/^https:\/\/(?:[^/]+\.)?zhipin\.com\/job_detail\//i.test(tab.url || "")) {
-        await chrome.tabs.remove(tabId);
-      }
+    async showProgress(tabId, task) {
+      await chrome.scripting.executeScript({ target: { tabId },
+        files: ["src/collect-status.js", "src/content-collect-progress.js"] });
+      await chrome.scripting.executeScript({ target: { tabId },
+        func: (state, url) => globalThis.ResumeLensCollectProgress.render(state, url),
+        args: [task, task.returnUrl || "http://localhost:3000/assistant"],
+      });
     },
 
     waitForLoad(tabId, timeoutMs) {
@@ -281,7 +293,8 @@ importScripts(
         // Subscribe first, so no progress event falls between starting and listening.
         follow(taskId);
         const command = message.command && typeof message.command === "object" ? message.command : {};
-        const started = await runner.start({ ...command, taskId });
+        const returnUrl = new URL("/assistant", port.sender.origin || port.sender.url).href;
+        const started = await runner.start({ ...command, taskId, returnUrl });
         if (!started.ok) post({ type: "rejected", taskId, code: started.code, error: started.error });
         else reportTask(started.task);
       } else if (message.type === "status") {

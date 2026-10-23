@@ -253,3 +253,12 @@ test("no outcome line without facts, for an unfinished step, or for counts that 
   assert.equal(describeOutcome({ tool: "list_resumes", status: "done", facts }), null);
   assert.equal(describeOutcome({ tool: "collect_boss_jobs", status: "done", facts: { ...facts, created: "3" } }), null);
 });
+
+test("normal collection completion explains why it ended and warns about a first-page-only result", () => {
+  const row = { tool: "collect_boss_jobs", status: "done" as const,
+    facts: { pagesRead: 1, created: 2, alreadyInLibrary: 0, finishReason: "NO_MORE_RESULTS" } };
+  assert.match(describeOutcome(row) ?? "", /列表没有更多结果/);
+  assert.match(describeOutcome(row) ?? "", /可能未登录 BOSS，只能看到第一页/);
+  assert.doesNotMatch(describeOutcome({ ...row, facts: { ...row.facts, pagesRead: 2 } }) ?? "", /可能未登录/);
+  assert.match(describeOutcome({ ...row, facts: { ...row.facts, finishReason: "MAX_PAGES" } }) ?? "", /已读完要求的页数/);
+});

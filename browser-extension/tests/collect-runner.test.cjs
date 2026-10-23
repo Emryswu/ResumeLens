@@ -82,6 +82,25 @@ async function runToEnd(runner, command = COMMAND) {
   return { events, task: await runner.status(command.taskId) };
 }
 
+test("per-page source counts survive reconnects and reach the BOSS banner without closing the search tab", async () => {
+  const first = ready(["a", "b"]);
+  first.jobs[0].captureSource = "api";
+  const browser = fakeBrowser({ steps: [first, ready(["a", "b", "c"])] });
+  const banners = [];
+  browser.showProgress = async (tabId, task) => banners.push({ tabId, task: structuredClone(task) });
+  browser.closeTab = async () => assert.fail("search tabs must remain open");
+  const { runner } = setup({ browser });
+  const { events, task } = await runToEnd(runner, { ...COMMAND, maxPages: 2 });
+  assert.deepEqual(task.pageLog, [
+    { page: 1, api: 1, dom: 1 },
+    { page: 2, api: 0, dom: 1 },
+  ]);
+  assert.deepEqual(events.find((event) => event.phase === "read").pageLog, task.pageLog.slice(0, 1));
+  assert.equal(banners.at(-1).tabId, 7);
+  assert.equal(banners.at(-1).task.finishReason, "MAX_PAGES");
+  assert.deepEqual((await runner.status(COMMAND.taskId)).pageLog, task.pageLog);
+});
+
 test("detail verification reads a real posting and keeps it distinct from list summaries", async () => {
   const sourceUrl = "https://www.zhipin.com/job_detail/abc123.html";
   const browser = fakeBrowser({ loadedUrl: sourceUrl });
@@ -119,7 +138,7 @@ test("back-to-back verifications are spaced like page turns and reuse one detail
   assert.equal(second.task.finishReason, "DETAIL_READ");
   assert.deepEqual(delays, [search.pageDelayMs(() => 0.5)], "the second verification waits one page delay");
   assert.ok(second.events.some((event) => event.type === "progress" && event.phase === "waiting"));
-  assert.deepEqual(closed, [101], "the previous verification tab is closed before a new one opens");
+  assert.deepEqual(closed, [], "verification tabs stay open for reuse by their conversation");
 });
 
 test("detail verification refuses a short or mismatched posting", async () => {
@@ -360,7 +379,7 @@ test("a spent daily budget rejects the start before anything is stored or opened
 
   assert.equal(result.ok, false);
   assert.equal(result.code, "DAILY_LIMIT");
-  assert.match(result.error, /每日上限/);
+  assert.match(result.error, /页数已用完/);
   assert.equal(storage.data.size, 0);
   assert.equal(browser.calls.length, 0);
 });

@@ -121,8 +121,12 @@ final class JobSearchWorkflow {
             }
         }
         int requestedPages = attempts.stream().mapToInt(Attempt::pages).sum();
+        String question = transcript.stream().filter(message -> AgentMessage.USER.equals(message.role()))
+                .reduce((previous, current) -> current).map(AgentMessage::content).orElse("");
+        boolean internship = !question.contains("社招") && !question.contains("全职")
+                && (question.contains("实习") || question.contains("在校") || question.contains("暑期") || question.contains("寒假"));
         return new Snapshot(List.copyOf(attempts), requestedPages, pagesRead, jobIds.size(), dailyPagesLeft,
-                List.copyOf(verifications.values()));
+                List.copyOf(verifications.values()), internship);
     }
 
     private static boolean refusedByBudget(JsonNode result) {
@@ -173,8 +177,10 @@ final class JobSearchWorkflow {
             return "\n求职搜索策略：先根据所选简历识别有证据支持的方向，优先精确关键词。"
                     + "目标约 " + SOFT_TARGET + " 个值得核实的候选岗位（软目标，非完成承诺）。"
                     + "先在本地库查看范围；本地 0 条时可去 BOSS 采集，不能推断市场没有岗位。"
-                    + "不要把「实习」仅塞进 keyword，采集时用 experience=在校生，城市用 city；"
-                    + "在校生并不保证是实习。采集到的是列表摘要，完整 JD 和硬性条件仍需另行核实。"
+                    + (progress.internship()
+                        ? "用户明确要求实习或在校岗位：不要只把实习塞进 keyword，采集时用 experience=在校生；在校生并不保证是实习。"
+                        : "采集时用 experience=不限，并在回答里说明这次没限制经验。")
+                    + "城市用 city。采集到的是列表摘要，完整 JD 和硬性条件仍需另行核实。"
                     + "每次优先只采集 1 页，先评估数量和相关性再决定下一方向。";
         }
         StringBuilder info = new StringBuilder("\n本次求职搜索（服务端记录）：已发起 ")
@@ -216,5 +222,5 @@ final class JobSearchWorkflow {
 
     record Attempt(String callId, String keyword, String city, String experience, int pages) { }
     record Snapshot(List<Attempt> attempts, int requestedPages, int pagesRead, int uniqueJobs,
-                    Integer dailyPagesLeft, List<Long> verifiedJobIds) { }
+                    Integer dailyPagesLeft, List<Long> verifiedJobIds, boolean internship) { }
 }
