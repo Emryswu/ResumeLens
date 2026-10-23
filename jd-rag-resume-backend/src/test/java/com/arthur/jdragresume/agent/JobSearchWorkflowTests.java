@@ -60,7 +60,7 @@ class JobSearchWorkflowTests {
         add(log, "b", "Java开发", 1, "{\"pagesRead\":1,\"jobIds\":[2]}");
         add(log, "c", "后端开发", 1, "{\"pagesRead\":1,\"jobIds\":[3]}");
         assertTrue(JobSearchWorkflow.refuse(JobSearchWorkflow.inspect(log, mapper),
-                mapper.readTree("{\"keyword\":\"AI应用\",\"city\":\"深圳\",\"maxPages\":1}")).contains("次数"));
+                mapper.readTree("{\"keyword\":\"AI应用\",\"city\":\"深圳\",\"maxPages\":1}")).contains("次采集上限"));
     }
 
     @Test
