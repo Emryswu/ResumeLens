@@ -9,8 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * One transcript entry in OpenAI chat-completions shape. The browser keeps the transcript
- * and sends it back every turn, so this record is both the wire format and the model input.
+ * One server-owned transcript entry in OpenAI chat-completions shape, stored between turns.
  * The system prompt is never part of it: the server injects that on every call.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)

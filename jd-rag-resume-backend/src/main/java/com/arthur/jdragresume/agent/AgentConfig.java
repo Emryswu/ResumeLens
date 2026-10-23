@@ -26,8 +26,8 @@ public class AgentConfig {
     }
 
     @Bean
-    public BrowserTaskRegistry browserTaskRegistry() {
-        return new BrowserTaskRegistry();
+    public BrowserTaskRegistry browserTaskRegistry(ConversationStore store) {
+        return new BrowserTaskRegistry(store);
     }
 
     @Bean

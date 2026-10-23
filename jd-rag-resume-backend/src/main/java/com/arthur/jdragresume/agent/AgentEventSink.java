@@ -7,6 +7,9 @@ package com.arthur.jdragresume.agent;
 public interface AgentEventSink {
     void emit(String event, Object payload);
 
+    /** Full server context, checkpointed independently of previews and the final done event. */
+    default void checkpoint(java.util.List<AgentMessage> messages, String summary) {}
+
     class ClientGoneException extends RuntimeException {
         public ClientGoneException(Throwable cause) {
             super("agent client disconnected", cause);

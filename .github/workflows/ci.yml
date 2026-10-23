@@ -4,7 +4,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
-    branches: ["main"]
+    # Also validate dependent PRs whose base is another feature branch.
 
 # GITHUB_TOKEN 只给读权限：这里只 checkout、构建、测试、上传报告，不写仓库。
 # 仓库默认值目前也是 read，但写在 workflow 里才不会随仓库设置被悄悄放大。

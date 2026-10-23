@@ -150,7 +150,9 @@ public class AgentLoop {
                        long acceptedAtMs, TurnOptions options) {
         List<TraceEvent> trace = new ArrayList<>();
         AtomicReference<String> summary = new AtomicReference<>(options.summary());
-        AgentEventSink traced = (event, payload) -> {
+        AgentEventSink traced = new AgentEventSink() {
+          @Override public void checkpoint(List<AgentMessage> messages, String value) { sink.checkpoint(messages, value); }
+          @Override public void emit(String event, Object payload) {
             if ("step".equals(event) || "plan".equals(event)) {
                 log.info("agent execution user={} event={} result={}", context.user().getId(), event, payload);
                 if (options.includeTrace()) trace.add(new TraceEvent(event, payload));
@@ -161,6 +163,7 @@ public class AgentLoop {
                         options.includeTrace() ? List.copyOf(trace) : null, done.partialResults());
             }
             if (!"plan".equals(event) || options.includeTrace()) sink.emit(event, payload);
+          }
         };
         return runInternal(input, approval, context, traced, cancelled, acceptedAtMs, options, summary);
     }
@@ -168,7 +171,7 @@ public class AgentLoop {
     private Outcome runInternal(TranscriptPolicy.Normalized input, TranscriptPolicy.Approval approval,
                                 AgentToolContext context, AgentEventSink sink, BooleanSupplier cancelled,
                                 long acceptedAtMs, TurnOptions options, AtomicReference<String> summary) {
-        TurnTranscript transcript = new TurnTranscript(input.messages());
+        TurnTranscript transcript = new TurnTranscript(input.messages(), sink, summary);
         long deadline = acceptedAtMs + properties.getTurnTimeoutSeconds() * 1000;
         int steps = 0;
         int replans = 0;
@@ -182,6 +185,7 @@ public class AgentLoop {
             summary.set(ShortTermMemory.summarize(model, objectMapper, properties, options.summary(), input.older(),
                     callTimeout(deadline, cancelled), options.reasoningEffort()));
             summaryReady = true;
+            sink.checkpoint(List.copyOf(transcript), summary.get());
             String system = SYSTEM_PROMPT + "\n本轮最多执行 " + properties.getMaxPlanningSteps()
                     + " 个工具步骤，最多 " + properties.getMaxSteps() + " 次常规模型调用；submit_plan 不占工具步骤。"
                     + "每次工具结果的 remainingSteps 是剩余可用工具步数。预算用完后只根据已有结果回答，说明尚未核实的部分。"
@@ -397,8 +401,14 @@ public class AgentLoop {
     /** Turn-local accounting also covers plan/error/approval/browser results through the same append path. */
     private final class TurnTranscript extends ArrayList<AgentMessage> {
         private int usedSteps;
+        private final AgentEventSink sink;
+        private final AtomicReference<String> summary;
 
-        TurnTranscript(List<AgentMessage> messages) { super(messages); }
+        TurnTranscript(List<AgentMessage> messages, AgentEventSink sink, AtomicReference<String> summary) {
+            super(messages);
+            this.sink = sink;
+            this.summary = summary;
+        }
         int remainingSteps() { return Math.max(0, properties.getMaxPlanningSteps() - usedSteps); }
 
         @Override
@@ -408,7 +418,9 @@ public class AgentLoop {
                 envelope.put("remainingSteps", remainingSteps());
                 message = message.withContent(envelope.toString());
             }
-            return super.add(message);
+            boolean added = super.add(message);
+            sink.checkpoint(List.copyOf(this), summary.get());
+            return added;
         }
     }
 
@@ -508,7 +520,7 @@ public class AgentLoop {
         }
         DeferrableTool.InBrowser inBrowser = (DeferrableTool.InBrowser) begin;
         long timeoutSeconds = properties.getBrowserTaskTimeoutSeconds();
-        BrowserTaskRegistry.Task task = browserTasks.issue(context.user().getId(), call.id(), call.name(),
+        BrowserTaskRegistry.Task task = browserTasks.issue(context, call.id(), call.name(),
                 call.arguments(), clock.getAsLong(), timeoutSeconds * 1000);
         return new BrowserTaskEvent(call.id(), call.name(), task.taskId(), inBrowser.executor(), inBrowser.action(),
                 inBrowser.command(), task.expiresAt(), timeoutSeconds);
@@ -533,7 +545,7 @@ public class AgentLoop {
             throw new BusinessException("AGENT_APPROVAL_MISMATCH", "browser result does not match a browser task");
         }
         long timeoutSeconds = properties.getBrowserTaskTimeoutSeconds();
-        BrowserTaskRegistry.Claim claim = browserTasks.claim(context.user().getId(), report.taskId(), pending.id(),
+        BrowserTaskRegistry.Claim claim = browserTasks.claim(context, report.taskId(), pending.id(),
                 pending.arguments(), clock.getAsLong());
         String closed = switch (claim.state()) {
             case UNKNOWN -> BrowserTaskOutcomes.unknown(pending.name());

@@ -7,15 +7,28 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Browser tasks the assistant handed out and is waiting on. The transcript lives in the
- * browser, so the deadline cannot: the server records when each task was issued and is the
- * only judge of whether a report came back in time.
+ * Browser tasks are durably bound to a conversation and consumed once, using the original deadline.
  *
- * <p>One task per user (the extension runs one collection at a time anyway); issuing a new one
- * replaces the old, whose report is then refused as unknown. In memory, like the rate limiter:
- * after a restart every outstanding task is unknown, which the model reports as such.
+ * The memory-only overloads support isolated loop tests with synthetic clocks.
  */
 public class BrowserTaskRegistry {
+    private final ConversationStore store;
+
+    /** Isolated loop tests use memory; the application always injects the durable store. */
+    public BrowserTaskRegistry() { this.store = null; }
+    public BrowserTaskRegistry(ConversationStore store) { this.store = store; }
+
+    public Task issue(com.arthur.jdragresume.agent.tool.AgentToolContext context, String callId, String tool,
+                      String arguments, long now, long timeoutMs) {
+        return store == null ? issue(context.user().getId(), callId, tool, arguments, now, timeoutMs)
+                : store.issueBrowser(context.run(), callId, tool, arguments, now, timeoutMs);
+    }
+
+    public Claim claim(com.arthur.jdragresume.agent.tool.AgentToolContext context, String taskId, String callId,
+                       String arguments, long now) {
+        return store == null ? claim(context.user().getId(), taskId, callId, arguments, now)
+                : store.claimBrowser(context.run(), taskId, callId, arguments, now);
+    }
     /** Tasks nobody came back for are dropped once they are this far past their deadline. */
     private static final long RETENTION_MS = 24 * 60 * 60 * 1000L;
     private static final int MAX_ENTRIES = 10_000;

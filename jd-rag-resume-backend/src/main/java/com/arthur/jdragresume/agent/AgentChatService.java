@@ -35,6 +35,7 @@ public class AgentChatService {
     private final AgentMemoryService memoryService;
     private final AgentToolRegistry toolRegistry;
     private final BrowserTaskRegistry browserTasks;
+    private final ConversationStore conversations;
 
     public AgentChatService(
             CurrentUserService currentUserService,
@@ -45,7 +46,8 @@ public class AgentChatService {
             AgentProperties properties,
             AgentMemoryService memoryService,
             AgentToolRegistry toolRegistry,
-            BrowserTaskRegistry browserTasks
+            BrowserTaskRegistry browserTasks,
+            ConversationStore conversations
     ) {
         this.currentUserService = currentUserService;
         this.transcriptPolicy = transcriptPolicy;
@@ -56,81 +58,46 @@ public class AgentChatService {
         this.memoryService = memoryService;
         this.toolRegistry = toolRegistry;
         this.browserTasks = browserTasks;
+        this.conversations = conversations;
     }
 
-    /**
-     * Everything that can reject the request runs here on the request thread, before the
-     * stream opens, so the client gets a plain JSON error with a meaningful status.
-     */
-    public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval) {
-        return chat(messages, approval, null, false);
-    }
-
-    public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval, String summary, boolean includeTrace) {
-        return chat(messages, approval, null, summary, includeTrace);
-    }
-
-    /** {@code approval} and {@code browserReport} each answer an open call; at most one may be given. */
-    public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval,
-                           TranscriptPolicy.BrowserReport browserReport, String summary, boolean includeTrace) {
-        return chat(messages, approval, browserReport, summary, includeTrace, ReasoningEffort.HIGH);
-    }
-
-    public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval,
-                           TranscriptPolicy.BrowserReport browserReport, String summary, boolean includeTrace,
+    /** Ownership, lease acquisition and request validation finish before opening SSE. */
+    public SseEmitter chat(long conversationId, String question, TranscriptPolicy.Approval approval,
+                           TranscriptPolicy.BrowserReport browserReport, boolean includeTrace,
                            ReasoningEffort reasoningEffort) {
-        long acceptedAt = System.currentTimeMillis();
         AppUser user = currentUserService.getCurrentUser();
-        if (summary != null && summary.length() > properties.getSummaryMaxChars()) {
-            throw new BusinessException("AGENT_TRANSCRIPT_TOO_LARGE", "conversation summary is too large");
-        }
-        if (approval != null && browserReport != null) {
-            throw new BusinessException("AGENT_APPROVAL_MISMATCH", "send either an approval or a browser result, not both");
+        // Resolve ownership before model/quota checks, including for writes and pending-action reports.
+        conversations.detail(user.getId(), conversationId, 0);
+        int inputs = (question != null ? 1 : 0) + (approval != null ? 1 : 0) + (browserReport != null ? 1 : 0);
+        if (inputs != 1 || question != null && question.isBlank()) {
+            throw new BusinessException("AGENT_INVALID_INPUT", "send exactly one question, approval or browser result");
         }
         if (browserReport != null && browserReport.report() != null
                 && browserReport.report().toString().length() > properties.getMaxBrowserReportChars()) {
             throw new BusinessException("AGENT_TRANSCRIPT_TOO_LARGE", "browser result is too large");
         }
-        String resumed = approval != null ? approval.toolCallId() : browserReport != null ? browserReport.toolCallId() : null;
-        TranscriptPolicy.Normalized normalized = transcriptPolicy.normalize(messages, resumed,
-                call -> leftBehind(user, call, acceptedAt));
-        if (normalized.pending() != null) {
-            // An approval cannot run a browser task, and a browser result cannot stand in for an approval.
-            boolean browserTask = toolRegistry.find(normalized.pending().name()).orElse(null) instanceof DeferrableTool;
-            if (browserTask != (browserReport != null)) {
-                throw new BusinessException("AGENT_APPROVAL_MISMATCH", "the pending action expects "
-                        + (browserTask ? "a browser result" : "an approval"));
-            }
-        }
         agentLoop.requireModelReady();
-        // Invalid transcripts and a missing model configuration above do not cost quota. A turn rejected below for a full queue
-        // does: the limiter has no release, and 20 turns per window leaves room for that.
         if (!rateLimiter.tryAcquire("agent:" + user.getId(), properties.getMaxTurnsPerWindow(),
                 properties.getWindowMinutes() * 60_000)) {
             throw new BusinessException("AGENT_RATE_LIMITED", "too many assistant turns, please retry later");
         }
-
+        String resumed = approval != null ? approval.toolCallId() : browserReport != null ? browserReport.toolCallId() : null;
+        var run = conversations.accept(user.getId(), conversationId, question, approval, browserReport,
+                properties.getTurnTimeoutSeconds() * 1000,
+                messages -> transcriptPolicy.normalize(messages, resumed, call -> ToolEnvelope.error(call.name(), TranscriptPolicy.DID_NOT_CONFIRM, "操作未确认")));
         SseEmitter emitter = new SseEmitter(properties.getEmitterTimeoutMs());
-        AtomicBoolean cancelled = new AtomicBoolean();
-        emitter.onCompletion(() -> cancelled.set(true));
-        emitter.onTimeout(() -> cancelled.set(true));
-        emitter.onError(error -> cancelled.set(true));
-        AgentToolContext context = new AgentToolContext(user);
+        AtomicBoolean disconnected = new AtomicBoolean();
+        emitter.onCompletion(() -> disconnected.set(true));
+        emitter.onTimeout(() -> disconnected.set(true));
+        emitter.onError(error -> disconnected.set(true));
         try {
-            agentTaskExecutor.execute(() -> runTurn(emitter, cancelled, normalized, approval, browserReport, context,
-                    acceptedAt, summary, includeTrace, reasoningEffort));
+            agentTaskExecutor.execute(() -> runTurn(emitter, disconnected, run, approval, browserReport,
+                    new AgentToolContext(user, run), includeTrace, reasoningEffort));
         } catch (TaskRejectedException ex) {
+            conversations.fail(run, "AGENT_BUSY", "助手队列已满，本轮未执行");
             throw new BusinessException("AGENT_BUSY", "assistant is busy, please retry shortly");
         }
         return emitter;
-    }
-
-    /**
-     * The result for an open call the user walked away from. A browser task is also taken out of
-     * the registry, so a report that still arrives for it is refused.
-     */
-    private String leftBehind(AppUser user, AgentMessage.ToolCall call, long now) {
-        return leftBehind(toolRegistry, browserTasks, properties.getBrowserTaskTimeoutSeconds(), user.getId(), call, now);
     }
 
     static String leftBehind(AgentToolRegistry tools, BrowserTaskRegistry tasks, long timeoutSeconds,
@@ -141,53 +108,46 @@ public class AgentChatService {
         return BrowserTaskOutcomes.left(tasks.release(userId, call.id(), call.arguments(), now), call.name(), timeoutSeconds);
     }
 
-    private void runTurn(
-            SseEmitter emitter,
-            AtomicBoolean cancelled,
-            TranscriptPolicy.Normalized normalized,
-            TranscriptPolicy.Approval approval,
-            TranscriptPolicy.BrowserReport browserReport,
-            AgentToolContext context,
-            long acceptedAt,
-            String summary,
-            boolean includeTrace,
-            ReasoningEffort reasoningEffort
-    ) {
-        long queuedMs = System.currentTimeMillis() - acceptedAt;
-        AgentEventSink sink = (event, payload) -> {
-            if (cancelled.get()) {
-                throw new AgentEventSink.ClientGoneException(null);
+    private void runTurn(SseEmitter emitter, AtomicBoolean disconnected, ConversationStore.Run run,
+                         TranscriptPolicy.Approval approval, TranscriptPolicy.BrowserReport browserReport,
+                         AgentToolContext context, boolean includeTrace, ReasoningEffort reasoningEffort) {
+        AgentEventSink sink = new AgentEventSink() {
+            @Override public void checkpoint(List<AgentMessage> messages, String summary) {
+                conversations.checkpoint(run, messages, summary);
             }
-            try {
-                emitter.send(SseEmitter.event().name(event).data(payload, MediaType.APPLICATION_JSON));
-            } catch (IOException | IllegalStateException ex) {
-                // IOException covers AsyncRequestNotUsableException (client went away);
-                // IllegalStateException means the emitter already completed or timed out.
-                cancelled.set(true);
-                throw new AgentEventSink.ClientGoneException(ex);
+            @Override public void emit(String event, Object payload) {
+                var saved = conversations.emit(run, event, payload);
+                send(emitter, disconnected, saved);
             }
         };
         try {
-            if (cancelled.get()) return;
-            String question = normalized.messages().stream().filter(message -> AgentMessage.USER.equals(message.role()))
+            // The accepted input is an event too, so live and restored turns have identical inputs.
+            var events = conversations.detail(run.userId(), run.conversationId(), 0).events();
+            send(emitter, disconnected, events.getLast());
+            String question = run.input().messages().stream().filter(message -> AgentMessage.USER.equals(message.role()))
                     .reduce((first, second) -> second).orElseThrow().content();
             var memories = memoryService.rememberAndRecall(question, approval == null && browserReport == null);
-            // The emitter's timeout has been running since the request was accepted; so does the turn budget.
-            AgentLoop.Outcome outcome = agentLoop.run(normalized, approval, context, sink, cancelled::get, acceptedAt,
-                    new AgentLoop.TurnOptions(summary, memories, includeTrace, browserReport, reasoningEffort));
-            log.info("agent turn user={} state={} steps={} queuedMs={} elapsedMs={}", context.user().getId(),
-                    outcome.state(), outcome.steps(), queuedMs, System.currentTimeMillis() - acceptedAt);
+            agentLoop.run(run.input(), approval, context, sink, () -> !conversations.isCurrent(run), run.acceptedAt(),
+                    new AgentLoop.TurnOptions(run.summary(), memories, includeTrace, browserReport, reasoningEffort));
         } catch (AgentEventSink.ClientGoneException ex) {
-            log.info("agent turn user={} cancelled: client disconnected", context.user().getId());
+            log.info("agent run {} no longer owns its lease", run.runId());
         } catch (RuntimeException ex) {
-            log.error("agent turn user={} failed", context.user().getId(), ex);
-            try {
-                sink.emit("error", Map.of("code", "AGENT_INTERNAL_ERROR", "message", "助手内部错误"));
-            } catch (AgentEventSink.ClientGoneException ignored) {
-                // Nobody is listening any more.
-            }
+            log.error("agent run {} failed", run.runId(), ex);
+            conversations.fail(run, "AGENT_INTERNAL_ERROR", "助手执行失败，可以继续提问");
         } finally {
+            conversations.fail(run, "AGENT_INTERRUPTED", "助手执行已中断，可以继续提问");
             emitter.complete();
+        }
+    }
+
+    /** A failed delivery detaches this subscriber; it never cancels the durable run. */
+    private static void send(SseEmitter emitter, AtomicBoolean disconnected, ConversationStore.Event event) {
+        if (disconnected.get()) return;
+        try {
+            emitter.send(SseEmitter.event().id(Long.toString(event.sequence())).name(event.type())
+                    .data(event.data(), MediaType.APPLICATION_JSON));
+        } catch (IOException | IllegalStateException ex) {
+            disconnected.set(true);
         }
     }
 }

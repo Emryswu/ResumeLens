@@ -52,6 +52,8 @@ import {
   type User,
 } from "./lib/api";
 
+import { CONVERSATIONS, type ConversationHeader, type ConversationDetail } from "./conversation-client";
+
 const EXAMPLES = [
   "我最新那份简历最适合投哪几个职位？",
   "去 BOSS 搜深圳的 Java 后端岗位，看两页",
@@ -139,6 +141,22 @@ type SampleRun =
 
 function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout: () => void; aiStatus: AiStatus | null }) {
   const [state, dispatch] = useReducer(agentChatReducer, initialAgentChatState);
+  const [conversationId, setConversationId] = useState<number | null>(null);
+  useEffect(() => {
+    let active = true;
+    const sessionId = getAuthSessionId();
+    void (async () => {
+      const conversations = await apiRequest<ConversationHeader[]>(CONVERSATIONS);
+      const recent = conversations[0];
+      const detail = recent ? await apiRequest<ConversationDetail>(`${CONVERSATIONS}/${recent.id}`)
+        : await apiRequest<ConversationDetail>(CONVERSATIONS, { method: "POST" });
+      if (active && isAuthSessionCurrent(sessionId)) setConversationId(detail.conversation.id);
+    })().catch((reason) => {
+      if (active && isAuthSessionCurrent(sessionId)) dispatch({ type: "failed", code: "CONVERSATION_LOAD_FAILED", message: visibleApiErrorMessage(reason, "读取会话失败") ?? "读取会话失败" });
+    });
+    return () => { active = false; };
+  }, []);
+
   /** The turn whose process is open in the side panel. */
   const [processTurn, setProcessTurn] = useState<number | null>(null);
   const closeProcess = useCallback(() => setProcessTurn(null), []);
@@ -159,6 +177,17 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   useEffect(() => {
     stateRef.current = state;
   });
+
+  async function newConversation() {
+    const sessionId = getAuthSessionId();
+    const detail = await apiRequest<ConversationDetail>(CONVERSATIONS, { method: "POST" });
+    if (!isAuthSessionCurrent(sessionId)) return;
+    browserTaskRef.current = null;
+    browserAbortRef.current?.abort();
+    setConversationId(detail.conversation.id);
+    dispatch({ type: "reset" });
+    setProcessTurn(null);
+  }
 
   useEffect(() => {
     let active = true;
@@ -212,7 +241,10 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     const sessionId = getAuthSessionId();
     let streamOpened = false;
     try {
-      const stream = await apiStream("/api/agent/chat", { ...body, reasoningEffort }, controller.signal);
+      if (conversationId == null) throw new Error("会话尚未加载");
+      const { messages, summary: _summary, ...input } = body;
+      const question = "approval" in input || "browserResult" in input ? {} : { question: messages.at(-1)?.content };
+      const stream = await apiStream("/api/agent/chat", { ...input, ...question, conversationId, reasoningEffort }, controller.signal);
       streamOpened = true;
       await readAgentStream(stream, (event) => {
         if (isAuthSessionCurrent(sessionId)) dispatch({ type: "event", event });
@@ -229,7 +261,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     } finally {
       dispatch({ type: "settled" });
     }
-  }, [reasoningEffort]);
+  }, [reasoningEffort, conversationId]);
 
   // A turn that ended waiting on the browser: run the task through the extension, then report whatever happened.
   useEffect(() => {
@@ -279,7 +311,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   function ask(question: string) {
     const text = question.trim();
     // nextRequest also refuses a stale conversation; checking first keeps the draft instead of throwing.
-    if (!text || state.busy || state.pending || state.pendingBrowser || staleConversation(state)) return;
+    if (!conversationId || !text || state.busy || state.pending || state.pendingBrowser || staleConversation(state)) return;
     setDraft("");
     start(text, nextRequest(state, { question: text }));
   }
@@ -315,7 +347,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   }
 
   const stale = staleConversation(state);
-  const inputLocked = state.busy || !!state.pending || !!state.pendingBrowser || !!stale;
+  const inputLocked = conversationId == null || state.busy || !!state.pending || !!state.pendingBrowser || !!stale;
   const canRetry = retryRequest(state) != null;
   const displayModel = modelDisplayName(aiStatus?.model);
   const effortLabel = REASONING_OPTIONS.find((option) => option.value === reasoningEffort)!.label;
@@ -335,14 +367,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
             className="ghost"
             type="button"
             disabled={state.busy || state.turns.length === 0}
-            onClick={() => {
-              browserTaskRef.current = null;
-              browserAbortRef.current?.abort();
-              followedRef.current = new Set();
-              setAnalyses({});
-              setProcessTurn(null);
-              dispatch({ type: "reset" });
-            }}
+            onClick={() => void newConversation()}
           >
             <MessageSquarePlus size={16} aria-hidden="true" />新对话
           </button>
