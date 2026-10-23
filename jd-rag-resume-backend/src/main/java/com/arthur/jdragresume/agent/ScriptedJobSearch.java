@@ -96,7 +96,21 @@ final class ScriptedJobSearch {
         }
         JsonNode data = collected.path("untrusted_data");
         JsonNode ids = data.path("jobIds");
-        if (ids.isEmpty()) return answer(basis + "这次没有可排序的岗位，可以换一个更具体的关键词再采集。");
+        if (ids.isEmpty()) {
+            var progress = JobSearchWorkflow.inspect(transcript, mapper);
+            if (progress.attempts().size() == 1 && progress.requestedPages() < JobSearchWorkflow.MAX_PAGES) {
+                var previous = progress.attempts().getFirst();
+                String alternative = target.alternative();
+                if (!previous.keyword().equalsIgnoreCase(alternative)
+                        && (progress.dailyPagesLeft() == null || progress.dailyPagesLeft() > 0)) {
+                    return call("collect_boss_jobs", Map.of("keyword", alternative,
+                            "city", previous.city(), "experience", previous.experience(), "maxPages", 1));
+                }
+            }
+            return answer(basis + "这次没有可排序的岗位，已尝试的搜索条件："
+                    + progress.attempts().stream().map(JobSearchWorkflow.Attempt::keyword).toList()
+                    + "。当前范围没有找到候选，不能据此断定市场上没有实习；未获取完整 JD。");
+        }
         JsonNode ranked = results.get("rank_jobs_for_resume");
         if (ranked == null) return call("rank_jobs_for_resume", Map.of("resumeId", selected.path("resumeId").asLong(), "jobIds", ids, "limit", 5));
         if (failed(ranked)) return answer("岗位已采集，但按《" + selected.path("title").asText() + "》排序失败：" + error(ranked));

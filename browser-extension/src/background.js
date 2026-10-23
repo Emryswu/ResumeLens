@@ -87,6 +87,14 @@ importScripts(
       return tab.id;
     },
 
+    /** Closes a previous verification tab, but only while it still shows a BOSS job detail page. */
+    async closeDetailTab(tabId) {
+      const tab = await chrome.tabs.get(tabId);
+      if (/^https:\/\/(?:[^/]+\.)?zhipin\.com\/job_detail\//i.test(tab.url || "")) {
+        await chrome.tabs.remove(tabId);
+      }
+    },
+
     waitForLoad(tabId, timeoutMs) {
       return new Promise((resolve, reject) => {
         const cleanup = () => {
@@ -120,6 +128,46 @@ importScripts(
           reject(new CollectStop("TAB_CLOSED"));
         });
       });
+    },
+
+    async readDetail(tabId) {
+      let tab;
+      try {
+        tab = await chrome.tabs.get(tabId);
+      } catch {
+        throw new CollectStop("TAB_CLOSED");
+      }
+      const blocker = blockerFromUrl(tab.url || "");
+      if (blocker) throw new CollectStop(blocker);
+      if (!/^https:\/\/(?:[^/]+\.)?zhipin\.com\/job_detail\/[^/]+\.html(?:[?#]|$)/i.test(tab.url || "")) {
+        throw new CollectStop("DETAIL_UNAVAILABLE");
+      }
+      try {
+        await chrome.scripting.executeScript({ target: { tabId }, files: ["src/boss-extractor.js", "src/boss-list-extractor.js"] });
+        const [injection] = await chrome.scripting.executeScript({
+          target: { tabId },
+          func: async () => {
+            // BOSS may render the body after the document load event. Do not store a blank shell.
+            const deadline = Date.now() + 15_000;
+            let detail;
+            do {
+              const state = globalThis.ResumeLensBossListExtractor.inspect(document, location.href);
+              if (state.kind === "blocked") return { blocked: state.code };
+              detail = globalThis.ResumeLensBossExtractor.extract(document, location.href);
+              // A meta description or search-list summary is not proof that the detail body loaded.
+              const hasRealBody = globalThis.ResumeLensBossExtractor.SELECTORS.description.some((selector) =>
+                [...document.querySelectorAll(selector)].some((node) =>
+                  String(node.innerText || node.textContent || "").trim().length >= 60));
+              if (hasRealBody && detail.job.description.length >= 60) return detail;
+              await new Promise((resolve) => setTimeout(resolve, 400));
+            } while (Date.now() < deadline);
+            return null;
+          },
+        });
+        return injection?.result;
+      } catch {
+        throw new CollectStop("DETAIL_UNAVAILABLE");
+      }
     },
 
     async readPage(tabId, operation, options) {

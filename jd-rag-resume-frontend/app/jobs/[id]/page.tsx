@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { AppShell } from "../../components/AppShell";
+import { JobApplicationPanel } from "../../components/JobApplicationPanel";
 import { EmptyState, ErrorState, Skeleton } from "../../components/StateBlock";
 import { useSessionUser } from "../../components/use-session-user";
 import { apiRequest, visibleApiErrorMessage, type Job } from "../../lib/api";
@@ -173,6 +174,8 @@ export default function JobDetailPage() {
           </div>
         </section>
       )}
+
+      {job && !editing && user && <JobApplicationPanel key={`${user.id}:${job.id}`} jobId={job.id} />}
 
       {job && editing && (
         <form className="detail-card" onSubmit={save}>
