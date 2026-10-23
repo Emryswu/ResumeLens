@@ -1,5 +1,10 @@
 package com.arthur.jdragresume.agent;
 
+import com.arthur.jdragresume.agent.tool.AgentToolContext;
+import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
+import com.arthur.jdragresume.agent.tool.DeferrableTool;
+import com.arthur.jdragresume.agent.tool.ToolSchema;
+import com.arthur.jdragresume.entity.AppUser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DynamicTest;
@@ -10,6 +15,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -34,6 +40,78 @@ class AgentJobSearchReplayTests {
             tests.add(DynamicTest.dynamicTest(id, () -> check(scenario)));
         }
         return tests.stream();
+    }
+
+    /** Exercise the actual AgentLoop tool gate, rather than only checking a prebuilt transcript. */
+    @TestFactory
+    Stream<DynamicTest> replaysToolCallsThroughTheRealAgentLoop() throws Exception {
+        List<DynamicTest> tests = new ArrayList<>();
+        for (JsonNode scenario : fixture(CASES).path("scenarios")) {
+            tests.add(DynamicTest.dynamicTest(scenario.path("id").asText() + "-agent-loop",
+                    () -> runLoop(scenario)));
+        }
+        return tests.stream();
+    }
+
+    private void runLoop(JsonNode scenario) throws Exception {
+        JsonNode steps = scenario.path("steps");
+        JsonNode next = scenario.path("next");
+        boolean nextAllowed = scenario.path("expected").path("allowed").asBoolean();
+        AtomicInteger begun = new AtomicInteger();
+        DeferrableTool collector = new DeferrableTool() {
+            @Override public String name() { return JobSearchWorkflow.TOOL; }
+            @Override public String description() { return "replayed offline BOSS result"; }
+            @Override public ToolSchema parameters() {
+                return ToolSchema.object().string("keyword", "keyword", true, 50)
+                        .string("city", "city", true, 10)
+                        .string("experience", "experience", false, 10)
+                        .integer("maxPages", "pages", false, 1, 3);
+            }
+            @Override public Begin begin(JsonNode args, AgentToolContext context) {
+                int index = begun.getAndIncrement();
+                JsonNode response = index < steps.size() ? steps.get(index) : mapper.createObjectNode();
+                return new Done(Map.of(
+                        "pagesRead", response.path("pagesRead").asInt(0),
+                        "jobIds", mapper.convertValue(response.path("jobIds"), List.class) == null
+                                ? List.of() : mapper.convertValue(response.path("jobIds"), List.class),
+                        "dailyPagesLeft", response.path("dailyPagesLeft").asInt(10)));
+            }
+            @Override public Object resume(JsonNode args, JsonNode report, AgentToolContext context) {
+                throw new AssertionError("offline replay must never request a browser continuation");
+            }
+        };
+        AgentModel scriptedModel = (system, transcript, tools, timeout) -> {
+            long responses = transcript.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
+            if (responses > steps.size()) return AgentModel.Reply.answer("已按现有结果收尾，未知条件待核实");
+            JsonNode planned = responses == steps.size() ? next : steps.get((int) responses);
+            return AgentModel.Reply.call(AgentMessage.ToolCall.of("case-" + (responses + 1),
+                    JobSearchWorkflow.TOOL, mapper.writeValueAsString(Map.of(
+                            "keyword", planned.path("keyword").asText(),
+                            "city", planned.path("city").asText(),
+                            "experience", planned.path("experience").asText(),
+                            "maxPages", planned.path("maxPages").asInt()))));
+        };
+
+        AgentProperties properties = new AgentProperties();
+        properties.setMaxSteps(12);
+        properties.setMaxPlanningSteps(12);
+        var loop = new AgentLoop(scriptedModel, new AgentToolRegistry(List.of(collector)),
+                mapper, properties, System::currentTimeMillis);
+        var outcome = loop.run(new TranscriptPolicy(properties).normalize(
+                        List.of(AgentMessage.user(scenario.path("question").asText())), null),
+                null, new AgentToolContext(new AppUser()), (event, data) -> {}, () -> false);
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(steps.size() + (nextAllowed ? 1 : 0), begun.get(),
+                "policy gate must intercept a prohibited browser request before invoking the collector");
+        var progress = JobSearchWorkflow.inspect(outcome.transcript(), mapper);
+        assertEquals(steps.size() + (nextAllowed ? 1 : 0), progress.attempts().size());
+        if (!nextAllowed) {
+            var results = outcome.transcript().stream()
+                    .filter(m -> AgentMessage.TOOL.equals(m.role())).toList();
+            JsonNode blocked = mapper.readTree(results.getLast().content());
+            assertEquals("JOB_SEARCH_BUDGET", blocked.path("error").path("code").asText(),
+                    "the refusal must be visible as a structured tool error to the model");
+        }
     }
 
     private void check(JsonNode scenario) throws Exception {
