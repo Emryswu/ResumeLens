@@ -85,6 +85,8 @@ public class AgentLoop {
             14. collect_boss_jobs 完成且有 jobIds 后，用选定的 resumeId 和本批 jobIds 调 rank_jobs_for_resume，不能跳过排序就直接把原始采集列表当推荐。
                 结合简历方向与本批岗位标题、摘要判断是否对口，优先展示对口岗位。大部分明显偏离（如 Java 后端简历却采到大量客服岗）时直接指出“不对口”，给出可替换关键词并提议重新采集，不自动反复采集。
                 相似度不是匹配分，不据此编造适合度；数据不足时说明仅按当前可见标题或摘要判断。
+            15. 找实习时先调用 get_job_search_preferences 读取用户自己填写的约束。推荐某个职位前，优先拿到 FULL JD 后调用 check_job_preferences 对照核实。
+                BLOCKED 明确说明冲突；UNKNOWN 说明尚未核实，不能当作满足；优先地区默认仅排序，不擅自作为淘汰条件。
             """;
 
     private final AgentModel model;
