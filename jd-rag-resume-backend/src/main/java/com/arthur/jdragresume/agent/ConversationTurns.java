@@ -29,15 +29,19 @@ public final class ConversationTurns {
             switch (event.type()) {
                 case "decide" -> {
                     turn.remove("error");
-                    turn.put("synced", false);
                     if (data.path("approved").asBoolean()) turn.set("approvedCallId", data.get("toolCallId"));
                 }
                 case "browser_report" -> {
                     turn.remove("error");
-                    turn.put("synced", false);
                     turn.set("browserOutcome", data.get("outcome"));
                 }
-                case "step_started" -> ((ArrayNode) turn.get("started")).add(data);
+                case "step_started" -> {
+                    boolean seen = false;
+                    for (JsonNode started : turn.withArray("started")) {
+                        if (started.path("toolCallId").equals(data.path("toolCallId"))) seen = true;
+                    }
+                    if (!seen) ((ArrayNode) turn.get("started")).add(data);
+                }
                 case "step" -> {
                     ((ArrayNode) turn.get("steps")).add(data);
                     if (turn.path("confirmation").path("toolCallId").equals(data.path("toolCallId"))) {
@@ -75,7 +79,13 @@ public final class ConversationTurns {
                         }
                         if (!finished) unfinished.add(started.path("toolCallId"));
                     }
-                    turn.put("synced", true);
+                    if (turn.has("browserOutcome")) {
+                        JsonNode browser = turn.path("browserTask").path("toolCallId");
+                        boolean recorded = false;
+                        for (JsonNode step : turn.withArray("steps")) if (step.path("toolCallId").equals(browser)) recorded = true;
+                        for (JsonNode call : unfinished) if (call.equals(browser)) recorded = true;
+                        if (!recorded) unfinished.add(browser);
+                    }
                 }
                 default -> { /* Plan traces are retained as events without adding a card. */ }
             }

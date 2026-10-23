@@ -116,6 +116,13 @@ public class AgentChatService {
                 conversations.checkpoint(run, messages, summary);
             }
             @Override public void emit(String event, Object payload) {
+                if (payload instanceof AgentLoop.DoneEvent done) {
+                    Map<String, Object> terminal = new java.util.LinkedHashMap<>();
+                    terminal.put("state", done.state());
+                    terminal.put("steps", done.steps());
+                    if (done.trace() != null) terminal.put("trace", done.trace());
+                    payload = terminal;
+                }
                 var saved = conversations.emit(run, event, payload);
                 send(emitter, disconnected, saved);
             }
