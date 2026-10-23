@@ -6,7 +6,7 @@
   "use strict";
 
   const PORT_NAME = "resumelens-collect";
-  const ACTIONS = Object.freeze(["ping", "collectBossJobs", "collectStatus", "collectCancel"]);
+  const ACTIONS = Object.freeze(["ping", "collectBossJobs", "verifyBossJob", "collectStatus", "collectCancel"]);
   /** Events after which the worker has nothing more to say on this port. */
   const FINAL_EVENTS = new Set(["result", "rejected", "cancel_requested"]);
 
@@ -29,6 +29,9 @@
           return;
         case "collectBossJobs":
           open(requestId, taskId, { type: "start", taskId, command: payload }, true);
+          return;
+        case "verifyBossJob":
+          open(requestId, taskId, { type: "start", taskId, command: { ...payload, mode: "detail" } }, true);
           return;
         case "collectStatus":
           open(requestId, taskId, { type: "status", taskId }, true);

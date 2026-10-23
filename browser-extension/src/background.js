@@ -122,6 +122,30 @@ importScripts(
       });
     },
 
+    async readDetail(tabId) {
+      let tab;
+      try {
+        tab = await chrome.tabs.get(tabId);
+      } catch {
+        throw new CollectStop("TAB_CLOSED");
+      }
+      const blocker = blockerFromUrl(tab.url || "");
+      if (blocker) throw new CollectStop(blocker);
+      if (!/^https:\/\/(?:[^/]+\.)?zhipin\.com\/job_detail\/[^/]+\.html(?:[?#]|$)/i.test(tab.url || "")) {
+        throw new CollectStop("DETAIL_UNAVAILABLE");
+      }
+      try {
+        await chrome.scripting.executeScript({ target: { tabId }, files: ["src/boss-extractor.js"] });
+        const [injection] = await chrome.scripting.executeScript({
+          target: { tabId },
+          func: () => globalThis.ResumeLensBossExtractor.extract(document, location.href),
+        });
+        return injection?.result;
+      } catch {
+        throw new CollectStop("DETAIL_UNAVAILABLE");
+      }
+    },
+
     async readPage(tabId, operation, options) {
       let tab;
       try {

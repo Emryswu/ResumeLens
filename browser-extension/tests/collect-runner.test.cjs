@@ -82,6 +82,35 @@ async function runToEnd(runner, command = COMMAND) {
   return { events, task: await runner.status(command.taskId) };
 }
 
+test("detail verification reads a real posting and keeps it distinct from list summaries", async () => {
+  const sourceUrl = "https://www.zhipin.com/job_detail/abc123.html";
+  const browser = fakeBrowser({ loadedUrl: sourceUrl });
+  browser.readDetail = async () => ({ job: {
+    ...job("abc123"), description: "这是从真实详情页读取的岗位职责与任职要求".repeat(5),
+  } });
+  const { runner, daily } = setup({ browser });
+  const { task } = await runToEnd(runner, { taskId: "detail_1", mode: "detail",
+    jobId: 17, sourceJobId: "abc123", sourceUrl });
+  assert.equal(task.status, "completed");
+  assert.equal(task.finishReason, "DETAIL_READ");
+  assert.equal(task.jobs[0].sourceJobId, "abc123");
+  assert.equal(task.pagesRead, 1);
+  assert.equal(await daily.get("collect-daily-pages:" + "2026-10-22"), 1);
+  assert.equal(browser.calls.some(([name]) => name === "read"), false);
+});
+
+test("detail verification refuses a short or mismatched posting", async () => {
+  const sourceUrl = "https://www.zhipin.com/job_detail/abc123.html";
+  const browser = fakeBrowser({ loadedUrl: sourceUrl });
+  browser.readDetail = async () => ({ job: { ...job("other"), description: "摘要" } });
+  const { runner } = setup({ browser });
+  const { task } = await runToEnd(runner, { taskId: "detail_2", mode: "detail",
+    jobId: 17, sourceJobId: "abc123", sourceUrl });
+  assert.equal(task.status, "stopped");
+  assert.equal(task.stopReason, "DETAIL_UNAVAILABLE");
+  assert.deepEqual(task.jobs, []);
+});
+
 test("reads up to maxPages with a random pause before every extra page", async () => {
   const browser = fakeBrowser({ steps: [ready(["a", "b"]), ready(["a", "b", "c"]), ready(["a", "b", "c", "d"])] });
   const { runner, delays } = setup({ browser });

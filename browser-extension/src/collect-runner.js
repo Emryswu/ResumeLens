@@ -30,6 +30,7 @@
     USER_CANCELLED: "已按要求停止采集",
     DAILY_LIMIT: `今天已读取 ${search.LIMITS.maxPagesPerDay} 页 BOSS 搜索结果，达到每日上限，明天再试`,
     INTERNAL_ERROR: "插件内部错误，已停止采集",
+    DETAIL_UNAVAILABLE: "完整 JD 没有加载出来或与目标岗位不一致，未将摘要标记为已核实",
   });
 
   /** A failure the browser adapter reports with one of the stop codes above. */
@@ -70,7 +71,9 @@
     }
 
     async function startNow(rawCommand) {
-      const validation = search.validateCommand(rawCommand);
+      const validation = rawCommand?.mode === "detail"
+        ? search.validateDetailCommand(rawCommand)
+        : search.validateCommand(rawCommand);
       if (!validation.ok) return { ok: false, code: "INVALID_COMMAND", error: validation.error };
       const command = validation.command;
       const existing = await status(command.taskId);
@@ -87,7 +90,9 @@
       const state = {
         taskId: command.taskId,
         status: "running",
-        command: { keyword: command.keyword, city: command.city, maxPages: command.maxPages, experience: command.experience },
+        command: command.mode === "detail"
+          ? { mode: "detail", jobId: command.jobId, sourceJobId: command.sourceJobId, sourceUrl: command.sourceUrl }
+          : { keyword: command.keyword, city: command.city, maxPages: command.maxPages, experience: command.experience },
         pagesRead: 0,
         jobs: [],
         sources: { api: 0, dom: 0 },
@@ -160,6 +165,31 @@
     async function run(state, command) {
       try {
         if (!(await browser.hasBossPermission())) throw new CollectStop("PERMISSION_REQUIRED");
+        if (command.mode === "detail") {
+          if (!(await takeDailyPage(state))) throw new CollectStop("DAILY_LIMIT");
+          progress(state, "opening");
+          const tabId = await browser.openTab(command.sourceUrl);
+          const loaded = await browser.waitForLoad(tabId, LOAD_TIMEOUT_MS);
+          const blocker = list.blockerFromUrl(loaded.url);
+          if (blocker) throw new CollectStop(blocker);
+          if (loaded.url.split("?")[0].split("#")[0] !== command.sourceUrl) {
+            throw new CollectStop("DETAIL_UNAVAILABLE");
+          }
+          checkCancelled(state);
+          progress(state, "verifying");
+          const detail = await browser.readDetail(tabId);
+          if (!detail?.job || detail.job.sourceJobId !== command.sourceJobId
+              || detail.job.sourceUrl !== command.sourceUrl
+              || detail.job.description.length < 60) {
+            throw new CollectStop("DETAIL_UNAVAILABLE");
+          }
+          checkCancelled(state);
+          state.jobs = [{ ...detail.job, captureSource: "dom" }];
+          state.sources.dom = 1;
+          state.pagesRead = 1;
+          await save(state);
+          return finish(state, "DETAIL_READ");
+        }
         if (!(await takeDailyPage(state))) throw new CollectStop("DAILY_LIMIT");
         // Best effort: without the hook every page is simply read from the DOM.
         await quietly(() => browser.armApiCapture());
