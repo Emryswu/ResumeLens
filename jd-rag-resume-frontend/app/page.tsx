@@ -31,7 +31,7 @@ import { runtimeModeLabel } from "./runtime-mode";
 import { modelDisplayName, REASONING_OPTIONS } from "./agent-model-display";
 import { saveSampleData, submitAnalysis } from "./sample-data";
 import { signInRequest } from "./sign-in";
-import { legacyWorkspaceUrl, workspaceHref } from "./workspace-nav";
+import { legacyWorkspaceUrl, workspaceHref, PREFERENCES_PATH } from "./workspace-nav";
 import {
   apiRequest,
   getAuthSessionId,
@@ -304,6 +304,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
                 ? "演示模式：由脚本模型按固定流程调用真实工具，未调用真实大模型。"
                 : `当前模型：${modelDisplayName(aiStatus.model)}。助手会自己调用工具；发起完整分析前会先请你确认。`}
           </p>
+          <Link className="ghost" href={PREFERENCES_PATH}>我的求职条件</Link>
           <button
             className="ghost"
             type="button"

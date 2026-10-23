@@ -98,6 +98,8 @@ public class AgentLoop {
                 哪项没有明确提及就写“JD 未说明”，不能把搜索列表标签或向量分数当作完整 JD 的证据。
                 未核实的岗位标成“仅列表摘要，待核实”；插件失败、验证码、跳转或页面结构变化时不要宣称已经核实。
                 核实次数受服务端预算限制，只核实少量排名靠前的候选岗位；不要自动发消息给 HR。
+            19. 找实习时先调用 get_job_search_preferences 读取用户自行填写的条件；核实具体岗位后调用 check_job_preferences 对照可实习月数、每周到岗天数、最早日期和地区。
+                BLOCKED 表示显式条件冲突，UNKNOWN 表示信息不足；地区偏好默认仅影响排序，districtRequired=true 才是硬限制。LISTING 摘要不能宣称已经核实硬条件。
             """;
 
     private final AgentModel model;
