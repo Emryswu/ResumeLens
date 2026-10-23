@@ -113,9 +113,9 @@ public class ConversationStore {
             String summary = jdbc.queryForObject("SELECT summary FROM agent_conversation WHERE id=?", String.class, id);
             long acceptedAt = System.currentTimeMillis();
             var run = new Run(userId, id, turnId, runId, normalized, summary, acceptedAt);
-            jdbc.update("UPDATE agent_conversation SET state='RUNNING',current_turn=?,active_run=?,run_expires_at=?,title=?,updated_at=NOW(6) WHERE id=?",
+            jdbc.update("UPDATE agent_conversation SET state='RUNNING',current_turn=?,active_run=?,run_expires_at=?,title=?,updated_at=? WHERE id=?",
                     turnId, runId, acceptedAt + timeoutMs + 5000, question != null && row.eventSequence() == 0
-                            ? question.substring(0, Math.min(120, question.length())) : row.title(), id);
+                            ? question.substring(0, Math.min(120, question.length())) : row.title(), Timestamp.from(Instant.now()), id);
             replaceMessages(id, messages);
             if (question != null) append(run, "ask", Map.of("question", question));
             else if (approval != null) append(run, "decide", Map.of("toolCallId", approval.toolCallId(), "approved", approval.approved()));
@@ -158,7 +158,7 @@ public class ConversationStore {
     }
 
     Event append(Run run, String type, Object payload) {
-        jdbc.update("UPDATE agent_conversation SET event_sequence=event_sequence+1,updated_at=NOW(6) WHERE id=?", run.conversationId());
+        jdbc.update("UPDATE agent_conversation SET event_sequence=event_sequence+1,updated_at=? WHERE id=?", Timestamp.from(Instant.now()), run.conversationId());
         long sequence = jdbc.queryForObject("SELECT event_sequence FROM agent_conversation WHERE id=?", Long.class, run.conversationId());
         String createdAt = Instant.now().toString();
         jdbc.update("INSERT INTO agent_conversation_event VALUES(?,?,?,?,?,?,?)", run.conversationId(), sequence, run.turnId(), run.runId(),
