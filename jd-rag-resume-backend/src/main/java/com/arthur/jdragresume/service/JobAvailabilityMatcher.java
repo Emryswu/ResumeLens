@@ -37,7 +37,7 @@ public final class JobAvailabilityMatcher {
             district = new Finding("NOT_SET", "尚未填写地区偏好");
         } else if (location == null || location.isBlank() || !location.contains("区") && !location.contains("县")) {
             district = new Finding("UNKNOWN", "已填写地区 " + preferred + "，职位地点不足以核实具体区域");
-        } else if (location.contains(preferred)) {
+        } else if (location.replace("市", "").contains(preferred.replace("市", ""))) {
             district = new Finding(own.districtRequired() ? "MEETS" : "PREFERRED",
                     "岗位地点 " + location + " 符合你填写的地区 " + preferred);
         } else if (own.districtRequired()) {
