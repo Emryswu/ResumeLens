@@ -50,6 +50,14 @@ class JobAvailabilityMatcherTests {
         assertFalse(compared.hardBlock());
     }
 
+    @Test void emptyProfileCannotClaimFullyVerified() {
+        var compared = JobAvailabilityMatcher.compare(JobSearchPreferencesView.empty(), "FULL",
+                "至少实习3个月；每周5天。", "", "深圳市龙岗区");
+        assertFalse(compared.hardBlock());
+        assertFalse(compared.fullyVerified());
+        assertEquals("NOT_SET", compared.duration().status());
+    }
+
     @Test void vagueOrPreferredConditionsAreUnknown() {
         var compared = JobAvailabilityMatcher.compare(profile(2, 2, false), "FULL",
                 "实习三个月优先；每周5天优先；其他面议", "", "");
