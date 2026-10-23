@@ -50,6 +50,7 @@ class JobApplicationServiceTests {
 
     @Test
     void savedFeedbackIsScopedToTheUserAndFreeTextIsTrimmed() {
+        doReturn(java.util.List.of()).when(jdbc).query(anyString(), any(org.springframework.jdbc.core.RowMapper.class), any(), any());
         service.save(21, new JobApplicationService.Update(JobApplicationService.Status.NOT_INTERESTED, "  要求到岗六天  "));
         verify(jdbc).update(contains("ON DUPLICATE KEY UPDATE"), eq(7L), eq(21L),
                 eq("NOT_INTERESTED"), eq("要求到岗六天"));
