@@ -27,6 +27,18 @@ final class JobSearchWorkflow {
 
     private JobSearchWorkflow() { }
 
+    static boolean applies(List<AgentMessage> transcript) {
+        for (int i = transcript.size() - 1; i >= 0; i--) {
+            if (!AgentMessage.USER.equals(transcript.get(i).role())) continue;
+            String question = transcript.get(i).content();
+            return question.contains("实习") || question.contains("求职") || question.contains("招聘")
+                    || question.toUpperCase(Locale.ROOT).contains("BOSS")
+                    || question.contains("采集") || question.contains("找工作")
+                    || question.contains("找岗位") || question.contains("找职位");
+        }
+        return false;
+    }
+
     static Snapshot inspect(List<AgentMessage> transcript, ObjectMapper mapper) {
         return inspect(transcript, mapper, null);
     }
