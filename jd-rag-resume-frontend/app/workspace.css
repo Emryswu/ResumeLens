@@ -547,3 +547,6 @@
   .refined-workspace * { transition: none !important; }
   .skeleton-line { animation: none; }
 }
+.refined-workspace .conversation-history { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 20px; max-height: 160px; overflow-y: auto; }
+.refined-workspace .conversation-history-item { display: flex; gap: 4px; align-items: center; }
+.refined-workspace .conversation-history [aria-current="true"] { border-color: var(--mint-dark); }

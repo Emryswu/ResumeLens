@@ -1,3 +1,4 @@
+import { ConversationProvider } from "./components/ConversationProvider";
 import type { Metadata } from "next";
 import "./globals.css";
 import "./workspace.css";
@@ -10,5 +11,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="zh-CN"><body><ExtensionBridgeHost />{children}</body></html>;
+  return <html lang="zh-CN"><body><ConversationProvider><ExtensionBridgeHost />{children}</ConversationProvider></body></html>;
 }

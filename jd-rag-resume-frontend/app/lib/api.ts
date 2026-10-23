@@ -150,6 +150,7 @@ let authGeneration = 0;
  * token" from "different user is now logged in".
  */
 let authSessionId = 0;
+export const AUTH_SESSION_CHANGED_EVENT = "resumelens:auth-session-changed";
 /**
  * Counts the session clears caused by our own refresh failure. A failed
  * refresh ends the session legitimately, so apiRequest must not mistake the
@@ -172,6 +173,7 @@ export function setAccessToken(nextToken: string, options: SetAccessTokenOptions
   if (!options.continuesSession) authSessionId += 1;
   accessToken = nextToken;
   removeLegacyAuthStorage();
+  if (!options.continuesSession && typeof window !== "undefined") window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
 }
 
 export function clearAuthSession() {
@@ -179,6 +181,7 @@ export function clearAuthSession() {
   authSessionId += 1;
   accessToken = "";
   removeLegacyAuthStorage();
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(AUTH_SESSION_CHANGED_EVENT));
 }
 
 export async function refreshSession(): Promise<AuthResponse | null> {

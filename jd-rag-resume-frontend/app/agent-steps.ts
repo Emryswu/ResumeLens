@@ -160,7 +160,7 @@ export function timelineSteps(turn: AgentTurn, pendingId: string | null): Timeli
       tool: task.tool,
       label: toolLabel(task.tool),
       arguments: JSON.stringify(task.command),
-      status: turn.browserOutcome ? (turn.synced ? "unfinished" : "reporting") : "browser",
+      status: turn.browserOutcome ? (turn.unfinished.includes(task.toolCallId) ? "unfinished" : "reporting") : "browser",
     });
   }
   const confirmation = turn.confirmation;

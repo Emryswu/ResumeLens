@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowRight, ArrowUp, Brain, CircleAlert, FlaskConical, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Sparkles, Upload } from "lucide-react";
+import { ArrowUp, Brain, CircleAlert, FlaskConical, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Sparkles, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "./components/AppShell";
 import { RetryButton } from "./components/StateBlock";
 import { ChoiceMenu } from "./components/ChoiceMenu";
@@ -15,15 +15,10 @@ import { LoginPage, type AuthForm, type AuthMode } from "./components/LoginPage"
 import { ProcessDrawer, StepTimeline } from "./components/assistant/StepTimeline";
 import { useSessionUser } from "./components/use-session-user";
 import {
-  agentChatReducer,
-  initialAgentChatState,
   nextRequest,
-  readAgentStream,
-  retryAdvice,
   retryRequest,
   REASONING_EFFORT_KEY,
   savedReasoningEffort,
-  staleConversation,
   type AgentBrowserTask,
   type AgentChatState,
   type AgentConfirmation,
@@ -36,11 +31,9 @@ import { runtimeModeLabel } from "./runtime-mode";
 import { modelDisplayName, REASONING_OPTIONS } from "./agent-model-display";
 import { saveSampleData, submitAnalysis } from "./sample-data";
 import { signInRequest } from "./sign-in";
-import { legacyWorkspaceUrl, reportHref, workspaceHref } from "./workspace-nav";
+import { legacyWorkspaceUrl, workspaceHref } from "./workspace-nav";
 import {
-  ApiError,
   apiRequest,
-  apiStream,
   getAuthSessionId,
   isAuthSessionCurrent,
   setAccessToken,
@@ -52,7 +45,7 @@ import {
   type User,
 } from "./lib/api";
 
-import { CONVERSATIONS, type ConversationHeader, type ConversationDetail } from "./conversation-client";
+import { useConversation } from "./components/ConversationProvider";
 
 const EXAMPLES = [
   "我最新那份简历最适合投哪几个职位？",
@@ -130,7 +123,7 @@ export default function HomePage() {
       />
     );
   }
-  // Keyed by user: signing out unmounts the conversation, which also stops its stream and browser task.
+  // Keyed by user; the root provider additionally scopes cached data to authSessionId.
   return <Assistant key={user.id} user={user} onLogout={logout} aiStatus={aiStatus} />;
 }
 
@@ -140,23 +133,9 @@ type SampleRun =
   | { status: "failed"; message: string };
 
 function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout: () => void; aiStatus: AiStatus | null }) {
-  const [state, dispatch] = useReducer(agentChatReducer, initialAgentChatState);
-  const [conversationId, setConversationId] = useState<number | null>(null);
-  useEffect(() => {
-    let active = true;
-    const sessionId = getAuthSessionId();
-    void (async () => {
-      const conversations = await apiRequest<ConversationHeader[]>(CONVERSATIONS);
-      const recent = conversations[0];
-      const detail = recent ? await apiRequest<ConversationDetail>(`${CONVERSATIONS}/${recent.id}`)
-        : await apiRequest<ConversationDetail>(CONVERSATIONS, { method: "POST" });
-      if (active && isAuthSessionCurrent(sessionId)) setConversationId(detail.conversation.id);
-    })().catch((reason) => {
-      if (active && isAuthSessionCurrent(sessionId)) dispatch({ type: "failed", code: "CONVERSATION_LOAD_FAILED", message: visibleApiErrorMessage(reason, "读取会话失败") ?? "读取会话失败" });
-    });
-    return () => { active = false; };
-  }, []);
-
+  const { session, snapshot } = useConversation(user.id);
+  const state = snapshot.chat;
+  const dispatchProgress = session.progress;
   /** The turn whose process is open in the side panel. */
   const [processTurn, setProcessTurn] = useState<number | null>(null);
   const closeProcess = useCallback(() => setProcessTurn(null), []);
@@ -167,7 +146,6 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   const [resumeCount, setResumeCount] = useState<number | null>(null);
   const [sampleRun, setSampleRun] = useState<SampleRun | null>(null);
   const [analyses, setAnalyses] = useState<Record<number, Analysis>>({});
-  const abortRef = useRef<AbortController | null>(null);
   const followedRef = useRef<Set<number>>(new Set());
   const bottomRef = useRef<HTMLDivElement | null>(null);
   /** Aborting it cancels the browser task in progress (the user's 取消, 新对话, or leaving the page). */
@@ -179,14 +157,17 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   });
 
   async function newConversation() {
-    const sessionId = getAuthSessionId();
-    const detail = await apiRequest<ConversationDetail>(CONVERSATIONS, { method: "POST" });
-    if (!isAuthSessionCurrent(sessionId)) return;
     browserTaskRef.current = null;
     browserAbortRef.current?.abort();
-    setConversationId(detail.conversation.id);
-    dispatch({ type: "reset" });
     setProcessTurn(null);
+    await session.create();
+  }
+
+  function switchConversation(id: number) {
+    browserTaskRef.current = null;
+    browserAbortRef.current?.abort();
+    setProcessTurn(null);
+    void session.select(id);
   }
 
   useEffect(() => {
@@ -201,8 +182,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
       });
     return () => {
       active = false;
-      // Leaving the page closes the stream; the server stops the turn instead of spending more model calls.
-      abortRef.current?.abort();
+      // Detach collection locally; the persisted task remains available for explicit continuation.
       browserTaskRef.current = null;
       browserAbortRef.current?.abort();
     };
@@ -235,59 +215,28 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     }
   }, [state.turns, sampleRun, aiStatus]);
 
-  const send = useCallback(async (body: ReturnType<typeof nextRequest>) => {
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const sessionId = getAuthSessionId();
-    let streamOpened = false;
-    try {
-      if (conversationId == null) throw new Error("会话尚未加载");
-      const { messages, summary: _summary, ...input } = body;
-      const question = "approval" in input || "browserResult" in input ? {} : { question: messages.at(-1)?.content };
-      const stream = await apiStream("/api/agent/chat", { ...input, ...question, conversationId, reasoningEffort }, controller.signal);
-      streamOpened = true;
-      await readAgentStream(stream, (event) => {
-        if (isAuthSessionCurrent(sessionId)) dispatch({ type: "event", event });
-      });
-    } catch (reason) {
-      if (controller.signal.aborted) return;
-      const message = visibleApiErrorMessage(reason, "助手请求失败");
-      if (message == null) return;
-      const code = streamOpened ? "AGENT_STREAM_INTERRUPTED" : reason instanceof ApiError ? reason.code : "NETWORK_ERROR";
-      dispatch({
-        type: "failed", code, message: ERROR_COPY[code] ?? message,
-        retryConfirmation: !streamOpened && reason instanceof ApiError && reason.status >= 400,
-      });
-    } finally {
-      dispatch({ type: "settled" });
-    }
-  }, [reasoningEffort, conversationId]);
+  const send = useCallback((body: ReturnType<typeof nextRequest>) => session.send(body, reasoningEffort), [session, reasoningEffort]);
+  const [browserRunning, setBrowserRunning] = useState<string | null>(null);
 
-  // A turn that ended waiting on the browser: run the task through the extension, then report whatever happened.
-  useEffect(() => {
+  async function continueBrowser() {
     const task = state.pendingBrowser;
     if (!task || state.busy || browserTaskRef.current === task.taskId) return;
     browserTaskRef.current = task.taskId;
     const controller = new AbortController();
     browserAbortRef.current = controller;
     const sessionId = getAuthSessionId();
-    void runExtensionCollect({
-      task,
-      target: window,
-      signal: controller.signal,
+    setBrowserRunning(task.taskId);
+    const outcome = await runExtensionCollect({ task, target: window, signal: controller.signal,
       onProgress: (progress) => {
-        if (isAuthSessionCurrent(sessionId)) dispatch({ type: "browser_progress", progress });
+        if (isAuthSessionCurrent(sessionId) && browserTaskRef.current === task.taskId) dispatchProgress({ type: "browser_progress", progress });
       },
-    }).then((outcome) => {
-      const current = stateRef.current;
-      // Leaving or resetting invalidates ownership before abort resolves, even before React renders again.
-      if (browserTaskRef.current !== task.taskId || !isAuthSessionCurrent(sessionId)
-          || current.busy || current.pendingBrowser?.taskId !== task.taskId) return;
-      const body = nextRequest(current, { browser: outcome });
-      dispatch({ type: "browser_report", outcome: outcome.outcome });
-      void send(body);
     });
-  }, [state.pendingBrowser, state.busy, send]);
+    if (browserTaskRef.current !== task.taskId || !isAuthSessionCurrent(sessionId)) return;
+    browserTaskRef.current = null;
+    setBrowserRunning(null);
+    const current = stateRef.current;
+    if (!current.busy && current.pendingBrowser?.taskId === task.taskId) await send(nextRequest(current, { browser: outcome }));
+  }
 
   /** Same sample as the workbench's 「保存示例并分析」: saves a resume and a job, then starts a full analysis. */
   async function trySample() {
@@ -310,27 +259,20 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
 
   function ask(question: string) {
     const text = question.trim();
-    // nextRequest also refuses a stale conversation; checking first keeps the draft instead of throwing.
-    if (!conversationId || !text || state.busy || state.pending || state.pendingBrowser || staleConversation(state)) return;
+    if (snapshot.loading || snapshot.error || !text || state.busy || state.pending || state.pendingBrowser) return;
     setDraft("");
-    start(text, nextRequest(state, { question: text }));
+    void send(nextRequest(state, { question: text }));
   }
 
-  /** Sends exactly what retryRequest built; it refuses whenever the transcript would predate a confirmed write. */
+  /** A manual retry asks again only after reconciliation with server state. */
   function retry() {
     const request = retryRequest(state);
-    if (request) start(request.question, request.body);
-  }
-
-  function start(question: string, body: ReturnType<typeof nextRequest>) {
-    dispatch({ type: "ask", question });
-    void send(body);
+    if (request) void send(request.body);
   }
 
   function decide(approved: boolean) {
     if (!state.pending || state.busy) return;
     const body = nextRequest(state, { approved });
-    dispatch({ type: "decide", approved });
     void send(body);
   }
 
@@ -346,14 +288,13 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     }
   }
 
-  const stale = staleConversation(state);
-  const inputLocked = conversationId == null || state.busy || !!state.pending || !!state.pendingBrowser || !!stale;
+  const inputLocked = snapshot.loading || !!snapshot.error || state.busy || !!state.pending || !!state.pendingBrowser;
   const canRetry = retryRequest(state) != null;
   const displayModel = modelDisplayName(aiStatus?.model);
   const effortLabel = REASONING_OPTIONS.find((option) => option.value === reasoningEffort)!.label;
 
   return (
-    <AppShell title="AI 求职助手" activeView="assistant" user={user} onLogout={logout}>
+    <AppShell title="AI 求职助手" activeView="assistant" user={user} onLogout={() => { session.clear(); logout(); }}>
       <section className="assistant-shell">
         <div className="assistant-toolbar">
           <p className="assistant-mode">
@@ -366,14 +307,25 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
           <button
             className="ghost"
             type="button"
-            disabled={state.busy || state.turns.length === 0}
+            disabled={snapshot.loading}
             onClick={() => void newConversation()}
           >
             <MessageSquarePlus size={16} aria-hidden="true" />新对话
           </button>
         </div>
 
-        {state.turns.length === 0 && (
+        <nav className="conversation-history" aria-label="历史会话">
+          {snapshot.items.map((item) => <div className="conversation-history-item" key={item.id}>
+            <button type="button" className="ghost compact" aria-current={item.id === snapshot.detail?.conversation.id ? "true" : undefined}
+              onClick={() => switchConversation(item.id)}>{item.title}{item.activeRun ? " · 运行中" : ""}</button>
+            <button type="button" className="ghost compact" aria-label={`删除会话 ${item.title}`} disabled={item.activeRun != null}
+              onClick={() => void session.remove(item.id)}>删除</button>
+          </div>)}
+        </nav>
+        {snapshot.loading && <p role="status">正在读取会话…</p>}
+        {snapshot.error && <div className="assistant-error" role="alert">{snapshot.error}<button type="button" className="ghost compact" onClick={() => void session.open(user.id, getAuthSessionId())}>重新同步</button></div>}
+        {state.busy && <p role="status">这一轮仍在运行，结果会自动同步。</p>}
+        {!snapshot.loading && state.turns.length === 0 && (
           <div className="assistant-empty">
             <div className="assistant-empty-head">
               <span className="state-icon" aria-hidden="true"><Sparkles size={22} /></span>
@@ -427,6 +379,8 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
               pending={index === state.turns.length - 1 ? state.pending : null}
               pendingBrowser={index === state.turns.length - 1 ? state.pendingBrowser : null}
               onCancelBrowser={() => browserAbortRef.current?.abort()}
+              onContinueBrowser={() => void continueBrowser()}
+              browserRunning={browserRunning === turn.browserTask?.taskId}
               analysis={turn.analysisId ? analyses[turn.analysisId] : undefined}
               onDecide={decide}
               onRetry={index === state.turns.length - 1 && canRetry ? retry : undefined}
@@ -450,9 +404,8 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
           <textarea
             rows={2}
             value={draft}
-            placeholder={stale ? "这段对话的记录没有同步完整，不能继续提问：请查看上面的报告入口，或点「新对话」重新开始"
-              : state.pending ? "请先确认或拒绝上面的操作"
-                : state.pendingBrowser ? "浏览器插件正在采集，完成或取消后才能继续提问"
+            placeholder={state.pending ? "请先确认或拒绝上面的操作"
+                : state.pendingBrowser ? "请先继续或结束上面的浏览器采集任务"
                   : "问点什么，例如：我的简历最适合哪个职位？（Enter 发送，Shift+Enter 换行）"}
             disabled={inputLocked}
             maxLength={4000}
@@ -484,13 +437,15 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
 }
 
 function TurnView({
-  turn, live, pending, pendingBrowser, onCancelBrowser, analysis, onDecide, onRetry, disabled, processOpen, onOpenProcess,
+  turn, live, pending, pendingBrowser, onCancelBrowser, onContinueBrowser, browserRunning, analysis, onDecide, onRetry, disabled, processOpen, onOpenProcess,
 }: {
   turn: AgentTurn;
   live: boolean;
   pending: AgentConfirmation | null;
   pendingBrowser: AgentBrowserTask | null;
   onCancelBrowser: () => void;
+  onContinueBrowser: () => void;
+  browserRunning: boolean;
   analysis?: Analysis;
   onDecide: (approved: boolean) => void;
   /** Only on the last failed turn, when asking the same question again is safe. */
@@ -499,7 +454,6 @@ function TurnView({
   processOpen: boolean;
   onOpenProcess: () => void;
 }) {
-  const advice = retryAdvice(turn);
   return (
     <li className="assistant-turn">
       <div className="assistant-question">{turn.question}</div>
@@ -527,6 +481,8 @@ function TurnView({
           outcome={turn.browserOutcome}
           active={pendingBrowser?.taskId === turn.browserTask.taskId}
           onCancel={onCancelBrowser}
+          onContinue={onContinueBrowser}
+          running={browserRunning}
         />
       )}
 
@@ -543,20 +499,10 @@ function TurnView({
           <CircleAlert size={18} aria-hidden="true" />
           <span>
             {ERROR_COPY[turn.error.code] ?? turn.error.message}
-            {advice.kind === "check-report" && (
-              <span className="assistant-error-hint">
-                {advice.analysisId
-                  ? "分析已经发起，但对话记录没有同步完整。为避免助手误以为没有执行，这段对话不能继续，请直接查看已生成的报告，或点「新对话」重新开始。"
-                  : "你已同意发起分析，但无法确定是否已经执行。为避免重复发起，这段对话不能继续，请先到分析记录核实，或点「新对话」重新开始。"}
-              </span>
-            )}
+
           </span>
           {onRetry && <RetryButton className="ghost compact" onClick={onRetry} />}
-          {advice.kind === "check-report" && (
-            <Link className="ghost compact" href={advice.analysisId ? reportHref({ analysisId: advice.analysisId }) : workspaceHref("history")}>
-              {advice.analysisId ? "查看报告" : "去分析记录"}<ArrowRight size={14} aria-hidden="true" />
-            </Link>
-          )}
+
         </div>
       )}
     </li>
