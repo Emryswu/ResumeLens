@@ -44,6 +44,34 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node .github/scripts/check-commit-messages.mjs "$BASE_SHA" "$HEAD_SHA"
 
+  conversation-browser:
+    name: 会话恢复 · 真实浏览器
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: jd-rag-resume-frontend/package-lock.json
+      - run: npm ci
+        working-directory: jd-rag-resume-frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: jd-rag-resume-frontend
+      - run: npm run test:e2e
+        working-directory: jd-rag-resume-frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conversation-browser-results
+          path: jd-rag-resume-frontend/output/playwright/
+          retention-days: 7
+
   backend:
     name: 后端 · Java 21
     runs-on: ubuntu-latest

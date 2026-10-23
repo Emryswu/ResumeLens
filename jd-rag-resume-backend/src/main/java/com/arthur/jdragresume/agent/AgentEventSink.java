@@ -1,8 +1,8 @@
 package com.arthur.jdragresume.agent;
 
 /**
- * Where the loop reports progress. Implementations throw {@link ClientGoneException} when the
- * client has disconnected, which stops the loop before it spends another model call.
+ * Where the loop checkpoints context and reports progress. A disconnected SSE subscriber
+ * must not stop persistence. The durable sink rejects an obsolete run with {@link ClientGoneException}.
  */
 public interface AgentEventSink {
     void emit(String event, Object payload);

@@ -43,7 +43,7 @@ export function runExtensionCollect(options: ExtensionCollectOptions): Promise<B
   const clearTimer = options.clearTimer ?? ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>));
   const newId = options.requestId ?? (() => globalThis.crypto.randomUUID());
   // Counted from receipt on this machine's clock; the server's own clock still has the final say.
-  const deadline = now() + Math.max(0, task.timeoutSeconds * 1000 - DEADLINE_MARGIN_MS);
+  const deadline = now() + Math.max(0, Math.min(task.timeoutSeconds * 1000, task.expiresAt - now()) - DEADLINE_MARGIN_MS);
 
   return new Promise((resolve) => {
     const pingId = newId();
@@ -103,6 +103,10 @@ export function runExtensionCollect(options: ExtensionCollectOptions): Promise<B
       finish({ outcome: "cancelled" });
     }
 
+    if (deadline <= now()) {
+      finish({ outcome: "expired" });
+      return;
+    }
     if (signal.aborted) {
       finish({ outcome: "cancelled" });
       return;

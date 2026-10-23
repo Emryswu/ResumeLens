@@ -43,3 +43,6 @@ models/
 # Runtime logs and process markers
 *.log
 *.pid
+jd-rag-resume-frontend/output/
+jd-rag-resume-frontend/test-results/
+jd-rag-resume-frontend/playwright-report/

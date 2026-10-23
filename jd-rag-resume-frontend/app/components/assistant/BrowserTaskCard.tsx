@@ -13,14 +13,23 @@ const PHASES: Record<string, (progress: BrowserTaskProgress) => string> = {
 };
 
 /** A task the assistant handed to the browser extension. Only the active, unfinished card can be cancelled. */
-export function BrowserTaskCard({ task, progress, outcome, active, onCancel }: {
+export function BrowserTaskCard({ task, progress, outcome, active, running: collecting, onCancel, onContinue }: {
   task: AgentBrowserTask;
   progress?: BrowserTaskProgress;
   outcome?: BrowserTaskOutcome["outcome"];
   active: boolean;
   onCancel: () => void;
+  onContinue: () => void;
+  running: boolean;
 }) {
-  const running = active && !outcome;
+  const waiting = active && !outcome;
+  const running = waiting && collecting;
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const expired = now > 0 && task.expiresAt <= now;
   const keyword = String(task.command.keyword ?? "");
   const city = String(task.command.city ?? "");
   const experience = String(task.command.experience ?? "不限");
@@ -34,12 +43,13 @@ export function BrowserTaskCard({ task, progress, outcome, active, onCancel }: {
         <p>{keyword ? `关键词「${keyword}」` : "不限岗位关键词"} · {city}{experience !== "不限" ? ` · 工作经验：${experience}` : ""} · 最多 {pages} 页</p>
         <small>
           插件只读取搜索列表，不会点击沟通或发送消息；存进职位库的是列表摘要，不是完整 JD。
-          {running && <> {phase ?? "正在联系浏览器插件"}{progress?.jobCount != null ? `，已读到 ${progress.jobCount} 条` : ""}。<Countdown seconds={task.timeoutSeconds} /></>}
+          {running && <> {phase ?? "正在联系浏览器插件"}{progress?.jobCount != null ? `，已读到 ${progress.jobCount} 条` : ""}。<Countdown expiresAt={task.expiresAt} /></>}
         </small>
       </div>
-      {running ? (
+      {waiting ? (
         <div className="agent-confirm-actions">
-          <button className="ghost" type="button" onClick={onCancel}>取消采集</button>
+          {running ? <button className="ghost" type="button" onClick={onCancel}>取消采集</button>
+            : <button className="ghost" type="button" onClick={onContinue}>{expired ? "结束已过期任务" : "继续采集"}</button>}
         </div>
       ) : (
         <span className={`agent-confirm-result ${outcome === "completed" ? "approved" : outcome ? "rejected" : "none"}`}>
@@ -54,12 +64,11 @@ export function BrowserTaskCard({ task, progress, outcome, active, onCancel }: {
 }
 
 /** Seconds left before the page stops waiting; counted from when the card first rendered. */
-function Countdown({ seconds }: { seconds: number }) {
-  const [deadline] = useState(() => Date.now() + seconds * 1000);
-  const [left, setLeft] = useState(seconds);
+function Countdown({ expiresAt }: { expiresAt: number }) {
+  const [left, setLeft] = useState(() => Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
   useEffect(() => {
-    const timer = setInterval(() => setLeft(Math.max(0, Math.round((deadline - Date.now()) / 1000))), 1000);
+    const timer = setInterval(() => setLeft(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000))), 1000);
     return () => clearInterval(timer);
-  }, [deadline]);
+  }, [expiresAt]);
   return <>最多再等 {left} 秒。</>;
 }

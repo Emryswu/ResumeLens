@@ -197,7 +197,7 @@ public class ConversationStore {
         open.values().forEach(call -> messages.add(AgentMessage.tool(call.id(), ToolEnvelope.error(call.name(), code, message))));
         replaceMessages(row.id(), messages);
         append(run, "error", Map.of("code", code, "message", message));
-        append(run, "done", Map.of("state", "FAILED", "steps", 0, "transcript", messages));
+        append(run, "done", Map.of("state", "FAILED", "steps", 0));
         jdbc.update("UPDATE agent_conversation SET state='FAILED',active_run=NULL,run_expires_at=NULL,browser_task=NULL,browser_arguments=NULL WHERE id=?", row.id());
     }
 

@@ -18,17 +18,13 @@ test.afterEach(() => {
   clearAuthSession();
 });
 
-test("summary survives done and is carried into questions and approvals, reset clears it", () => {
-  const summary = "用户此前比较过上海职位";
-  const transcript: AgentMessage[] = [{ role: "user", content: "继续" }];
+test("new inputs never submit server history or summary", () => {
   const state = agentChatReducer(initialAgentChatState, { type: "event", event: {
-    type: "done", data: { state: "REPLAN_LIMIT", steps: 4, transcript, summary },
+    type: "done", data: { state: "COMPLETED", steps: 1, transcript: [{ role: "user", content: "旧历史" }], summary: "旧摘要" },
   } });
-  assert.equal(state.summary, summary);
-  assert.equal(nextRequest(state, { question: "还有呢" }).summary, summary);
-  const pending = { toolCallId: "write1", tool: "start_analysis", arguments: {} };
-  assert.equal(nextRequest({ ...state, pending }, { approved: true }).summary, summary);
-  assert.equal(agentChatReducer(state, { type: "reset" }).summary, undefined);
+  assert.equal("transcript" in state, false);
+  assert.equal("summary" in state, false);
+  assert.deepEqual(nextRequest(state, { question: "继续" }), { question: "继续" });
 });
 
 test("parses frames split at arbitrary points, including inside CRLF", () => {
@@ -135,11 +131,11 @@ test("EOF without done rejects the turn and discards an unusable confirmation", 
   assert.equal(state.pending, null);
   assert.equal(state.busy, false);
   assert.throws(() => nextRequest(state, { approved: true }), /no pending action/);
-  assert.deepEqual(nextRequest(state, { question: "重新分析" }), { messages: [{ role: "user", content: "重新分析" }] });
+  assert.deepEqual(nextRequest(state, { question: "重新分析" }), { question: "重新分析" });
 });
 
 test("malformed or incomplete done events do not satisfy the completion check", async () => {
-  for (const data of ["not json", "null", "{}", '{"state":"COMPLETED","steps":1}',
+  for (const data of ["not json", "null", "{}", '{"state":"COMPLETED","steps":-1}',
     '{"state":"UNKNOWN","steps":1,"transcript":[]}']) {
     const events: AgentEvent[] = [];
     const stream = new Response(`event:done\ndata:${data}\n\n`).body!;
@@ -189,9 +185,9 @@ test("a turn collects steps, then the answer, then adopts the server transcript"
   assert.equal(state.busy, false);
   assert.equal(state.turns[0].steps.length, 1);
   assert.equal(state.turns[0].answer, "第一名是 Java 后端");
-  assert.deepEqual(state.transcript, transcript);
+  assert.equal("transcript" in state, false);
   assert.deepEqual(nextRequest(state, { question: "第二个呢？" }), {
-    messages: [...transcript, { role: "user", content: "第二个呢？" }],
+    question: "第二个呢？",
   });
 });
 
@@ -218,7 +214,6 @@ test("confirmation stays pending until acknowledged, and the decision targets th
   assert.deepEqual(state.pending, awaiting.confirmation);
   assert.equal(state.busy, false);
   assert.deepEqual(nextRequest(state, { approved: false }), {
-    messages: awaiting.transcript,
     approval: { toolCallId: "c9", approved: false },
   });
 

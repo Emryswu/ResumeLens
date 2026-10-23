@@ -21,7 +21,7 @@ const TASK: AgentBrowserTask = {
   executor: "browser-extension",
   action: "collectBossJobs",
   command: { keyword: "Java", city: "深圳", maxPages: 2 },
-  expiresAt: 0,
+  expiresAt: 181_000,
   timeoutSeconds: 180,
 };
 
@@ -207,16 +207,18 @@ test("an interrupted stream drops a browser task whose transcript was never rece
   state = agentChatReducer(state, { type: "failed", code: "AGENT_STREAM_INTERRUPTED", message: "连接中断" });
   state = agentChatReducer(state, { type: "settled" });
   assert.equal(state.pendingBrowser, null);
-  assert.deepEqual(state.transcript, []);
+  assert.equal("transcript" in state, false);
   assert.throws(() => nextRequest(state, { browser: { outcome: "cancelled" } }), /no browser task/);
 });
 
 test("the report request carries the server's ids and only a completed outcome carries the report", () => {
   const state = awaitingBrowser();
   const completed = nextRequest(state, { browser: { outcome: "completed", report: { type: "result" } } });
+  assert.ok("browserResult" in completed);
   assert.deepEqual(completed.browserResult, { toolCallId: "b1", taskId: "bt_1", outcome: "completed", report: { type: "result" } });
-  assert.equal(completed.messages, state.transcript);
+  assert.equal("messages" in completed, false);
   const cancelled = nextRequest(state, { browser: { outcome: "cancelled" } });
+  assert.ok("browserResult" in cancelled);
   assert.deepEqual(cancelled.browserResult, { toolCallId: "b1", taskId: "bt_1", outcome: "cancelled" });
   assert.equal("approval" in cancelled, false);
 });
@@ -229,10 +231,29 @@ test("sending the report clears the pending task and shows it as reporting until
   assert.throws(() => nextRequest({ ...state, busy: false }, { browser: { outcome: "cancelled" } }), /no browser task/);
 });
 
+test("an interrupted browser report is unfinished after the server records done", () => {
+  let state = agentChatReducer(awaitingBrowser(), { type: "browser_report", outcome: "expired" });
+  state = agentChatReducer(state, { type: "event", event: { type: "done", data: { state: "FAILED", steps: 0 } } });
+  assert.equal(timelineSteps(state.turns[0], null)[0].status, "unfinished");
+});
+
 test("a new question or a finished turn clears a pending browser task", () => {
   assert.equal(agentChatReducer(awaitingBrowser(), { type: "ask", question: "换个问题" }).pendingBrowser, null);
   const done = agentChatReducer(awaitingBrowser(), {
     type: "event", event: { type: "done", data: { state: "COMPLETED", steps: 2, transcript: [] } },
   });
   assert.equal(done.pendingBrowser, null);
+});
+
+test("restoring a task uses its original deadline instead of restarting the timeout", async () => {
+  const run = start({ task: { ...TASK, expiresAt: 11_000 } });
+  run.reply(run.posted[0].requestId, { type: "pong", capabilities: ["collectBossJobs"] });
+  run.clock.advance(10_000 - DEADLINE_MARGIN_MS);
+  assert.deepEqual(await run.result, { outcome: "expired" });
+});
+
+test("an already expired task never contacts the extension", async () => {
+  const run = start({ task: { ...TASK, expiresAt: 999 } });
+  assert.deepEqual(await run.result, { outcome: "expired" });
+  assert.equal(run.posted.length, 0);
 });
