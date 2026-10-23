@@ -8,6 +8,8 @@ export type NavIconName = "match" | "resume" | "jobs" | "saved" | "history" | "a
 
 /** The assistant is the home page. */
 export const HOME_PATH = "/";
+/** Optional profile that the job-search agent uses for availability matching. */
+export const PREFERENCES_PATH = "/preferences";
 /** The workbench: matching, resumes, jobs, bookmarks and history, switched by the hash. */
 export const WORKSPACE_PATH = "/workspace";
 
