@@ -18,7 +18,7 @@ class JobAvailabilityMatcherTests {
                 "要求实习至少6个月；每周至少5天。", "", "深圳市龙岗区");
         assertEquals("BLOCKED", compared.duration().status());
         assertEquals("BLOCKED", compared.attendance().status());
-        assertFalse(compared.fullyVerified());
+        assertFalse(compared.jdConditionsMet());
         assertTrue(compared.hardBlock());
         assertEquals("PREFERRED", compared.district().status());
     }
@@ -31,7 +31,7 @@ class JobAvailabilityMatcherTests {
         assertEquals("LOWER_PRIORITY", compared.district().status());
         assertEquals("UNKNOWN", compared.startDate().status());
         assertFalse(compared.hardBlock());
-        assertFalse(compared.fullyVerified());
+        assertTrue(compared.jdConditionsMet(), "start date is an HR reminder, not a parsed JD condition");
     }
 
     @Test void anExplicitDistrictExclusionCanBlock() {
@@ -46,7 +46,7 @@ class JobAvailabilityMatcherTests {
                 "至少实习3个月，每周5天。", "", "深圳市龙岗区");
         assertEquals("UNKNOWN", compared.duration().status());
         assertEquals("UNKNOWN", compared.attendance().status());
-        assertFalse(compared.fullyVerified());
+        assertFalse(compared.jdConditionsMet());
         assertFalse(compared.hardBlock());
     }
 
@@ -54,7 +54,7 @@ class JobAvailabilityMatcherTests {
         var compared = JobAvailabilityMatcher.compare(JobSearchPreferencesView.empty(), "FULL",
                 "至少实习3个月；每周5天。", "", "深圳市龙岗区");
         assertFalse(compared.hardBlock());
-        assertFalse(compared.fullyVerified());
+        assertFalse(compared.jdConditionsMet());
         assertEquals("NOT_SET", compared.duration().status());
     }
 
@@ -64,5 +64,33 @@ class JobAvailabilityMatcherTests {
         assertEquals("UNKNOWN", compared.duration().status());
         assertEquals("UNKNOWN", compared.attendance().status());
         assertFalse(compared.hardBlock());
+    }
+
+    /** Real extension format is 城市·区·商圈 (boss-api-extractor.js); the UI hint suggests "深圳龙岗区". */
+    @Test void districtMatchesTheExtensionLocationFormatWhicheverWayItIsTyped() {
+        for (String typed : new String[] {"深圳龙岗区", "深圳市龙岗区", "龙岗区", "龙岗"}) {
+            var preference = new JobSearchPreferencesView(true, 6, 5, null, typed, true);
+            var compared = JobAvailabilityMatcher.compare(preference, "FULL",
+                    "实习至少3个月；每周5天。", "", "深圳·龙岗区·坂田");
+            assertEquals("MEETS", compared.district().status(), typed);
+            assertFalse(compared.hardBlock(), typed);
+        }
+        var elsewhere = JobAvailabilityMatcher.compare(new JobSearchPreferencesView(true, 6, 5, null, "深圳龙岗区", true),
+                "FULL", "实习至少3个月；每周5天。", "", "深圳·南山区·科技园");
+        assertEquals("BLOCKED", elsewhere.district().status());
+        var cityOnly = JobAvailabilityMatcher.compare(new JobSearchPreferencesView(true, 6, 5, null, "龙岗", true),
+                "FULL", "实习至少3个月；每周5天。", "", "深圳");
+        assertEquals("UNKNOWN", cityOnly.district().status());
+    }
+
+    /** The start date is never parsed from the JD, so it must not make the flag unreachable. */
+    @Test void conditionsMetIsReachableWhenEveryParsedRequirementIsSatisfied() {
+        var compared = JobAvailabilityMatcher.compare(profile(6, 5, true), "FULL",
+                "实习至少3个月；每周5天。", "", "深圳·龙岗区·布吉");
+        assertEquals("UNKNOWN", compared.startDate().status());
+        assertTrue(compared.jdConditionsMet());
+        var preferenceOnly = JobAvailabilityMatcher.compare(profile(6, 5, false), "FULL",
+                "实习至少3个月；每周5天。", "", "深圳·南山区·科技园");
+        assertTrue(preferenceOnly.jdConditionsMet(), "a non-required district is only a ranking preference");
     }
 }

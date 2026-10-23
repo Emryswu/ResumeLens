@@ -16,7 +16,7 @@ public final class JobAvailabilityMatcher {
 
     public record Finding(String status, String explanation) { }
     public record Comparison(Finding duration, Finding attendance, Finding startDate,
-                             Finding district, boolean hardBlock, boolean fullyVerified) { }
+                             Finding district, boolean hardBlock, boolean jdConditionsMet) { }
 
     public static Comparison compare(JobSearchPreferencesView own, String captureDepth,
                                      String description, String requirements, String location) {
@@ -35,9 +35,9 @@ public final class JobAvailabilityMatcher {
         String preferred = own.preferredDistrict();
         if (preferred == null || preferred.isBlank()) {
             district = new Finding("NOT_SET", "尚未填写地区偏好");
-        } else if (location == null || location.isBlank() || !location.contains("区") && !location.contains("县")) {
+        } else if (!hasDistrict(location)) {
             district = new Finding("UNKNOWN", "已填写地区 " + preferred + "，职位地点不足以核实具体区域");
-        } else if (location.replace("市", "").contains(preferred.replace("市", ""))) {
+        } else if (compactPlace(location).contains(compactPlace(preferred))) {
             district = new Finding(own.districtRequired() ? "MEETS" : "PREFERRED",
                     "岗位地点 " + location + " 符合你填写的地区 " + preferred);
         } else if (own.districtRequired()) {
@@ -47,14 +47,27 @@ public final class JobAvailabilityMatcher {
         }
         boolean blocked = "BLOCKED".equals(months.status()) || "BLOCKED".equals(days.status())
                 || "BLOCKED".equals(district.status());
-        boolean verified = full && own.configured() && !blocked
-                && !"NOT_SET".equals(months.status()) && !"NOT_SET".equals(days.status())
-                && !"NOT_SET".equals(start.status()) && !"NOT_SET".equals(district.status())
-                && !"UNKNOWN".equals(months.status())
-                && !"UNKNOWN".equals(days.status())
-                && !"UNKNOWN".equals(start.status())
-                && !"UNKNOWN".equals(district.status());
-        return new Comparison(months, days, start, district, blocked, verified);
+        // The start date is never read from the JD, so it can only ever be a reminder to ask HR and
+        // must not gate this flag; otherwise the flag could never become true.
+        boolean conditionsMet = full && !blocked
+                && "MEETS".equals(months.status()) && "MEETS".equals(days.status())
+                && (!own.districtRequired() || "MEETS".equals(district.status()));
+        return new Comparison(months, days, start, district, blocked, conditionsMet);
+    }
+
+    /**
+     * Stored locations come from the extension as {@code 城市·区·商圈} (see boss-api-extractor.js),
+     * older ones as plain text such as {@code 深圳市龙岗区}. Compare without separators so
+     * "深圳龙岗区", "龙岗区" and "龙岗" all match {@code 深圳·龙岗区·布吉}.
+     */
+    static String compactPlace(String place) {
+        return place.replaceAll("[\\s·・•,，/|-]", "").replace("市", "");
+    }
+
+    private static boolean hasDistrict(String location) {
+        if (location == null || location.isBlank()) return false;
+        if (location.contains("·")) return location.split("·").length >= 2;
+        return location.contains("区") || location.contains("县");
     }
 
     private static Finding numberFinding(Integer userValue, boolean full, String text,
