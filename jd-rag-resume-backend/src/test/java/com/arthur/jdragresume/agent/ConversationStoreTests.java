@@ -75,6 +75,20 @@ class ConversationStoreTests {
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM agent_conversation_event", Integer.class));
     }
 
+    @Test
+    void anOlderConversationWithNewActivitySortsAheadOfANewerEmptyConversation() {
+        long older = store.create(1).conversation().id();
+        long newer = store.create(1).conversation().id();
+        assertEquals(newer, store.list(1).getFirst().id());
+        var policy = new TranscriptPolicy(new AgentProperties());
+        var run = store.accept(1, older, "新的问题", null, null, 90000, messages -> policy.normalize(messages, null));
+        store.emit(run, "message", java.util.Map.of("content", "新的回答"));
+        store.emit(run, "done", java.util.Map.of("state", "COMPLETED", "steps", 1));
+        assertEquals(older, store.list(1).getFirst().id());
+        var header = store.detail(1, older, 0).conversation();
+        assertFalse(java.time.Instant.parse(header.updatedAt()).isBefore(java.time.Instant.parse(header.createdAt())));
+    }
+
     private void event(long id, int sequence, String type, String payload) {
         jdbc.update("INSERT INTO agent_conversation_event VALUES(?,?,?,?,?,?,NOW())", id, sequence, "turn", "run", type, payload);
     }

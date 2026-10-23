@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @RestController
 @RequestMapping("/api/agent")
@@ -30,8 +31,7 @@ public class AgentController {
     }
 
     /**
-     * Stateless: the browser sends the whole transcript every turn and gets the updated one
-     * back in the final {@code done} event. No {@code produces} here on purpose: rejected
+     * The server owns the transcript; the browser submits only one new input. No {@code produces} here: rejected
      * requests must still be able to answer with the usual JSON error body.
      */
     @PostMapping("/chat")
@@ -45,15 +45,16 @@ public class AgentController {
                 ? null
                 : new TranscriptPolicy.BrowserReport(request.browserResult().toolCallId(), request.browserResult().taskId(),
                 request.browserResult().outcome(), request.browserResult().report());
-        return agentChatService.chat(request.messages(), approval, browserResult, request.summary(), request.includeTrace(),
+        return agentChatService.chat(request.conversationId(), request.question(), approval, browserResult, request.includeTrace(),
                 request.reasoningEffort());
     }
 
+    @JsonIgnoreProperties({"messages", "summary"})
     public record ChatRequest(
-            @NotEmpty @Size(max = 400) List<AgentMessage> messages,
+            @NotNull Long conversationId,
+            @Size(max = 4000) String question,
             @Valid ApprovalRequest approval,
             @Valid BrowserResultRequest browserResult,
-            String summary,
             boolean includeTrace,
             ReasoningEffort reasoningEffort
     ) {

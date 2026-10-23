@@ -37,7 +37,7 @@ async function mount(t, { interrupted = false, savedEffort, autoAsk = true } = {
   const frame = (event, data) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   const api = {
     ApiError: class ApiError extends Error {},
-    apiRequest: async (url) => url.startsWith("/api/resumes") ? { totalElements: 1 } : { mockEnabled: true, model: "deepseek-flash" },
+    apiRequest: async (url, options) => url === "/api/agent/conversations" ? options?.method === "POST" ? { conversation: { id: 1 } } : [] : url.startsWith("/api/resumes") ? { totalElements: 1 } : { mockEnabled: true, model: "deepseek-flash" },
     getAuthSessionId: () => 1,
     isAuthSessionCurrent: () => true,
     visibleApiErrorMessage: (error) => error.message,
@@ -45,13 +45,13 @@ async function mount(t, { interrupted = false, savedEffort, autoAsk = true } = {
       requests.push({ path, body, signal });
       let events;
       if (requests.length === 1) {
-        const transcript = [...body.messages, {
+        const transcript = [{ role: "user", content: body.question }, {
           role: "assistant", tool_calls: [{ id: TASK.toolCallId, type: "function", function: { name: TASK.tool, arguments: "{}" } }],
         }];
         events = frame("browser_task_required", TASK);
         if (!interrupted) events += frame("done", { state: "AWAITING_BROWSER", steps: 1, transcript });
       } else {
-        events = frame("done", { state: "COMPLETED", steps: 1, transcript: body.messages });
+        events = frame("done", { state: "COMPLETED", steps: 1, transcript: [] });
       }
       return new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(events)); controller.close(); } });
     },
@@ -84,6 +84,7 @@ async function mount(t, { interrupted = false, savedEffort, autoAsk = true } = {
       if (id === "next/navigation") return { useRouter: () => ({ replace() {} }) };
       if (id.endsWith("/use-session-user")) return { useSessionUser: () => ({ user: { id: 1 }, status: "signedIn", logout() {} }) };
       if (id.endsWith("/agent-stream")) return wire;
+      if (id.endsWith("/conversation-client")) return { CONVERSATIONS: "/api/agent/conversations" };
       if (id.endsWith("/agent-model-display")) return modelDisplay;
       if (id.endsWith("/components/ChoiceMenu")) return choiceExports;
       if (id.endsWith("/lib/api")) return api;
@@ -105,7 +106,7 @@ async function mount(t, { interrupted = false, savedEffort, autoAsk = true } = {
       throw new Error(`Unexpected import: ${id}`);
     },
   });
-  const root = createRoot(dom.window.document.getElementById("root"));
+  let root = createRoot(dom.window.document.getElementById("root"));
   let mounted = true;
   const unmount = async () => {
     await act(async () => { root.unmount(); });
@@ -128,8 +129,15 @@ async function mount(t, { interrupted = false, savedEffort, autoAsk = true } = {
     await act(async () => { button.click(); });
   };
   if (autoAsk) await click("我最新那份简历");
-  return { dom, requests, click, unmount, get collections() { return collections; }, get collectionSignal() { return collectionSignal; }, finish: (outcome) => act(async () => { finishCollection(outcome); }) };
+  const returnFromWorkspace = async () => {
+    await unmount();
+    root = createRoot(dom.window.document.getElementById("root"));
+    mounted = true;
+    await act(async () => { root.render(React.createElement(exports.default)); });
+  };
+  return { dom, requests, click, unmount, returnFromWorkspace, get collections() { return collections; }, get collectionSignal() { return collectionSignal; }, finish: (outcome) => act(async () => { finishCollection(outcome); }) };
 }
+
 
 test("thinking defaults to high and stays fixed through browser-task continuation", async (t) => {
   const page = await mount(t);
@@ -229,7 +237,8 @@ test("the cancel button still reports cancellation to the assistant while mounte
   assert.equal(page.collectionSignal.aborted, true);
   assert.equal(page.requests.length, 2);
   assert.equal(page.requests[1].body.browserResult.outcome, "cancelled");
-  assert.equal(page.requests[1].body.messages.at(-1).tool_calls[0].id, TASK.toolCallId);
+  assert.equal(page.requests[1].body.browserResult.toolCallId, TASK.toolCallId);
+  assert.equal("messages" in page.requests[1].body, false);
 });
 
 test("a new conversation cancels collection without resuming the old turn", async (t) => {
@@ -244,5 +253,6 @@ test("a completed collection reports against the transcript received in done", a
   await page.finish({ outcome: "completed", report: { type: "result" } });
   assert.equal(page.requests.length, 2);
   assert.equal(page.requests[1].body.browserResult.taskId, TASK.taskId);
-  assert.equal(page.requests[1].body.messages.at(-1).tool_calls[0].id, TASK.toolCallId);
+  assert.equal(page.requests[1].body.browserResult.toolCallId, TASK.toolCallId);
+  assert.equal("messages" in page.requests[1].body, false);
 });

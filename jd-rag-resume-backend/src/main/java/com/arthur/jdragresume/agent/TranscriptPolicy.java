@@ -9,14 +9,11 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Validates and normalizes the client-held transcript before any work starts. The client
- * is untrusted, so every structural rule the provider enforces is checked here first:
+ * Normalizes stored model context before work starts. Provider structural rules are checked here:
  * a malformed transcript becomes a 400 for the caller instead of a provider 400 that
  * would surface mid-stream as a 502.
  *
- * <p>Forging is still possible within these rules (a user can hand-craft an assistant
- * message that calls start_analysis and approve it). That grants nothing: the tool runs
- * through the same service, ownership checks and quota as the REST endpoint.
+ * The HTTP boundary accepts no historical messages; confirmations can only answer stored calls.
  */
 public class TranscriptPolicy {
     static final String DID_NOT_CONFIRM = "USER_DID_NOT_CONFIRM";

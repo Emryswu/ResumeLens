@@ -42,7 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         AgentAsyncDispatchSecurityTests.Fakes.class})
 @TestPropertySource(properties = "app.jwt.secret=test-secret-for-agent-async-dispatch-0123456789")
 class AgentAsyncDispatchSecurityTests {
-    private static final String BODY = "{\"messages\":[{\"role\":\"user\",\"content\":\"你好\"}]}";
+    private static final String BODY = "{\"conversationId\":1,\"question\":\"你好\"}";
 
     @Autowired
     private MockMvc mockMvc;
@@ -102,10 +102,10 @@ class AgentAsyncDispatchSecurityTests {
 
         @Bean
         AgentChatService agentChatService() {
-            return new AgentChatService(null, null, null, null, null, null, null, null, null) {
+            return new AgentChatService(null, null, null, null, null, null, null, null, null, null) {
                 @Override
-                public SseEmitter chat(List<AgentMessage> messages, TranscriptPolicy.Approval approval,
-                                       TranscriptPolicy.BrowserReport browserReport, String summary, boolean includeTrace,
+                public SseEmitter chat(long conversationId, String question, TranscriptPolicy.Approval approval,
+                                       TranscriptPolicy.BrowserReport browserReport, boolean includeTrace,
                                        ReasoningEffort reasoningEffort) {
                     SseEmitter emitter = new SseEmitter(5_000L);
                     Thread.ofVirtual().start(() -> {
