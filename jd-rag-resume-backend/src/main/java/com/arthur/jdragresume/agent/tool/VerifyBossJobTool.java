@@ -19,9 +19,11 @@ import java.util.Map;
 @Component
 public class VerifyBossJobTool implements DeferrableTool {
     private final JobDescriptionService jobs;
+    private final com.arthur.jdragresume.collect.RoutingJobCollector collectors;
 
-    public VerifyBossJobTool(JobDescriptionService jobs) {
+    public VerifyBossJobTool(JobDescriptionService jobs, com.arthur.jdragresume.collect.RoutingJobCollector collectors) {
         this.jobs = jobs;
+        this.collectors = collectors;
     }
 
     @Override
@@ -51,17 +53,27 @@ public class VerifyBossJobTool implements DeferrableTool {
                     "next", "调用 get_job 读取完整正文并核实硬性条件"));
         }
         requireBossUrl(job.sourceUrl(), job.sourceJobId());
-        return new InBrowser("browser-extension", "verifyBossJob",
-                Map.of("jobId", job.id(), "sourceJobId", job.sourceJobId(), "sourceUrl", job.sourceUrl()));
+        Map<String, Object> command = Map.of("mode", "detail", "jobId", job.id(), "sourceJobId", job.sourceJobId(), "sourceUrl", job.sourceUrl());
+        var action = collectors.startAction(command, context.collection());
+        if (action.report() == null) return new InBrowser("browser-extension", "verifyBossJob", action.command());
+        collectors.completeAction(command, action.report(), context.collection());
+        return new Done(saveReport(job, action.report()));
     }
 
     @Override
     @Transactional
     public Object resume(JsonNode arguments, JsonNode report, AgentToolContext context) {
         if (report == null || !report.isObject()) throw invalidReport();
-        JobDescriptionResponse existing = jobs.findById(arguments.get("jobId").asLong());
-        requireBoss(existing);
-        requireBossUrl(existing.sourceUrl(), existing.sourceJobId());
+        JobDescriptionResponse job = jobs.findById(arguments.get("jobId").asLong());
+        requireBoss(job);
+        requireBossUrl(job.sourceUrl(), job.sourceJobId());
+        report = collectors.completeAction(Map.of("mode", "detail", "jobId", job.id(), "sourceJobId", job.sourceJobId(),
+                "sourceUrl", job.sourceUrl()), report, context.collection()).report();
+        return saveReport(job, report);
+    }
+
+    private Object saveReport(JobDescriptionResponse existing, JsonNode report) {
+        if (report == null || !report.isObject()) throw invalidReport();
         if ("rejected".equals(report.path("type").asText())) {
             throw new BusinessException("BOSS_DETAIL_UNAVAILABLE", "插件拒绝了详情核实，原有列表摘要未改变");
         }

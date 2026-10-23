@@ -235,7 +235,7 @@ class JobDescriptionMapperMySqlTests {
                         "https://www.zhipin.com/job_detail/fresh.html", "fresh", "dom"));
         var collected = new CollectionResult(CollectionResult.Outcome.COMPLETED, "MAX_PAGES", "完成", 1, listings, 0, null);
         when(collector.start(any())).thenReturn(new JobCollector.Collected(collected));
-        var collect = new CollectBossJobsTool(List.of(collector), service, history);
+        var collect = new CollectBossJobsTool(collector, service, history);
         var search = new SearchJobsTool(service, history);
         var mapper = new ObjectMapper().findAndRegisterModules();
         var context = new AgentToolContext(owner);

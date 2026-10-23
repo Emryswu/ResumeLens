@@ -18,7 +18,8 @@ public record CollectionResult(
         List<CollectedListing> listings,
         int skippedWithoutId,
         Integer dailyPagesLeft,
-        List<PageRead> pageLog
+        List<PageRead> pageLog,
+        String switchReason
 ) {
     public CollectionResult {
         listings = List.copyOf(listings);
@@ -27,7 +28,16 @@ public record CollectionResult(
 
     public CollectionResult(Outcome outcome, String code, String message, int pagesRead,
                             List<CollectedListing> listings, int skippedWithoutId, Integer dailyPagesLeft) {
-        this(outcome, code, message, pagesRead, listings, skippedWithoutId, dailyPagesLeft, List.of());
+        this(outcome, code, message, pagesRead, listings, skippedWithoutId, dailyPagesLeft, List.of(), null);
+    }
+
+    public CollectionResult(Outcome outcome, String code, String message, int pagesRead, List<CollectedListing> listings,
+                            int skippedWithoutId, Integer dailyPagesLeft, List<PageRead> pageLog) {
+        this(outcome, code, message, pagesRead, listings, skippedWithoutId, dailyPagesLeft, pageLog, null);
+    }
+
+    public CollectionResult withDiagnostics(int left, String reason) {
+        return new CollectionResult(outcome, code, message, pagesRead, listings, skippedWithoutId, left, pageLog, reason);
     }
 
     public record PageRead(int page, int api, int dom) { }

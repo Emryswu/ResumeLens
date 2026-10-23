@@ -106,7 +106,7 @@ class AgentAsyncDispatchSecurityTests {
                 @Override
                 public SseEmitter chat(long conversationId, String question, TranscriptPolicy.Approval approval,
                                        TranscriptPolicy.BrowserReport browserReport, boolean includeTrace,
-                                       ReasoningEffort reasoningEffort) {
+                                       ReasoningEffort reasoningEffort, com.arthur.jdragresume.collect.CollectorMode collectorMode) {
                     SseEmitter emitter = new SseEmitter(5_000L);
                     Thread.ofVirtual().start(() -> {
                         try {

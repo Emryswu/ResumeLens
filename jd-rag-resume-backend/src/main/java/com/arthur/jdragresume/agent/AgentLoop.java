@@ -536,7 +536,8 @@ public class AgentLoop {
                     return null;
                 }
             }
-            begin = tool.begin(prepared.arguments(), context);
+            begin = tool.begin(prepared.arguments(), context.forCollection(call.id(), deadline,
+                    progress -> sink.emit("collector_progress", progress)));
         } catch (RuntimeException ex) {
             ToolFailure failure = ToolFailure.of(ex, call.name());
             record(call, sink, transcript, clock.getAsLong() - started,
@@ -603,7 +604,8 @@ public class AgentLoop {
         requireActive(deadline, cancelled);
         sink.emit("step_started", new StepStartedEvent(pending.id(), pending.name(), pending.arguments()));
         try {
-            recordResult(deferrable, pending, deferrable.resume(prepared.arguments(), report.report(), context), sink, transcript, started);
+            recordResult(deferrable, pending, deferrable.resume(prepared.arguments(), report.report(),
+                    context.forCollection(pending.id(), deadline, progress -> sink.emit("collector_progress", progress))), sink, transcript, started);
         } catch (RuntimeException ex) {
             ToolFailure failure = ToolFailure.of(ex, pending.name());
             record(pending, sink, transcript, clock.getAsLong() - started,

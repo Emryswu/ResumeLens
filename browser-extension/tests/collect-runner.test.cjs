@@ -101,6 +101,22 @@ test("per-page source counts survive reconnects and reach the BOSS banner withou
   assert.deepEqual((await runner.status(COMMAND.taskId)).pageLog, task.pageLog);
 });
 
+test("the server page allowance stops both transports before another load and reports actual loads", async () => {
+  const browser = fakeBrowser({ steps: [ready(["a"])] });
+  const { runner } = setup({ browser });
+  const { task } = await runToEnd(runner, { ...COMMAND, pageAllowance: 1 });
+  assert.equal(task.finishReason, "DAILY_LIMIT");
+  assert.equal(task.pagesLoaded, 1);
+  assert.equal(browser.calls.filter(([name]) => name === "scrollAndWait").length, 0);
+});
+
+test("a reservation from yesterday cannot load BOSS pages against yesterday's shared budget", async () => {
+  const { runner, browser } = setup();
+  const started = await runner.start({ ...COMMAND, pageAllowance: 1, budgetDate: "2026-10-21" });
+  assert.equal(started.code, "DAILY_LIMIT");
+  assert.equal(browser.calls.length, 0);
+});
+
 test("detail verification reads a real posting and keeps it distinct from list summaries", async () => {
   const sourceUrl = "https://www.zhipin.com/job_detail/abc123.html";
   const browser = fakeBrowser({ loadedUrl: sourceUrl });

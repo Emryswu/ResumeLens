@@ -379,9 +379,12 @@ a.secondary {
 .agent-analysis .ghost { flex-shrink: 0; margin-left: auto; }
 /* Auto-scroll stops above the sticky input, so a new card is not hidden under it. */
 .assistant-bottom { scroll-margin-bottom: 136px; }
-.assistant-input { position: sticky; bottom: 12px; display: flex; gap: 10px; align-items: flex-end; padding: 10px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); }
-.assistant-input textarea { flex: 1; min-width: 0; resize: none; border: 0; outline: none; background: transparent; font-size: var(--text-body); line-height: 1.6; }
-.assistant-input-actions { position: relative; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.assistant-input { position: sticky; bottom: 12px; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 10px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); box-shadow: var(--shadow); }
+.assistant-input textarea { flex: 1 1 100%; min-width: 0; resize: none; border: 0; outline: none; background: transparent; font-size: var(--text-body); line-height: 1.6; }
+.assistant-input-actions { position: relative; display: flex; align-items: center; gap: 8px; flex-shrink: 0; width: 100%; }
+.assistant-input-actions > .choice-menu:nth-of-type(2) { margin-left: auto; }
+.assistant-input-actions > .choice-menu:first-child { position: relative; }
+.assistant-input-actions > .choice-menu:first-child .choice-menu-listbox { left: 0; right: auto; }
 .choice-menu { position: relative; }
 .assistant-input-actions .choice-menu { position: static; }
 .choice-menu .choice-menu-trigger { display: flex; align-items: center; gap: 7px; min-height: 36px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--muted); font-size: var(--text-meta); font-weight: 500; white-space: nowrap; box-shadow: none; }

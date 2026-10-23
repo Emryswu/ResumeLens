@@ -10,6 +10,7 @@ import ts from "typescript";
 import { ConversationSession } from "../app/conversation-session.ts";
 import * as wire from "../app/agent-stream.ts";
 import * as modelDisplay from "../app/agent-model-display.ts";
+import * as collectorModes from "../app/collector-mode.ts";
 
 const require = createRequire(import.meta.url);
 const TASK = {
@@ -23,9 +24,10 @@ const code = ts.transpileModule(source, {
 }).outputText;
 
 /** Mount the real page and reducer; replace network and extension I/O with controlled promises. */
-async function mount(t, { interrupted = false, savedEffort, autoAsk = true, autoCollect = true } = {}) {
+async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk = true, autoCollect = true } = {}) {
   const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost:3000" });
   if (savedEffort != null) dom.window.localStorage.setItem("resumelens-agent-reasoning-effort", savedEffort);
+  if (savedModes != null) dom.window.localStorage.setItem(collectorModes.collectorStorageKey(1), JSON.stringify(savedModes));
   const previous = { window: globalThis.window, document: globalThis.document, act: globalThis.IS_REACT_ACT_ENVIRONMENT };
   globalThis.window = dom.window;
   globalThis.document = dom.window.document;
@@ -80,7 +82,7 @@ async function mount(t, { interrupted = false, savedEffort, autoAsk = true, auto
     AppShell: ({ children }) => React.createElement("div", null, children),
     RetryButton: empty, AgentMarkdown: empty, AnalysisCard: empty, ConfirmationCard: empty,
     ProcessDrawer: empty, StepTimeline: empty, LoginPage: empty,
-    CompletedCollectionCards: empty,
+    CompletedCollectionCards: empty, RunningCollectorCards: empty,
     BrowserTaskCard: ({ active, running, onCancel, onContinue }) => active ? React.createElement("button", { onClick: running ? onCancel : onContinue }, running ? "取消采集" : "继续采集") : null,
   };
   const exports = {};
@@ -106,6 +108,7 @@ async function mount(t, { interrupted = false, savedEffort, autoAsk = true, auto
       if (id.endsWith("/agent-stream")) return wire;
       if (id.endsWith("/conversation-client")) return { CONVERSATIONS: "/api/agent/conversations" };
       if (id.endsWith("/agent-model-display")) return modelDisplay;
+      if (id.endsWith("/collector-mode")) return collectorModes;
       if (id.endsWith("/components/ChoiceMenu")) return choiceExports;
       if (id.endsWith("/lib/api")) return api;
       if (id.endsWith("/extension-collect")) return {
@@ -169,7 +172,7 @@ async function mount(t, { interrupted = false, savedEffort, autoAsk = true, auto
 
 test("thinking defaults to high and stays fixed through browser-task continuation", async (t) => {
   const page = await mount(t);
-  const trigger = page.dom.window.document.querySelector('button[aria-haspopup="listbox"]');
+  const trigger = page.dom.window.document.querySelector('button[aria-label^="模型与思考档位"]');
   assert.ok(trigger);
   assert.match(trigger.textContent, /DeepSeek Flash/);
   assert.match(trigger.textContent, /高/);
@@ -180,9 +183,34 @@ test("thinking defaults to high and stays fixed through browser-task continuatio
   assert.equal(trigger.disabled, false);
 });
 
+test("the plus menu uses custom options, restores this conversation's choice and submits it outside model arguments", async (t) => {
+  const page = await mount(t, { autoAsk: false, savedModes: { 1: "chrome", 2: "patchright" } });
+  const doc = page.dom.window.document;
+  const trigger = doc.querySelector('button[aria-label="采集方式：我的 Chrome"]');
+  assert.ok(trigger);
+  assert.equal(doc.querySelector("select"), null);
+  await act(async () => { trigger.click(); });
+  const options = [...doc.querySelectorAll('[role="option"]')];
+  assert.deepEqual(options.map((option) => option.querySelector(".choice-menu-option-label").textContent),
+    ["采集方式：自动", "采集方式：我的 Chrome", "采集方式：独立浏览器"]);
+  await act(async () => { options[2].click(); });
+  assert.equal(JSON.parse(page.dom.window.localStorage.getItem(collectorModes.collectorStorageKey(1)))[1], "patchright");
+  await page.click("我最新那份简历");
+  assert.equal(page.requests[0].body.collectorMode, "patchright");
+});
+
+test("switching conversations restores each one's collector choice", async (t) => {
+  const page = await mount(t, { autoAsk: false, savedModes: { 1: "chrome", 2: "patchright" } });
+  assert.ok(page.dom.window.document.querySelector('button[aria-label="采集方式：我的 Chrome"]'));
+  await page.click("新对话");
+  assert.ok(page.dom.window.document.querySelector('button[aria-label="采集方式：独立浏览器"]'));
+  await page.returnFromWorkspace();
+  assert.ok(page.dom.window.document.querySelector('button[aria-label="采集方式：独立浏览器"]'));
+});
+
 test("thinking restores the previous selection and persists a change for the next question", async (t) => {
   const page = await mount(t, { savedEffort: "low", autoAsk: false });
-  const trigger = page.dom.window.document.querySelector('button[aria-haspopup="listbox"]');
+  const trigger = page.dom.window.document.querySelector('button[aria-label^="模型与思考档位"]');
   assert.ok(trigger);
   assert.match(trigger.textContent, /低/);
   await act(async () => { trigger.click(); });
@@ -200,7 +228,7 @@ test("thinking restores the previous selection and persists a change for the nex
 test("Escape and outside pointer presses close the menu without changing the effort", async (t) => {
   const page = await mount(t, { autoAsk: false });
   const doc = page.dom.window.document;
-  const trigger = doc.querySelector('button[aria-haspopup="listbox"]');
+  const trigger = doc.querySelector('button[aria-label^="模型与思考档位"]');
   assert.ok(trigger);
   await act(async () => { trigger.click(); });
   assert.equal(trigger.getAttribute("aria-expanded"), "true");
@@ -219,7 +247,7 @@ test("Escape and outside pointer presses close the menu without changing the eff
 test("arrow keys move focus and Enter selects an effort without submitting the form", async (t) => {
   const page = await mount(t, { autoAsk: false });
   const doc = page.dom.window.document;
-  const trigger = doc.querySelector('button[aria-haspopup="listbox"]');
+  const trigger = doc.querySelector('button[aria-label^="模型与思考档位"]');
   assert.ok(trigger);
   await act(async () => { trigger.click(); });
   const options = [...doc.querySelectorAll('[role="option"]')];

@@ -123,6 +123,14 @@ test("no extension answering the ping is reported as EXTENSION_NOT_FOUND", async
   assert.deepEqual(run.posted.map((item) => item.action), ["ping"], "nothing to cancel when nothing was started");
 });
 
+test("a server page reservation requires an extension that understands the shared budget", async () => {
+  const run = start({ task: { ...TASK, command: { ...TASK.command, pageAllowance: 1 } } });
+  run.reply("r1", { type: "pong", capabilities: ["collectBossJobs"] });
+  run.reply("r2", { type: "result", task: {} });
+  assert.deepEqual(await run.result, { outcome: "completed", report: { type: "rejected", code: "EXTENSION_OUTDATED" } });
+  assert.equal(run.posted.length, 1);
+});
+
 test("an extension without the capability is reported as outdated and gets no command", async () => {
   const run = start();
   run.reply("r1", { type: "pong", version: "0.1.0", capabilities: [] });

@@ -73,6 +73,9 @@
       const existing = await status(command.taskId);
       // Starting is idempotent: a page that reconnects with the same id gets the same task back.
       if (existing) return { ok: true, task: existing };
+      if (command.budgetDate && command.budgetDate !== today()) {
+        return { ok: false, code: "DAILY_LIMIT", error: "本次页数额度已跨日，请重新发起采集" };
+      }
       for (const other of await allTasks()) {
         if (other.status === "running" && other.epoch === epoch) {
           return { ok: false, code: "BUSY", error: "插件正在执行另一次采集，请等它结束" };
@@ -90,6 +93,9 @@
         conversationId: command.conversationId,
         returnUrl: rawCommand.returnUrl,
         pageLog: [],
+        pagesLoaded: 0,
+        pageAllowance: command.pageAllowance ?? command.maxPages ?? 1,
+        budgetDate: command.budgetDate,
         pagesRead: 0,
         jobs: [],
         sources: { api: 0, dom: 0 },
@@ -162,8 +168,8 @@
     async function run(state, command) {
       try {
         if (!(await browser.hasBossPermission())) throw new CollectStop("PERMISSION_REQUIRED");
+        await paceDetail(state);
         if (command.mode === "detail") {
-          await paceDetail(state);
           if (!(await takeDailyPage(state))) throw new CollectStop("DAILY_LIMIT");
           await progress(state, "opening");
           const tabId = await browser.openTab(command.sourceUrl, command.conversationId);
@@ -200,6 +206,7 @@
         await progress(state, "opening");
         const tabId = await browser.openTab(search.buildSearchUrl(command), command.conversationId);
         state.tabId = tabId;
+        await storage.set(DETAIL_LAST_OPENED_KEY, now());
         const loaded = await browser.waitForLoad(tabId, LOAD_TIMEOUT_MS);
         await updateBanner(state);
         const urlBlocker = list.blockerFromUrl(loaded.url);
@@ -259,12 +266,15 @@
 
     /** Takes one page from today's budget; false when it is spent. */
     async function takeDailyPage(state) {
+      if (state.pagesLoaded >= state.pageAllowance) return false;
+      if (state.budgetDate && state.budgetDate !== today()) return false;
       const used = await dailyPagesUsed();
       if (used >= search.LIMITS.maxPagesPerDay) {
         state.dailyPagesLeft = 0;
         return false;
       }
       await daily.set(DAILY_PREFIX + today(), used + 1);
+      state.pagesLoaded += 1;
       state.dailyPagesLeft = search.LIMITS.maxPagesPerDay - used - 1;
       return true;
     }

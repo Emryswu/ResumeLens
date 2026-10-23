@@ -31,9 +31,8 @@ public class CollectBossJobsTool implements DeferrableTool {
 
     private final JobCollectionHistory history;
 
-    public CollectBossJobsTool(List<JobCollector> collectors, JobDescriptionService jobDescriptionService, JobCollectionHistory history) {
-        this.collector = collectors.stream().filter(candidate -> PLATFORM.equals(candidate.platform())).findFirst()
-                .orElseThrow(() -> new IllegalStateException("no job collector for " + PLATFORM));
+    public CollectBossJobsTool(JobCollector collector, JobDescriptionService jobDescriptionService, JobCollectionHistory history) {
+        this.collector = collector;
         this.jobDescriptionService = jobDescriptionService;
         this.history = history;
     }
@@ -45,7 +44,7 @@ public class CollectBossJobsTool implements DeferrableTool {
 
     @Override
     public String description() {
-        return "让用户浏览器里的 ResumeLens 插件打开 BOSS 直聘搜索页，只读采集岗位列表（每次最多 3 页、45 条），存进职位库。"
+        return "按用户界面选定的采集方式打开 BOSS 直聘搜索页，只读采集岗位列表（每次最多 3 页、45 条），存进职位库。"
                 + "用户要求找工作、找实习、校招或去 BOSS 搜索时可调用，不要因已有职位库搜索为空就断言没有岗位。"
                 + "BOSS 用法：城市放 city，技术方向放 keyword，学生身份或年限放 experience，不要把所有条件塞进关键词。"
                 + "例如“找深圳 Java 后端实习”用 city=深圳、keyword=Java 后端、experience=在校生；"
@@ -54,7 +53,7 @@ public class CollectBossJobsTool implements DeferrableTool {
                 + "只有用户明确要求不限方向时才传 broadSearch=true 允许空关键词；否则空关键词会被拒绝，请先根据简历确定方向。"
                 + "采集后用选定的 resumeId 与本次 jobIds 调 rank_jobs_for_resume，优先展示对口岗位；大多明显不对口时直接说明并提议换关键词，不要把不相关岗位当成推荐。"
                 + "网页的求职类型是全职/兼职，实习相关人群筛选在工作经验里；在校生不保证是实习，应届生不保证是校招，需结合岗位内容核实。"
-                + "需要用户装好插件、授权访问 BOSS 并已登录，否则返回 ok=false，"
+                + "采集方式及自动切换由代码处理；用户需在所用浏览器里登录 BOSS。失败时返回 ok=false，"
                 + "如实转告原因即可。采集到的是列表摘要（职位名、公司、薪资、标签），不是完整 JD；"
                 + "需要排序时把返回的 jobIds 传给 rank_jobs_for_resume，粗排相似度不是匹配分。";
     }
@@ -73,7 +72,7 @@ public class CollectBossJobsTool implements DeferrableTool {
     @Transactional
     public Begin begin(JsonNode arguments, AgentToolContext context) {
         CollectRequest request = request(arguments);
-        JobCollector.Start start = collector.start(request);
+        JobCollector.Start start = collector.start(request, context.collection());
         return switch (start) {
             case JobCollector.Collected collected -> new Done(save(request, collected.result()));
             case JobCollector.Delegated delegated -> new InBrowser(delegated.executor(), delegated.action(), delegated.command());
@@ -84,7 +83,7 @@ public class CollectBossJobsTool implements DeferrableTool {
     @Transactional
     public Object resume(JsonNode arguments, JsonNode report, AgentToolContext context) {
         CollectRequest request = request(arguments);
-        return save(request, collector.complete(request, report));
+        return save(request, collector.complete(request, report, context.collection()));
     }
 
     private static CollectRequest request(JsonNode arguments) {
@@ -147,6 +146,7 @@ public class CollectBossJobsTool implements DeferrableTool {
                 jobs,
                 jobs.stream().map(Job::jobId).toList(),
                 result.pageLog(),
+                result.switchReason(),
                 "这些是 BOSS 搜索列表摘要，不是完整职位描述；粗排相似度不是匹配分。可对排序靠前的岗位调用 verify_boss_job，由插件自动打开详情页核实完整 JD。");
     }
 
@@ -155,13 +155,13 @@ public class CollectBossJobsTool implements DeferrableTool {
         if (!(result instanceof Summary summary)) return null;
         return new Facts(summary.pagesRead(), summary.collected(), summary.created(), summary.alreadyInLibrary(),
                 summary.notSaved(), summary.stopReason(), summary.stopReason() == null ? null : summary.statusMessage(),
-                summary.sources(), summary.finishReason(), summary.statusMessage(), summary.pageLog());
+                summary.sources(), summary.finishReason(), summary.statusMessage(), summary.pageLog(), summary.switchReason());
     }
 
     /** {@code stopMessage} is the server's own text for {@code stopReason}, never the extension's. */
     record Facts(int pagesRead, int collected, int created, int alreadyInLibrary, int notSaved, String stopReason,
                  String stopMessage, Map<String, Integer> sources, String finishReason, String statusMessage,
-                 List<CollectionResult.PageRead> pageLog) {
+                 List<CollectionResult.PageRead> pageLog, String switchReason) {
     }
 
     /** {@code jobs} comes before {@code jobIds}: an oversized result drops job rows first and keeps every id. */
@@ -185,6 +185,7 @@ public class CollectBossJobsTool implements DeferrableTool {
             List<Job> jobs,
             List<Long> jobIds,
             List<CollectionResult.PageRead> pageLog,
+            String switchReason,
             String note
     ) {
     }

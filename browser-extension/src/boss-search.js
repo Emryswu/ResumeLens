@@ -74,7 +74,11 @@
     }
     const conversationId = value.conversationId === undefined ? taskId : value.conversationId;
     if (typeof conversationId !== "string" || !TASK_ID_PATTERN.test(conversationId)) return invalid("conversationId 格式不正确");
-    return { ok: true, command: Object.freeze({ taskId, keyword, city, maxPages, experience, conversationId }) };
+    if (value.pageAllowance !== undefined && (!Number.isInteger(value.pageAllowance) || value.pageAllowance < 1 || value.pageAllowance > maxPages)) return invalid("pageAllowance 超出本次页数");
+    if (value.budgetDate !== undefined && (typeof value.budgetDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value.budgetDate))) return invalid("budgetDate 格式不正确");
+    return { ok: true, command: Object.freeze({ taskId, keyword, city, maxPages, experience, conversationId,
+      ...(value.pageAllowance !== undefined ? { pageAllowance: value.pageAllowance } : {}),
+      ...(value.budgetDate !== undefined ? { budgetDate: value.budgetDate } : {}) }) };
   }
 
   /** Detail verification accepts only an existing BOSS posting, never an arbitrary URL. */
@@ -106,8 +110,12 @@
     }
     const conversationId = value.conversationId === undefined ? taskId : value.conversationId;
     if (typeof conversationId !== "string" || !TASK_ID_PATTERN.test(conversationId)) return invalid("conversationId 格式不正确");
+    if (value.pageAllowance !== undefined && value.pageAllowance !== 1) return invalid("详情核实只能分配 1 页");
+    if (value.budgetDate !== undefined && (typeof value.budgetDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value.budgetDate))) return invalid("budgetDate 格式不正确");
     return { ok: true, command: Object.freeze({
       taskId, mode: "detail", jobId, sourceJobId, sourceUrl: url.href, conversationId,
+      ...(value.pageAllowance !== undefined ? { pageAllowance: value.pageAllowance } : {}),
+      ...(value.budgetDate !== undefined ? { budgetDate: value.budgetDate } : {}),
     }) };
   }
 

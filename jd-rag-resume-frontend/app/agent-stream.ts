@@ -77,7 +77,10 @@ export type BrowserTaskProgress = {
   phase: string; page?: number; jobCount?: number;
   pageLog?: { page: number; api: number; dom: number }[];
   pagesRead?: number; finishReason?: string | null; stopReason?: string | null;
+  switchReason?: string | null;
 };
+
+export type CollectorProgress = { toolCallId: string; command: Record<string, unknown>; progress: BrowserTaskProgress; switchReason?: string | null };
 
 export type AgentDoneState =
   | "COMPLETED"
@@ -95,6 +98,7 @@ export type AgentEvent =
   | { type: "note"; data: { content: string } }
   | { type: "confirmation_required"; data: AgentConfirmation }
   | { type: "browser_task_required"; data: AgentBrowserTask }
+  | { type: "collector_progress"; data: CollectorProgress }
   | { type: "message"; data: { content: string } }
   | { type: "error"; data: { code: string; message: string } }
   | { type: "done"; data: { state: AgentDoneState; steps: number; transcript?: AgentMessage[]; summary?: string | null } };
@@ -155,7 +159,7 @@ export function createSseParser() {
 }
 
 const EVENT_TYPES = new Set([
-  "step_started", "step", "note", "confirmation_required", "browser_task_required", "message", "error", "done",
+  "step_started", "step", "note", "confirmation_required", "browser_task_required", "collector_progress", "message", "error", "done",
 ]);
 const DONE_STATES = new Set<AgentDoneState>([
   "COMPLETED", "AWAITING_CONFIRMATION", "AWAITING_BROWSER", "STEP_LIMIT", "REPLAN_LIMIT", "TIMED_OUT", "FAILED", "CANCELLED",
@@ -244,6 +248,7 @@ export type AgentTurn = {
   /** Work this turn handed to the browser extension. */
   browserTask?: AgentBrowserTask;
   browserProgress?: BrowserTaskProgress;
+  collectorProgress?: Record<string, CollectorProgress>;
   /** How the page ended the browser task; set once its report is on the way to the server. */
   browserOutcome?: BrowserTaskOutcome["outcome"];
 
@@ -363,6 +368,9 @@ function applyEvent(state: AgentChatState, event: AgentEvent): AgentChatState {
       };
     case "note":
       return { ...state, turns: updateLast(state.turns, (turn) => ({ ...turn, notes: [...turn.notes, event.data.content] })) };
+    case "collector_progress":
+      return { ...state, turns: updateLast(state.turns, (turn) => ({ ...turn,
+        collectorProgress: { ...turn.collectorProgress, [event.data.toolCallId]: event.data } })) };
     case "message":
       return { ...state, turns: updateLast(state.turns, (turn) => ({ ...turn, answer: displayAgentAnswer(event.data.content) })) };
     case "error":

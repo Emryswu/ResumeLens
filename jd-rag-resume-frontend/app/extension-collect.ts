@@ -78,7 +78,9 @@ export function runExtensionCollect(options: ExtensionCollectOptions): Promise<B
       if (data.requestId === pingId && payload.type === "pong") {
         const capabilities = Array.isArray(payload.capabilities) ? payload.capabilities : [];
         const needsExperienceFilter = typeof task.command.experience === "string" && task.command.experience !== "不限";
-        if (!capabilities.includes(task.action) || (needsExperienceFilter && !capabilities.includes("experienceFilter"))) {
+        const needsSharedBudget = task.command.pageAllowance !== undefined;
+        if (!capabilities.includes(task.action) || (needsExperienceFilter && !capabilities.includes("experienceFilter"))
+            || (needsSharedBudget && !capabilities.includes("sharedPageBudget"))) {
           rejected("EXTENSION_OUTDATED");
           return;
         }
