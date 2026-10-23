@@ -99,6 +99,29 @@ test("detail verification reads a real posting and keeps it distinct from list s
   assert.equal(browser.calls.some(([name]) => name === "read"), false);
 });
 
+test("back-to-back verifications are spaced like page turns and reuse one detail tab slot", async () => {
+  const urls = ["abc123", "def456"].map((id) => `https://www.zhipin.com/job_detail/${id}.html`);
+  let opened = 0;
+  const closed = [];
+  const browser = fakeBrowser();
+  browser.openTab = async (url) => { browser.calls.push(["open", url]); opened += 1; return 100 + opened; };
+  browser.waitForLoad = async (tabId) => ({ url: urls[tabId - 101] });
+  browser.closeDetailTab = async (tabId) => { closed.push(tabId); };
+  browser.readDetail = async (tabId) => ({ job: {
+    ...job(["abc123", "def456"][tabId - 101]), description: "真实详情页的岗位职责与任职要求".repeat(6),
+  } });
+  const { runner, delays } = setup({ browser });
+  const first = await runToEnd(runner, { taskId: "detail_a", mode: "detail", jobId: 1, sourceJobId: "abc123", sourceUrl: urls[0] });
+  assert.equal(first.task.finishReason, "DETAIL_READ");
+  assert.deepEqual(delays, [], "the first verification does not wait");
+  assert.deepEqual(closed, []);
+  const second = await runToEnd(runner, { taskId: "detail_b", mode: "detail", jobId: 2, sourceJobId: "def456", sourceUrl: urls[1] });
+  assert.equal(second.task.finishReason, "DETAIL_READ");
+  assert.deepEqual(delays, [search.pageDelayMs(() => 0.5)], "the second verification waits one page delay");
+  assert.ok(second.events.some((event) => event.type === "progress" && event.phase === "waiting"));
+  assert.deepEqual(closed, [101], "the previous verification tab is closed before a new one opens");
+});
+
 test("detail verification refuses a short or mismatched posting", async () => {
   const sourceUrl = "https://www.zhipin.com/job_detail/abc123.html";
   const browser = fakeBrowser({ loadedUrl: sourceUrl });

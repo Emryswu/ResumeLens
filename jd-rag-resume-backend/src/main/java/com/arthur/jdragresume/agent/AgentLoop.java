@@ -524,13 +524,13 @@ public class AgentLoop {
         requireActive(deadline, cancelled);
         DeferrableTool.Begin begin;
         try {
-            if (JobSearchWorkflow.TOOL.equals(call.name())) {
+            if (JobSearchWorkflow.governs(call.name())) {
                 String refused = JobSearchWorkflow.refuse(
-                        JobSearchWorkflow.inspect(transcript, objectMapper, call.id()), prepared.arguments());
+                        JobSearchWorkflow.inspect(transcript, objectMapper, call.id()), call.name(), prepared.arguments());
                 if (refused != null) {
                     record(call, sink, transcript, clock.getAsLong() - started,
-                            ToolEnvelope.error(call.name(), "JOB_SEARCH_BUDGET", refused), false,
-                            "JOB_SEARCH_BUDGET", refused);
+                            ToolEnvelope.error(call.name(), JobSearchWorkflow.BUDGET_ERROR, refused), false,
+                            JobSearchWorkflow.BUDGET_ERROR, refused);
                     return null;
                 }
             }

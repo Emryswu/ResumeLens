@@ -7,7 +7,11 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class GetJobTool implements AgentTool {
-    private static final int TEXT_LIMIT = 20_000;
+    /**
+     * Each verified posting is read into the model context; the hard-condition excerpts already come
+     * separately in {@code evidence}, so the body only needs enough for context, not the whole page.
+     */
+    static final int TEXT_LIMIT = 4_000;
 
     private final JobDescriptionService jobDescriptionService;
 

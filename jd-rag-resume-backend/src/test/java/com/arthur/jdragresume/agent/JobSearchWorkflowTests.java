@@ -120,6 +120,86 @@ class JobSearchWorkflowTests {
         assertEquals("JOB_SEARCH_BUDGET", mapper.readTree(failure).path("error").path("code").asText());
     }
 
+    @Test
+    void verificationsShareTheBudgetAndRefusedCallsDoNotUseItUp() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳 Java 实习")));
+        add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[1,2,3,4,5,6,7],\"dailyPagesLeft\":10}");
+        for (int i = 1; i <= 4; i++) verify(log, "v" + i, i, "{\"tool\":\"verify_boss_job\",\"ok\":true}");
+        verify(log, "dup", 1, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"JOB_SEARCH_BUDGET\"}}");
+        var progress = JobSearchWorkflow.inspect(log, mapper);
+        assertEquals(List.of(1L, 2L, 3L, 4L), progress.verifiedJobIds(), "a refused call is not counted");
+        assertEquals(6, progress.dailyPagesLeft(), "each verification takes one daily page");
+        assertTrue(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":2}")).contains("已经发起过核实"));
+        assertNull(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":5}")));
+        verify(log, "v5", 5, "{\"tool\":\"verify_boss_job\",\"ok\":true}");
+        assertTrue(JobSearchWorkflow.refuse(JobSearchWorkflow.inspect(log, mapper), "verify_boss_job",
+                mapper.readTree("{\"jobId\":6}")).contains("核实上限"));
+        assertTrue(JobSearchWorkflow.guidance(JobSearchWorkflow.inspect(log, mapper)).contains("已核实完整 JD 5/5"));
+    }
+
+    @Test
+    void verificationIsRefusedWhenTheDailyPagesAreGone() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[1,2],\"dailyPagesLeft\":1}");
+        verify(log, "v1", 1, "{\"tool\":\"verify_boss_job\",\"ok\":true}");
+        assertTrue(JobSearchWorkflow.refuse(JobSearchWorkflow.inspect(log, mapper), "verify_boss_job",
+                mapper.readTree("{\"jobId\":2}")).contains("剩余页数已用完"));
+    }
+
+    @Test
+    void agentLoopReallyRejectsTheSixthVerificationBeforeTheBrowserIsAsked() throws Exception {
+        var properties = new AgentProperties();
+        properties.setMaxSteps(10);
+        properties.setMaxPlanningSteps(10);
+        AtomicInteger verifications = new AtomicInteger();
+        DeferrableTool verifier = new DeferrableTool() {
+            public String name() { return "verify_boss_job"; }
+            public String description() { return "test"; }
+            public ToolSchema parameters() { return ToolSchema.object().integer("jobId", "job", true, 1, Long.MAX_VALUE); }
+            public Begin begin(JsonNode arguments, AgentToolContext context) {
+                verifications.incrementAndGet();
+                return new Done(Map.of("captureDepth", "FULL"));
+            }
+            public Object resume(JsonNode arguments, JsonNode report, AgentToolContext context) { return Map.of(); }
+        };
+        AgentModel model = (system, transcript, tools, timeout) -> {
+            long results = transcript.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
+            if (results == 6) return AgentModel.Reply.answer("已核实 5 个，其余待核实");
+            return AgentModel.Reply.call(AgentMessage.ToolCall.of("v" + (results + 1), "verify_boss_job",
+                    "{\"jobId\":" + (results + 1) + "}"));
+        };
+        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(verifier)), mapper, properties,
+                System::currentTimeMillis);
+        var result = loop.run(new TranscriptPolicy(properties).normalize(List.of(AgentMessage.user("找深圳实习")), null),
+                null, new AgentToolContext(new AppUser()), (name, data) -> {}, () -> false);
+        assertEquals(AgentLoop.State.COMPLETED, result.state());
+        assertEquals(JobSearchWorkflow.MAX_VERIFICATIONS, verifications.get());
+    }
+
+    @Test
+    void everyBossToolInTheRegistryIsGovernedByTheBudget() throws Exception {
+        var scanner = new org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new org.springframework.core.type.filter.AssignableTypeFilter(
+                com.arthur.jdragresume.agent.tool.AgentTool.class));
+        int bossTools = 0;
+        for (var candidate : scanner.findCandidateComponents("com.arthur.jdragresume.agent.tool")) {
+            Class<?> type = Class.forName(candidate.getBeanClassName());
+            if (!type.getSimpleName().contains("Boss")) continue;
+            var tool = (com.arthur.jdragresume.agent.tool.AgentTool) org.mockito.Mockito.mock(type,
+                    org.mockito.Mockito.CALLS_REAL_METHODS);
+            assertTrue(JobSearchWorkflow.governs(tool.name()),
+                    type.getSimpleName() + " loads BOSS pages, so JobSearchWorkflow.BOSS_TOOLS must list it");
+            bossTools++;
+        }
+        assertEquals(JobSearchWorkflow.BOSS_TOOLS.size(), bossTools);
+    }
+
+    private void verify(List<AgentMessage> log, String id, long jobId, String result) {
+        log.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of(id, "verify_boss_job",
+                "{\"jobId\":" + jobId + "}"))));
+        log.add(AgentMessage.tool(id, result));
+    }
+
     private void add(List<AgentMessage> log, String id, String keyword, int pages, String data) throws Exception {
         log.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of(id, "collect_boss_jobs",
                 "{\"keyword\":\"" + keyword + "\",\"city\":\"深圳\",\"experience\":\"在校生\",\"maxPages\":" + pages + "}"))));

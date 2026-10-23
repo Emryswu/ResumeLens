@@ -17,6 +17,10 @@
   const SCROLL_WAIT_MS = 10_000;
   /** Finished tasks stay readable this long so a reconnecting page can still collect the result. */
   const RETENTION_MS = 2 * 60 * 60 * 1000;
+  /** When the last detail page was opened, so back-to-back verifications are spaced like page turns. */
+  const DETAIL_LAST_OPENED_KEY = "collect-detail-last-opened";
+  /** The tab the last verification used; the next one closes it so detail tabs never pile up. */
+  const DETAIL_TAB_KEY = "collect-detail-tab";
 
   const STOP_MESSAGES = Object.freeze({
     PERMISSION_REQUIRED: "插件还没获得 BOSS 直聘的访问授权：请点开插件弹窗，允许访问 BOSS 直聘后再试",
@@ -51,8 +55,12 @@
    * takes one unit of the daily page budget; a task that finds the budget spent ends there with
    * what it has read.
    *
+   * Each detail verification is a task of its own, so the page-turn pause inside a search does
+   * not cover it: a verification that follows another waits a random page delay first, and closes
+   * the previous verification's tab before opening its own.
+   *
    * Dependencies: browser { hasBossPermission, armApiCapture, disarmApiCapture, openTab,
-   * waitForLoad, readPage }, storage { get, set, remove, keys } (per session), daily { get, set,
+   * closeDetailTab, waitForLoad, readPage, readDetail }, storage { get, set, remove, keys } (per session), daily { get, set,
    * remove, keys } (persistent), today() → "YYYY-MM-DD" in local time, random() in [0, 1),
    * sleep(ms), now(), epoch.
    */
@@ -166,9 +174,14 @@
       try {
         if (!(await browser.hasBossPermission())) throw new CollectStop("PERMISSION_REQUIRED");
         if (command.mode === "detail") {
+          await paceDetail(state);
           if (!(await takeDailyPage(state))) throw new CollectStop("DAILY_LIMIT");
           progress(state, "opening");
+          const previousTab = await storage.get(DETAIL_TAB_KEY);
+          if (previousTab != null) await quietly(() => browser.closeDetailTab(previousTab));
           const tabId = await browser.openTab(command.sourceUrl);
+          await storage.set(DETAIL_TAB_KEY, tabId);
+          await storage.set(DETAIL_LAST_OPENED_KEY, now());
           const loaded = await browser.waitForLoad(tabId, LOAD_TIMEOUT_MS);
           const blocker = list.blockerFromUrl(loaded.url);
           if (blocker) throw new CollectStop(blocker);
@@ -237,6 +250,17 @@
         running.delete(state.taskId);
         await quietly(() => browser.disarmApiCapture());
       }
+    }
+
+    /** Waits out a random page delay since the previous detail page was opened, if any. */
+    async function paceDetail(state) {
+      const lastOpened = Number(await storage.get(DETAIL_LAST_OPENED_KEY)) || 0;
+      if (!lastOpened) return;
+      const waitMs = lastOpened + search.pageDelayMs(random) - now();
+      if (waitMs <= 0) return;
+      progress(state, "waiting", { delayMs: waitMs });
+      await sleep(waitMs);
+      checkCancelled(state);
     }
 
     async function dailyPagesUsed() {

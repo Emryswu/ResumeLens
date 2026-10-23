@@ -87,6 +87,14 @@ importScripts(
       return tab.id;
     },
 
+    /** Closes a previous verification tab, but only while it still shows a BOSS job detail page. */
+    async closeDetailTab(tabId) {
+      const tab = await chrome.tabs.get(tabId);
+      if (/^https:\/\/(?:[^/]+\.)?zhipin\.com\/job_detail\//i.test(tab.url || "")) {
+        await chrome.tabs.remove(tabId);
+      }
+    },
+
     waitForLoad(tabId, timeoutMs) {
       return new Promise((resolve, reject) => {
         const cleanup = () => {

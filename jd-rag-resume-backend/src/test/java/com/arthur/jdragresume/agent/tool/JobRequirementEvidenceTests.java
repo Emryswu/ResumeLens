@@ -32,4 +32,19 @@ class JobRequirementEvidenceTests {
         assertTrue(fields.internshipDuration().isEmpty());
         assertTrue(fields.daysPerWeek().isEmpty());
     }
+
+    @Test
+    void nonJavaPostingsAreNotReportedAsHavingNoTechStack() {
+        var frontend = JobRequirementEvidence.extract("岗位职责：负责 H5 页面开发。熟悉 React、TypeScript", "");
+        assertTrue(frontend.technologies().stream().anyMatch(x -> x.contains("React")));
+        assertTrue(frontend.unknownFields().stream().noneMatch(x -> x.startsWith("技术栈")));
+        var golang = JobRequirementEvidence.extract("负责服务端开发，使用 Go 语言", "");
+        assertTrue(golang.unknownFields().stream().noneMatch(x -> x.startsWith("技术栈")));
+    }
+
+    @Test
+    void aMissIsReportedAsNoCommonTechWordRatherThanNoStack() {
+        var fields = JobRequirementEvidence.extract("负责客户沟通与资料整理", "");
+        assertTrue(fields.unknownFields().stream().anyMatch(x -> x.startsWith("技术栈") && x.contains("以正文为准")));
+    }
 }
