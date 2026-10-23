@@ -78,7 +78,7 @@ class JobSearchWorkflowTests {
     }
 
     @Test
-    void agentLoopReallyRejectsTheFourthCollectionBeforeTheToolRuns() {
+    void agentLoopReallyRejectsTheFourthCollectionBeforeTheToolRuns() throws Exception {
         var properties = new AgentProperties();
         properties.setMaxSteps(10);
         properties.setMaxPlanningSteps(10);
