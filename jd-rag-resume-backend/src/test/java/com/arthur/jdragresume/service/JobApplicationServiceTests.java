@@ -59,6 +59,7 @@ class JobApplicationServiceTests {
 
     @Test
     void untrackedAndClearedAreDistinctFromUserRejection() {
+        doReturn(java.util.List.of()).when(jdbc).query(anyString(), any(org.springframework.jdbc.core.RowMapper.class), any(), any());
         assertEquals("UNTRACKED", service.get(21).status());
         service.clear(21);
         verify(jdbc).update(startsWith("DELETE FROM job_application"), eq(7L), eq(21L));
