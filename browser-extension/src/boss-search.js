@@ -92,7 +92,13 @@
       return invalid("sourceUrl 格式不正确");
     }
     const match = url.pathname.match(/^\/job_detail\/([^/]+)\.html\/?$/i);
-    if (!isBossUrl(url.href) || !match || decodeURIComponent(match[1]) !== sourceJobId
+    let urlJobId = "";
+    try {
+      if (match) urlJobId = decodeURIComponent(match[1]);
+    } catch {
+      return invalid("sourceUrl 岗位 ID 编码不正确");
+    }
+    if (!isBossUrl(url.href) || !match || urlJobId !== sourceJobId
         || url.search || url.hash || url.username || url.password) {
       return invalid("只能核实 BOSS 岗位详情页，且岗位 ID 必须一致");
     }

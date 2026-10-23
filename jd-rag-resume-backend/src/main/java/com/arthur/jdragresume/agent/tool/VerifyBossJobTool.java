@@ -58,6 +58,7 @@ public class VerifyBossJobTool implements DeferrableTool {
     @Override
     @Transactional
     public Object resume(JsonNode arguments, JsonNode report, AgentToolContext context) {
+        if (report == null || !report.isObject()) throw invalidReport();
         JobDescriptionResponse existing = jobs.findById(arguments.get("jobId").asLong());
         requireBoss(existing);
         requireBossUrl(existing.sourceUrl(), existing.sourceJobId());

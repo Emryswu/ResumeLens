@@ -138,7 +138,17 @@ importScripts(
         await chrome.scripting.executeScript({ target: { tabId }, files: ["src/boss-extractor.js"] });
         const [injection] = await chrome.scripting.executeScript({
           target: { tabId },
-          func: () => globalThis.ResumeLensBossExtractor.extract(document, location.href),
+          func: async () => {
+            // BOSS may render the body after the document load event. Do not store a blank shell.
+            const deadline = Date.now() + 15_000;
+            let detail;
+            do {
+              detail = globalThis.ResumeLensBossExtractor.extract(document, location.href);
+              if (detail.job.description.length >= 60) return detail;
+              await new Promise((resolve) => setTimeout(resolve, 400));
+            } while (Date.now() < deadline);
+            return detail;
+          },
         });
         return injection?.result;
       } catch {
