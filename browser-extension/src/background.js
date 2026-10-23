@@ -135,7 +135,7 @@ importScripts(
         throw new CollectStop("DETAIL_UNAVAILABLE");
       }
       try {
-        await chrome.scripting.executeScript({ target: { tabId }, files: ["src/boss-extractor.js"] });
+        await chrome.scripting.executeScript({ target: { tabId }, files: ["src/boss-extractor.js", "src/boss-list-extractor.js"] });
         const [injection] = await chrome.scripting.executeScript({
           target: { tabId },
           func: async () => {
@@ -143,11 +143,17 @@ importScripts(
             const deadline = Date.now() + 15_000;
             let detail;
             do {
+              const state = globalThis.ResumeLensBossListExtractor.inspect(document, location.href);
+              if (state.kind === "blocked") return { blocked: state.code };
               detail = globalThis.ResumeLensBossExtractor.extract(document, location.href);
-              if (detail.job.description.length >= 60) return detail;
+              // A meta description or search-list summary is not proof that the detail body loaded.
+              const hasRealBody = globalThis.ResumeLensBossExtractor.SELECTORS.description.some((selector) =>
+                [...document.querySelectorAll(selector)].some((node) =>
+                  String(node.innerText || node.textContent || "").trim().length >= 60));
+              if (hasRealBody && detail.job.description.length >= 60) return detail;
               await new Promise((resolve) => setTimeout(resolve, 400));
             } while (Date.now() < deadline);
-            return detail;
+            return null;
           },
         });
         return injection?.result;

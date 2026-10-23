@@ -178,6 +178,9 @@
           checkCancelled(state);
           progress(state, "verifying");
           const detail = await browser.readDetail(tabId);
+          if (detail?.blocked === "CAPTCHA" || detail?.blocked === "BOSS_NOT_LOGGED_IN") {
+            throw new CollectStop(detail.blocked);
+          }
           if (!detail?.job || detail.job.sourceJobId !== command.sourceJobId
               || detail.job.sourceUrl !== command.sourceUrl
               || detail.job.description.length < 60) {

@@ -111,6 +111,17 @@ test("detail verification refuses a short or mismatched posting", async () => {
   assert.deepEqual(task.jobs, []);
 });
 
+test("a blocked detail page is never treated as a complete JD", async () => {
+  const sourceUrl = "https://www.zhipin.com/job_detail/abc123.html";
+  const browser = fakeBrowser({ loadedUrl: sourceUrl });
+  browser.readDetail = async () => ({ blocked: "CAPTCHA" });
+  const { runner } = setup({ browser });
+  const { task } = await runToEnd(runner, { taskId: "detail_captcha", mode: "detail",
+    jobId: 17, sourceJobId: "abc123", sourceUrl });
+  assert.equal(task.stopReason, "CAPTCHA");
+  assert.deepEqual(task.jobs, []);
+});
+
 test("reads up to maxPages with a random pause before every extra page", async () => {
   const browser = fakeBrowser({ steps: [ready(["a", "b"]), ready(["a", "b", "c"]), ready(["a", "b", "c", "d"])] });
   const { runner, delays } = setup({ browser });
