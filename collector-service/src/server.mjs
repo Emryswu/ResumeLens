@@ -21,7 +21,6 @@ export async function createCollectorService({ token, dataDir, chromium, browser
       const browser = await browserFactory({ chromium, profileDir: userProfileDir(dataDir, userId) });
       browsers.push(browser);
       const runner = runnerModule.create({ browser, storage, daily: storage,
-        today: () => { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; },
         random: Math.random, now: Date.now, epoch: randomUUID(), sleep,
       });
       await runner.recoverStaleTasks();

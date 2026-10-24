@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.List;
@@ -38,7 +39,7 @@ class PatchrightJobCollectorHttpTests {
             var budget = mock(BossPageBudget.class);
             var events = new ArrayList<CollectionSession.Progress>();
             var session = new CollectionSession(1L, "42", "42:turn:call", "call", CollectorMode.PATCHRIGHT, System.currentTimeMillis() + 5000, events::add);
-            when(budget.reserve(eq(session), eq(session.reservationId()), eq(1))).thenReturn(new BossPageBudget.Grant(session.reservationId(), 1, 29));
+            when(budget.reserve(eq(session), eq(session.reservationId()), eq(1))).thenReturn(new BossPageBudget.Grant(session.reservationId(), 1, 29, LocalDate.of(2026, 10, 25)));
             when(budget.finish(session, session.reservationId(), 1)).thenReturn(29);
             var collector = new PatchrightJobCollector("http://127.0.0.1:" + server.getAddress().getPort(), "local-test-secret", json,
                     new BrowserExtensionJobCollector(), budget);
@@ -47,6 +48,7 @@ class PatchrightJobCollectorHttpTests {
             assertEquals(29, result.result().dailyPagesLeft());
             assertEquals(1, requests.size());
             assertEquals(1, requests.getFirst().path("pageAllowance").asInt());
+            assertEquals("2026-10-25", requests.getFirst().path("budgetDate").asText());
             assertEquals("42", requests.getFirst().path("conversationId").asText());
             assertEquals("connecting", events.getFirst().progress().path("phase").asText());
             assertEquals("NO_RESULTS", events.getLast().progress().path("finishReason").asText());

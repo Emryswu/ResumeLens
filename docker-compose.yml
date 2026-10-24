@@ -21,6 +21,7 @@ services:
     build:
       context: ./jd-rag-resume-backend
     environment:
+      TZ: Asia/Shanghai
       DB_URL: jdbc:mysql://mysql:3306/jd_rag_resume?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       DB_USERNAME: jd_app
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in compose.env}

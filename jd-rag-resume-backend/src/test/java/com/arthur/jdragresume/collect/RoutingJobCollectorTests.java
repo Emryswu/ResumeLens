@@ -4,6 +4,7 @@ import com.arthur.jdragresume.exception.BusinessException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
@@ -24,7 +25,7 @@ class RoutingJobCollectorTests {
 
     private void availableBudget() {
         when(budget.reserve(any(), anyString(), anyInt())).thenAnswer(call ->
-                new BossPageBudget.Grant(call.getArgument(1), call.getArgument(2), 29));
+                new BossPageBudget.Grant(call.getArgument(1), call.getArgument(2), 29, LocalDate.of(2026, 10, 25)));
         when(budget.finish(any(), anyString(), nullable(Integer.class))).thenReturn(29);
     }
 

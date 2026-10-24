@@ -53,6 +53,30 @@ test("HTTP service authenticates and validates the budget before opening a brows
   assert.equal(service.launches, 0);
 });
 
+test("HTTP accepts the backend's Shanghai budget date in a UTC runtime and rejects yesterday", async (t) => {
+  const previousZone = process.env.TZ;
+  process.env.TZ = "UTC";
+  t.after(() => { if (previousZone === undefined) delete process.env.TZ; else process.env.TZ = previousZone; });
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-10-24T17:30:00Z") });
+  assert.equal(new Date().getDate(), 24);
+  const service = await setup(t);
+  const stale = await (await service.request("/tasks", { ...service.command("stale"), budgetDate: "2026-10-24" })).json();
+  assert.equal(stale.type, "rejected");
+  assert.equal(stale.code, "DAILY_LIMIT");
+  assert.equal(service.opened.length, 0);
+  const started = await (await service.request("/tasks", { ...service.command("today"), budgetDate: "2026-10-25" })).json();
+  assert.equal(started.type, "accepted");
+  let result;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    result = await (await service.request("/tasks/test_today")).json();
+    if (result.task.status !== "running") break;
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+  assert.equal(result.task.status, "completed");
+  assert.equal(result.task.pagesLoaded, 1);
+  assert.equal(service.opened.length, 1);
+});
+
 test("HTTP tasks reuse one conversation tab across rounds and keep the shared runner's logs and pacing", async (t) => {
   const service = await setup(t);
   const first = await service.run(1);

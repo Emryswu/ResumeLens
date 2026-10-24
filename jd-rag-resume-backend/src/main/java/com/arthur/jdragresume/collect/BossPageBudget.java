@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Clock;
 import java.time.LocalDate;
 
 /** Both browsers reserve from the same persistent daily counter before any BOSS navigation. */
@@ -14,16 +15,18 @@ public class BossPageBudget {
     public static final int DAILY_LIMIT = 30;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
+    private final Clock clock;
 
-    public BossPageBudget(JdbcTemplate jdbc, PlatformTransactionManager manager) {
+    public BossPageBudget(JdbcTemplate jdbc, PlatformTransactionManager manager, Clock clock) {
         this.jdbc = jdbc;
+        this.clock = clock;
         this.transactions = new TransactionTemplate(manager);
         this.transactions.setPropagationBehavior(org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     public Grant reserve(CollectionSession session, String key, int pages) {
         return transactions.execute(status -> {
-            LocalDate date = LocalDate.now();
+            LocalDate date = LocalDate.now(clock);
             jdbc.update("INSERT IGNORE INTO boss_daily_budget(user_id,budget_date,pages) VALUES(?,?,0)", session.userId(), date);
             int used = jdbc.queryForObject("SELECT pages FROM boss_daily_budget WHERE user_id=? AND budget_date=? FOR UPDATE",
                     Integer.class, session.userId(), date);
@@ -65,7 +68,5 @@ public class BossPageBudget {
         });
     }
 
-    public record Grant(String key, int pages, int dailyPagesLeft, LocalDate date) {
-        public Grant(String key, int pages, int dailyPagesLeft) { this(key, pages, dailyPagesLeft, LocalDate.now()); }
-    }
+    public record Grant(String key, int pages, int dailyPagesLeft, LocalDate date) {}
 }

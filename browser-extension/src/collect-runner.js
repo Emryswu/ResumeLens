@@ -11,8 +11,11 @@
   "use strict";
 
   const KEY_PREFIX = "collect-task:";
-  /** Pages read per local day, in persistent storage so a browser restart does not reset it. */
+  /** Pages read per Shanghai day, in persistent storage so a browser restart does not reset it. */
   const DAILY_PREFIX = "collect-daily-pages:";
+  const BUDGET_DATE_FORMAT = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
+  });
   const LOAD_TIMEOUT_MS = 30_000;
   const FIRST_READ_WAIT_MS = 15_000;
   const SCROLL_WAIT_MS = 10_000;
@@ -47,11 +50,14 @@
    *
    * Dependencies: browser { hasBossPermission, armApiCapture, disarmApiCapture, openTab,
    * showProgress, waitForLoad, readPage, readDetail }, storage { get, set, remove, keys } (per session), daily { get, set,
-   * remove, keys } (persistent), today() → "YYYY-MM-DD" in local time, random() in [0, 1),
+   * remove, keys } (persistent), random() in [0, 1),
    * sleep(ms), now(), epoch.
    */
   function create(deps) {
-    const { browser, storage, daily, today, random, sleep, now, epoch } = deps;
+    const { browser, storage, daily, random, sleep, now, epoch } = deps;
+    function today() {
+      return BUDGET_DATE_FORMAT.format(now());
+    }
     const listeners = new Map();
     const cancelled = new Set();
     const running = new Map();

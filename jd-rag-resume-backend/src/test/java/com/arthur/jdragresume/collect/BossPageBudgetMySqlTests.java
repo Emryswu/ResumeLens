@@ -10,7 +10,10 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.concurrent.Executors;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -21,6 +24,7 @@ class BossPageBudgetMySqlTests {
             .withConfigurationOverride("mysql-9.7-conf");
     private JdbcTemplate jdbc;
     private BossPageBudget budget;
+    private final Clock clock = Clock.fixed(Instant.parse("2026-10-24T17:30:00Z"), ZoneId.of("Asia/Shanghai"));
     private final CollectionSession session = new CollectionSession(1L, "42", "task", "call", CollectorMode.AUTO, Long.MAX_VALUE, event -> {});
 
     @BeforeEach void setup() {
@@ -29,7 +33,7 @@ class BossPageBudgetMySqlTests {
         jdbc = new JdbcTemplate(source);
         jdbc.update("DELETE FROM app_user");
         jdbc.update("INSERT INTO app_user(id,created_at,updated_at,display_name,email,password_hash,username) VALUES(1,NOW(),NOW(),'User','budget@test.local','hash','budget')");
-        budget = new BossPageBudget(jdbc, new DataSourceTransactionManager(source));
+        budget = new BossPageBudget(jdbc, new DataSourceTransactionManager(source), clock);
     }
 
     @Test void bothBrowsersShareTheDailyCapAndOnlyDefiniteUnusedPagesAreReleased() {
@@ -47,7 +51,7 @@ class BossPageBudgetMySqlTests {
     }
 
     @Test void concurrentReservationsDoNotOverspendAndPreviousDaysDoNotConsumeToday() throws Exception {
-        jdbc.update("INSERT INTO boss_daily_budget VALUES(1,?,30)", LocalDate.now().minusDays(1));
+        jdbc.update("INSERT INTO boss_daily_budget VALUES(1,?,30)", LocalDate.now(clock).minusDays(1));
         try (var pool = Executors.newFixedThreadPool(2)) {
             var a = pool.submit(() -> budget.reserve(session, "a", 20));
             var b = pool.submit(() -> budget.reserve(session, "b", 20));
@@ -58,6 +62,6 @@ class BossPageBudgetMySqlTests {
             }
             assertEquals(1, admitted);
         }
-        assertEquals(20, jdbc.queryForObject("SELECT pages FROM boss_daily_budget WHERE user_id=1 AND budget_date=?", Integer.class, LocalDate.now()));
+        assertEquals(20, jdbc.queryForObject("SELECT pages FROM boss_daily_budget WHERE user_id=1 AND budget_date=?", Integer.class, LocalDate.now(clock)));
     }
 }
