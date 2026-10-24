@@ -38,7 +38,7 @@
     /** Hard ceiling enforced here, whatever the backend asks for. */
     maxPages: 3,
     maxJobs: 45,
-    /** BOSS pages one browser may load for collection per local day, across all tasks. */
+    /** BOSS pages one browser may load for collection per Shanghai day, across all tasks. */
     maxPagesPerDay: 30,
     keywordMaxChars: 50,
     /** Random pause before each additional page, in milliseconds. */
