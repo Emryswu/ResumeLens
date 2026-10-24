@@ -427,7 +427,7 @@ test("a budget that runs out mid-task ends the task with the pages already read"
   assert.equal(browser.calls.filter(([name]) => name === "scrollAndWait").length, 1);
 });
 
-test("the budget is per local day and survives a new worker; earlier days are cleaned up", async () => {
+test("the budget is per Shanghai day and survives a new worker; earlier days are cleaned up", async () => {
   const daily = memoryStorage();
   await daily.set(`${collectRunner.DAILY_PREFIX}2026-10-21`, search.LIMITS.maxPagesPerDay);
   await daily.set(`${collectRunner.DAILY_PREFIX}2026-10-22`, search.LIMITS.maxPagesPerDay);

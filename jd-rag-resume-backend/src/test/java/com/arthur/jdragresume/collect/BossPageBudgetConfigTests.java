@@ -12,12 +12,12 @@ class BossPageBudgetConfigTests {
     private final ApplicationContextRunner context = new ApplicationContextRunner()
             .withUserConfiguration(BossPageBudgetConfig.class);
 
-    @Test void theBudgetClockDefaultsToShanghaiRegardlessOfTheJvmZone() {
+    @Test void theBudgetClockUsesShanghai() {
         context.run(app -> assertEquals(ZoneId.of("Asia/Shanghai"), app.getBean(Clock.class).getZone()));
     }
 
-    @Test void theBudgetClockZoneCanBeConfigured() {
+    @Test void theRemovedZoneSettingCannotChangeTheSharedBudgetTimezone() {
         context.withPropertyValues("app.collect.budget-zone=UTC")
-                .run(app -> assertEquals(ZoneId.of("UTC"), app.getBean(Clock.class).getZone()));
+                .run(app -> assertEquals(ZoneId.of("Asia/Shanghai"), app.getBean(Clock.class).getZone()));
     }
 }
