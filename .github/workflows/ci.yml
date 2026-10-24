@@ -17,6 +17,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  collector-service:
+    name: 独立浏览器采集 · Patchright
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: collector-service/package-lock.json
+      - run: npm ci
+        working-directory: collector-service
+      - run: npm test
+        working-directory: collector-service
+      - run: npx patchright install --with-deps chromium
+        working-directory: collector-service
+      - run: npm run test:browser
+        working-directory: collector-service
+
   # commit 只署作者本人。只查本 PR 新增的提交（base..head），不回头查 main 的历史；
   # 检查逻辑在脚本里，本地可单独运行：node .github/scripts/check-commit-messages.mjs origin/main HEAD
   commit-messages:

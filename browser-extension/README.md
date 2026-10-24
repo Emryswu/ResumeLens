@@ -20,7 +20,7 @@ BOSS 页面结构变动时，扩展会保留可编辑表单并提示缺失字段
 - **授权**：BOSS 权限是可选权限（`optional_host_permissions`），默认没有。要在插件弹窗里点「允许访问 BOSS 直聘」才会生效，同一个位置可以撤销。未授权时，采集指令会直接返回 `PERMISSION_REQUIRED`，不会打开任何页面。
 - **指令只能来自 ResumeLens 网页**：网页通过 `window.postMessage` 发给本机 ResumeLens 页上的内容脚本，内容脚本再通过 port 转给 service worker。service worker 只接受来自 `localhost:3000` 和 `127.0.0.1:3000` 的连接。搜索 URL 由插件根据「关键词＋城市白名单」自己拼出来，不接受外部传入的 URL。
 - **节奏**：每条指令最多 3 页、最多 45 条。每多读一页之前，随机等待 3–7 秒。
-- **每日上限**：同一个浏览器每天（按本地日期）最多为采集加载 30 页 BOSS 搜索结果，第一页和每次滚动加载各算一页。计数存在 `chrome.storage.local`，浏览器重启不会清零。开始时额度已用完，指令以 `DAILY_LIMIT` 被拒绝，不会打开页面；采集途中用完，任务以 `finishReason: DAILY_LIMIT` 正常结束，已读到的岗位保留。结果里的 `dailyPagesLeft` 是今天还剩的页数。
+- **每日上限**：同一个浏览器每天（按北京时间）最多为采集加载 30 页 BOSS 搜索结果，第一页和每次滚动加载各算一页。计数存在 `chrome.storage.local`，浏览器重启不会清零。开始时额度已用完，指令以 `DAILY_LIMIT` 被拒绝，不会打开页面；采集途中用完，任务以 `finishReason: DAILY_LIMIT` 正常结束，已读到的岗位保留。结果里的 `dailyPagesLeft` 是今天还剩的页数。
 - **读数据的方式**：采集期间，插件在 BOSS 搜索页的页面环境（MAIN world）里注册一个脚本，在页面脚本之前包装 `fetch` 和 `XMLHttpRequest`，只抄下页面自己请求回来的岗位列表 JSON（`/wapi/zpgeek/search/joblist.json`）。它不改请求、不改响应，也不自己发任何请求；只记路径，不记带搜索词的查询串；任务结束就注销。翻页、3 页上限和随机等待都和以前一样由插件控制，页面状态（登录、验证、空结果、列表是否变长）仍然从 DOM 判断。截不到接口数据，或者接口格式变了、插件认不出时，退回从列表卡片 DOM 读取。每条岗位带 `captureSource`（`api` 或 `dom`），任务结果里的 `sources` 统计两种来源各有多少条。招聘者姓名、头像等字段不会被读取。
 - **遇到这些情况立即停止，不重试，已经读到的岗位会保留**：未登录、安全验证、页面结构无法识别、页面加载超时、标签页被关闭、跳转到无法读取的页面。停止原因以 `stopReason` 返回。
 - **进度和结果**：通过 port 持续推送，任务状态每一步都写入 `chrome.storage.session`。如果 service worker 在采集途中被浏览器重启，port 会断开，内容脚本随即重新连接并查询任务状态，新的 worker 会把它报告为 `WORKER_RESTARTED`。

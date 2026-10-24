@@ -55,10 +55,9 @@ function setup(overrides = {}) {
     browser,
     storage,
     daily,
-    today: overrides.today || (() => "2026-10-22"),
     random: overrides.random || (() => 0.5),
     sleep: overrides.sleep || (async (ms) => { delays.push(ms); }),
-    now: () => 1_000,
+    now: overrides.now || (() => Date.parse("2026-10-22T04:00:00Z")),
     epoch: overrides.epoch || "worker-1",
   });
   return { runner, storage, daily, browser, delays };
@@ -99,6 +98,36 @@ test("per-page source counts survive reconnects and reach the BOSS banner withou
   assert.equal(banners.at(-1).tabId, 7);
   assert.equal(banners.at(-1).task.finishReason, "MAX_PAGES");
   assert.deepEqual((await runner.status(COMMAND.taskId)).pageLog, task.pageLog);
+});
+
+test("the server page allowance stops both transports before another load and reports actual loads", async () => {
+  const browser = fakeBrowser({ steps: [ready(["a"])] });
+  const { runner } = setup({ browser });
+  const { task } = await runToEnd(runner, { ...COMMAND, pageAllowance: 1 });
+  assert.equal(task.finishReason, "DAILY_LIMIT");
+  assert.equal(task.pagesLoaded, 1);
+  assert.equal(browser.calls.filter(([name]) => name === "scrollAndWait").length, 0);
+});
+
+test("a reservation from yesterday cannot load BOSS pages against yesterday's shared budget", async () => {
+  const { runner, browser } = setup();
+  const started = await runner.start({ ...COMMAND, pageAllowance: 1, budgetDate: "2026-10-21" });
+  assert.equal(started.code, "DAILY_LIMIT");
+  assert.equal(browser.calls.length, 0);
+});
+
+test("the backend's Shanghai budget date is accepted after midnight in a UTC runtime", async (t) => {
+  const previousZone = process.env.TZ;
+  process.env.TZ = "UTC";
+  t.after(() => { if (previousZone === undefined) delete process.env.TZ; else process.env.TZ = previousZone; });
+  const instant = Date.parse("2026-10-24T17:30:00Z");
+  assert.equal(new Date(instant).getDate(), 24);
+  const { runner, daily } = setup({ now: () => instant, browser: fakeBrowser({ steps: [ready(["a"])] }) });
+  const { task } = await runToEnd(runner, { ...COMMAND, maxPages: 1, budgetDate: "2026-10-25" });
+  assert.equal(task.pagesLoaded, 1);
+  assert.equal(task.finishReason, "MAX_PAGES");
+  assert.equal(await daily.get(`${collectRunner.DAILY_PREFIX}2026-10-25`), 1);
+  assert.equal(await daily.get(`${collectRunner.DAILY_PREFIX}2026-10-24`), undefined);
 });
 
 test("detail verification reads a real posting and keeps it distinct from list summaries", async () => {
@@ -398,7 +427,7 @@ test("a budget that runs out mid-task ends the task with the pages already read"
   assert.equal(browser.calls.filter(([name]) => name === "scrollAndWait").length, 1);
 });
 
-test("the budget is per local day and survives a new worker; earlier days are cleaned up", async () => {
+test("the budget is per Shanghai day and survives a new worker; earlier days are cleaned up", async () => {
   const daily = memoryStorage();
   await daily.set(`${collectRunner.DAILY_PREFIX}2026-10-21`, search.LIMITS.maxPagesPerDay);
   await daily.set(`${collectRunner.DAILY_PREFIX}2026-10-22`, search.LIMITS.maxPagesPerDay);
@@ -410,7 +439,7 @@ test("the budget is per local day and survives a new worker; earlier days are cl
   assert.equal(await daily.get(`${collectRunner.DAILY_PREFIX}2026-10-21`), undefined);
   assert.equal(await daily.get("unrelated"), 1);
 
-  const nextDay = setup({ daily, today: () => "2026-10-23", browser: fakeBrowser({ steps: [ready(["a"])] }) });
+  const nextDay = setup({ daily, now: () => Date.parse("2026-10-23T04:00:00Z"), browser: fakeBrowser({ steps: [ready(["a"])] }) });
   assert.equal((await nextDay.runner.start({ ...COMMAND, maxPages: 1 })).ok, true);
 });
 

@@ -64,7 +64,7 @@ public class AgentChatService {
     /** Ownership, lease acquisition and request validation finish before opening SSE. */
     public SseEmitter chat(long conversationId, String question, TranscriptPolicy.Approval approval,
                            TranscriptPolicy.BrowserReport browserReport, boolean includeTrace,
-                           ReasoningEffort reasoningEffort) {
+                           ReasoningEffort reasoningEffort, com.arthur.jdragresume.collect.CollectorMode collectorMode) {
         AppUser user = currentUserService.getCurrentUser();
         // Resolve ownership before model/quota checks, including for writes and pending-action reports.
         conversations.detail(user.getId(), conversationId, 0);
@@ -92,7 +92,7 @@ public class AgentChatService {
         emitter.onError(error -> disconnected.set(true));
         try {
             agentTaskExecutor.execute(() -> runTurn(emitter, disconnected, run, approval, browserReport,
-                    new AgentToolContext(user, run), includeTrace, reasoningEffort));
+                    new AgentToolContext(user, run, collectorMode), includeTrace, reasoningEffort));
         } catch (TaskRejectedException ex) {
             conversations.fail(run, "AGENT_BUSY", "助手队列已满，本轮未执行");
             throw new BusinessException("AGENT_BUSY", "assistant is busy, please retry shortly");

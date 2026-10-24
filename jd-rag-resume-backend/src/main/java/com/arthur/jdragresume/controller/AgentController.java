@@ -46,7 +46,7 @@ public class AgentController {
                 : new TranscriptPolicy.BrowserReport(request.browserResult().toolCallId(), request.browserResult().taskId(),
                 request.browserResult().outcome(), request.browserResult().report());
         return agentChatService.chat(request.conversationId(), request.question(), approval, browserResult, request.includeTrace(),
-                request.reasoningEffort());
+                request.reasoningEffort(), request.collectorMode());
     }
 
     @JsonIgnoreProperties({"messages", "summary"})
@@ -56,10 +56,12 @@ public class AgentController {
             @Valid ApprovalRequest approval,
             @Valid BrowserResultRequest browserResult,
             boolean includeTrace,
-            ReasoningEffort reasoningEffort
+            ReasoningEffort reasoningEffort,
+            com.arthur.jdragresume.collect.CollectorMode collectorMode
     ) {
         public ChatRequest {
             reasoningEffort = reasoningEffort == null ? ReasoningEffort.HIGH : reasoningEffort;
+            collectorMode = collectorMode == null ? com.arthur.jdragresume.collect.CollectorMode.AUTO : collectorMode;
         }
     }
 

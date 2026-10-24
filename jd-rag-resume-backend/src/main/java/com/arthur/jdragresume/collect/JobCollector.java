@@ -24,6 +24,10 @@ public interface JobCollector {
     /** Turns a delegate's report for {@code request} into a result; rejects a report that does not fit. */
     CollectionResult complete(CollectRequest request, JsonNode report);
 
+    default Start start(CollectRequest request, CollectionSession session) { return start(request); }
+
+    default CollectionResult complete(CollectRequest request, JsonNode report, CollectionSession session) { return complete(request, report); }
+
     sealed interface Start permits Collected, Delegated {
     }
 

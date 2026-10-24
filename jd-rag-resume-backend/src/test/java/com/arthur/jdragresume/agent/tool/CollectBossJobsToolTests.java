@@ -30,7 +30,7 @@ class CollectBossJobsToolTests {
     private final FakeCollector collector = new FakeCollector();
     private final RecordingJobs jobs = new RecordingJobs();
     private final com.arthur.jdragresume.collect.JobCollectionHistory history = org.mockito.Mockito.mock(com.arthur.jdragresume.collect.JobCollectionHistory.class);
-    private final CollectBossJobsTool tool = new CollectBossJobsTool(List.of(collector), jobs, history);
+    private final CollectBossJobsTool tool = new CollectBossJobsTool(collector, jobs, history);
 
     @Test
     void missingOrBlankKeywordsAreRejectedBeforeCollectionUnlessBroadSearchIsExplicit() {
@@ -132,7 +132,7 @@ class CollectBossJobsToolTests {
 
         CollectBossJobsTool.Facts facts = (CollectBossJobsTool.Facts) tool.stepFacts(summary);
         assertEquals(new CollectBossJobsTool.Facts(1, 2, 1, 1, 0, "CAPTCHA", "需要验证", Map.of("dom", 2),
-                null, "需要验证", List.of()), facts);
+                null, "需要验证", List.of(), null), facts);
     }
 
     @Test
@@ -177,7 +177,7 @@ class CollectBossJobsToolTests {
     void anOversizedResultDropsJobRowsBeforeAnyId() {
         Iterator<String> names = objectMapper.valueToTree(new CollectBossJobsTool.Summary(
                 "k", "c", "在校生", "COMPLETED", null, null, null, 0, 0, 0, 0, 0, null, Map.of(), 0, null,
-                List.of(), List.of(), List.of(), "n")).fieldNames();
+                List.of(), List.of(), List.of(), null, "n")).fieldNames();
         List<String> order = new ArrayList<>();
         names.forEachRemaining(order::add);
         assertTrue(order.indexOf("jobs") < order.indexOf("jobIds"), "ToolEnvelope trims the first list it finds");

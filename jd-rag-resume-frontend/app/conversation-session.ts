@@ -2,6 +2,7 @@ import { agentChatReducer, initialAgentChatState, nextRequest, readAgentStream }
 import type { AgentChatState, AgentEvent, ReasoningEffort } from "./agent-stream.ts";
 import { CONVERSATIONS } from "./conversation-client.ts";
 import type { ConversationDetail, ConversationHeader } from "./conversation-client.ts";
+import type { CollectorMode } from "./collector-mode";
 
 type Input = ReturnType<typeof nextRequest>;
 type IO = {
@@ -164,7 +165,7 @@ export class ConversationSession {
     this.update({ chat: agentChatReducer(this.snapshot.chat, event) });
   };
 
-  send = async (input: Input, reasoningEffort: ReasoningEffort) => {
+  send = async (input: Input, reasoningEffort: ReasoningEffort, collectorMode?: CollectorMode) => {
     const detail = this.snapshot.detail;
     if (!detail || this.posting || this.snapshot.chat.busy) return;
     const generation = this.generation;
@@ -174,7 +175,8 @@ export class ConversationSession {
     clearTimeout(this.timer);
     this.update({ error: "", chat: { ...this.snapshot.chat, busy: true } });
     try {
-      const stream = await this.io.stream("/api/agent/chat", { ...input, conversationId: detail.conversation.id, reasoningEffort }, controller.signal);
+      const stream = await this.io.stream("/api/agent/chat", { ...input, conversationId: detail.conversation.id, reasoningEffort,
+        ...(collectorMode ? { collectorMode } : {}) }, controller.signal);
       if (!this.owns(generation)) { await stream.cancel(); return; }
       let chat = { ...this.snapshot.chat, busy: false };
       if ("question" in input) chat = agentChatReducer(chat, { type: "ask", question: input.question });

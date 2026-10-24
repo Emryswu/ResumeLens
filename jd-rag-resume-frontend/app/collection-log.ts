@@ -30,6 +30,7 @@ export type CollectionActivity = {
   pageLog?: PageRead[];
   finishReason?: string | null;
   stopReason?: string | null;
+  switchReason?: string | null;
 };
 
 export function collectionReason(activity: CollectionActivity): string | null {
@@ -43,7 +44,8 @@ export function collectionReason(activity: CollectionActivity): string | null {
 
 export function collectionLog(activity: CollectionActivity): string[] {
   const lines: string[] = [];
-  if (activity.phase || (activity.pagesRead ?? 0) > 0) lines.push("打开 BOSS 搜索页");
+  if (activity.switchReason) lines.push(activity.switchReason);
+  if ((activity.phase && activity.phase !== "connecting") || (activity.pagesRead ?? 0) > 0) lines.push("打开 BOSS 搜索页");
   for (const row of activity.pageLog ?? []) {
     lines.push(`第 ${row.page} 页读到 ${row.api + row.dom} 条（接口 ${row.api} 条 / 页面 ${row.dom} 条）`);
   }

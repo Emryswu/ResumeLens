@@ -234,8 +234,8 @@ class JobDescriptionMapperMySqlTests {
                 new CollectedListing("新采集岗位", "公司", "深圳", "全职", "摘要", "本科",
                         "https://www.zhipin.com/job_detail/fresh.html", "fresh", "dom"));
         var collected = new CollectionResult(CollectionResult.Outcome.COMPLETED, "MAX_PAGES", "完成", 1, listings, 0, null);
-        when(collector.start(any())).thenReturn(new JobCollector.Collected(collected));
-        var collect = new CollectBossJobsTool(List.of(collector), service, history);
+        when(collector.start(any(), any())).thenReturn(new JobCollector.Collected(collected));
+        var collect = new CollectBossJobsTool(collector, service, history);
         var search = new SearchJobsTool(service, history);
         var mapper = new ObjectMapper().findAndRegisterModules();
         var context = new AgentToolContext(owner);
@@ -256,7 +256,7 @@ class JobDescriptionMapperMySqlTests {
         assertEquals(null, jobs.findById(unknown).orElseThrow().getCollectionExperience());
 
         // The field describes the latest collection; recollecting fills/replaces it on known jobs too.
-        when(collector.start(any())).thenReturn(new JobCollector.Collected(new CollectionResult(
+        when(collector.start(any(), any())).thenReturn(new JobCollector.Collected(new CollectionResult(
                 CollectionResult.Outcome.COMPLETED, "MAX_PAGES", "完成", 1, List.of(listings.getFirst()), 0, null)));
         collect.begin(student.deepCopy().put("experience", "应届生"), context);
         jobs.flush();

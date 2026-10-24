@@ -7,8 +7,10 @@ import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.service.JobDescriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -18,7 +20,14 @@ class VerifyBossJobToolTests {
     private static final String URL = "https://www.zhipin.com/job_detail/abc123.html";
     private final ObjectMapper mapper = new ObjectMapper();
     private final JobDescriptionService jobs = mock(JobDescriptionService.class);
-    private final VerifyBossJobTool tool = new VerifyBossJobTool(jobs);
+    private final VerifyBossJobTool tool = new VerifyBossJobTool(jobs, new com.arthur.jdragresume.collect.RoutingJobCollector(null, null, null) {
+        @Override public Action startAction(Map<String, Object> command, com.arthur.jdragresume.collect.CollectionSession session) {
+            return new Action(command, null, null, 30);
+        }
+        @Override public Action completeAction(Map<String, Object> command, JsonNode report, com.arthur.jdragresume.collect.CollectionSession session) {
+            return new Action(command, report, null, 30);
+        }
+    });
     private final AgentToolContext context = new AgentToolContext(new AppUser());
 
     private JobDescriptionResponse job(String depth) {

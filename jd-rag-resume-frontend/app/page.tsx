@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Brain, CircleAlert, FlaskConical, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Sparkles, Upload } from "lucide-react";
+import { ArrowUp, Brain, CircleAlert, FlaskConical, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Plus, Sparkles, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
@@ -9,7 +9,7 @@ import { RetryButton } from "./components/StateBlock";
 import { ChoiceMenu } from "./components/ChoiceMenu";
 import { AgentMarkdown } from "./components/assistant/AgentMarkdown";
 import { AnalysisCard } from "./components/assistant/AnalysisCard";
-import { BrowserTaskCard, CompletedCollectionCards } from "./components/assistant/BrowserTaskCard";
+import { BrowserTaskCard, CompletedCollectionCards, RunningCollectorCards } from "./components/assistant/BrowserTaskCard";
 import { ConfirmationCard } from "./components/assistant/ConfirmationCard";
 import { LoginPage, type AuthForm, type AuthMode } from "./components/LoginPage";
 import { ProcessDrawer, StepTimeline } from "./components/assistant/StepTimeline";
@@ -26,6 +26,7 @@ import {
   type ReasoningEffort,
 } from "./agent-stream";
 import { runExtensionCollect } from "./extension-collect";
+import { COLLECTOR_OPTIONS, collectorStorageKey, readCollectorModes, type CollectorMode } from "./collector-mode";
 import { analysisPollTimeoutMs, pollAnalysisUntilSettled } from "./analysis-poll";
 import { runtimeModeLabel } from "./runtime-mode";
 import { modelDisplayName, REASONING_OPTIONS } from "./agent-model-display";
@@ -142,6 +143,10 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   const [draft, setDraft] = useState("");
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(() =>
     typeof window === "undefined" ? "high" : savedReasoningEffort(window.localStorage.getItem(REASONING_EFFORT_KEY)));
+  const [collectorModes, setCollectorModes] = useState<Record<number, CollectorMode>>(() => typeof window === "undefined"
+    ? {} : readCollectorModes(window.localStorage.getItem(collectorStorageKey(user.id))));
+  const conversationId = snapshot.detail?.conversation.id;
+  const collectorMode = conversationId == null ? "auto" : collectorModes[conversationId] ?? "auto";
   /** Null until known; zero shows the "prepare a resume first" card. */
   const [resumeCount, setResumeCount] = useState<number | null>(null);
   const [sampleRun, setSampleRun] = useState<SampleRun | null>(null);
@@ -215,7 +220,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     }
   }, [state.turns, sampleRun, aiStatus]);
 
-  const send = useCallback((body: ReturnType<typeof nextRequest>) => session.send(body, reasoningEffort), [session, reasoningEffort]);
+  const send = useCallback((body: ReturnType<typeof nextRequest>) => session.send(body, reasoningEffort, collectorMode), [session, reasoningEffort, collectorMode]);
   const [browserRunning, setBrowserRunning] = useState<string | null>(null);
 
   async function continueBrowser() {
@@ -414,6 +419,15 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
             onKeyDown={onKeyDown}
           />
           <div className="assistant-input-actions">
+            <ChoiceMenu label={`采集方式：${COLLECTOR_OPTIONS.find((option) => option.value === collectorMode)!.label.replace("采集方式：", "")}`}
+              value={collectorMode} options={COLLECTOR_OPTIONS} disabled={inputLocked || conversationId == null}
+              onChange={(mode) => {
+                const next = { ...collectorModes, [conversationId!]: mode };
+                window.localStorage.setItem(collectorStorageKey(user.id), JSON.stringify(next));
+                setCollectorModes(next);
+              }}>
+              <Plus size={17} aria-hidden="true" />
+            </ChoiceMenu>
             <ChoiceMenu label={`模型与思考档位：${displayModel}，${effortLabel}`}
               value={reasoningEffort} options={REASONING_OPTIONS} disabled={inputLocked}
               onChange={(effort) => {
@@ -476,10 +490,13 @@ function TurnView({
       )}
 
       <CompletedCollectionCards turn={turn} />
+      <RunningCollectorCards turn={turn} />
       {turn.browserTask && (
         <BrowserTaskCard
           task={turn.browserTask}
-          progress={turn.browserProgress}
+          progress={turn.collectorProgress?.[turn.browserTask.toolCallId]
+            ? { ...turn.collectorProgress[turn.browserTask.toolCallId].progress, switchReason: turn.collectorProgress[turn.browserTask.toolCallId].switchReason }
+            : turn.browserProgress}
           facts={turn.steps.find((step) => step.toolCallId === turn.browserTask?.toolCallId)?.facts ?? undefined}
           outcome={turn.browserOutcome}
           active={pendingBrowser?.taskId === turn.browserTask.taskId}

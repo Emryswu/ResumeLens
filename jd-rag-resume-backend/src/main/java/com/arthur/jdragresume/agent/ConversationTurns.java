@@ -60,6 +60,10 @@ public final class ConversationTurns {
                     }
                 }
                 case "note" -> ((ArrayNode) turn.get("notes")).add(data.path("content").asText());
+                case "collector_progress" -> {
+                    ObjectNode progress = turn.has("collectorProgress") ? (ObjectNode) turn.get("collectorProgress") : turn.putObject("collectorProgress");
+                    progress.set(data.path("toolCallId").asText(), data);
+                }
                 case "message" -> turn.put("answer", displayAnswer(data.path("content").asText()));
                 case "error" -> turn.set("error", data);
                 case "confirmation_required" -> {
