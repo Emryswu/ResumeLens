@@ -69,6 +69,9 @@ class VerifyBossJobToolTests {
         when(jobs.findById(17L)).thenReturn(job("FULL"));
         var next = assertInstanceOf(DeferrableTool.Done.class, tool.begin(arguments(), context));
         assertEquals("FULL", mapper.valueToTree(next.result()).path("captureDepth").asText());
+        assertEquals("ALREADY_FULL", mapper.valueToTree(next.result()).path("verificationStatus").asText());
+        assertEquals("ALREADY_FULL", mapper.valueToTree(tool.alreadyStoredFull(arguments()).result())
+                .path("verificationStatus").asText());
         verify(jobs, never()).capture(any());
     }
 
@@ -78,11 +81,21 @@ class VerifyBossJobToolTests {
         when(jobs.capture(any())).thenReturn(new JobCaptureResponse(job("FULL"), true, true));
         var output = mapper.valueToTree(tool.resume(arguments(), report("招聘本科 Java 后端实习生，每周到岗五天。".repeat(5)), context));
         assertEquals("FULL", output.path("captureDepth").asText());
+        assertEquals("SAVED_FULL", output.path("verificationStatus").asText());
         var request = org.mockito.ArgumentCaptor.forClass(JobCaptureRequest.class);
         verify(jobs).capture(request.capture());
         assertEquals("abc123", request.getValue().sourceJobId());
         assertEquals(URL, request.getValue().sourceUrl());
         assertTrue(request.getValue().description().contains("每周到岗五天"));
+    }
+
+    @Test
+    void aCaptureThatDidNotPersistFullCannotClaimVerification() {
+        when(jobs.findById(17L)).thenReturn(job("LISTING"));
+        when(jobs.capture(any())).thenReturn(new JobCaptureResponse(job("LISTING"), true, true));
+        assertEquals("BOSS_DETAIL_INVALID", assertThrows(BusinessException.class, () ->
+                tool.resume(arguments(), report("招聘本科 Java 后端实习生，每周到岗五天。".repeat(5)), context)).getCode());
+        verify(jobs).capture(any());
     }
 
     @Test
