@@ -526,18 +526,25 @@ public class AgentLoop {
         requireActive(deadline, cancelled);
         DeferrableTool.Begin begin;
         try {
-            if (JobSearchWorkflow.governs(call.name())) {
-                String refused = JobSearchWorkflow.refuse(
-                        JobSearchWorkflow.inspect(transcript, objectMapper, call.id()), call.name(), prepared.arguments());
-                if (refused != null) {
-                    record(call, sink, transcript, clock.getAsLong() - started,
-                            ToolEnvelope.error(call.name(), JobSearchWorkflow.BUDGET_ERROR, refused), false,
-                            JobSearchWorkflow.BUDGET_ERROR, refused);
-                    return null;
+            // Tools may validate a browser call or complete a read-only fast path
+            // before the page budget is checked, without coupling this loop to their type.
+            DeferrableTool.Done preBudgetResult = tool.beforeBudget(prepared.arguments());
+            if (preBudgetResult != null) {
+                begin = preBudgetResult;
+            } else {
+                if (JobSearchWorkflow.governs(call.name())) {
+                    String refused = JobSearchWorkflow.refuse(
+                            JobSearchWorkflow.inspect(transcript, objectMapper, call.id()), call.name(), prepared.arguments());
+                    if (refused != null) {
+                        record(call, sink, transcript, clock.getAsLong() - started,
+                                ToolEnvelope.error(call.name(), JobSearchWorkflow.BUDGET_ERROR, refused), false,
+                                JobSearchWorkflow.BUDGET_ERROR, refused);
+                        return null;
+                    }
                 }
+                begin = tool.begin(prepared.arguments(), context.forCollection(call.id(), deadline,
+                        progress -> sink.emit("collector_progress", progress)));
             }
-            begin = tool.begin(prepared.arguments(), context.forCollection(call.id(), deadline,
-                    progress -> sink.emit("collector_progress", progress)));
         } catch (RuntimeException ex) {
             ToolFailure failure = ToolFailure.of(ex, call.name());
             record(call, sink, transcript, clock.getAsLong() - started,

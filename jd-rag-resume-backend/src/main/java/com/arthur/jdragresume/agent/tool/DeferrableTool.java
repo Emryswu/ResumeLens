@@ -11,6 +11,15 @@ import java.util.Map;
  * with the arguments the server recorded when it handed the command out.
  */
 public interface DeferrableTool extends AgentTool {
+    /**
+     * Optional preflight executed before the workflow budget gate. Implementations may validate
+     * that a browser task can start or return an already-completed read-only result.
+     * Returning null means continue with the normal budget check and {@link #begin}.
+     */
+    default Done beforeBudget(JsonNode arguments) {
+        return null;
+    }
+
     Begin begin(JsonNode arguments, AgentToolContext context);
 
     /** {@code report} arrived through the user's browser: untrusted, validated by the tool. */

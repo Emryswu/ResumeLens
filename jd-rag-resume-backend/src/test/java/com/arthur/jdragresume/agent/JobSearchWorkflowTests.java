@@ -138,24 +138,111 @@ class JobSearchWorkflowTests {
     void verificationsShareTheBudgetAndRefusedCallsDoNotUseItUp() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳 Java 实习")));
         add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[1,2,3,4,5,6,7],\"dailyPagesLeft\":10}");
-        for (int i = 1; i <= 4; i++) verify(log, "v" + i, i, "{\"tool\":\"verify_boss_job\",\"ok\":true}");
+        for (int i = 1; i <= 4; i++) verify(log, "v" + i, i, "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":" + i + ",\"captureDepth\":\"FULL\",\"verificationStatus\":\"SAVED_FULL\"}}");
         verify(log, "dup", 1, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"JOB_SEARCH_BUDGET\"}}");
         var progress = JobSearchWorkflow.inspect(log, mapper);
-        assertEquals(List.of(1L, 2L, 3L, 4L), progress.verifiedJobIds(), "a refused call is not counted");
+        assertEquals(List.of(1L, 2L, 3L, 4L), progress.verifiedIds(), "a refused call is not counted");
         assertEquals(6, progress.dailyPagesLeft(), "each verification takes one daily page");
-        assertTrue(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":2}")).contains("已经发起过核实"));
+        assertTrue(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":2}")).contains("已尝试或完成核实"));
         assertNull(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":5}")));
-        verify(log, "v5", 5, "{\"tool\":\"verify_boss_job\",\"ok\":true}");
+        verify(log, "v5", 5, "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":5,\"captureDepth\":\"FULL\",\"verificationStatus\":\"SAVED_FULL\"}}");
         assertTrue(JobSearchWorkflow.refuse(JobSearchWorkflow.inspect(log, mapper), "verify_boss_job",
                 mapper.readTree("{\"jobId\":6}")).contains("核实上限"));
-        assertTrue(JobSearchWorkflow.guidance(JobSearchWorkflow.inspect(log, mapper)).contains("已核实完整 JD 5/5"));
+        assertTrue(JobSearchWorkflow.guidance(JobSearchWorkflow.inspect(log, mapper)).contains("已核实完整 JD 5 个"));
+    }
+
+    @Test
+    void failedAndPendingVerificationSpendAttemptsWithoutClaimingFullJd() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        verify(log, "failed", 1, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_UNAVAILABLE\"}}");
+        log.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("pending", "verify_boss_job", "{\"jobId\":2}"))));
+        var pending = JobSearchWorkflow.inspect(log, mapper);
+        assertEquals(List.of(1L, 2L), pending.attemptedIds());
+        assertTrue(pending.verifiedIds().isEmpty());
+        assertTrue(JobSearchWorkflow.guidance(pending).contains("已核实完整 JD 0 个"));
+        log.add(AgentMessage.tool("pending", "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":2,\"captureDepth\":\"FULL\",\"verificationStatus\":\"SAVED_FULL\"}}"));
+        var completed = JobSearchWorkflow.inspect(log, mapper);
+        assertEquals(List.of(1L, 2L), completed.attemptedIds());
+        assertEquals(List.of(2L), completed.verifiedIds());
+    }
+
+    @Test
+    void alreadyFullIsVerifiedWithoutSpendingAttemptBudget() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        verify(log, "full", 17, "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":17,\"captureDepth\":\"FULL\",\"verificationStatus\":\"ALREADY_FULL\"}}");
+        var progress = JobSearchWorkflow.inspect(log, mapper);
+        assertTrue(progress.attemptedIds().isEmpty());
+        assertEquals(List.of(17L), progress.verifiedIds());
+    }
+
+    @Test
+    void fiveFailedVerificationsStillExhaustAttemptBudget() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        for (int i = 1; i <= 5; i++)
+            verify(log, "failed" + i, i, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_INVALID\"}}");
+        var progress = JobSearchWorkflow.inspect(log, mapper);
+        assertEquals(5, progress.attemptedIds().size());
+        assertTrue(progress.verifiedIds().isEmpty());
+        assertTrue(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":6}")).contains("核实上限"));
+    }
+
+    @Test
+    void missingJobBeforeBrowserRefundsVerificationAndDailyPageEstimate() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[91,92],\"dailyPagesLeft\":8}");
+        verify(log, "missing", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_VERIFY_JOB_NOT_FOUND\"}}");
+        var progress = JobSearchWorkflow.inspect(log, mapper);
+        assertTrue(progress.attemptedIds().isEmpty());
+        assertTrue(progress.verifiedIds().isEmpty());
+        assertEquals(8, progress.dailyPagesLeft());
+    }
+
+    @Test
+    void invalidUrlAndUnsupportedSourceBeforeBrowserRefundVerificationAndDailyPageEstimate() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[91,92],\"dailyPagesLeft\":8}");
+        verify(log, "invalidUrl", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_URL_INVALID\"}}");
+        var afterUrl = JobSearchWorkflow.inspect(log, mapper);
+        assertTrue(afterUrl.attemptedIds().isEmpty());
+        assertEquals(8, afterUrl.dailyPagesLeft());
+        verify(log, "unsupported", 92, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_UNSUPPORTED\"}}");
+        var afterSource = JobSearchWorkflow.inspect(log, mapper);
+        assertTrue(afterSource.attemptedIds().isEmpty());
+        assertTrue(afterSource.verifiedIds().isEmpty());
+        assertEquals(8, afterSource.dailyPagesLeft());
+    }
+
+    @Test
+    void invalidReportAfterBrowserDoesNotRefundVerificationAttempt() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[91],\"dailyPagesLeft\":8}");
+        verify(log, "invalidReport", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_INVALID\"}}");
+        var progress = JobSearchWorkflow.inspect(log, mapper);
+        assertEquals(List.of(91L), progress.attemptedIds());
+        assertTrue(progress.verifiedIds().isEmpty());
+        assertEquals(7, progress.dailyPagesLeft());
+    }
+
+    @Test
+    void preflightRefundAtZeroDailyPagesDoesNotInventAvailablePages() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[91],\"dailyPagesLeft\":0}");
+        verify(log, "missing", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_VERIFY_JOB_NOT_FOUND\"}}");
+        var progress = JobSearchWorkflow.inspect(log, mapper);
+        assertTrue(progress.attemptedIds().isEmpty());
+        assertEquals(0, progress.dailyPagesLeft());
+        verify(log, "full", 91, "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":91,\"captureDepth\":\"FULL\",\"verificationStatus\":\"ALREADY_FULL\"}}");
+        var full = JobSearchWorkflow.inspect(log, mapper);
+        assertTrue(full.attemptedIds().isEmpty());
+        assertEquals(List.of(91L), full.verifiedIds());
+        assertEquals(0, full.dailyPagesLeft());
     }
 
     @Test
     void verificationIsRefusedWhenTheDailyPagesAreGone() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
         add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[1,2],\"dailyPagesLeft\":1}");
-        verify(log, "v1", 1, "{\"tool\":\"verify_boss_job\",\"ok\":true}");
+        verify(log, "v1", 1, "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":1,\"captureDepth\":\"FULL\",\"verificationStatus\":\"SAVED_FULL\"}}");
         assertTrue(JobSearchWorkflow.refuse(JobSearchWorkflow.inspect(log, mapper), "verify_boss_job",
                 mapper.readTree("{\"jobId\":2}")).contains("剩余页数已用完"));
     }
@@ -172,7 +259,7 @@ class JobSearchWorkflowTests {
             public ToolSchema parameters() { return ToolSchema.object().integer("jobId", "job", true, 1, Long.MAX_VALUE); }
             public Begin begin(JsonNode arguments, AgentToolContext context) {
                 verifications.incrementAndGet();
-                return new Done(Map.of("captureDepth", "FULL"));
+                return new Done(Map.of("jobId", arguments.path("jobId").asLong(), "captureDepth", "FULL", "verificationStatus", "SAVED_FULL"));
             }
             public Object resume(JsonNode arguments, JsonNode report, AgentToolContext context) { return Map.of(); }
         };
@@ -188,6 +275,109 @@ class JobSearchWorkflowTests {
                 null, new AgentToolContext(new AppUser()), (name, data) -> {}, () -> false);
         assertEquals(AgentLoop.State.COMPLETED, result.state());
         assertEquals(JobSearchWorkflow.MAX_VERIFICATIONS, verifications.get());
+    }
+
+    @Test
+    void agentLoopPreflightErrorsNeverStartBrowserOrSpendDailyPages() throws Exception {
+        var properties = new AgentProperties();
+        properties.setMaxSteps(10);
+        properties.setMaxPlanningSteps(10);
+        DeferrableTool collector = new DeferrableTool() {
+            public String name() { return "collect_boss_jobs"; }
+            public String description() { return "test"; }
+            public ToolSchema parameters() {
+                return ToolSchema.object().string("keyword", "keyword", true, 50)
+                        .string("city", "city", true, 10)
+                        .string("experience", "experience", false, 10)
+                        .integer("maxPages", "pages", false, 1, 3);
+            }
+            public Begin begin(JsonNode arguments, AgentToolContext context) {
+                return new Done(Map.of("pagesRead", 1, "jobIds", List.of(404L, 18L), "dailyPagesLeft", 8));
+            }
+            public Object resume(JsonNode arguments, JsonNode report, AgentToolContext context) { return Map.of(); }
+        };
+        var jobs = org.mockito.Mockito.mock(com.arthur.jdragresume.service.JobDescriptionService.class);
+        org.mockito.Mockito.when(jobs.findById(404L)).thenThrow(
+                new com.arthur.jdragresume.exception.ResourceNotFoundException("JobDescription", 404L));
+        org.mockito.Mockito.when(jobs.findById(18L)).thenReturn(
+                new com.arthur.jdragresume.dto.job.JobDescriptionResponse(
+                        18L, 1L, "Java 实习", "示例科技", "深圳", "实习", "在校生",
+                        "列表摘要", "本科", "BOSS",
+                        "https://evil.example/job_detail/abc123.html", "abc123",
+                        null, null, "LISTING", null, null));
+        var collectors = org.mockito.Mockito.mock(com.arthur.jdragresume.collect.RoutingJobCollector.class);
+        var verifier = new com.arthur.jdragresume.agent.tool.VerifyBossJobTool(jobs, collectors);
+        AgentModel model = (system, transcript, tools, timeout) -> {
+            long results = transcript.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
+            if (results == 0) return AgentModel.Reply.call(AgentMessage.ToolCall.of("collect", "collect_boss_jobs",
+                    "{\"keyword\":\"Java后端\",\"city\":\"深圳\",\"experience\":\"在校生\",\"maxPages\":1}"));
+            if (results == 1) return AgentModel.Reply.call(AgentMessage.ToolCall.of("missing", "verify_boss_job",
+                    "{\"jobId\":404}"));
+            if (results == 2) return AgentModel.Reply.call(AgentMessage.ToolCall.of("bad-url", "verify_boss_job",
+                    "{\"jobId\":18}"));
+            return AgentModel.Reply.answer("两条职位都无法开始浏览器核实");
+        };
+        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(collector, verifier)), mapper, properties,
+                System::currentTimeMillis);
+        var result = loop.run(new TranscriptPolicy(properties).normalize(List.of(AgentMessage.user("找深圳实习")), null),
+                null, new AgentToolContext(new AppUser()), (name, data) -> {}, () -> false);
+        assertEquals(AgentLoop.State.COMPLETED, result.state());
+        var toolResults = result.transcript().stream().filter(m -> AgentMessage.TOOL.equals(m.role())).toList();
+        assertEquals(3, toolResults.size());
+        assertEquals("BOSS_VERIFY_JOB_NOT_FOUND", mapper.readTree(toolResults.get(1).content())
+                .path("error").path("code").asText());
+        assertEquals("BOSS_DETAIL_URL_INVALID", mapper.readTree(toolResults.get(2).content())
+                .path("error").path("code").asText());
+        var progress = JobSearchWorkflow.inspect(result.transcript(), mapper);
+        assertTrue(progress.attemptedIds().isEmpty());
+        assertTrue(progress.verifiedIds().isEmpty());
+        assertEquals(8, progress.dailyPagesLeft());
+        org.mockito.Mockito.verifyNoInteractions(collectors);
+    }
+
+    @Test
+    void aStoredFullJdBypassesFiveSpentAttemptsWithoutOpeningTheBrowser() throws Exception {
+        var properties = new AgentProperties();
+        properties.setMaxSteps(10);
+        properties.setMaxPlanningSteps(10);
+        var jobs = org.mockito.Mockito.mock(com.arthur.jdragresume.service.JobDescriptionService.class);
+        org.mockito.Mockito.when(jobs.findById(org.mockito.ArgumentMatchers.anyLong())).thenAnswer(call -> {
+            long id = call.getArgument(0);
+            String sourceId = "post" + id;
+            return new com.arthur.jdragresume.dto.job.JobDescriptionResponse(id, 1L, "Java 实习", "示例科技", "深圳",
+                    "实习", "在校生", "（BOSS 搜索列表摘要）", "本科", "BOSS",
+                    "https://www.zhipin.com/job_detail/" + sourceId + ".html", sourceId,
+                    null, null, id == 17 ? "FULL" : "LISTING", null, null);
+        });
+        var collectors = org.mockito.Mockito.mock(com.arthur.jdragresume.collect.RoutingJobCollector.class);
+        org.mockito.Mockito.when(collectors.startAction(org.mockito.ArgumentMatchers.anyMap(),
+                        org.mockito.ArgumentMatchers.nullable(com.arthur.jdragresume.collect.CollectionSession.class)))
+                .thenThrow(new com.arthur.jdragresume.exception.BusinessException("BOSS_DETAIL_UNAVAILABLE", "详情页读取失败"));
+        var verifier = new com.arthur.jdragresume.agent.tool.VerifyBossJobTool(jobs, collectors);
+        AgentModel model = (system, transcript, tools, timeout) -> {
+            long results = transcript.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
+            if (results == 6) return AgentModel.Reply.answer("完整 JD 已核实");
+            long jobId = results == 5 ? 17 : results + 1;
+            return AgentModel.Reply.call(AgentMessage.ToolCall.of("v" + (results + 1), "verify_boss_job",
+                    "{\"jobId\":" + jobId + "}"));
+        };
+        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(verifier)), mapper, properties,
+                System::currentTimeMillis);
+        var result = loop.run(new TranscriptPolicy(properties).normalize(List.of(AgentMessage.user("找深圳实习")), null),
+                null, new AgentToolContext(new AppUser()), (name, data) -> {}, () -> false);
+        assertEquals(AgentLoop.State.COMPLETED, result.state());
+        var progress = JobSearchWorkflow.inspect(result.transcript(), mapper);
+        assertEquals(List.of(1L, 2L, 3L, 4L, 5L), progress.attemptedIds(),
+                "five failed browser attempts still consume the verification budget");
+        assertEquals(List.of(17L), progress.verifiedIds(), "stored FULL adds only a verified id");
+        var toolResults = result.transcript().stream().filter(m -> AgentMessage.TOOL.equals(m.role())).toList();
+        assertEquals(6, toolResults.size());
+        assertEquals("ALREADY_FULL", mapper.readTree(toolResults.get(5).content())
+                .path("untrusted_data").path("verificationStatus").asText());
+        org.mockito.Mockito.verify(jobs, org.mockito.Mockito.times(1)).findById(17L);
+        org.mockito.Mockito.verify(collectors, org.mockito.Mockito.times(5)).startAction(
+                org.mockito.ArgumentMatchers.anyMap(),
+                org.mockito.ArgumentMatchers.nullable(com.arthur.jdragresume.collect.CollectionSession.class));
     }
 
     @Test
