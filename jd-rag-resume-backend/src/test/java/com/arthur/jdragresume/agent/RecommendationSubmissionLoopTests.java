@@ -79,11 +79,11 @@ class RecommendationSubmissionLoopTests {
     }
 
     private String item(long id, String evidence) {
-        return "{\\"jobId\\":" + id + ",\\"reason\\":\\"项目技术栈相符\\",\\"evidence\\":\\"" + evidence + "\\"}";
+        return "{\"jobId\":" + id + ",\"reason\":\"项目技术栈相符\",\"evidence\":\"" + evidence + "\"}";
     }
 
     private String proposal(String... items) {
-        return "{\\"recommendations\\":[" + String.join(",", items) + "]}";
+        return "{\"recommendations\":[" + String.join(",", items) + "]}";
     }
 
     private AgentLoop.Outcome run(String question, AgentModel model, List<String> messages) {
@@ -137,7 +137,7 @@ class RecommendationSubmissionLoopTests {
         String explanation = "浏览器插件没登录，采集没成功。请先登录 BOSS，再试一次。";
         List<String> outputs = new ArrayList<>();
         run((system, transcript, tools, timeout) -> calls.getAndIncrement() == 0
-                ? AgentModel.Reply.call(call("collect", "collect_boss_jobs", "{\\"fail\\":true}"))
+                ? AgentModel.Reply.call(call("collect", "collect_boss_jobs", "{\"fail\":true}"))
                 : AgentModel.Reply.answer(explanation), outputs);
         assertEquals(explanation, outputs.getLast());
     }
