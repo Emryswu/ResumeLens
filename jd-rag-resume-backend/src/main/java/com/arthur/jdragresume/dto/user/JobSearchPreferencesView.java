@@ -1,6 +1,8 @@
 package com.arthur.jdragresume.dto.user;
 
 import com.arthur.jdragresume.entity.JobSearchPreferences;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import java.time.LocalDate;
 
 public record JobSearchPreferencesView(
@@ -11,7 +13,7 @@ public record JobSearchPreferencesView(
         String preferredDistrict,
         boolean districtRequired,
         Integer educationLevel,
-        LocalDate expectedGraduationDate,
+        @JsonSerialize(using = ToStringSerializer.class) LocalDate expectedGraduationDate,
         Integer workExperienceYears,
         Boolean currentlyStudent
 ) {
