@@ -455,12 +455,17 @@ public class AgentLoop {
         return count;
     }
 
-    /** A read-only closing call cannot bypass a missing recommendation submission. */
+    /** Job-search answers cannot invent a recommendation when no submit call was accepted. */
     private String recommendationSafeAnswer(String answer, List<AgentMessage> transcript) {
-        if (recommendationTurn(transcript) && recommendationDataExists(transcript)) {
-            return "已取得部分岗位数据，但本轮没有通过完整 JD、条件及原文证据的推荐提交，暂不列为正式推荐；可继续核实后再提交。";
-        }
-        return safeAnswer(answer);
+        if (!recommendationTurn(transcript)) return safeAnswer(answer);
+        var progress = JobSearchWorkflow.inspect(transcript, objectMapper);
+        StringBuilder message = new StringBuilder("本轮没有通过 submit_recommendations 验收的正式岗位推荐。");
+        message.append("已采集候选 ").append(progress.uniqueJobs()).append(" 个，")
+                .append("本轮核实完整 JD ").append(progress.verifiedIds().size()).append(" 个，")
+                .append("条件确认符合 ").append(progress.qualifiedIds().size()).append(" 个。");
+        if (progress.haltReason() != null) message.append("采集受限：").append(progress.haltReason()).append("。");
+        message.append("未核实的岗位不能当作正式推荐。");
+        return message.toString();
     }
 
     private boolean recommendationTurn(List<AgentMessage> transcript) {
@@ -470,26 +475,6 @@ public class AgentLoop {
         return question.contains("推荐岗位") || question.contains("推荐职位")
                 || question.contains("推荐实习") || question.contains("再找几个")
                 || question.contains("再推荐") || question.contains("还有哪些岗位");
-    }
-
-    private boolean recommendationDataExists(List<AgentMessage> transcript) {
-        for (AgentMessage message : transcript) {
-            if (!AgentMessage.TOOL.equals(message.role())) continue;
-            JsonNode result;
-            try {
-                result = readEnvelope(message.content());
-            } catch (IllegalStateException ex) {
-                // Legacy compacted tool records can be plain text rather than full envelopes.
-                continue;
-            }
-            String name = result.path("tool").asText();
-            if (SubmitRecommendationsTool.TOOL.equals(name)) return true;
-            if (result.path("ok").asBoolean(false) && (
-                    "collect_boss_jobs".equals(name) || "search_jobs".equals(name)
-                            || "rank_jobs_for_resume".equals(name) || "get_job".equals(name)
-                            || "verify_boss_job".equals(name) || "check_job_preferences".equals(name))) return true;
-        }
-        return false;
     }
 
     private static final String LIMIT_FALLBACK = "本轮查询已达到步骤上限，已获得的结果已保留，可在处理过程中查看。部分方向尚未核实，暂时无法给出完整判断。";
