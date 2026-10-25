@@ -4,7 +4,6 @@ import com.arthur.jdragresume.agent.tool.AgentTool;
 import com.arthur.jdragresume.agent.tool.AgentToolContext;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.agent.tool.DeferrableTool;
-import com.arthur.jdragresume.agent.tool.VerifyBossJobTool;
 import com.arthur.jdragresume.agent.tool.ToolText;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.ai.ReasoningEffort;
@@ -527,12 +526,11 @@ public class AgentLoop {
         requireActive(deadline, cancelled);
         DeferrableTool.Begin begin;
         try {
-            // Stored FULL is a read-only fast path; it must not be denied by a browser budget.
-            // LISTING still passes through the budget gate before the browser can start.
-            DeferrableTool.Done storedFull = tool instanceof VerifyBossJobTool verifier
-                    ? verifier.alreadyStoredFull(prepared.arguments()) : null;
-            if (storedFull != null) {
-                begin = storedFull;
+            // Tools may validate a browser call or complete a read-only fast path
+            // before the page budget is checked, without coupling this loop to their type.
+            DeferrableTool.Done preBudgetResult = tool.beforeBudget(prepared.arguments());
+            if (preBudgetResult != null) {
+                begin = preBudgetResult;
             } else {
                 if (JobSearchWorkflow.governs(call.name())) {
                     String refused = JobSearchWorkflow.refuse(
