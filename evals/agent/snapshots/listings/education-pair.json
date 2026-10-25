@@ -1,0 +1,39 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "stopReason": null,
+    "pagesRead": 1,
+    "dailyPagesLeft": 24,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "evalJobId": 104,
+        "title": "Java 后端实习（硕士及以上）",
+        "companyName": "学历回放科技",
+        "location": "深圳·南山区",
+        "employmentType": "实习",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）",
+        "requirements": "硕士及以上；Java、Spring Boot",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/eval104.html",
+        "sourceJobId": "eval104",
+        "captureSource": "api"
+      },
+      {
+        "evalJobId": 105,
+        "title": "Java 后端实习（本科及以上，硕士优先）",
+        "companyName": "学历回放科技",
+        "location": "深圳·南山区",
+        "employmentType": "实习",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）",
+        "requirements": "本科及以上，硕士优先；Java、Spring Boot",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/eval105.html",
+        "sourceJobId": "eval105",
+        "captureSource": "api"
+      }
+    ]
+  }
+}
