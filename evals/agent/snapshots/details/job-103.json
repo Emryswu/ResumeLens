@@ -1,0 +1,26 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "DETAIL_READ",
+    "command": {
+      "mode": "detail",
+      "jobId": 103,
+      "sourceJobId": "eval103",
+      "sourceUrl": "https://www.zhipin.com/job_detail/eval103.html"
+    },
+    "jobs": [
+      {
+        "title": "后端研发实习生",
+        "companyName": "万象科技",
+        "location": "深圳·南山区",
+        "employmentType": "实习",
+        "description": "招聘后端研发实习生，参与 Java Spring Boot 项目、MySQL 查询优化及 Redis 缓存设计；要求有 REST API 实践、团队协作能力，欢迎预计明年毕业的在校本科学生。",
+        "requirements": "本科、在校生、每周到岗五天",
+        "sourcePlatform": "BOSS",
+        "sourceJobId": "eval103",
+        "sourceUrl": "https://www.zhipin.com/job_detail/eval103.html"
+      }
+    ]
+  }
+}
