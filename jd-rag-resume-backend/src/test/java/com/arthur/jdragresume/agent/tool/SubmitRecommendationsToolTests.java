@@ -144,4 +144,21 @@ class SubmitRecommendationsToolTests {
         assertTrue(noThreshold.jdNotes().contains("JD 未写经验要求"));
     }
 
+
+    @Test
+    void javaDevelopmentExperienceIsUnknownButDoesNotRejectAStudent() throws Exception {
+        when(prefs.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5,
+                null, null, false, 2, null, 0, true));
+        when(jobs.findById(54L)).thenReturn(job(54, "FULL",
+                "负责 Java 后端开发；实习至少3个月；每周5天",
+                "1年以上Java开发经验"));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(54, "负责 Java 后端开发")), context);
+        assertTrue(result.accepted());
+        assertTrue(result.rejected().isEmpty());
+        assertTrue(result.recommendations().getFirst().unknownConditions().contains("工作经验"));
+        assertTrue(result.recommendations().getFirst().missingUserFields().isEmpty(),
+                "the user's work experience is filled; the JD wording is ambiguous");
+    }
+
 }

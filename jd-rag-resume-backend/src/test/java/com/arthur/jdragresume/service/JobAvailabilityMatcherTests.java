@@ -160,4 +160,44 @@ class JobAvailabilityMatcherTests {
         assertFalse(result.jdConditionsMet());
     }
 
+
+    @Test void bachelorMeetsAlternativeDegreesAndResearcherTeamIsNotARequirement() {
+        var bachelor = applicant(2, 0, true, LocalDate.of(2026, 6, 30));
+        for (String jd : new String[] { "本科、硕士均可", "本科/硕士" }) {
+            var result = eligibleJd(bachelor, jd);
+            assertEquals("MEETS", result.education().status(), jd);
+            assertTrue(result.jdConditionsMet(), jd);
+        }
+        var context = JobAvailabilityMatcher.compare(bachelor, "FULL",
+                "与研究生团队合作；要求实习至少3个月；每周5天", "本科及以上", "深圳");
+        assertEquals("MEETS", context.education().status());
+        assertFalse(context.hardBlock());
+    }
+
+    @Test void contradictoryEducationClausesDoNotBlockOrCountAsConfirmed() {
+        var result = JobAvailabilityMatcher.compare(applicant(2, 0, true, null), "FULL",
+                "本科及以上；要求实习至少3个月；每周5天", "硕士及以上", "深圳");
+        assertEquals("UNKNOWN", result.education().status());
+        assertFalse(result.hardBlock());
+        assertFalse(result.jdConditionsMet());
+        assertTrue(result.hasUnknown());
+    }
+
+    @Test void severalGraduationYearsAcceptEitherCohort() {
+        var own = applicant(2, 0, true, LocalDate.of(2026, 6, 30));
+        var result = eligibleJd(own, "2026、2027届均可");
+        assertEquals("MEETS", result.graduation().status());
+        assertTrue(result.jdConditionsMet());
+    }
+
+    @Test void developmentYearsAreUnknownInsteadOfHardEmploymentExperience() {
+        var own = applicant(2, 0, true, LocalDate.of(2027, 6, 30));
+        var result = eligibleJd(own, "1年以上Java开发经验");
+        assertEquals("UNKNOWN", result.experience().status());
+        assertTrue(result.experience().explanation().contains("1年以上Java开发经验"));
+        assertFalse(result.hardBlock());
+        assertFalse(result.jdConditionsMet());
+        assertTrue(result.hasUnknown());
+    }
+
 }

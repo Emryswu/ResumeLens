@@ -44,4 +44,50 @@ class JobRequirementExtractorTests {
         assertEquals(JobRequirementExtractor.Mode.UNKNOWN, result.experience().mode());
         assertEquals(JobRequirementExtractor.Mode.NOT_MENTIONED, result.education().mode());
     }
+
+    @Test void alternativeDegreesUseTheLowestThresholdInsideOneClause() {
+        for (String wording : new String[] { "本科、硕士均可", "本科/硕士" }) {
+            var education = JobRequirementExtractor.extract("", wording).education();
+            assertEquals(JobRequirementExtractor.Mode.REQUIRED, education.mode(), wording);
+            assertEquals(2, education.required(), wording);
+        }
+    }
+
+    @Test void describingResearcherColleaguesDoesNotIncreaseEducationRequirement() {
+        var result = JobRequirementExtractor.extract("与研究生团队合作；参与 Java 后端开发",
+                "本科及以上");
+        assertEquals(JobRequirementExtractor.Mode.REQUIRED, result.education().mode());
+        assertEquals(2, result.education().required());
+        assertEquals("本科及以上", result.education().requiredEvidence());
+        assertEquals(JobRequirementExtractor.Mode.NOT_MENTIONED,
+                JobRequirementExtractor.extract("与研究生团队合作", "").education().mode());
+    }
+
+    @Test void incompatibleHardEducationClausesAreUnknownRatherThanTakingMaximum() {
+        var education = JobRequirementExtractor.extract("本科及以上", "硕士及以上").education();
+        assertEquals(JobRequirementExtractor.Mode.UNKNOWN, education.mode());
+        assertNull(education.required());
+        assertTrue(education.requiredEvidence().contains("硕士及以上"));
+    }
+
+    @Test void multipleAcceptableGraduationYearsAreASet() {
+        for (String wording : new String[] { "2026、2027届均可", "2026届、2027届均可" }) {
+            var graduation = JobRequirementExtractor.extract("", wording).graduation();
+            assertEquals(JobRequirementExtractor.Mode.REQUIRED, graduation.mode(), wording);
+            assertEquals(java.util.Set.of(2026, 2027), graduation.allowedGraduationYears(), wording);
+        }
+    }
+
+    @Test void nonEmploymentExperienceIsUnknownWithOriginalEvidence() {
+        for (String wording : new String[] {
+                "1年以上Java开发经验", "3年以上项目经验", "2年以上相关经验", "有丰富开发经验"
+        }) {
+            var experience = JobRequirementExtractor.extract("", wording).experience();
+            assertEquals(JobRequirementExtractor.Mode.UNKNOWN, experience.mode(), wording);
+            assertEquals(wording, experience.requiredEvidence(), wording);
+        }
+        assertEquals(3, JobRequirementExtractor.extract("", "3年以上正式工作经验").experience().required());
+        assertEquals(3, JobRequirementExtractor.extract("", "3年以上全职开发经验").experience().required());
+    }
+
 }

@@ -121,9 +121,11 @@ public final class JobAvailabilityMatcher {
             return new Finding("UNKNOWN", "JD 毕业届别要求无法可靠解析：" + requirement.requiredEvidence());
         if (userDate == null) return new Finding("UNKNOWN", "JD 写有毕业时间要求，但尚未填写预计毕业时间");
         int year = userDate.getYear();
-        if (requirement.required() != null && year != requirement.required())
+        if (!requirement.allowedGraduationYears().isEmpty()
+                && !requirement.allowedGraduationYears().contains(year))
             return new Finding("BLOCKED", "毕业届别不符：" + requirement.requiredEvidence());
-        if (requirement.preferred() != null && year != requirement.preferred())
+        if (!requirement.preferredGraduationYears().isEmpty()
+                && !requirement.preferredGraduationYears().contains(year))
             return new Finding("PREFERRED", "未满足毕业届别偏好：" + requirement.preferredEvidence());
         return new Finding("MEETS", "毕业届别符合要求");
     }
