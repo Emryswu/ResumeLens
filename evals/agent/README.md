@@ -1,6 +1,6 @@
 # AI 助手岗位搜索评测
 
-此目录存放任务、脱敏构造的浏览器最终事件快照、冻结协议与结果。Java 的测试专用适配器为 `jd-rag-resume-backend/src/test/java/com/arthur/jdragresume/agent/AgentJobSearchEvalTests.java`，运行真实 `AgentLoop`、`AgentModel` 与 `SubmitRecommendationsTool`；所有采集和详情页仅从本目录回放，不打开 Chrome/Patchright/BOSS，也不请求其他外部招聘服务。
+此目录存放任务、脱敏构造的浏览器最终事件快照、冻结协议与结果。Java 评测运行器位于 `evals/agent/java/com/arthur/jdragresume/agent/AgentJobSearchEvalTests.java`，由 Maven build-helper 仅在测试阶段编译，运行真实 `AgentLoop`、`AgentModel` 与 `SubmitRecommendationsTool`；所有采集和详情页仅从本目录回放，不打开 Chrome/Patchright/BOSS，也不请求其他外部招聘服务。
 
 `tasks/dev.json` 可以排障；`tasks/acceptance/v1.json` 和其引用的快照、判定语义按 `PROTOCOL.md` 冻结。每次 trial 重新创建 Job/Conversation 状态；已录制列表按关键词、深圳、在校生匹配，其他组合返回 `generic-unrecorded.json`，trace 记录「未录制条件」；核实未录制 jobId 显式返回 `EVAL_SNAPSHOT_MISSING`。这里的职位/简历均为评测样本，不声称是真实 BOSS 岗位。
 
