@@ -85,7 +85,7 @@ class SubmitRecommendationsToolTests {
     @Test
     void whitespaceDifferencesPassButTooShortAndTitleOnlyEvidenceFail() throws Exception {
         when(jobs.findById(6L)).thenReturn(job(6, "FULL",
-                "职责：参与 Java    后端\\n系统开发，负责接口设计", "实习至少 3 个月，每周 5 天"));
+                "职责：参与 Java    后端\n系统开发，负责接口设计", "实习至少 3 个月，每周 5 天"));
         var whitespace = (SubmitRecommendationsTool.Result) tool.execute(
                 proposals(item(6, "参与 Java 后端 系统开发")), context);
         assertTrue(whitespace.accepted(), whitespace.rejected().toString());
@@ -100,8 +100,8 @@ class SubmitRecommendationsToolTests {
     @Test
     void invalidArrayShapesAndDuplicateIdsCannotPass() throws Exception {
         assertFalse(tool.parameters().validate(proposals()).isEmpty());
-        assertFalse(tool.parameters().validate(json.readTree("{\\"recommendations\\":[{\\"jobId\\":1,\\"reason\\":\\"ok\\"}]}")).isEmpty());
-        assertFalse(tool.parameters().validate(json.readTree("{\\"recommendations\\":[{\\"jobId\\":\\"1\\",\\"reason\\":\\"ok\\",\\"evidence\\":\\"Java\\"}]}")).isEmpty());
+        assertFalse(tool.parameters().validate(json.readTree("{\"recommendations\":[{\"jobId\":1,\"reason\":\"ok\"}]}")).isEmpty());
+        assertFalse(tool.parameters().validate(json.readTree("{\"recommendations\":[{\"jobId\":\"1\",\"reason\":\"ok\",\"evidence\":\"Java\"}]}")).isEmpty());
         when(jobs.findById(2L)).thenReturn(job(2, "FULL", "负责 Java 后端系统开发", ""));
         var result = (SubmitRecommendationsTool.Result) tool.execute(
                 proposals(item(2, "负责 Java 后端系统开发"), item(2, "负责 Java 后端系统开发")), context);
