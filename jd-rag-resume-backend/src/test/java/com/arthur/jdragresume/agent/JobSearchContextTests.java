@@ -37,6 +37,17 @@ class JobSearchContextTests {
     }
 
     @Test
+    void duplicateHistoryNormalizesKeywordCaseAndWhitespace() {
+        var search = new JobSearchContext.Search("  JAVA \t   Backend  ", "深圳", "在校生");
+        assertEquals("java backend", search.keyword());
+        var context = JobSearchContext.empty().collected(search);
+        assertTrue(context.alreadySearched(new JobSearchContext.Search("java backend", "深圳", "在校生")));
+        assertTrue(context.alreadySearched(new JobSearchContext.Search(" Java  Backend ", "深圳", "在校生")));
+        assertEquals(1, context.collected(new JobSearchContext.Search("java backend", "深圳", "在校生")).searched().size());
+        assertFalse(context.alreadySearched(new JobSearchContext.Search("java backend", "北京", "在校生")));
+    }
+
+    @Test
     void explicitFullTimeAndCityClearOverrideEarlierState() {
         var previous = JobSearchContext.empty().patch(patch("深圳", "Java", "实习"));
         var fullTime = previous.patch(json.createObjectNode().put("jobType", "全职"));
