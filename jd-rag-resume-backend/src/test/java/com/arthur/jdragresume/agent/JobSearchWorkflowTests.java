@@ -224,6 +224,21 @@ class JobSearchWorkflowTests {
     }
 
     @Test
+    void preflightRefundAtZeroDailyPagesDoesNotInventAvailablePages() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[91],\"dailyPagesLeft\":0}");
+        verify(log, "missing", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_VERIFY_JOB_NOT_FOUND\"}}");
+        var progress = JobSearchWorkflow.inspect(log, mapper);
+        assertTrue(progress.attemptedIds().isEmpty());
+        assertEquals(0, progress.dailyPagesLeft());
+        verify(log, "full", 91, "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":91,\"captureDepth\":\"FULL\",\"verificationStatus\":\"ALREADY_FULL\"}}");
+        var full = JobSearchWorkflow.inspect(log, mapper);
+        assertTrue(full.attemptedIds().isEmpty());
+        assertEquals(List.of(91L), full.verifiedIds());
+        assertEquals(0, full.dailyPagesLeft());
+    }
+
+    @Test
     void verificationIsRefusedWhenTheDailyPagesAreGone() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
         add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[1,2],\"dailyPagesLeft\":1}");
@@ -301,6 +316,7 @@ class JobSearchWorkflowTests {
         assertEquals(6, toolResults.size());
         assertEquals("ALREADY_FULL", mapper.readTree(toolResults.get(5).content())
                 .path("untrusted_data").path("verificationStatus").asText());
+        org.mockito.Mockito.verify(jobs, org.mockito.Mockito.times(1)).findById(17L);
         org.mockito.Mockito.verify(collectors, org.mockito.Mockito.times(5)).startAction(
                 org.mockito.ArgumentMatchers.anyMap(),
                 org.mockito.ArgumentMatchers.nullable(com.arthur.jdragresume.collect.CollectionSession.class));
