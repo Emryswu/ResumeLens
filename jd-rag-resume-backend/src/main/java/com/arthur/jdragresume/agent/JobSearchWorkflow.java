@@ -262,7 +262,7 @@ final class JobSearchWorkflow {
         String city = arguments.path("city").asText("");
         String experience = arguments.path("experience").asText("不限");
         boolean repeated = snapshot.attempts().stream().anyMatch(previous ->
-                previous.keyword().equalsIgnoreCase(keyword) && previous.city().equals(city)
+                JobSearchContext.Search.sameKeyword(previous.keyword(), keyword) && previous.city().equals(city)
                         && previous.experience().equals(experience));
         return repeated ? "本次已经按相同城市、关键词、经验条件采集过；补搜须改变关键词或明确说明筛选调整" : null;
     }
