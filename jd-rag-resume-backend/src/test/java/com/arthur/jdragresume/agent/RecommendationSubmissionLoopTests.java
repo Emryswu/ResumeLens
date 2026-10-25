@@ -49,9 +49,10 @@ class RecommendationSubmissionLoopTests {
         return new AgentTool() {
             @Override public String name() { return name; }
             @Override public String description() { return "test"; }
-            @Override public ToolSchema parameters() { return ToolSchema.object().bool("fail", "模拟采集失败", false); }
+            @Override public ToolSchema parameters() { return ToolSchema.object().bool("fail", "模拟采集失败", false).bool("empty", "模拟空结果", false); }
             @Override public Object execute(JsonNode args, AgentToolContext context) {
                 if (fail || args.path("fail").asBoolean(false)) throw new BusinessException("BOSS_PLUGIN_UNAVAILABLE", "插件未登录");
+                if (args.path("empty").asBoolean(false)) return Map.of("pagesRead", 0, "jobIds", List.of());
                 return result;
             }
         };
@@ -116,21 +117,9 @@ class RecommendationSubmissionLoopTests {
         AtomicInteger calls = new AtomicInteger();
         String explanation = "本轮没有采集到岗位，请换个关键词再试。";
         List<String> outputs = new ArrayList<>();
-        // A valid collection tool can return no candidates while still reporting ok=true.
-        AgentModel model = (system, transcript, tools, timeout) -> calls.getAndIncrement() == 0
-                ? AgentModel.Reply.call(call("collect", "collect_boss_jobs", "{}"))
-                : AgentModel.Reply.answer(explanation);
-        // Use a turn with an already completed zero-results collection result.
-        var toolCall = call("collect", "collect_boss_jobs", "{}");
-        List<AgentMessage> old = List.of(AgentMessage.user("找深圳实习"),
-                AgentMessage.assistant(null, List.of(toolCall)),
-                AgentMessage.tool("collect", "{\\"tool\\":\\"collect_boss_jobs\\",\\"ok\\":true,\\"untrusted_data\\":{\\"pagesRead\\":0,\\"jobIds\\":[]}}"));
-        var input = new TranscriptPolicy(properties).normalize(old, null);
-        var result = loop((system, transcript, tools, timeout) -> AgentModel.Reply.answer(explanation))
-                .run(input, null, context, (event, value) -> {
-                    if ("message".equals(event)) outputs.add(((Map<?, ?>) value).get("content").toString());
-                }, () -> false);
-        assertEquals(AgentLoop.State.COMPLETED, result.state());
+        run((system, transcript, tools, timeout) -> calls.getAndIncrement() == 0
+                ? AgentModel.Reply.call(call("collect", "collect_boss_jobs", "{\\"empty\\":true}"))
+                : AgentModel.Reply.answer(explanation), outputs);
         assertEquals(explanation, outputs.getLast());
     }
 
