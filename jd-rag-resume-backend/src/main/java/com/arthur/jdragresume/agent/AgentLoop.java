@@ -5,6 +5,7 @@ import com.arthur.jdragresume.agent.tool.AgentToolContext;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.agent.tool.DeferrableTool;
 import com.arthur.jdragresume.agent.tool.ToolText;
+import com.arthur.jdragresume.agent.tool.SubmitRecommendationsTool;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.ai.ReasoningEffort;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
@@ -99,6 +100,9 @@ public class AgentLoop {
                 核实次数受服务端预算限制，只核实少量排名靠前的候选岗位；不要自动发消息给 HR。
             19. 找岗位采集前必须 get_resume 读取真实简历正文、get_job_search_preferences 读取用户自行填写的条件；具体岗位的条件检查由后续推荐流程负责。
                 BLOCKED 表示显式条件冲突，UNKNOWN 表示信息不足；地区偏好默认仅影响排序，districtRequired=true 才是硬限制。LISTING 摘要不能宣称已经核实硬条件。
+            20. 找岗位的正式推荐必须最后调用 submit_recommendations，以 jobId、推荐理由和逐字 JD 证据提交，不能用文字回答绕过。
+                它会对以前轮次保存的 FULL JD 一并检查，并重新对照当前求职硬条件；如果拒绝，根据错误至多修正提交一次。
+                未通过验收就只说明覆盖情况和未核实内容，不能输出具体岗位作为推荐。
             """;
 
     private final AgentModel model;
@@ -224,23 +228,28 @@ public class AgentLoop {
                 }
                 Duration callTimeout = Duration.ofMillis(Math.min(remainingMs, properties.getModelCallTimeoutSeconds() * 1000));
 
-                if (JobSearchWorkflow.applies(transcript)
-                        && JobSearchWorkflow.inspect(transcript, objectMapper).reachedTarget()) {
-                    return finishQualifiedSearch(sink, transcript, steps, system, deadline, cancelled, options);
-                }
-                if (transcript.remainingSteps() == 0) {
+                 if (transcript.remainingSteps() == 0) {
                     return finishAtLimit(sink, transcript, steps, system, deadline, cancelled, options);
                 }
                 List<AgentModel.ToolDefinition> tools = new ArrayList<>();
                 String instruction = system;
                 boolean relevanceReplan = false;
-                if (JobSearchWorkflow.applies(transcript)) {
+                boolean jobSearch = JobSearchWorkflow.applies(transcript);
+                boolean repairingRecommendations = jobSearch && recommendationAttempts(transcript) == 1;
+                if (jobSearch) {
                     var progress = JobSearchWorkflow.inspect(transcript, objectMapper);
                     instruction += JobSearchWorkflow.guidance(progress);
                     relevanceReplan = plan != null && !needsReplan && replans < properties.getMaxReplans()
                             && JobSearchWorkflow.relevanceReplanAllowed(transcript, progress, objectMapper);
                 }
-                if (plan == null) {
+                if (repairingRecommendations) {
+                    tools.addAll(registry.definitions().stream().filter(tool ->
+                            SubmitRecommendationsTool.TOOL.equals(tool.name())
+                                    || "get_job".equals(tool.name())
+                                    || "verify_boss_job".equals(tool.name())
+                                    || "check_job_preferences".equals(tool.name())).toList());
+                    instruction += "\n上一次推荐提交未通过验收，这是唯一的修正机会。可读 JD、核实并检查条件，最后重新调用 submit_recommendations；第二次拒绝即停止推荐。";
+                } else if (plan == null) {
                     tools.addAll(registry.definitions());
                     tools.add(AgentPlan.definition(objectMapper));
                 } else if (needsReplan) {
@@ -260,8 +269,18 @@ public class AgentLoop {
                         tools.add(AgentPlan.definition(objectMapper));
                         instruction += "\n排序结果若全部不对口，可以重规划更换关键词，否则直接回答。";
                     } else {
-                        instruction += "\n计划已完成，请根据已获得的数据回答，不再调用工具。";
+                        if (jobSearch) {
+                            tools.addAll(registry.definitions().stream().filter(tool ->
+                                    SubmitRecommendationsTool.TOOL.equals(tool.name())).toList());
+                            instruction += "\n计划已完成。若要推荐岗位，现在必须调用 submit_recommendations；没有可推荐岗位就解释搜索覆盖和限制。";
+                        } else {
+                            instruction += "\n计划已完成，请根据已获得的数据回答，不再调用工具。";
+                        }
                     }
+                }
+                if (jobSearch && JobSearchWorkflow.inspect(transcript, objectMapper).reachedTarget()) {
+                    tools.removeIf(tool -> JobSearchWorkflow.governs(tool.name()));
+                    instruction += "\n本轮合格候选目标已达到，停止更多浏览器采集和核实，优先提交已检查岗位。";
                 }
                 AgentModel.Reply reply = model.next(instruction, List.copyOf(transcript), tools, callTimeout,
                         options.reasoningEffort());
@@ -272,7 +291,7 @@ public class AgentLoop {
                         return fail(sink, transcript, steps, State.FAILED, "AGENT_PLAN_INCOMPLETE",
                                 "模型未完成计划中的步骤，保留已获得的结果");
                     }
-                    String answer = safeAnswer(reply.content());
+                    String answer = recommendationSafeAnswer(reply.content(), transcript);
                     transcript.add(AgentMessage.assistant(answer, null, reply.reasoningContent()));
                     sink.emit("message", Map.of("content", answer));
                     return done(sink, State.COMPLETED, transcript, steps);
@@ -308,7 +327,13 @@ public class AgentLoop {
                     sink.emit("plan", new PlanEvent(plan, replans));
                     continue;
                 }
-                if (plan != null && (needsReplan || cursor >= plan.steps().size() || reply.toolCalls().size() != 1
+                boolean recommendationOverride = jobSearch && reply.toolCalls().size() == 1
+                        && (SubmitRecommendationsTool.TOOL.equals(reply.toolCalls().getFirst().name())
+                        || repairingRecommendations && ("get_job".equals(reply.toolCalls().getFirst().name())
+                                || "verify_boss_job".equals(reply.toolCalls().getFirst().name())
+                                || "check_job_preferences".equals(reply.toolCalls().getFirst().name())));
+                if (plan != null && !recommendationOverride
+                        && (needsReplan || cursor >= plan.steps().size() || reply.toolCalls().size() != 1
                         || !reply.toolCalls().getFirst().name().equals(plan.steps().get(cursor).tool()))) {
                     String code = needsReplan && replans >= properties.getMaxReplans() ? "AGENT_REPLAN_LIMIT" : "AGENT_PLAN_MISMATCH";
                     closeCalls(reply, transcript, code, "只能执行当前计划步骤，失败后须重规划或回答");
@@ -354,7 +379,19 @@ public class AgentLoop {
                         continue;
                     }
                     execute(call, tool, context, sink, transcript, deadline, cancelled);
-                    if (plan != null) {
+                    if (SubmitRecommendationsTool.TOOL.equals(call.name())) {
+                        JsonNode result = readEnvelope(transcript.getLast().content());
+                        if (result.path("ok").asBoolean(false)
+                                && result.path("untrusted_data").path("accepted").asBoolean(false)) {
+                            return finishSubmittedRecommendations(sink, transcript, steps,
+                                    result.path("untrusted_data"));
+                        }
+                        if (recommendationAttempts(transcript) >= 2) {
+                            return fail(sink, transcript, steps, State.FAILED,
+                                    "RECOMMENDATIONS_REJECTED", "推荐验收两次未通过，本轮没有可正式推荐的岗位");
+                        }
+                    }
+                    if (plan != null && !recommendationOverride) {
                         JsonNode result = readEnvelope(transcript.getLast().content());
                         needsReplan = !result.path("ok").asBoolean() || emptyData(result.path("untrusted_data"));
                         if (!needsReplan) cursor++;
@@ -380,29 +417,62 @@ public class AgentLoop {
         }
     }
 
-    /** A terminal answer uses no tools and does not consume another collection or verification. */
-    private Outcome finishQualifiedSearch(AgentEventSink sink, List<AgentMessage> transcript, int steps,
-                                          String system, long deadline, BooleanSupplier cancelled, TurnOptions options) {
-        String answer = "已达到本次符合条件的岗位目标，已停止继续采集和核实；具体岗位见本轮工具结果。";
-        String reasoning = null;
-        try {
-            AgentModel.Reply reply = model.next(system + "\n符合已配置条件的完整 JD 候选已达到本轮目标。"
-                            + "不要再调用工具，直接说明符合条件的岗位、未知字段及仍需确认的内容。",
-                    List.copyOf(transcript), List.of(), callTimeout(deadline, cancelled), options.reasoningEffort());
-            steps++;
-            requireActive(deadline, cancelled);
-            if (!reply.hasToolCalls()) {
-                answer = safeAnswer(reply.content());
-                reasoning = reply.reasoningContent();
+    /** Only server-accepted proposals can become formal job recommendations. */
+    private Outcome finishSubmittedRecommendations(AgentEventSink sink, List<AgentMessage> transcript,
+                                                   int steps, JsonNode data) {
+        StringBuilder answer = new StringBuilder("以下岗位已通过完整 JD、原文证据与求职条件检查：");
+        int i = 0;
+        for (JsonNode item : data.path("recommendations")) {
+            answer.append("\n").append(++i).append(". ")
+                    .append(item.path("title").asText()).append("｜")
+                    .append(item.path("company").asText()).append("｜")
+                    .append(item.path("location").asText()).append("（jobId=")
+                    .append(item.path("jobId").asLong()).append("）")
+                    .append("\n推荐理由：").append(item.path("reason").asText())
+                    .append("\nJD 原文证据：「").append(item.path("evidence").asText()).append("」");
+            JsonNode unknown = item.path("unknownConditions");
+            if (unknown.isArray() && !unknown.isEmpty()) {
+                answer.append("\n仍需确认：");
+                for (int j = 0; j < unknown.size(); j++) {
+                    if (j > 0) answer.append("、");
+                    answer.append(unknown.get(j).asText());
+                }
             }
-        } catch (AgentEventSink.ClientGoneException ex) {
-            throw ex;
-        } catch (RuntimeException ex) {
-            log.warn("agent qualified-search closing answer failed", ex);
         }
-        transcript.add(AgentMessage.assistant(answer, null, reasoning));
-        sink.emit("message", Map.of("content", answer));
+        String message = answer.toString();
+        transcript.add(AgentMessage.assistant(message, null));
+        sink.emit("message", Map.of("content", message));
         return done(sink, State.COMPLETED, transcript, steps);
+    }
+
+    private int recommendationAttempts(List<AgentMessage> transcript) {
+        int count = 0;
+        for (AgentMessage message : currentResults(transcript)) {
+            if (SubmitRecommendationsTool.TOOL.equals(readEnvelope(message.content()).path("tool").asText())) count++;
+        }
+        return count;
+    }
+
+    /** A read-only closing call cannot bypass a missing recommendation submission. */
+    private String recommendationSafeAnswer(String answer, List<AgentMessage> transcript) {
+        if (JobSearchWorkflow.applies(transcript) && recommendationDataExists(transcript)) {
+            return "已取得部分岗位数据，但本轮没有通过完整 JD、条件及原文证据的推荐提交，暂不列为正式推荐；可继续核实后再提交。";
+        }
+        return safeAnswer(answer);
+    }
+
+    private boolean recommendationDataExists(List<AgentMessage> transcript) {
+        for (AgentMessage message : transcript) {
+            if (!AgentMessage.TOOL.equals(message.role())) continue;
+            JsonNode result = readEnvelope(message.content());
+            String name = result.path("tool").asText();
+            if (SubmitRecommendationsTool.TOOL.equals(name)) return true;
+            if (result.path("ok").asBoolean(false) && (
+                    "collect_boss_jobs".equals(name) || "search_jobs".equals(name)
+                            || "rank_jobs_for_resume".equals(name) || "get_job".equals(name)
+                            || "verify_boss_job".equals(name) || "check_job_preferences".equals(name))) return true;
+        }
+        return false;
     }
 
     private static final String LIMIT_FALLBACK = "本轮查询已达到步骤上限，已获得的结果已保留，可在处理过程中查看。部分方向尚未核实，暂时无法给出完整判断。";
@@ -425,13 +495,14 @@ public class AgentLoop {
             if (reply.hasToolCalls() || !safeAnswer(reply.content()).equals(reply.content())) {
                 throw new BusinessException("AGENT_FINAL_ANSWER_INVALID", "收尾回答不是有效正文");
             }
-            answer = reply.content();
+            answer = recommendationSafeAnswer(reply.content(), transcript);
             reasoning = reply.reasoningContent();
         } catch (AgentEventSink.ClientGoneException ex) {
             throw ex;
         } catch (RuntimeException ex) {
             log.warn("agent closing answer failed", ex);
         }
+        answer = recommendationSafeAnswer(answer, transcript);
         sink.emit("error", Map.of("code", "AGENT_STEP_LIMIT", "message", "本轮查询已达到步骤上限，已根据已有结果收尾"));
         transcript.add(AgentMessage.assistant(answer, null, reasoning));
         sink.emit("message", Map.of("content", answer));
