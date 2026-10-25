@@ -1,0 +1,52 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "stopReason": null,
+    "pagesRead": 1,
+    "dailyPagesLeft": 24,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "evalJobId": 101,
+        "title": "Java 后端实习生",
+        "companyName": "星河科技",
+        "location": "深圳·南山区",
+        "employmentType": "全职",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）",
+        "requirements": "Java、Spring Boot、本科、每周五天",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/eval101.html",
+        "sourceJobId": "eval101",
+        "captureSource": "api"
+      },
+      {
+        "evalJobId": 102,
+        "title": "大模型应用开发实习生",
+        "companyName": "远山科技",
+        "location": "深圳·福田区",
+        "employmentType": "全职",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）",
+        "requirements": "RAG、Python、在校生",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/eval102.html",
+        "sourceJobId": "eval102",
+        "captureSource": "api"
+      },
+      {
+        "evalJobId": 103,
+        "title": "后端研发实习生",
+        "companyName": "万象科技",
+        "location": "深圳·南山区",
+        "employmentType": "全职",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）",
+        "requirements": "Java、MySQL、Redis、在校生",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/eval103.html",
+        "sourceJobId": "eval103",
+        "captureSource": "api"
+      }
+    ]
+  }
+}

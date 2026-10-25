@@ -1,0 +1,26 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "DETAIL_READ",
+    "command": {
+      "mode": "detail",
+      "jobId": 102,
+      "sourceJobId": "eval102",
+      "sourceUrl": "https://www.zhipin.com/job_detail/eval102.html"
+    },
+    "jobs": [
+      {
+        "title": "大模型应用开发实习生",
+        "companyName": "远山科技",
+        "location": "深圳·南山区",
+        "employmentType": "实习",
+        "description": "招聘 AI 应用开发实习生，参与 RAG 检索链路、模型调用和工具编排服务建设；要求有 Python 和 Java 服务开发经验，理解向量检索与知识库，面向在校本科学生。",
+        "requirements": "本科、在校生、每周到岗五天",
+        "sourcePlatform": "BOSS",
+        "sourceJobId": "eval102",
+        "sourceUrl": "https://www.zhipin.com/job_detail/eval102.html"
+      }
+    ]
+  }
+}

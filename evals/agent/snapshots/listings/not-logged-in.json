@@ -1,0 +1,12 @@
+{
+  "type": "result",
+  "task": {
+    "status": "stopped",
+    "stopReason": "BOSS_NOT_LOGGED_IN",
+    "finishReason": null,
+    "pagesRead": 0,
+    "dailyPagesLeft": 25,
+    "skippedWithoutId": 0,
+    "jobs": []
+  }
+}

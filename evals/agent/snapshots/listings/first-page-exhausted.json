@@ -1,0 +1,12 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "NO_MORE_RESULTS",
+    "stopReason": null,
+    "pagesRead": 1,
+    "dailyPagesLeft": 24,
+    "skippedWithoutId": 0,
+    "jobs": []
+  }
+}

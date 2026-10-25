@@ -1,0 +1,76 @@
+[
+  {
+    "id": "dev-resume-before",
+    "turns": [
+      "按我简历找深圳 Java 后端实习，先看求职条件"
+    ],
+    "searches": [
+      {
+        "keywords": [
+          "Java开发",
+          "Java 后端",
+          "Java"
+        ],
+        "snapshot": "java-intern"
+      }
+    ],
+    "details": [
+      101,
+      102,
+      103
+    ],
+    "checks": [
+      "prerequisites"
+    ]
+  },
+  {
+    "id": "dev-first-page-stop",
+    "turns": [
+      "帮我在 BOSS 找深圳 Java 后端实习"
+    ],
+    "searches": [
+      {
+        "keywords": [
+          "Java开发",
+          "Java 后端",
+          "Java"
+        ],
+        "snapshot": "first-page-exhausted"
+      }
+    ],
+    "checks": [
+      "prerequisites",
+      "stop_first_page"
+    ]
+  },
+  {
+    "id": "dev-unrecorded",
+    "turns": [
+      "找深圳 Java 实习，再试试别的关键词"
+    ],
+    "searches": [],
+    "checks": [
+      "fallback_trace"
+    ]
+  },
+  {
+    "id": "dev-listing-only",
+    "turns": [
+      "找深圳 Java 实习，推荐前确认完整 JD"
+    ],
+    "searches": [
+      {
+        "keywords": [
+          "Java开发",
+          "Java 后端",
+          "Java"
+        ],
+        "snapshot": "java-intern"
+      }
+    ],
+    "checks": [
+      "prerequisites",
+      "no_listing_as_full"
+    ]
+  }
+]

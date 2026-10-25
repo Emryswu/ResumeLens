@@ -1,0 +1,211 @@
+[
+  {
+    "id": "a1-context-inheritance",
+    "turns": [
+      "帮我按简历找深圳 Java 后端实习"
+    ],
+    "searches": [
+      {
+        "keywords": [
+          "Java开发",
+          "Java 后端",
+          "Java"
+        ],
+        "snapshot": "java-intern"
+      },
+      {
+        "keywords": [
+          "Spring Boot",
+          "后端实习",
+          "Java 工程师"
+        ],
+        "snapshot": "java-intern"
+      }
+    ],
+    "details": [
+      101,
+      102,
+      103
+    ],
+    "checks": [
+      "prerequisites",
+      "inherit_internship"
+    ],
+    "followup": "再找几个"
+  },
+  {
+    "id": "a2-login-stop",
+    "turns": [
+      "到 BOSS 找深圳 Java 后端实习"
+    ],
+    "searches": [
+      {
+        "keywords": [
+          "Java开发",
+          "Java 后端",
+          "Java"
+        ],
+        "snapshot": "not-logged-in"
+      }
+    ],
+    "checks": [
+      "prerequisites",
+      "stop_login"
+    ]
+  },
+  {
+    "id": "a3-first-page-stop",
+    "turns": [
+      "找深圳 Java 后端实习"
+    ],
+    "searches": [
+      {
+        "keywords": [
+          "Java开发",
+          "Java 后端",
+          "Java"
+        ],
+        "snapshot": "first-page-exhausted"
+      }
+    ],
+    "checks": [
+      "prerequisites",
+      "stop_first_page"
+    ]
+  },
+  {
+    "id": "a4-submit-verified",
+    "turns": [
+      "帮我找深圳 Java 后端实习，核实 JD 后给出正式推荐"
+    ],
+    "searches": [
+      {
+        "keywords": [
+          "Java开发",
+          "Java 后端",
+          "Java"
+        ],
+        "snapshot": "java-intern"
+      }
+    ],
+    "details": [
+      101,
+      102,
+      103
+    ],
+    "checks": [
+      "prerequisites",
+      "submit_accepted",
+      "no_listing_as_full"
+    ]
+  },
+  {
+    "id": "a5-replan-offtarget",
+    "turns": [
+      "找深圳 Java 后端实习。如果搜索到的岗位都不对口，请你主动调整关键词继续找"
+    ],
+    "searches": [
+      {
+        "keywords": [
+          "Java开发",
+          "Java 后端",
+          "Java"
+        ],
+        "snapshot": "offtarget"
+      },
+      {
+        "keywords": [
+          "Spring Boot",
+          "Java 后端实习",
+          "后端研发",
+          "Java工程师"
+        ],
+        "snapshot": "java-intern"
+      }
+    ],
+    "details": [
+      101,
+      102,
+      103
+    ],
+    "checks": [
+      "prerequisites",
+      "replan_offtarget"
+    ]
+  },
+  {
+    "id": "a6-no-listing-as-jd",
+    "turns": [
+      "找深圳 Java 实习，必须读完整 JD 才能正式推荐"
+    ],
+    "searches": [
+      {
+        "keywords": [
+          "Java开发",
+          "Java 后端",
+          "Java"
+        ],
+        "snapshot": "java-intern"
+      }
+    ],
+    "checks": [
+      "prerequisites",
+      "no_listing_as_full"
+    ]
+  },
+  {
+    "id": "a7-education-master-required",
+    "turns": [
+      "帮我找深圳 Java 后端实习，并核实学历要求。请重点核实列表里硕士及以上的岗位，别把不符合门槛的岗位正式推荐给本科生。"
+    ],
+    "searches": [
+      {
+        "keywords": [
+          "Java开发",
+          "Java 后端",
+          "Java",
+          "Spring Boot",
+          "后端实习",
+          "Java 后端实习"
+        ],
+        "snapshot": "education-pair"
+      }
+    ],
+    "details": [
+      104,
+      105
+    ],
+    "checks": [
+      "prerequisites",
+      "education_master_excluded"
+    ]
+  },
+  {
+    "id": "a8-education-master-preferred",
+    "turns": [
+      "帮我找深圳 Java 后端实习，并核实学历要求。本科及以上、硕士优先的岗位本科生也能投，核实完整 JD 后正式推荐合格岗位。"
+    ],
+    "searches": [
+      {
+        "keywords": [
+          "Java开发",
+          "Java 后端",
+          "Java",
+          "Spring Boot",
+          "后端实习",
+          "Java 后端实习"
+        ],
+        "snapshot": "education-pair"
+      }
+    ],
+    "details": [
+      104,
+      105
+    ],
+    "checks": [
+      "prerequisites",
+      "education_preferred_accepted",
+      "education_master_not_accepted"
+    ]
+  }
+]
