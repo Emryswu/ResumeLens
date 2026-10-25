@@ -25,6 +25,10 @@ final class JobSearchWorkflow {
     /** Every tool that loads BOSS pages must be listed here so AgentLoop checks it against the budget. */
     static final Set<String> BOSS_TOOLS = Set.of(TOOL, VERIFY_TOOL);
     static final String BUDGET_ERROR = "JOB_SEARCH_BUDGET";
+    /** Failures before a verification browser task starts must not consume attempt/page estimates.
+     * Keep preflight codes distinct from errors that can also happen after a browser report. */
+    static final Set<String> VERIFICATION_NOT_STARTED_CODES = Set.of(
+            BUDGET_ERROR, "BOSS_VERIFY_JOB_NOT_FOUND", "BOSS_DETAIL_UNSUPPORTED", "BOSS_DETAIL_URL_INVALID");
     static final int MAX_SEARCHES = 3;
     static final int MAX_PAGES = 6;
     static final int MAX_VERIFICATIONS = 5;
@@ -98,7 +102,7 @@ final class JobSearchWorkflow {
             Long verifiedCandidate = pendingVerifications.remove(message.toolCallId());
             if (verifiedCandidate != null) {
                 JsonNode result = parse(mapper, message.content());
-                if (refusedByBudget(result)) {
+                if (verificationDidNotStart(result)) {
                     attempted.remove(message.toolCallId());
                     if (dailyPagesLeft != null) dailyPagesLeft++;
                 } else if (result.path("ok").asBoolean(false)) {
@@ -142,6 +146,11 @@ final class JobSearchWorkflow {
                 && (question.contains("实习") || question.contains("在校") || question.contains("暑期") || question.contains("寒假"));
         return new Snapshot(List.copyOf(attempts), requestedPages, pagesRead, jobIds.size(), dailyPagesLeft,
                 List.copyOf(new LinkedHashSet<>(attempted.values())), List.copyOf(verified), internship);
+    }
+
+    private static boolean verificationDidNotStart(JsonNode result) {
+        return !result.path("ok").asBoolean(false)
+                && VERIFICATION_NOT_STARTED_CODES.contains(result.path("error").path("code").asText());
     }
 
     private static boolean refusedByBudget(JsonNode result) {
