@@ -70,6 +70,7 @@ final class JobSearchWorkflow {
         }
         Map<String, Attempt> pending = new LinkedHashMap<>();
         Map<String, Long> pendingVerifications = new LinkedHashMap<>();
+        Map<String, Boolean> estimatedDailyPageCharged = new LinkedHashMap<>();
         List<Attempt> attempts = new ArrayList<>();
         Map<String, Long> attempted = new LinkedHashMap<>();
         Set<Long> verified = new LinkedHashSet<>();
@@ -85,8 +86,13 @@ final class JobSearchWorkflow {
                         long jobId = parse(mapper, call.arguments()).path("jobId").asLong(-1);
                         attempted.put(call.id(), jobId);
                         pendingVerifications.put(call.id(), jobId);
-                        // Every verification takes one page from the extension's daily budget when it runs.
-                        if (dailyPagesLeft != null) dailyPagesLeft = Math.max(0, dailyPagesLeft - 1);
+                        // Reserve a page in the estimate only if one was available.
+                        // Preflight errors restore only pages actually reserved (0 stays 0).
+                        if (dailyPagesLeft != null) {
+                            boolean reserved = dailyPagesLeft > 0;
+                            estimatedDailyPageCharged.put(call.id(), reserved);
+                            if (reserved) dailyPagesLeft--;
+                        }
                         continue;
                     }
                     if (!TOOL.equals(call.name())) continue;
@@ -101,10 +107,11 @@ final class JobSearchWorkflow {
             if (!AgentMessage.TOOL.equals(message.role())) continue;
             Long verifiedCandidate = pendingVerifications.remove(message.toolCallId());
             if (verifiedCandidate != null) {
+                boolean reserved = Boolean.TRUE.equals(estimatedDailyPageCharged.remove(message.toolCallId()));
                 JsonNode result = parse(mapper, message.content());
                 if (verificationDidNotStart(result)) {
                     attempted.remove(message.toolCallId());
-                    if (dailyPagesLeft != null) dailyPagesLeft++;
+                    if (reserved) dailyPagesLeft++;
                 } else if (result.path("ok").asBoolean(false)) {
                     JsonNode data = result.path("untrusted_data");
                     String status = data.path("verificationStatus").asText();
@@ -114,7 +121,7 @@ final class JobSearchWorkflow {
                         verified.add(verifiedCandidate);
                         if ("ALREADY_FULL".equals(status)) {
                             attempted.remove(message.toolCallId());
-                            if (dailyPagesLeft != null) dailyPagesLeft++;
+                            if (reserved) dailyPagesLeft++;
                         }
                     }
                 }
