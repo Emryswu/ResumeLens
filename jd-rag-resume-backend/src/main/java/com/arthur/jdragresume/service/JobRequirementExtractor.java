@@ -1,6 +1,8 @@
 package com.arthur.jdragresume.service;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -22,7 +24,9 @@ public final class JobRequirementExtractor {
         static Requirement unrestricted() { return new Requirement(Mode.UNRESTRICTED, null, null, null, null); }
         static Requirement unknown(String evidence) { return new Requirement(Mode.UNKNOWN, null, null, evidence, null); }
     }
-    public record Extraction(Requirement education, Requirement experience, Requirement graduation) { }
+    public record Extraction(Requirement education, Requirement experience, Requirement graduation,
+                             List<String> experienceNotes) { }
+    private record ExperienceExtraction(Requirement requirement, List<String> notes) { }
 
     private static final Pattern EDUCATION = Pattern.compile("博士|硕士|研究生|本科|大专|专科");
     private static final Pattern EDUCATION_CUE = Pattern.compile(
@@ -41,10 +45,12 @@ public final class JobRequirementExtractor {
 
     public static Extraction extract(String description, String requirements) {
         String full = (description == null ? "" : description) + "\n" + (requirements == null ? "" : requirements);
+        var experience = extractExperience(full);
         return new Extraction(
                 extractEducation(full),
-                extractExperience(full),
-                extractGraduation(full));
+                experience.requirement(),
+                extractGraduation(full),
+                experience.notes());
     }
 
     /**
@@ -131,15 +137,17 @@ public final class JobRequirementExtractor {
         };
     }
 
+
     /**
-     * Experience measured in years is a hard threshold only when the wording explicitly
-     * refers to employment ("工作经验", "全职", "正式工作"). Project, development, or
-     * generic relevant experience can be a different kind of evidence and stays UNKNOWN.
+     * Only explicitly quantified employment (工作经验、全职、正式工作) gates eligibility.
+     * Unquantified skill descriptions are ignored; quantified technical/project experience
+     * becomes a review note without changing employment eligibility.
      */
-    private static Requirement extractExperience(String full) {
+    private static ExperienceExtraction extractExperience(String full) {
         Integer required = null, preferred = null;
-        String requiredText = null, preferredText = null, ambiguous = null;
+        String requiredText = null, preferredText = null;
         boolean unrestricted = false;
+        List<String> notes = new ArrayList<>();
         for (String raw : clauses(full)) {
             String clause = raw.strip();
             if (clause.isEmpty()) continue;
@@ -150,16 +158,22 @@ public final class JobRequirementExtractor {
             if (!clause.contains("经验") && !clause.contains("全职")
                     && !clause.contains("正式工作")) continue;
 
-            boolean work = clause.contains("工作经验") || clause.contains("全职")
-                    || clause.contains("正式工作");
+            // Words like "有项目经验优先" contain no duration and are merely skill descriptions.
             Matcher years = EXPERIENCE_YEARS.matcher(clause);
             Integer minimum = null;
             while (years.find()) {
                 int parsed = number(years.group(1));
                 if (parsed > 0) minimum = minimum == null ? parsed : Math.max(minimum, parsed);
             }
-            if (!work || minimum == null) {
-                ambiguous = clause;
+            if (minimum == null) continue;
+
+            boolean formalWork = clause.contains("工作经验") || clause.contains("全职")
+                    || clause.contains("正式工作");
+            if (!formalWork) {
+                String kind = clause.contains("项目经验") ? "项目"
+                        : clause.contains("开发经验") ? "开发" : "相关";
+                notes.add("JD 要求 " + minimum + " 年" + kind
+                        + "经验，需自行判断项目经历是否算数（原文：" + clause + "）");
                 continue;
             }
             if (PREFERRED.matcher(clause).find()) {
@@ -172,11 +186,14 @@ public final class JobRequirementExtractor {
                 requiredText = clause;
             }
         }
-        if (ambiguous != null) return Requirement.unknown(ambiguous);
-        if (required != null || preferred != null)
-            return new Requirement(required != null ? Mode.REQUIRED : Mode.PREFERRED,
+        Requirement requirement;
+        if (required != null || preferred != null) {
+            requirement = new Requirement(required != null ? Mode.REQUIRED : Mode.PREFERRED,
                     required, preferred, requiredText, preferredText);
-        return unrestricted ? Requirement.unrestricted() : Requirement.absent();
+        } else {
+            requirement = unrestricted ? Requirement.unrestricted() : Requirement.absent();
+        }
+        return new ExperienceExtraction(requirement, List.copyOf(notes));
     }
 
     private static Requirement extractGraduation(String full) {

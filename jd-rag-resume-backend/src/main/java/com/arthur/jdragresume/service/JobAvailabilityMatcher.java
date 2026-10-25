@@ -62,6 +62,11 @@ public final class JobAvailabilityMatcher {
                 own.educationLevel(), warnings, notes, missing);
         addQualificationDetails("经验", experience, extracted == null ? null : extracted.experience(),
                 own.workExperienceYears(), warnings, notes, missing);
+        if (extracted != null && !extracted.experienceNotes().isEmpty()) {
+            // Quantified technical/project experience must remain visible without gating employment eligibility.
+            notes.remove("JD 未写经验要求");
+            notes.addAll(extracted.experienceNotes());
+        }
         addQualificationDetails("毕业时间", graduation, extracted == null ? null : extracted.graduation(),
                 own.expectedGraduationDate() == null ? null : own.expectedGraduationDate().getYear(),
                 warnings, notes, missing);

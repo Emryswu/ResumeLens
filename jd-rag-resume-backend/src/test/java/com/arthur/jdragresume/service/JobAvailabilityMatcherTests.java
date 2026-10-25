@@ -154,10 +154,17 @@ class JobAvailabilityMatcherTests {
                 "仅限2027届").graduation().status());
     }
 
-    @Test void unrecognizedHardExperienceLanguageRemainsUnknown() {
-        var result = eligibleJd(applicant(2, 0, true, null), "需有丰富行业经验");
-        assertEquals("UNKNOWN", result.experience().status());
-        assertFalse(result.jdConditionsMet());
+    @Test void unquantifiedProjectAndDevelopmentExperienceIsIgnored() {
+        var own = applicant(2, 0, true, null);
+        for (String jd : new String[] {
+                "有 Spring Boot 项目经验优先", "有项目经验",
+                "具备 Java 开发经验", "有相关经验优先"
+        }) {
+            var result = eligibleJd(own, jd);
+            assertEquals("NOT_MENTIONED", result.experience().status(), jd);
+            assertTrue(result.jdConditionsMet(), jd);
+            assertFalse(result.hardBlock(), jd);
+        }
     }
 
 
@@ -190,14 +197,25 @@ class JobAvailabilityMatcherTests {
         assertTrue(result.jdConditionsMet());
     }
 
-    @Test void developmentYearsAreUnknownInsteadOfHardEmploymentExperience() {
+    @Test void quantifiedDevelopmentAndProjectExperienceOnlyAddsJdNotes() {
         var own = applicant(2, 0, true, LocalDate.of(2027, 6, 30));
-        var result = eligibleJd(own, "1年以上Java开发经验");
-        assertEquals("UNKNOWN", result.experience().status());
-        assertTrue(result.experience().explanation().contains("1年以上Java开发经验"));
-        assertFalse(result.hardBlock());
+        for (String jd : new String[] { "1年以上Java开发经验", "2年项目经验" }) {
+            var result = eligibleJd(own, jd);
+            assertEquals("NOT_MENTIONED", result.experience().status(), jd);
+            assertFalse(result.hardBlock(), jd);
+            assertTrue(result.jdConditionsMet(), jd);
+            assertFalse(result.hasUnknown(), jd);
+            assertTrue(result.jdNotes().stream().anyMatch(note ->
+                    note.contains("需自行判断项目经历是否算数") && note.contains(jd)), jd);
+            assertFalse(result.jdNotes().contains("JD 未写经验要求"), jd);
+        }
+    }
+
+    @Test void quantifiedFormalWorkExperienceStillBlocksStudentsWithZeroYears() {
+        var result = eligibleJd(applicant(2, 0, true, null), "3年以上工作经验");
+        assertEquals("BLOCKED", result.experience().status());
+        assertTrue(result.hardBlock());
         assertFalse(result.jdConditionsMet());
-        assertTrue(result.hasUnknown());
     }
 
 }

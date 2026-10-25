@@ -39,10 +39,15 @@ class JobRequirementExtractorTests {
         assertEquals(2027, JobRequirementExtractor.extract("", "仅限2027届毕业生").graduation().required());
     }
 
-    @Test void ambiguousExplicitClauseIsUnknownRatherThanPassed() {
-        var result = JobRequirementExtractor.extract("", "需有丰富项目经验");
-        assertEquals(JobRequirementExtractor.Mode.UNKNOWN, result.experience().mode());
-        assertEquals(JobRequirementExtractor.Mode.NOT_MENTIONED, result.education().mode());
+    @Test void unquantifiedTechnicalExperienceDoesNotCreateAWorkExperienceRequirement() {
+        for (String wording : new String[] {
+                "有 Spring Boot 项目经验优先", "有项目经验", "具备 Java 开发经验",
+                "有相关经验优先", "需有丰富项目经验"
+        }) {
+            var result = JobRequirementExtractor.extract("", wording);
+            assertEquals(JobRequirementExtractor.Mode.NOT_MENTIONED, result.experience().mode(), wording);
+            assertTrue(result.experienceNotes().isEmpty(), wording);
+        }
     }
 
     @Test void alternativeDegreesUseTheLowestThresholdInsideOneClause() {
@@ -78,16 +83,35 @@ class JobRequirementExtractorTests {
         }
     }
 
-    @Test void nonEmploymentExperienceIsUnknownWithOriginalEvidence() {
+    @Test void quantifiedNonEmploymentExperienceProducesNotesWithoutAnEmploymentGate() {
         for (String wording : new String[] {
-                "1年以上Java开发经验", "3年以上项目经验", "2年以上相关经验", "有丰富开发经验"
+                "1年以上Java开发经验", "2年项目经验", "2年以上相关经验"
         }) {
-            var experience = JobRequirementExtractor.extract("", wording).experience();
-            assertEquals(JobRequirementExtractor.Mode.UNKNOWN, experience.mode(), wording);
-            assertEquals(wording, experience.requiredEvidence(), wording);
+            var extracted = JobRequirementExtractor.extract("", wording);
+            assertEquals(JobRequirementExtractor.Mode.NOT_MENTIONED, extracted.experience().mode(), wording);
+            assertEquals(1, extracted.experienceNotes().size(), wording);
+            assertTrue(extracted.experienceNotes().getFirst().contains("需自行判断项目经历是否算数"), wording);
+            assertTrue(extracted.experienceNotes().getFirst().contains(wording), wording);
         }
-        assertEquals(3, JobRequirementExtractor.extract("", "3年以上正式工作经验").experience().required());
-        assertEquals(3, JobRequirementExtractor.extract("", "3年以上全职开发经验").experience().required());
+        assertTrue(JobRequirementExtractor.extract("", "有丰富开发经验").experienceNotes().isEmpty());
+    }
+
+    @Test void formalWorkExperienceRemainsAQuantifiedHardRequirement() {
+        for (String wording : new String[] {
+                "3年以上工作经验", "3年以上正式工作经验", "3年以上全职开发经验"
+        }) {
+            var extracted = JobRequirementExtractor.extract("", wording);
+            assertEquals(JobRequirementExtractor.Mode.REQUIRED, extracted.experience().mode(), wording);
+            assertEquals(3, extracted.experience().required(), wording);
+            assertTrue(extracted.experienceNotes().isEmpty(), wording);
+        }
+    }
+
+    @Test void technicalExperienceNotesDoNotOverrideFormalExperienceRequirements() {
+        var extracted = JobRequirementExtractor.extract("", "2年项目经验；3年以上工作经验");
+        assertEquals(JobRequirementExtractor.Mode.REQUIRED, extracted.experience().mode());
+        assertEquals(3, extracted.experience().required());
+        assertEquals(1, extracted.experienceNotes().size());
     }
 
 }

@@ -146,7 +146,7 @@ class SubmitRecommendationsToolTests {
 
 
     @Test
-    void javaDevelopmentExperienceIsUnknownButDoesNotRejectAStudent() throws Exception {
+    void quantifiedDevelopmentExperienceIsARecommendationNoteNotUnknown() throws Exception {
         when(prefs.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5,
                 null, null, false, 2, null, 0, true));
         when(jobs.findById(54L)).thenReturn(job(54, "FULL",
@@ -156,9 +156,39 @@ class SubmitRecommendationsToolTests {
                 proposals(item(54, "负责 Java 后端开发")), context);
         assertTrue(result.accepted());
         assertTrue(result.rejected().isEmpty());
-        assertTrue(result.recommendations().getFirst().unknownConditions().contains("工作经验"));
-        assertTrue(result.recommendations().getFirst().missingUserFields().isEmpty(),
-                "the user's work experience is filled; the JD wording is ambiguous");
+        var recommended = result.recommendations().getFirst();
+        assertFalse(recommended.unknownConditions().contains("工作经验"));
+        assertTrue(recommended.jdNotes().stream().anyMatch(note ->
+                note.contains("JD 要求 1 年开发经验") && note.contains("需自行判断项目经历是否算数")));
+        assertTrue(recommended.missingUserFields().isEmpty());
+    }
+
+    @Test
+    void unquantifiedSkillExperienceDoesNotCreateUnknownOrAWarning() throws Exception {
+        when(prefs.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5,
+                null, null, false, 2, null, 0, true));
+        when(jobs.findById(55L)).thenReturn(job(55, "FULL",
+                "负责 Java 后端开发；实习至少3个月；每周5天",
+                "有 Spring Boot 项目经验优先"));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(55, "负责 Java 后端开发")), context);
+        assertTrue(result.accepted());
+        assertFalse(result.recommendations().getFirst().unknownConditions().contains("工作经验"));
+        assertEquals(List.of("JD 未写学历要求", "JD 未写经验要求"),
+                result.recommendations().getFirst().jdNotes());
+    }
+
+    @Test
+    void formalWorkExperienceStillRejectsZeroYearStudent() throws Exception {
+        when(prefs.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5,
+                null, null, false, 2, null, 0, true));
+        when(jobs.findById(56L)).thenReturn(job(56, "FULL",
+                "负责 Java 后端开发；实习至少3个月；每周5天", "3年以上工作经验"));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(56, "负责 Java 后端开发")), context);
+        assertFalse(result.accepted());
+        assertTrue(result.recommendations().isEmpty());
+        assertEquals(56L, result.rejected().getFirst().jobId());
     }
 
 }
