@@ -68,13 +68,16 @@ class AgentJobSearchEvalTests {
             List<JsonNode> scenarios = tasks(group);
             assertFalse(scenarios.isEmpty());
             for (JsonNode task : scenarios) {
+                int passed = 0;
                 for (int trial = 0; trial < 3; trial++) {
                     Trial result = run(task, new ScriptedAgentModel(JSON));
                     assertEquals(task.path("checks").size(), result.checks().size());
                     assertFalse(result.transcript().isEmpty());
                     assertNotNull(result.category());
-                    assertEquals(trial + 1, trial + 1); // Trial repetitions are independent by construction.
+                    if (result.passed()) passed++;
                 }
+                System.out.println("Agent scripted eval " + task.path("id").asText()
+                        + ": " + passed + "/3 (" + (passed * 100 / 3) + "%)");
             }
         }
     }
@@ -296,13 +299,16 @@ class AgentJobSearchEvalTests {
                 case "inherit_internship" -> {
                     String city = null, jobType = null;
                     int first = -1, second = -1;
-                    boolean correct = true;
+                    boolean firstCorrect = false, correct = true;
                     for (Invocation call : calls) {
                         if (!List.of("collect_boss_jobs", "update_job_search_context").contains(call.name())) continue;
                         if (call.args().has("city")) city = call.args().path("city").asText();
                         if (call.args().has("jobType")) jobType = call.args().path("jobType").asText();
                         if (!call.name().equals("collect_boss_jobs")) continue;
-                        if (call.turn() == 0) first++;
+                        if (call.turn() == 0) {
+                            first++;
+                            firstCorrect |= "深圳".equals(city) && "实习".equals(jobType);
+                        }
                         if (call.turn() > 0) {
                             second++;
                             correct &= "深圳".equals(city) && "实习".equals(jobType)
@@ -310,7 +316,8 @@ class AgentJobSearchEvalTests {
                                     call.result().path("error").path("code").asText());
                         }
                     }
-                    passed = first >= 0 && second >= 0 && correct && "实习".equals(jobType);
+                    passed = first >= 0 && second >= 0 && firstCorrect && correct
+                            && "深圳".equals(city) && "实习".equals(jobType);
                     failure = "再找几个未继承深圳和实习，或没有继续采集";
                 }
                 case "stop_login", "stop_first_page" -> {
@@ -320,8 +327,9 @@ class AgentJobSearchEvalTests {
                                 .path(check.equals("stop_login") ? "stopReason" : "finishReason").asText())
                             && (check.equals("stop_login") || c.result().path("untrusted_data").path("pagesRead").asInt() == 1))
                             .findFirst().orElse(null);
-                    passed = blocked != null && calls.stream().noneMatch(c -> c.turn() == blocked.turn()
-                            && c.index() > blocked.index() && c.name().equals("collect_boss_jobs"));
+                    passed = blocked != null && calls.stream().noneMatch(c -> c != blocked
+                            && c.turn() == blocked.turn() && c.index() >= blocked.index()
+                            && c.name().equals("collect_boss_jobs"));
                     failure = "遇到 " + signal + " 后仍补搜，或者未观察到指定停止信号";
                 }
                 case "no_listing_as_full" -> {
@@ -332,13 +340,18 @@ class AgentJobSearchEvalTests {
                         verified.add(call.result().path("untrusted_data").path("jobId").asLong());
                     }
                     passed = true;
-                    for (Invocation call : calls) if (call.name().equals("submit_recommendations")
-                            && ok(call.result())) {
-                        for (JsonNode job : call.result().path("untrusted_data").path("recommendations")) {
-                            if (!verified.contains(job.path("jobId").asLong())) passed = false;
+                    for (Invocation call : calls) if (call.name().equals("submit_recommendations")) {
+                        // Even a rejected attempt to submit a LISTING-only job is a model rule violation.
+                        for (JsonNode proposal : call.args().path("recommendations")) {
+                            if (!verified.contains(proposal.path("jobId").asLong())) passed = false;
+                        }
+                        if (ok(call.result())) {
+                            for (JsonNode approved : call.result().path("untrusted_data").path("recommendations")) {
+                                if (!verified.contains(approved.path("jobId").asLong())) passed = false;
+                            }
                         }
                     }
-                    failure = "将仅有 LISTING 摘要的岗位当作 FULL JD 正式推荐";
+                    failure = "在未核实 FULL JD 时提交岗位（即使服务端已拒绝）";
                 }
                 case "submit_accepted" -> {
                     passed = calls.stream().anyMatch(c -> c.name().equals("submit_recommendations")
@@ -348,11 +361,24 @@ class AgentJobSearchEvalTests {
                 }
                 case "replan_offtarget" -> {
                     var searches = calls.stream().filter(c -> c.name().equals("collect_boss_jobs")).toList();
-                    passed = searches.size() >= 2 && searches.stream().map(c ->
-                            c.args().path("keyword").asText().strip().toLowerCase(Locale.ROOT)).distinct().count() >= 2
+                    boolean offTarget = !searches.isEmpty() && ok(searches.getFirst().result())
+                            && searches.getFirst().result().path("untrusted_data").path("jobs").size() > 0;
+                    if (offTarget) {
+                        for (JsonNode job : searches.getFirst().result().path("untrusted_data").path("jobs")) {
+                            String title = job.path("title").asText().toLowerCase(Locale.ROOT);
+                            if (title.contains("java") || title.contains("后端") || title.contains("实习")) offTarget = false;
+                        }
+                    }
+                    boolean rankedBeforeRetry = searches.size() >= 2 && calls.stream().anyMatch(c ->
+                            c.name().equals("rank_jobs_for_resume")
+                                    && c.index() > searches.getFirst().index()
+                                    && c.index() < searches.get(1).index());
+                    passed = searches.size() >= 2 && offTarget && rankedBeforeRetry
+                            && !searches.getFirst().args().path("keyword").asText().strip()
+                                .equalsIgnoreCase(searches.get(1).args().path("keyword").asText().strip())
                             && searches.stream().allMatch(c -> !"JOB_SEARCH_BUDGET".equals(
                                     c.result() == null ? "" : c.result().path("error").path("code").asText()));
-                    failure = "首轮排序不对口后没有换关键词自主补搜";
+                    failure = "首轮岗位不对口后没有先排序再换关键词补搜";
                 }
                 case "fallback_trace" -> {
                     passed = trace.stream().anyMatch(item -> item.contains("未录制条件"))
