@@ -16,7 +16,7 @@ import java.util.Set;
  * pauses. All figures are reconstructed from server-stored tool calls and results in the current
  * user turn; no model-supplied counters or browser-reported totals are trusted as instructions.
  *
- * The campaign is deliberately bounded: a soft target is not a reason to manufacture matches
+ * The campaign is deliberately bounded: the qualified-candidate target is not a reason to manufacture matches
  * or silently widen the user's hard constraints.
  */
 final class JobSearchWorkflow {
@@ -25,6 +25,10 @@ final class JobSearchWorkflow {
     /** Every tool that loads BOSS pages must be listed here so AgentLoop checks it against the budget. */
     static final Set<String> BOSS_TOOLS = Set.of(TOOL, VERIFY_TOOL);
     static final String BUDGET_ERROR = "JOB_SEARCH_BUDGET";
+    /** Validation rejected before browser navigation must not consume search attempts/pages. */
+    static final Set<String> COLLECTION_NOT_STARTED_CODES = Set.of(
+            BUDGET_ERROR, "JOB_SEARCH_PREREQUISITES", "BOSS_DIRECTION_REQUIRED",
+            "INVALID_ARGUMENTS", "INVALID_COMMAND");
     /** Failures before a verification browser task starts must not consume attempt/page estimates.
      * Keep preflight codes distinct from errors that can also happen after a browser report. */
     static final Set<String> VERIFICATION_NOT_STARTED_CODES = Set.of(
@@ -154,8 +158,8 @@ final class JobSearchWorkflow {
             if (attempt == null) continue;
             JsonNode result = parse(mapper, message.content());
             // A call this workflow refused never reached the browser and must not use up the budget.
-            if (refusedByBudget(result)
-                    || "JOB_SEARCH_PREREQUISITES".equals(result.path("error").path("code").asText())) {
+            if (!result.path("ok").asBoolean(false)
+                    && COLLECTION_NOT_STARTED_CODES.contains(result.path("error").path("code").asText())) {
                 attempts.remove(attempt);
                 continue;
             }
@@ -280,7 +284,7 @@ final class JobSearchWorkflow {
             info.append("本次采集预算已用完，停止采集，按现有结果回答。");
         }
         info.append(" 最终说明覆盖的方向、实际候选数量、未核实要求、预算或平台限制。")
-                .append("候选不足软目标也如实说明，不得凑数或称已核实合格。");
+                .append("合格候选不足时也如实说明，不得凑数或称已核实合格。");
         return info.toString();
     }
 
