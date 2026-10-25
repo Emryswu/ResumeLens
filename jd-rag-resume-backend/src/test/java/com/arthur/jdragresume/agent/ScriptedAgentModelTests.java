@@ -30,7 +30,8 @@ class ScriptedAgentModelTests {
         assertEquals(AgentLoop.State.COMPLETED, outcome.state());
         assertEquals(List.of("list_resumes", "rank_jobs_for_resume", "search_resume_evidence"), calls);
         String answer = outcome.transcript().get(outcome.transcript().size() - 1).content();
-        assertTrue(answer.startsWith("【演示模式"), answer);
+        assertTrue(answer.startsWith("状态：尚未经推荐验收"), answer);
+        assertTrue(answer.contains("【演示模式 · 脚本模型，未调用真实大模型】"), answer);
         assertTrue(answer.contains("Java 后端"), answer);
         assertEquals("list_resumes", outcome.transcript().get(1).toolCalls().getFirst().name());
     }

@@ -39,6 +39,21 @@ class ToolSchemaTests {
     }
 
     @Test
+    void nestedRecommendationObjectsUseTheSameJsonSchemaAndRuntimeValidation() throws Exception {
+        var schema = ToolSchema.object().objectArray("recommendations", "recommendations", true, 2,
+                ToolSchema.object().integer("jobId", "id", true, 1, Long.MAX_VALUE)
+                        .string("reason", "reason", true, 240)
+                        .string("evidence", "verbatim JD", true, 300));
+        var item = "{\"jobId\":7,\"reason\":\"推荐\",\"evidence\":\"熟悉 Java\"}";
+        assertEquals(List.of(), schema.validate(objectMapper.readTree("{\"recommendations\":[" + item + "]}")));
+        assertFalse(schema.validate(objectMapper.readTree("{\"recommendations\":[]}")).isEmpty());
+        assertFalse(schema.validate(objectMapper.readTree("{\"recommendations\":[" + item + "," + item + "," + item + "]}")).isEmpty());
+        assertFalse(schema.validate(objectMapper.readTree("{\"recommendations\":[{\"jobId\":7,\"reason\":\"x\",\"evidence\":\"ok\",\"hidden\":1}]}")).isEmpty());
+        assertEquals("object", schema.toJson().path("properties").path("recommendations").path("items").path("type").asText());
+        assertEquals(1, schema.toJson().path("properties").path("recommendations").path("minItems").asInt());
+    }
+
+    @Test
     void integerArraysCheckTypeSizeAndEveryItem() throws Exception {
         ToolSchema ids = ToolSchema.object().integerArray("jobIds", "ids", false, 1, Long.MAX_VALUE, 3);
 

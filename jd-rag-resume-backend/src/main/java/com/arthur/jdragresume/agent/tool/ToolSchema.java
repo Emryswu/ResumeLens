@@ -24,23 +24,29 @@ public final class ToolSchema {
     }
 
     public ToolSchema integer(String name, String description, boolean required, long minimum, long maximum) {
-        properties.put(name, new Property("integer", description, required, minimum, maximum, 0));
+        properties.put(name, new Property("integer", description, required, minimum, maximum, 0, null));
         return this;
     }
 
     public ToolSchema string(String name, String description, boolean required, int maxLength) {
-        properties.put(name, new Property("string", description, required, 0, 0, maxLength));
+        properties.put(name, new Property("string", description, required, 0, 0, maxLength, null));
         return this;
     }
 
     public ToolSchema bool(String name, String description, boolean required) {
-        properties.put(name, new Property("boolean", description, required, 0, 0, 0));
+        properties.put(name, new Property("boolean", description, required, 0, 0, 0, null));
         return this;
     }
 
     /** An array of at most {@code maxItems} integers, each within [minimum, maximum]. */
     public ToolSchema integerArray(String name, String description, boolean required, long minimum, long maximum, int maxItems) {
-        properties.put(name, new Property("array", description, required, minimum, maximum, maxItems));
+        properties.put(name, new Property("array", description, required, minimum, maximum, maxItems, null));
+        return this;
+    }
+
+    /** Nested, structurally validated objects for recommendation submissions. */
+    public ToolSchema objectArray(String name, String description, boolean required, int maxItems, ToolSchema itemSchema) {
+        properties.put(name, new Property("objectArray", description, required, 0, 0, maxItems, itemSchema));
         return this;
     }
 
@@ -52,7 +58,7 @@ public final class ToolSchema {
         List<String> required = new ArrayList<>();
         properties.forEach((name, property) -> {
             ObjectNode node = props.putObject(name);
-            node.put("type", property.type());
+            node.put("type", property.type().equals("objectArray") ? "array" : property.type());
             node.put("description", property.description());
             if (property.type().equals("integer")) {
                 node.put("minimum", property.minimum());
@@ -62,6 +68,10 @@ public final class ToolSchema {
                 items.put("type", "integer");
                 items.put("minimum", property.minimum());
                 items.put("maximum", property.maximum());
+                node.put("maxItems", property.maxLength());
+            } else if (property.type().equals("objectArray")) {
+                node.set("items", property.itemSchema().toJson());
+                node.put("minItems", 1);
                 node.put("maxItems", property.maxLength());
             } else if (property.type().equals("string")) {
                 node.put("maxLength", property.maxLength());
@@ -113,6 +123,16 @@ public final class ToolSchema {
                         checkInteger(name + "[]", item, property, problems);
                     }
                 }
+            } else if (property.type().equals("objectArray")) {
+                if (!value.isArray() || value.isEmpty() || value.size() > property.maxLength()) {
+                    problems.add("'" + name + "' must have 1 to " + property.maxLength() + " objects");
+                } else {
+                    for (int i = 0; i < value.size(); i++) {
+                        for (String problem : property.itemSchema().validate(value.get(i))) {
+                            problems.add(name + "[" + i + "]: " + problem);
+                        }
+                    }
+                }
             } else if (!value.isTextual()) {
                 problems.add("'" + name + "' must be a string");
             } else if (value.asText().length() > property.maxLength()) {
@@ -134,6 +154,6 @@ public final class ToolSchema {
     }
 
     /** {@code maxLength} is the item limit for arrays. */
-    private record Property(String type, String description, boolean required, long minimum, long maximum, int maxLength) {
+    private record Property(String type, String description, boolean required, long minimum, long maximum, int maxLength, ToolSchema itemSchema) {
     }
 }
