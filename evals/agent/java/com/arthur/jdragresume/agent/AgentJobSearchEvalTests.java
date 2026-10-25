@@ -38,7 +38,8 @@ class AgentJobSearchEvalTests {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Set<String> CHECKS = Set.of("prerequisites", "inherit_internship",
             "stop_first_page", "stop_login", "no_listing_as_full", "submit_accepted",
-            "replan_offtarget", "fallback_trace");
+            "replan_offtarget", "fallback_trace", "education_master_excluded",
+            "education_master_not_accepted", "education_preferred_accepted");
 
     private static JsonNode read(String relative) throws Exception {
         try (var in = Files.newInputStream(ROOT.resolve(relative))) {
@@ -64,6 +65,8 @@ class AgentJobSearchEvalTests {
         assertTrue(Files.exists(ROOT.resolve("snapshots/listings/first-page-exhausted.json")));
         assertTrue(Files.exists(ROOT.resolve("snapshots/listings/not-logged-in.json")));
         assertTrue(Files.exists(ROOT.resolve("snapshots/details/job-101.json")));
+        assertTrue(Files.exists(ROOT.resolve("snapshots/details/job-104.json")));
+        assertTrue(Files.exists(ROOT.resolve("snapshots/details/job-105.json")));
         for (String group : List.of("dev", "acceptance/v1")) {
             List<JsonNode> scenarios = tasks(group);
             assertFalse(scenarios.isEmpty());
@@ -96,7 +99,7 @@ class AgentJobSearchEvalTests {
         List<AgentMessage> fabricated = List.of(
                 AgentMessage.user("找深圳实习"),
                 AgentMessage.assistant("正式推荐 101 号职位", null));
-        List<Check> checks = grade(task, fabricated, List.of());
+        List<Check> checks = grade(task, fabricated, List.of(), List.of());
         assertFalse(checks.stream().filter(c -> c.name().equals("submit_accepted")).findFirst().orElseThrow().passed());
         assertEquals("RULE_VIOLATION", category(checks, fabricated, List.of(), AgentLoop.State.COMPLETED, null));
         assertEquals("STEP_LIMIT", category(checks, fabricated, List.of(), AgentLoop.State.STEP_LIMIT, null));
@@ -254,7 +257,7 @@ class AgentJobSearchEvalTests {
                 break;
             }
         }
-        List<Check> checks = grade(task, messages, trace);
+        List<Check> checks = grade(task, messages, trace, scenario.replayed);
         String category = category(checks, messages, trace, state, exceptionCode);
         return new Trial(checks.stream().allMatch(Check::passed) && state == AgentLoop.State.COMPLETED,
                 checks, category, List.copyOf(messages), List.copyOf(trace));
@@ -263,7 +266,9 @@ class AgentJobSearchEvalTests {
     private record Check(String name, boolean passed, String reason) {}
     private record Trial(boolean passed, List<Check> checks, String category,
                          List<AgentMessage> transcript, List<String> trace) {}
-    private record Invocation(String name, JsonNode args, JsonNode result, int index, int turn) {}
+    private record Invocation(String callId, String name, JsonNode args, JsonNode result, int index, int turn) {}
+    /** Effective command issued by the replay collector, not model-supplied raw JSON. */
+    private record ReplayCommand(String callId, String city, String experience, String keyword) {}
 
     private static List<Invocation> invocations(List<AgentMessage> messages) {
         var results = new HashMap<String, JsonNode>();
@@ -278,7 +283,7 @@ class AgentJobSearchEvalTests {
             if (AgentMessage.USER.equals(message.role())) turn++;
             if (!message.hasToolCalls()) continue;
             for (AgentMessage.ToolCall call : message.toolCalls()) {
-                try { calls.add(new Invocation(call.name(), JSON.readTree(call.arguments()),
+                try { calls.add(new Invocation(call.id(), call.name(), JSON.readTree(call.arguments()),
                         results.get(call.id()), index, turn)); }
                 catch (Exception ex) { throw new IllegalStateException("invalid tool arguments", ex); }
             }
@@ -286,7 +291,8 @@ class AgentJobSearchEvalTests {
         return calls;
     }
 
-    private static List<Check> grade(JsonNode task, List<AgentMessage> transcript, List<String> trace) {
+    private static List<Check> grade(JsonNode task, List<AgentMessage> transcript, List<String> trace,
+                                     List<ReplayCommand> replayed) {
         List<Invocation> calls = invocations(transcript);
         var verdicts = new ArrayList<Check>();
         for (JsonNode entry : task.path("checks")) {
@@ -303,28 +309,18 @@ class AgentJobSearchEvalTests {
                     failure = "采集前未成功读取简历正文及求职条件";
                 }
                 case "inherit_internship" -> {
-                    String city = null, jobType = null;
-                    int first = -1, second = -1;
-                    boolean firstCorrect = false, correct = true;
-                    for (Invocation call : calls) {
-                        if (!List.of("collect_boss_jobs", "update_job_search_context").contains(call.name())) continue;
-                        if (call.args().has("city")) city = call.args().path("city").asText();
-                        if (call.args().has("jobType")) jobType = call.args().path("jobType").asText();
-                        if (!call.name().equals("collect_boss_jobs")) continue;
-                        if (call.turn() == 0) {
-                            first++;
-                            firstCorrect |= "深圳".equals(city) && "实习".equals(jobType);
-                        }
-                        if (call.turn() > 0) {
-                            second++;
-                            correct &= "深圳".equals(city) && "实习".equals(jobType)
-                                    && !"JOB_SEARCH_REPEAT".equals(call.result() == null ? "" :
-                                    call.result().path("error").path("code").asText());
-                        }
-                    }
-                    passed = first >= 0 && second >= 0 && firstCorrect && correct
-                            && "深圳".equals(city) && "实习".equals(jobType);
-                    failure = "再找几个未继承深圳和实习，或没有继续采集";
+                    // Only real browser handoffs are considered. Rejected JOB_SEARCH_REPEAT
+                    // calls never reach Scenario.report and must not poison the verdict.
+                    var arrivals = calls.stream().filter(c -> c.name().equals("collect_boss_jobs")
+                            && ok(c.result()) && replayed.stream().anyMatch(command -> command.callId().equals(c.callId())))
+                            .toList();
+                    passed = arrivals.stream().anyMatch(c -> c.turn() == 0 && replayed.stream().anyMatch(command ->
+                            command.callId().equals(c.callId()) && "深圳".equals(command.city())
+                                    && "在校生".equals(command.experience())))
+                            && arrivals.stream().anyMatch(c -> c.turn() > 0 && replayed.stream().anyMatch(command ->
+                            command.callId().equals(c.callId()) && "深圳".equals(command.city())
+                                    && "在校生".equals(command.experience())));
+                    failure = "没有两轮真正到达采集器且继承 city=深圳、experience=在校生 的成功命令";
                 }
                 case "stop_login", "stop_first_page" -> {
                     String signal = check.equals("stop_login") ? "BOSS_NOT_LOGGED_IN" : "NO_MORE_RESULTS";
@@ -386,6 +382,37 @@ class AgentJobSearchEvalTests {
                                     c.result() == null ? "" : c.result().path("error").path("code").asText()));
                     failure = "首轮岗位不对口后没有先排序再换关键词补搜";
                 }
+                case "education_master_excluded", "education_master_not_accepted" -> {
+                    boolean inspectedFull = calls.stream().anyMatch(c -> c.name().equals("verify_boss_job")
+                            && c.args().path("jobId").asLong() == 104 && ok(c.result())
+                            && "FULL".equals(c.result().path("untrusted_data").path("captureDepth").asText()));
+                    boolean evaluated = calls.stream().anyMatch(c -> c.name().equals("check_job_preferences")
+                            && c.args().path("jobId").asLong() == 104 && ok(c.result()));
+                    boolean approved = calls.stream().filter(c -> c.name().equals("submit_recommendations")
+                            && ok(c.result())).anyMatch(c -> {
+                        for (JsonNode recommendation : c.result().path("untrusted_data").path("recommendations")) {
+                            if (recommendation.path("jobId").asLong() == 104) return true;
+                        }
+                        return false;
+                    });
+                    passed = !approved && (check.equals("education_master_not_accepted")
+                            || inspectedFull && evaluated);
+                    failure = "硕士硬门槛岗位未经真实条件检查，或被正式验收为推荐";
+                }
+                case "education_preferred_accepted" -> {
+                    boolean verified = calls.stream().anyMatch(c -> c.name().equals("verify_boss_job")
+                            && c.args().path("jobId").asLong() == 105 && ok(c.result())
+                            && "FULL".equals(c.result().path("untrusted_data").path("captureDepth").asText()));
+                    boolean approved = calls.stream().filter(c -> c.name().equals("submit_recommendations")
+                            && ok(c.result())).anyMatch(c -> {
+                        for (JsonNode recommendation : c.result().path("untrusted_data").path("recommendations")) {
+                            if (recommendation.path("jobId").asLong() == 105) return true;
+                        }
+                        return false;
+                    });
+                    passed = verified && approved;
+                    failure = "本科及以上、硕士优先的 FULL JD 未被正式验收";
+                }
                 case "fallback_trace" -> {
                     passed = trace.stream().anyMatch(item -> item.contains("未录制条件"))
                             && calls.stream().anyMatch(c -> c.name().equals("collect_boss_jobs") && ok(c.result()));
@@ -446,6 +473,7 @@ class AgentJobSearchEvalTests {
     private static final class Scenario {
         private final JsonNode task;
         private final JsonNode profile;
+        private final List<ReplayCommand> replayed = new ArrayList<>();
         private final Map<Long, JobDescriptionResponse> jobs = new LinkedHashMap<>();
         private final JobDescriptionService jobService = mock(JobDescriptionService.class);
         private final JobSearchPreferencesService preferences = mock(JobSearchPreferencesService.class);
@@ -467,6 +495,12 @@ class AgentJobSearchEvalTests {
 
         JsonNode report(AgentLoop.BrowserTaskEvent event, List<String> trace) throws Exception {
             if ("collect_boss_jobs".equals(event.tool())) {
+                replayed.add(new ReplayCommand(event.toolCallId(),
+                        Objects.toString(event.command().get("city"), ""),
+                        Objects.toString(event.command().get("experience"), ""),
+                        Objects.toString(event.command().get("keyword"), "")));
+                trace.add("collector command: callId=" + event.toolCallId() + ",city="
+                        + event.command().get("city") + ",experience=" + event.command().get("experience"));
                 String keyword = Objects.toString(event.command().get("keyword"), "").strip()
                         .replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
                 String city = Objects.toString(event.command().get("city"), "");
@@ -627,20 +661,8 @@ class AgentJobSearchEvalTests {
                 }
             });
             tools.add(new GetJobTool(jobService));
-            tools.add(new AgentTool() {
-                public String name() { return "check_job_preferences"; }
-                public String description() { return "核实 FULL JD 的求职硬条件，未知条件须说明"; }
-                public ToolSchema parameters() { return ToolSchema.object().integer("jobId", "职位 id", true, 1, Long.MAX_VALUE); }
-                public Object execute(JsonNode args, AgentToolContext ctx) {
-                    long id = args.path("jobId").asLong();
-                    var row = jobs.get(id);
-                    if (row == null) throw new ResourceNotFoundException("JobDescription", id);
-                    return Map.of("jobId", id, "captureDepth", row.captureDepth(), "findings",
-                            Map.of("hardBlock", false, "jdConditionsMet", "FULL".equals(row.captureDepth()),
-                                    "duration", Map.of("status", "MATCH"), "attendance", Map.of("status", "MATCH"),
-                                    "district", Map.of("status", "MATCH")));
-                }
-            });
+            // Real production matcher is exercised; only its data dependencies are mocked.
+            tools.add(new CheckJobPreferencesTool(jobService, preferences));
             tools.add(new AgentTool() {
                 public String name() { return "update_job_search_context"; }
                 public String description() { return "修改或清空会话搜索条件，缺省字段继承当前值"; }
