@@ -4,6 +4,7 @@ import com.arthur.jdragresume.dto.job.JobCaptureRequest;
 import com.arthur.jdragresume.dto.job.JobCaptureResponse;
 import com.arthur.jdragresume.dto.job.JobDescriptionResponse;
 import com.arthur.jdragresume.exception.BusinessException;
+import com.arthur.jdragresume.exception.ResourceNotFoundException;
 import com.arthur.jdragresume.service.JobDescriptionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
@@ -46,10 +47,8 @@ public class VerifyBossJobTool implements DeferrableTool {
 
     @Override
     public Begin begin(JsonNode arguments, AgentToolContext context) {
-        JobDescriptionResponse job = jobs.findById(arguments.get("jobId").asLong());
-        requireBoss(job);
-        if ("FULL".equals(job.captureDepth())) return alreadyFullResult(job);
-        requireBossUrl(job.sourceUrl(), job.sourceJobId());
+        // beforeBudget validated the source and URL. A LISTING may be loaded again here.
+        JobDescriptionResponse job = loadBeforeBrowser(arguments.get("jobId").asLong());
         Map<String, Object> command = Map.of("mode", "detail", "jobId", job.id(), "sourceJobId", job.sourceJobId(), "sourceUrl", job.sourceUrl());
         var action = collectors.startAction(command, context.collection());
         if (action.report() == null) return new InBrowser("browser-extension", "verifyBossJob", action.command());
@@ -58,14 +57,25 @@ public class VerifyBossJobTool implements DeferrableTool {
     }
 
     /**
-     * Fast path checked before the BOSS browser budget: an already-persisted FULL JD
-     * does not open a page and must remain accessible when the attempt budget is spent.
-     * Returns null for LISTING so AgentLoop performs the normal budget check.
+     * Check the posting before charging a browser attempt. A persisted FULL JD is a
+     * read-only success, while invalid jobs never start a browser task.
      */
-    public Done alreadyStoredFull(JsonNode arguments) {
-        JobDescriptionResponse job = jobs.findById(arguments.get("jobId").asLong());
+    @Override
+    public Done beforeBudget(JsonNode arguments) {
+        JobDescriptionResponse job = loadBeforeBrowser(arguments.get("jobId").asLong());
         requireBoss(job);
+        requireBossUrl(job.sourceUrl(), job.sourceJobId());
         return "FULL".equals(job.captureDepth()) ? alreadyFullResult(job) : null;
+    }
+
+    private JobDescriptionResponse loadBeforeBrowser(long jobId) {
+        try {
+            return jobs.findById(jobId);
+        } catch (ResourceNotFoundException ex) {
+            // Distinct from NOT_FOUND during resume: a missing posting before opening
+            // the browser must not charge an attempt or a daily-page estimate.
+            throw new BusinessException("BOSS_VERIFY_JOB_NOT_FOUND", ex.getMessage() + "（id 必须来自工具结果）");
+        }
     }
 
     private static Done alreadyFullResult(JobDescriptionResponse job) {
@@ -79,8 +89,14 @@ public class VerifyBossJobTool implements DeferrableTool {
     public Object resume(JsonNode arguments, JsonNode report, AgentToolContext context) {
         if (report == null || !report.isObject()) throw invalidReport();
         JobDescriptionResponse job = jobs.findById(arguments.get("jobId").asLong());
-        requireBoss(job);
-        requireBossUrl(job.sourceUrl(), job.sourceJobId());
+        // The browser already ran. A changed source or URL at resume time must not
+        // be misclassified as a failed preflight and refunded by JobSearchWorkflow.
+        try {
+            requireBoss(job);
+            requireBossUrl(job.sourceUrl(), job.sourceJobId());
+        } catch (BusinessException ex) {
+            throw invalidReport();
+        }
         report = collectors.completeAction(Map.of("mode", "detail", "jobId", job.id(), "sourceJobId", job.sourceJobId(),
                 "sourceUrl", job.sourceUrl()), report, context.collection()).report();
         return saveReport(job, report);
@@ -142,6 +158,7 @@ public class VerifyBossJobTool implements DeferrableTool {
     }
 
     private static void requireBossUrl(String sourceUrl, String sourceJobId) {
+        if (sourceUrl == null || sourceJobId == null) throw invalidBossUrl();
         try {
             URI uri = URI.create(sourceUrl);
             String host = uri.getHost();
@@ -151,10 +168,10 @@ public class VerifyBossJobTool implements DeferrableTool {
                     path == null || !path.matches("/job_detail/[^/]+\\.html/?") ||
                     !path.substring("/job_detail/".length()).replaceFirst("\\.html/?$", "").equals(sourceJobId) ||
                     uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null) {
-                throw invalidReport();
+                throw invalidBossUrl();
             }
         } catch (IllegalArgumentException ex) {
-            throw invalidReport();
+            throw invalidBossUrl();
         }
     }
 
@@ -173,6 +190,10 @@ public class VerifyBossJobTool implements DeferrableTool {
 
     private static String safeReason(String reason) {
         return reason.matches("[A-Z_]{1,40}") ? reason : "UNKNOWN";
+    }
+
+    private static BusinessException invalidBossUrl() {
+        return new BusinessException("BOSS_DETAIL_URL_INVALID", "BOSS 职位详情链接不合法，未打开浏览器");
     }
 
     private static BusinessException invalidReport() {
