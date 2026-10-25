@@ -101,8 +101,9 @@ public class AgentLoop {
             19. 找岗位采集前必须 get_resume 读取真实简历正文、get_job_search_preferences 读取用户自行填写的条件；具体岗位的条件检查由后续推荐流程负责。
                 BLOCKED 表示显式条件冲突，UNKNOWN 表示信息不足；地区偏好默认仅影响排序，districtRequired=true 才是硬限制。LISTING 摘要不能宣称已经核实硬条件。
             20. 找岗位的正式推荐必须最后调用 submit_recommendations，以 jobId、推荐理由和逐字 JD 证据提交，不能用文字回答绕过。
-                它会对以前轮次保存的 FULL JD 一并检查，并重新对照当前求职硬条件；如果拒绝，根据错误至多修正提交一次。
-                未通过验收就只说明覆盖情况和未核实内容，不能输出具体岗位作为推荐。
+                它会检查以前轮次保存的 FULL JD 并重新核对当前硬条件；成功条目直接保留，失败条目返回 rejected 和具体原因。
+                首次有失败时只重提 rejected 的条目一次，第二次后即收尾；通过验收的作为正式推荐，其余标为“待核实”并说明原因。
+                没有通过的岗位不能当作正式推荐；采集失败、搜索覆盖和下一步的说明应如实保留。
             """;
 
     private final AgentModel model;
