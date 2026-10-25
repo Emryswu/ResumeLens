@@ -236,6 +236,125 @@ class ConversationStoreTests {
                 String.class, freshId), "a new conversation cannot inherit the previous campaign");
     }
 
+    @Test
+    void searchHistoryIsCommittedOnlyAfterSuccessfulSynchronousOrBrowserCollection() {
+        for (boolean browser : java.util.List.of(false, true)) {
+            for (String finish : java.util.List.of("LOGIN", "FIRST_PAGE_EMPTY", "NORMAL")) {
+                long conversationId = store.create(1).conversation().id();
+                var policy = new TranscriptPolicy(new AgentProperties());
+                var calls = new java.util.concurrent.atomic.AtomicInteger();
+                var toolCalls = new java.util.concurrent.atomic.AtomicInteger();
+                var mapper = ConversationStore.JSON;
+                java.util.Map<String, Object> collection = switch (finish) {
+                    case "LOGIN" -> java.util.Map.of("status", "STOPPED", "stopReason", "BOSS_NOT_LOGGED_IN",
+                            "pagesRead", 1, "jobIds", java.util.List.of());
+                    case "FIRST_PAGE_EMPTY" -> java.util.Map.of("status", "COMPLETED",
+                            "finishReason", "NO_MORE_RESULTS", "pagesRead", 1, "jobIds", java.util.List.of());
+                    default -> java.util.Map.of("status", "COMPLETED", "finishReason", "MAX_PAGES",
+                            "pagesRead", 1, "jobIds", java.util.List.of(11L));
+                };
+                com.arthur.jdragresume.agent.tool.DeferrableTool collector =
+                        new com.arthur.jdragresume.agent.tool.DeferrableTool() {
+                    public String name() { return "collect_boss_jobs"; }
+                    public String description() { return "collect"; }
+                    public com.arthur.jdragresume.agent.tool.ToolSchema parameters() {
+                        return com.arthur.jdragresume.agent.tool.ToolSchema.object()
+                                .string("keyword", "keyword", false, 50)
+                                .string("city", "city", false, 10)
+                                .string("jobType", "type", false, 10)
+                                .string("experience", "experience", false, 10)
+                                .integer("maxPages", "pages", false, 1, 3);
+                    }
+                    public Begin begin(com.fasterxml.jackson.databind.JsonNode args,
+                                       com.arthur.jdragresume.agent.tool.AgentToolContext context) {
+                        calls.incrementAndGet();
+                        return browser ? new InBrowser("browser-extension", "collectBossJobs",
+                                java.util.Map.of("keyword", "Java", "city", "深圳")) : new Done(collection);
+                    }
+                    public Object resume(com.fasterxml.jackson.databind.JsonNode args,
+                                         com.fasterxml.jackson.databind.JsonNode report,
+                                         com.arthur.jdragresume.agent.tool.AgentToolContext context) {
+                        return collection;
+                    }
+                };
+                AgentModel model = (system, messages, tools, timeout) -> {
+                    int lastUser = 0;
+                    for (int i = 0; i < messages.size(); i++) {
+                        if (AgentMessage.USER.equals(messages.get(i).role())) lastUser = i;
+                    }
+                    if (messages.subList(lastUser + 1, messages.size()).stream()
+                            .anyMatch(m -> AgentMessage.TOOL.equals(m.role()))) return AgentModel.Reply.answer("已处理");
+                    return AgentModel.Reply.call(AgentMessage.ToolCall.of("collect-" + toolCalls.incrementAndGet(),
+                            "collect_boss_jobs",
+                            "{\"keyword\":\"Java\",\"city\":\"深圳\",\"jobType\":\"实习\"}"));
+                };
+                var loop = new AgentLoop(model,
+                        new com.arthur.jdragresume.agent.tool.AgentToolRegistry(java.util.List.of(collector)),
+                        mapper, new AgentProperties(), System::currentTimeMillis,
+                        new BrowserTaskRegistry(store), store);
+                var first = store.accept(1, conversationId, "找深圳 Java 实习", null, null, 90000,
+                        messages -> policy.normalize(messages, null));
+                store.updateSearchContext(first, old -> old.selectedResume(7).preferencesRead());
+                var task = new java.util.concurrent.atomic.AtomicReference<AgentLoop.BrowserTaskEvent>();
+                var outcome = runStoredCollection(loop, first, null, task);
+                if (browser) {
+                    assertEquals(AgentLoop.State.AWAITING_BROWSER, outcome.state());
+                    assertEquals(0, store.searchContext(first).searched().size(),
+                            "issuing a browser task must not mark the search completed");
+                    assertEquals("深圳", store.searchContext(first).city(),
+                            "filters must be persisted at begin, before the browser returns");
+                    var pending = task.get();
+                    assertNotNull(pending);
+                    var report = new TranscriptPolicy.BrowserReport(pending.toolCallId(), pending.taskId(),
+                            TranscriptPolicy.BrowserReport.COMPLETED, mapper.createObjectNode());
+                    var resumed = store.accept(1, conversationId, null, null, report, 90000,
+                            messages -> policy.normalize(messages, report.toolCallId(), call ->
+                                    ToolEnvelope.error(call.name(), "BROWSER_TASK_ABANDONED", "abandoned")));
+                    outcome = runStoredCollection(loop, resumed, report, new java.util.concurrent.atomic.AtomicReference<>());
+                }
+                assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+                var second = store.accept(1, conversationId, "再找几个", null, null, 90000,
+                        messages -> policy.normalize(messages, null));
+                assertEquals("深圳", store.searchContext(second).city());
+                assertEquals("实习", store.searchContext(second).jobType());
+                assertEquals("NORMAL".equals(finish) ? 1 : 0,
+                        store.searchContext(second).searched().size(),
+                        "only completed searches may enter cross-turn duplicate history");
+                var repeat = runStoredCollection(loop, second, null,
+                        new java.util.concurrent.atomic.AtomicReference<>());
+                assertEquals("NORMAL".equals(finish) ? 1 : 2, calls.get(),
+                        "platform stops must permit the exact same search next turn");
+                if ("NORMAL".equals(finish)) {
+                    assertTrue(repeat.transcript().stream()
+                            .filter(m -> AgentMessage.TOOL.equals(m.role()))
+                            .anyMatch(m -> m.content().contains("JOB_SEARCH_REPEAT")));
+                } else if (browser) {
+                    assertEquals(AgentLoop.State.AWAITING_BROWSER, repeat.state());
+                }
+            }
+        }
+    }
+
+    private AgentLoop.Outcome runStoredCollection(AgentLoop loop, ConversationStore.Run run,
+            TranscriptPolicy.BrowserReport report,
+            java.util.concurrent.atomic.AtomicReference<AgentLoop.BrowserTaskEvent> browserTask) {
+        var sink = new AgentEventSink() {
+            @Override public void emit(String name, Object payload) {
+                if ("browser_task_required".equals(name)) browserTask.set((AgentLoop.BrowserTaskEvent) payload);
+            }
+            @Override public void checkpoint(java.util.List<AgentMessage> messages, String summary) {
+                store.checkpoint(run, messages, summary);
+            }
+        };
+        var result = loop.run(run.input(), null,
+                new com.arthur.jdragresume.agent.tool.AgentToolContext(
+                        new com.arthur.jdragresume.entity.AppUser(), run),
+                sink, () -> false, run.acceptedAt(),
+                new AgentLoop.TurnOptions(null, java.util.List.of(), false, report));
+        store.emit(run, "done", java.util.Map.of("state", result.state().name(), "steps", 1));
+        return result;
+    }
+
     private AgentLoop.Outcome runSearchTurn(AgentLoop loop, ConversationStore.Run run) {
         var sink = new AgentEventSink() {
             @Override public void emit(String name, Object payload) { }
