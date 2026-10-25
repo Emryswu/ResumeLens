@@ -2,6 +2,7 @@ package com.arthur.jdragresume.agent.tool;
 
 import com.arthur.jdragresume.dto.job.JobDescriptionResponse;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
+import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.service.JobAvailabilityMatcher;
 import com.arthur.jdragresume.service.JobDescriptionService;
 import com.arthur.jdragresume.service.JobSearchPreferencesService;
@@ -98,7 +99,7 @@ public class SubmitRecommendationsTool implements AgentTool {
                     reason, evidence, List.copyOf(unknown)));
         }
         // Atomic acceptance: one invalid entry rejects the entire list, not just that entry.
-        if (!issues.isEmpty()) return new Result(false, List.of(), List.copyOf(issues));
+        if (!issues.isEmpty()) throw new BusinessException("RECOMMENDATIONS_REJECTED", String.join("; ", issues));
         return new Result(true, List.copyOf(approved), List.of());
     }
 
