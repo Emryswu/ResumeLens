@@ -138,7 +138,7 @@ class JobSearchWorkflowTests {
     void verificationsShareTheBudgetAndRefusedCallsDoNotUseItUp() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳 Java 实习")));
         add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[1,2,3,4,5,6,7],\"dailyPagesLeft\":10}");
-        for (int i = 1; i <= 4; i++) verify(log, "v" + i, i, "{\\"tool\\":\\"verify_boss_job\\",\\"ok\\":true,\\"untrusted_data\\":{\\"jobId\\":" + i + ",\\"captureDepth\\":\\"FULL\\",\\"verificationStatus\\":\\"SAVED_FULL\\"}}");
+        for (int i = 1; i <= 4; i++) verify(log, "v" + i, i, "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":" + i + ",\"captureDepth\":\"FULL\",\"verificationStatus\":\"SAVED_FULL\"}}");
         verify(log, "dup", 1, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"JOB_SEARCH_BUDGET\"}}");
         var progress = JobSearchWorkflow.inspect(log, mapper);
         assertEquals(List.of(1L, 2L, 3L, 4L), progress.verifiedIds(), "a refused call is not counted");
