@@ -16,7 +16,7 @@ import java.util.Set;
  * pauses. All figures are reconstructed from server-stored tool calls and results in the current
  * user turn; no model-supplied counters or browser-reported totals are trusted as instructions.
  *
- * The campaign is deliberately bounded: a soft target is not a reason to manufacture matches
+ * The campaign is deliberately bounded: the qualified-candidate target is not a reason to manufacture matches
  * or silently widen the user's hard constraints.
  */
 final class JobSearchWorkflow {
@@ -25,6 +25,10 @@ final class JobSearchWorkflow {
     /** Every tool that loads BOSS pages must be listed here so AgentLoop checks it against the budget. */
     static final Set<String> BOSS_TOOLS = Set.of(TOOL, VERIFY_TOOL);
     static final String BUDGET_ERROR = "JOB_SEARCH_BUDGET";
+    /** Validation rejected before browser navigation must not consume search attempts/pages. */
+    static final Set<String> COLLECTION_NOT_STARTED_CODES = Set.of(
+            BUDGET_ERROR, "JOB_SEARCH_PREREQUISITES", "BOSS_DIRECTION_REQUIRED",
+            "INVALID_ARGUMENTS", "INVALID_COMMAND");
     /** Failures before a verification browser task starts must not consume attempt/page estimates.
      * Keep preflight codes distinct from errors that can also happen after a browser report. */
     static final Set<String> VERIFICATION_NOT_STARTED_CODES = Set.of(
@@ -32,7 +36,7 @@ final class JobSearchWorkflow {
     static final int MAX_SEARCHES = 3;
     static final int MAX_PAGES = 6;
     static final int MAX_VERIFICATIONS = 5;
-    static final int SOFT_TARGET = 5;
+    static final int TARGET_QUALIFIED_CANDIDATES = 3;
 
     private JobSearchWorkflow() { }
 
@@ -70,6 +74,9 @@ final class JobSearchWorkflow {
         }
         Map<String, Attempt> pending = new LinkedHashMap<>();
         Map<String, Long> pendingVerifications = new LinkedHashMap<>();
+        Map<String, Long> pendingChecks = new LinkedHashMap<>();
+        Map<Long, Check> checks = new LinkedHashMap<>();
+        String haltReason = null;
         Map<String, Boolean> estimatedDailyPageCharged = new LinkedHashMap<>();
         List<Attempt> attempts = new ArrayList<>();
         Map<String, Long> attempted = new LinkedHashMap<>();
@@ -82,6 +89,10 @@ final class JobSearchWorkflow {
             if (message.hasToolCalls()) {
                 for (AgentMessage.ToolCall call : message.toolCalls()) {
                     if (call.id().equals(excludeCallId)) continue;
+                    if ("check_job_preferences".equals(call.name())) {
+                        pendingChecks.put(call.id(), parse(mapper, call.arguments()).path("jobId").asLong(-1));
+                        continue;
+                    }
                     if (VERIFY_TOOL.equals(call.name())) {
                         long jobId = parse(mapper, call.arguments()).path("jobId").asLong(-1);
                         attempted.put(call.id(), jobId);
@@ -105,6 +116,22 @@ final class JobSearchWorkflow {
                 }
             }
             if (!AgentMessage.TOOL.equals(message.role())) continue;
+            Long checkedJob = pendingChecks.remove(message.toolCallId());
+            if (checkedJob != null) {
+                JsonNode result = parse(mapper, message.content());
+                JsonNode data = result.path("untrusted_data");
+                if (result.path("ok").asBoolean(false) && "FULL".equals(data.path("captureDepth").asText())
+                        && data.path("jobId").asLong(-1) == checkedJob) {
+                    JsonNode findings = data.path("findings");
+                    boolean blocked = findings.path("hardBlock").asBoolean(false);
+                    boolean eligible = findings.path("jdConditionsMet").asBoolean(false);
+                    boolean unknown = "UNKNOWN".equals(findings.path("duration").path("status").asText())
+                            || "UNKNOWN".equals(findings.path("attendance").path("status").asText())
+                            || "UNKNOWN".equals(findings.path("district").path("status").asText());
+                    checks.put(checkedJob, new Check(!blocked && eligible, !blocked && !eligible && unknown));
+                }
+                continue;
+            }
             Long verifiedCandidate = pendingVerifications.remove(message.toolCallId());
             if (verifiedCandidate != null) {
                 boolean reserved = Boolean.TRUE.equals(estimatedDailyPageCharged.remove(message.toolCallId()));
@@ -131,10 +158,13 @@ final class JobSearchWorkflow {
             if (attempt == null) continue;
             JsonNode result = parse(mapper, message.content());
             // A call this workflow refused never reached the browser and must not use up the budget.
-            if (refusedByBudget(result)) {
+            if (!result.path("ok").asBoolean(false)
+                    && COLLECTION_NOT_STARTED_CODES.contains(result.path("error").path("code").asText())) {
                 attempts.remove(attempt);
                 continue;
             }
+            String blocked = JobSearchStopPolicy.haltReason(result);
+            if (blocked != null) haltReason = blocked;
             if (!result.path("ok").asBoolean(false)) continue;
             JsonNode data = result.path("untrusted_data");
             pagesRead += Math.max(0, data.path("pagesRead").asInt(0));
@@ -151,8 +181,17 @@ final class JobSearchWorkflow {
                 .reduce((previous, current) -> current).map(AgentMessage::content).orElse("");
         boolean internship = !question.contains("社招") && !question.contains("全职")
                 && (question.contains("实习") || question.contains("在校") || question.contains("暑期") || question.contains("寒假"));
+        Set<Long> qualified = new LinkedHashSet<>();
+        Set<Long> unknown = new LinkedHashSet<>();
+        checks.forEach((id, check) -> {
+            // FULL verification is authoritative, including ALREADY_FULL. Attempts alone never qualify.
+            if (!verified.contains(id)) return;
+            if (check.qualified()) qualified.add(id);
+            else if (check.unknown()) unknown.add(id);
+        });
         return new Snapshot(List.copyOf(attempts), requestedPages, pagesRead, jobIds.size(), dailyPagesLeft,
-                List.copyOf(new LinkedHashSet<>(attempted.values())), List.copyOf(verified), internship);
+                List.copyOf(new LinkedHashSet<>(attempted.values())), List.copyOf(verified), internship,
+                haltReason, Set.copyOf(qualified), Set.copyOf(unknown));
     }
 
     private static boolean verificationDidNotStart(JsonNode result) {
@@ -167,6 +206,8 @@ final class JobSearchWorkflow {
     /** The budget check for any tool in {@link #BOSS_TOOLS}; null means the call may run. */
     static String refuse(Snapshot snapshot, String toolName, JsonNode arguments) {
         if (!VERIFY_TOOL.equals(toolName)) return refuse(snapshot, arguments);
+        if (snapshot.reachedTarget()) return "合格候选已达到本次目标，请提前收尾";
+        if (snapshot.haltReason() != null) return snapshot.haltReason();
         if (snapshot.attemptedIds().size() >= MAX_VERIFICATIONS) {
             return "本次找岗位已尝试核实 " + MAX_VERIFICATIONS + " 次，达到核实上限；请根据已核实结果收尾，其余标为待核实";
         }
@@ -181,6 +222,8 @@ final class JobSearchWorkflow {
     }
 
     static String refuse(Snapshot snapshot, JsonNode arguments) {
+        if (snapshot.reachedTarget()) return "合格候选已达到本次目标，请提前收尾";
+        if (snapshot.haltReason() != null) return snapshot.haltReason();
         if (snapshot.attempts().size() >= MAX_SEARCHES) {
             return "本次找岗位已达到 " + MAX_SEARCHES + " 次采集上限，请根据现有结果收尾并说明未覆盖的方向";
         }
@@ -206,7 +249,6 @@ final class JobSearchWorkflow {
     static String guidance(Snapshot progress) {
         if (progress.attempts().isEmpty() && progress.attemptedIds().isEmpty() && progress.verifiedIds().isEmpty()) {
             return "\n求职搜索策略：先根据所选简历识别有证据支持的方向，优先精确关键词。"
-                    + "目标约 " + SOFT_TARGET + " 个值得核实的候选岗位（软目标，非完成承诺）。"
                     + "先在本地库查看范围；本地 0 条时可去 BOSS 采集，不能推断市场没有岗位。"
                     + (progress.internship()
                         ? "用户明确要求实习或在校岗位：不要只把实习塞进 keyword，采集时用 experience=在校生；在校生并不保证是实习。"
@@ -221,6 +263,8 @@ final class JobSearchWorkflow {
                 .append("去重后候选岗位 ").append(progress.uniqueJobs()).append(" 条（未经完整 JD 核实）。");
         info.append(" 已尝试核实 ").append(progress.attemptedIds().size()).append('/').append(MAX_VERIFICATIONS)
                 .append(" 次，已核实完整 JD ").append(progress.verifiedIds().size()).append(" 个。");
+        info.append(" 条件已确认符合 ").append(progress.qualifiedIds().size())
+                .append(" 个，条件未知 ").append(progress.unknownIds().size()).append(" 个。");
         if (progress.dailyPagesLeft() != null) info.append(" 插件今日剩余 ").append(progress.dailyPagesLeft()).append(" 页。");
         info.append(" 已搜条件：");
         for (Attempt attempt : progress.attempts()) {
@@ -230,16 +274,48 @@ final class JobSearchWorkflow {
         boolean canContinue = progress.attempts().size() < MAX_SEARCHES
                 && progress.requestedPages() < MAX_PAGES
                 && (progress.dailyPagesLeft() == null || progress.dailyPagesLeft() > 0);
-        if (canContinue) {
-            info.append("若本批 0 条、数量不足或明显不对口，应在预算内换同方向的另一关键词，")
-                    .append("或根据简历技能尝试相邻方向再补搜；勿重复相同条件，勿擅自放宽城市、学历、实习时长等硬条件。")
-                    .append("先评估结果与重复率，补搜优先 maxPages=1。");
+        if (progress.reachedTarget()) {
+            info.append("合格推荐候选已达到本次目标，现在提前收尾，不再调用采集或核实工具。");
+        } else if (progress.haltReason() != null) {
+            info.append(progress.haltReason()).append("。仍可根据已保存结果说明情况，但不得再次采集。");
+        } else if (canContinue) {
+            info.append("仍可在预算内决定是否补搜，每次优先 maxPages=1。");
         } else {
-            info.append("本次采集预算已用完，停止采集，按现有结果交差。");
+            info.append("本次采集预算已用完，停止采集，按现有结果回答。");
         }
         info.append(" 最终说明覆盖的方向、实际候选数量、未核实要求、预算或平台限制。")
-                .append("候选不足软目标也如实说明，不得凑数或称已核实合格。");
+                .append("合格候选不足时也如实说明，不得凑数或称已核实合格。");
         return info.toString();
+    }
+
+    /** A browser search requires successful resume and preferences reads before starting. */
+    static boolean hasPrerequisites(List<AgentMessage> transcript, ObjectMapper mapper) {
+        boolean resume = false;
+        boolean preferences = false;
+        for (AgentMessage message : transcript) {
+            if (!AgentMessage.TOOL.equals(message.role())) continue;
+            JsonNode result = parse(mapper, message.content());
+            if (!result.path("ok").asBoolean(false)) continue;
+            if ("get_resume".equals(result.path("tool").asText())
+                    && result.path("untrusted_data").hasNonNull("resumeId")
+                    && result.path("untrusted_data").hasNonNull("text")) resume = true;
+            if ("get_job_search_preferences".equals(result.path("tool").asText())) preferences = true;
+        }
+        return resume && preferences;
+    }
+
+    static boolean relevanceReplanAllowed(List<AgentMessage> transcript, Snapshot progress, ObjectMapper mapper) {
+        if (progress.reachedTarget() || progress.haltReason() != null || progress.uniqueJobs() == 0
+                || progress.attempts().size() >= MAX_SEARCHES || progress.requestedPages() >= MAX_PAGES
+                || progress.dailyPagesLeft() != null && progress.dailyPagesLeft() <= 0) return false;
+        for (int i = transcript.size() - 1; i >= 0; i--) {
+            AgentMessage message = transcript.get(i);
+            if (!AgentMessage.TOOL.equals(message.role())) continue;
+            JsonNode result = parse(mapper, message.content());
+            return "rank_jobs_for_resume".equals(result.path("tool").asText())
+                    && result.path("ok").asBoolean(false);
+        }
+        return false;
     }
 
     private static JsonNode parse(ObjectMapper mapper, String json) {
@@ -253,6 +329,10 @@ final class JobSearchWorkflow {
     }
 
     record Attempt(String callId, String keyword, String city, String experience, int pages) { }
+    private record Check(boolean qualified, boolean unknown) { }
     record Snapshot(List<Attempt> attempts, int requestedPages, int pagesRead, int uniqueJobs,
-                    Integer dailyPagesLeft, List<Long> attemptedIds, List<Long> verifiedIds, boolean internship) { }
+                    Integer dailyPagesLeft, List<Long> attemptedIds, List<Long> verifiedIds, boolean internship,
+                    String haltReason, Set<Long> qualifiedIds, Set<Long> unknownIds) {
+        boolean reachedTarget() { return qualifiedIds.size() >= TARGET_QUALIFIED_CANDIDATES; }
+    }
 }

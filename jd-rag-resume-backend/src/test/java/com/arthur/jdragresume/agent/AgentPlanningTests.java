@@ -121,6 +121,76 @@ class AgentPlanningTests {
     }
 
     @Test
+    void successfulJobSearchRankingMayTriggerOneBoundedReplan() {
+        properties.setMaxPlanningSteps(12);
+        properties.setMaxSteps(12);
+        List<String> collectedKeywords = new ArrayList<>();
+        AgentTool resume = new AgentTool() {
+            public String name() { return "get_resume"; }
+            public String description() { return "resume"; }
+            public ToolSchema parameters() { return ToolSchema.object().integer("resumeId", "id", true, 1, 100); }
+            public Object execute(JsonNode args, AgentToolContext ctx) { return Map.of("resumeId", 1, "text", "Java Spring Boot"); }
+        };
+        AgentTool preferences = new AgentTool() {
+            public String name() { return "get_job_search_preferences"; }
+            public String description() { return "preferences"; }
+            public ToolSchema parameters() { return ToolSchema.object(); }
+            public Object execute(JsonNode args, AgentToolContext ctx) { return Map.of("configured", true); }
+        };
+        com.arthur.jdragresume.agent.tool.DeferrableTool collector = new com.arthur.jdragresume.agent.tool.DeferrableTool() {
+            public String name() { return "collect_boss_jobs"; }
+            public String description() { return "collect"; }
+            public ToolSchema parameters() { return ToolSchema.object().string("keyword", "keyword", true, 50)
+                    .string("city", "city", true, 10).integer("maxPages", "pages", false, 1, 3); }
+            public Begin begin(JsonNode args, AgentToolContext ctx) {
+                collectedKeywords.add(args.path("keyword").asText());
+                return new Done(Map.of("pagesRead", 1, "jobIds", List.of(42),
+                        "finishReason", "MAX_PAGES", "status", "COMPLETED", "dailyPagesLeft", 10));
+            }
+            public Object resume(JsonNode args, JsonNode report, AgentToolContext ctx) { return Map.of(); }
+        };
+        AgentTool rank = new AgentTool() {
+            public String name() { return "rank_jobs_for_resume"; }
+            public String description() { return "rank"; }
+            public ToolSchema parameters() { return ToolSchema.object().integer("resumeId", "id", true, 1, 100); }
+            public Object execute(JsonNode args, AgentToolContext ctx) {
+                return Map.of("matches", List.of(Map.of("jobId", 42, "title", "客服实习")));
+            }
+        };
+        AtomicInteger turns = new AtomicInteger();
+        AgentModel model = (system, transcript, tools, timeout) -> {
+            int turn = turns.incrementAndGet();
+            return switch (turn) {
+                case 1 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("resume", "get_resume", "{\"resumeId\":1}"));
+                case 2 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("preferences", "get_job_search_preferences", "{}"));
+                case 3 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("plan1", AgentPlan.TOOL,
+                        "{\"steps\":[{\"tool\":\"collect_boss_jobs\",\"purpose\":\"搜索岗位\"},"
+                        + "{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"检查是否对口\"}]}"));
+                case 4 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("collect1", "collect_boss_jobs",
+                        "{\"keyword\":\"Java 后端\",\"city\":\"深圳\",\"maxPages\":1}"));
+                case 5 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("rank", "rank_jobs_for_resume", "{\"resumeId\":1}"));
+                case 6 -> {
+                    assertTrue(tools.stream().anyMatch(tool -> AgentPlan.TOOL.equals(tool.name())),
+                            "successful but irrelevant ranking should expose bounded replanning");
+                    yield AgentModel.Reply.call(AgentMessage.ToolCall.of("plan2", AgentPlan.TOOL,
+                            "{\"steps\":[{\"tool\":\"collect_boss_jobs\",\"purpose\":\"换关键词补搜\"}]}"));
+                }
+                case 7 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("collect2", "collect_boss_jobs",
+                        "{\"keyword\":\"Java开发\",\"city\":\"深圳\",\"maxPages\":1}"));
+                default -> AgentModel.Reply.answer("已经尝试两个不同的关键词");
+            };
+        };
+        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(resume, preferences, collector, rank)),
+                mapper, properties, () -> 1000L);
+        var outcome = loop.run(new TranscriptPolicy(properties).normalize(
+                        List.of(AgentMessage.user("帮我找深圳 Java 后端实习")), null),
+                null, new AgentToolContext(new AppUser()), (event, payload) -> {},
+                () -> false, 1000L, new AgentLoop.TurnOptions(null, List.of(), false));
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(List.of("Java 后端", "Java开发"), collectedKeywords);
+    }
+
+    @Test
     void modelCannotExecuteAnUnplannedTool() {
         AtomicInteger calls = new AtomicInteger();
         var outcome = run((system, transcript, tools, timeout) -> calls.incrementAndGet() == 1 ? plan(1) : call("delete_everything"), false);

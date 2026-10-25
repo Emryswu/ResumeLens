@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.agent.tool;
 
+import com.arthur.jdragresume.agent.JobSearchStopPolicy;
 import com.arthur.jdragresume.collect.CollectRequest;
 import com.arthur.jdragresume.collect.JobCollectionHistory;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,11 +52,12 @@ public class CollectBossJobsTool implements DeferrableTool {
                 + "“找深圳实习”没指定方向时先 list_resumes 选简历、get_resume 读正文，按简历方向填写非空 keyword，并说明“按你的《xxx》简历推断”；不要直接用空关键词泛搜。"
                 + "多份简历遵循系统的方向与更新时间选择规则，同一会话沿用已选简历。校招可用 experience=应届生辅助筛选。"
                 + "只有用户明确要求不限方向时才传 broadSearch=true 允许空关键词；否则空关键词会被拒绝，请先根据简历确定方向。"
-                + "采集后用选定的 resumeId 与本次 jobIds 调 rank_jobs_for_resume，优先展示对口岗位；大多明显不对口时直接说明并提议换关键词，不要把不相关岗位当成推荐。"
+                + "采集后用选定的 resumeId 与本次 jobIds 调 rank_jobs_for_resume，优先展示对口岗位；不要把不相关岗位当成推荐。"
                 + "网页的求职类型是全职/兼职，实习相关人群筛选在工作经验里；在校生不保证是实习，应届生不保证是校招，需结合岗位内容核实。"
                 + "采集方式及自动切换由代码处理；用户需在所用浏览器里登录 BOSS。失败时返回 ok=false，"
                 + "如实转告原因即可。采集到的是列表摘要（职位名、公司、薪资、标签），不是完整 JD；"
-                + "需要排序时把返回的 jobIds 传给 rank_jobs_for_resume，粗排相似度不是匹配分。";
+                + "需要排序时把返回的 jobIds 传给 rank_jobs_for_resume，粗排相似度不是匹配分。"
+                + JobSearchStopPolicy.guidance();
     }
 
     @Override

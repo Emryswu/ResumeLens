@@ -44,6 +44,8 @@ class AgentBrowserFixtureTests extends ConversationStoreTests {
         };
         List<AgentTool> tools = new java.util.ArrayList<>();
         tools.add(tool("list_resumes", Map.of("resumes", List.of(Map.of("resumeId", 1, "title", "Java 简历"))), false));
+        tools.add(tool("get_resume", Map.of("resumeId", 1, "title", "Java 简历", "text", "Java Spring Boot"), false));
+        tools.add(tool("get_job_search_preferences", Map.of("configured", true), false));
         tools.add(tool("rank_jobs_for_resume", Map.of("matches", List.of(Map.of("jobId", 1, "title", "Java 后端", "companyName", "测试公司", "similarity", 0.8))), false));
         tools.add(tool("search_resume_evidence", Map.of("kept", List.of(), "threshold", 0.1, "filteredCount", 0), false));
         tools.add(tool("start_analysis", Map.of("analysisId", 7), true));
@@ -56,8 +58,18 @@ class AgentBrowserFixtureTests extends ConversationStoreTests {
                     try { Thread.sleep(1000); } catch (InterruptedException ex) { throw new RuntimeException(ex); }
                 }
                 if (question.contains("浏览器任务")) {
-                    boolean result = transcript.stream().anyMatch(message -> AgentMessage.TOOL.equals(message.role()));
-                    return result ? Reply.answer("采集已结束") : Reply.call(AgentMessage.ToolCall.of("browser", "collect_boss_jobs", "{\"keyword\":\"Java\",\"city\":\"深圳\"}"));
+                    if (!transcript.stream().anyMatch(message -> AgentMessage.TOOL.equals(message.role())
+                            && message.content().contains("\"tool\":\"get_resume\""))) {
+                        return Reply.call(AgentMessage.ToolCall.of("read-resume", "get_resume", "{\"resumeId\":1}"));
+                    }
+                    if (!transcript.stream().anyMatch(message -> AgentMessage.TOOL.equals(message.role())
+                            && message.content().contains("\"tool\":\"get_job_search_preferences\""))) {
+                        return Reply.call(AgentMessage.ToolCall.of("read-preferences", "get_job_search_preferences", "{}"));
+                    }
+                    boolean result = transcript.stream().anyMatch(message -> AgentMessage.TOOL.equals(message.role())
+                            && message.content().contains("\"tool\":\"collect_boss_jobs\""));
+                    return result ? Reply.answer("采集已结束")
+                            : Reply.call(AgentMessage.ToolCall.of("browser", "collect_boss_jobs", "{\"keyword\":\"Java\",\"city\":\"深圳\"}"));
                 }
                 return super.next(system, transcript, definitions, timeout);
             }
@@ -93,7 +105,9 @@ class AgentBrowserFixtureTests extends ConversationStoreTests {
             @Override public String name() { return name; }
             @Override public String description() { return name; }
             @Override public ToolSchema parameters() {
-                return name.equals("list_resumes") ? ToolSchema.object() : name.equals("start_analysis") || name.equals("search_resume_evidence")
+                return name.equals("list_resumes") || name.equals("get_job_search_preferences") ? ToolSchema.object()
+                        : name.equals("get_resume") ? ToolSchema.object().integer("resumeId", "resume", true, 1, 100)
+                        : name.equals("start_analysis") || name.equals("search_resume_evidence")
                         ? ToolSchema.object().integer("resumeId", "resume", true, 1, 100).integer("jobId", "job", true, 1, 100)
                         : ToolSchema.object().integer("resumeId", "resume", true, 1, 100).integer("limit", "limit", false, 1, 10);
             }

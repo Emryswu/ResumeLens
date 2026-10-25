@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.agent;
 
+import com.arthur.jdragresume.agent.tool.AgentTool;
 import com.arthur.jdragresume.agent.tool.AgentToolContext;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.agent.tool.DeferrableTool;
@@ -82,8 +83,13 @@ class AgentJobSearchReplayTests {
         };
         AgentModel scriptedModel = (system, transcript, tools, timeout) -> {
             long responses = transcript.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
-            if (responses > steps.size()) return AgentModel.Reply.answer("已按现有结果收尾，未知条件待核实");
-            JsonNode planned = responses == steps.size() ? next : steps.get((int) responses);
+            if (responses == 0) return AgentModel.Reply.call(
+                    AgentMessage.ToolCall.of("replay-resume", "get_resume", "{\"resumeId\":1}"));
+            if (responses == 1) return AgentModel.Reply.call(
+                    AgentMessage.ToolCall.of("replay-preferences", "get_job_search_preferences", "{}"));
+            long attempt = responses - 2;
+            if (attempt > steps.size()) return AgentModel.Reply.answer("已按现有结果收尾，未知条件待核实");
+            JsonNode planned = attempt == steps.size() ? next : steps.get((int) attempt);
             return AgentModel.Reply.call(AgentMessage.ToolCall.of("case-" + (responses + 1),
                     JobSearchWorkflow.TOOL, mapper.valueToTree(Map.of(
                             "keyword", planned.path("keyword").asText(),
@@ -95,7 +101,19 @@ class AgentJobSearchReplayTests {
         AgentProperties properties = new AgentProperties();
         properties.setMaxSteps(12);
         properties.setMaxPlanningSteps(12);
-        var loop = new AgentLoop(scriptedModel, new AgentToolRegistry(List.of(collector)),
+        AgentTool resume = new AgentTool() {
+            public String name() { return "get_resume"; }
+            public String description() { return "resume"; }
+            public ToolSchema parameters() { return ToolSchema.object().integer("resumeId", "id", true, 1, 10); }
+            public Object execute(JsonNode args, AgentToolContext ctx) { return Map.of("resumeId", 1, "text", "Java"); }
+        };
+        AgentTool preferences = new AgentTool() {
+            public String name() { return "get_job_search_preferences"; }
+            public String description() { return "preferences"; }
+            public ToolSchema parameters() { return ToolSchema.object(); }
+            public Object execute(JsonNode args, AgentToolContext ctx) { return Map.of("configured", true); }
+        };
+        var loop = new AgentLoop(scriptedModel, new AgentToolRegistry(List.of(collector, resume, preferences)),
                 mapper, properties, System::currentTimeMillis);
         var outcome = loop.run(new TranscriptPolicy(properties).normalize(
                         List.of(AgentMessage.user(scenario.path("question").asText())), null),

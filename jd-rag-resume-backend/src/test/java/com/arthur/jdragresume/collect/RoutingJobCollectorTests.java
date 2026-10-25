@@ -108,11 +108,36 @@ class RoutingJobCollectorTests {
         properties.setMaxPlanningSteps(10);
         com.arthur.jdragresume.agent.AgentModel model = (system, transcript, tools, timeout) -> {
             long results = transcript.stream().filter(message -> com.arthur.jdragresume.agent.AgentMessage.TOOL.equals(message.role())).count();
-            return results == 4 ? com.arthur.jdragresume.agent.AgentModel.Reply.answer("预算已到")
+            if (results == 0) return com.arthur.jdragresume.agent.AgentModel.Reply.call(
+                    com.arthur.jdragresume.agent.AgentMessage.ToolCall.of("pre-resume", "get_resume", "{\"resumeId\":1}"));
+            if (results == 1) return com.arthur.jdragresume.agent.AgentModel.Reply.call(
+                    com.arthur.jdragresume.agent.AgentMessage.ToolCall.of("pre-preferences", "get_job_search_preferences", "{}"));
+            return results == 6 ? com.arthur.jdragresume.agent.AgentModel.Reply.answer("预算已到")
                     : com.arthur.jdragresume.agent.AgentModel.Reply.call(com.arthur.jdragresume.agent.AgentMessage.ToolCall.of("c" + results,
-                    "collect_boss_jobs", "{\"keyword\":\"Java" + results + "\",\"city\":\"深圳\",\"maxPages\":1}"));
+                    "collect_boss_jobs", "{\"keyword\":\"Java" + (results - 2) + "\",\"city\":\"深圳\",\"maxPages\":1}"));
         };
-        var loop = new com.arthur.jdragresume.agent.AgentLoop(model, new com.arthur.jdragresume.agent.tool.AgentToolRegistry(List.of(tool)),
+        var resume = new com.arthur.jdragresume.agent.tool.AgentTool() {
+            public String name() { return "get_resume"; }
+            public String description() { return "resume"; }
+            public com.arthur.jdragresume.agent.tool.ToolSchema parameters() {
+                return com.arthur.jdragresume.agent.tool.ToolSchema.object().integer("resumeId", "id", true, 1, 10);
+            }
+            public Object execute(JsonNode args, com.arthur.jdragresume.agent.tool.AgentToolContext context) {
+                return Map.of("resumeId", 1, "text", "Java");
+            }
+        };
+        var preferences = new com.arthur.jdragresume.agent.tool.AgentTool() {
+            public String name() { return "get_job_search_preferences"; }
+            public String description() { return "preferences"; }
+            public com.arthur.jdragresume.agent.tool.ToolSchema parameters() {
+                return com.arthur.jdragresume.agent.tool.ToolSchema.object();
+            }
+            public Object execute(JsonNode args, com.arthur.jdragresume.agent.tool.AgentToolContext context) {
+                return Map.of("configured", true);
+            }
+        };
+        var loop = new com.arthur.jdragresume.agent.AgentLoop(model,
+                new com.arthur.jdragresume.agent.tool.AgentToolRegistry(List.of(tool, resume, preferences)),
                 json, properties, System::currentTimeMillis);
         var normalized = new com.arthur.jdragresume.agent.TranscriptPolicy(properties).normalize(
                 List.of(com.arthur.jdragresume.agent.AgentMessage.user("帮我找深圳岗位")), null);

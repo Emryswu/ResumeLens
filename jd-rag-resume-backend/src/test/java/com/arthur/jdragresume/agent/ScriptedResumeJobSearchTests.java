@@ -18,11 +18,18 @@ class ScriptedResumeJobSearchTests {
     private final List<JsonNode> rankings = new ArrayList<>();
     private List<Map<String, Object>> resumes = List.of(resume(1, "Java 后端简历", "Java Spring Boot Redis", "2026-10-20T10:00:00"));
     private List<Map<String, Object>> jobs = List.of(Map.of("jobId", 7, "title", "Java 后端实习生", "companyName", "示例科技"));
+    {
+        properties.setMaxSteps(12);
+        properties.setMaxPlanningSteps(12);
+    }
+    private String finishReason = "MAX_PAGES";
+    private String stopReason;
+    private int pagesRead = 1;
 
     @Test
     void findingShenzhenInternshipsReadsTheSingleResumeBeforeCollectingWithANonEmptyKeyword() {
         var result = run("帮我找找深圳的实习");
-        assertEquals(List.of("list_resumes", "get_resume", "collect_boss_jobs", "rank_jobs_for_resume"), calls);
+        assertEquals(List.of("list_resumes", "get_resume", "get_job_search_preferences", "collect_boss_jobs", "rank_jobs_for_resume"), calls);
         assertFalse(collections.getFirst().path("keyword").asText().isBlank());
         assertTrue(collections.getFirst().path("keyword").asText().contains("Java"));
         assertEquals("深圳", collections.getFirst().path("city").asText());
@@ -36,7 +43,7 @@ class ScriptedResumeJobSearchTests {
     void emptyResultsTriggerOneAlternativeSearchAndStopWithoutInventingJobs() {
         jobs = List.of();
         var result = run("帮我找深圳实习");
-        assertEquals(List.of("list_resumes", "get_resume", "collect_boss_jobs", "collect_boss_jobs"), calls);
+        assertEquals(List.of("list_resumes", "get_resume", "get_job_search_preferences", "collect_boss_jobs", "collect_boss_jobs"), calls);
         assertEquals("Java 后端", collections.getFirst().path("keyword").asText());
         assertEquals("Java开发", collections.getLast().path("keyword").asText());
         assertEquals("在校生", collections.getLast().path("experience").asText());
@@ -61,7 +68,7 @@ class ScriptedResumeJobSearchTests {
         var user = new AppUser();
         org.springframework.test.util.ReflectionTestUtils.setField(user, "id", 9L);
         var context = new AgentToolContext(user);
-        var registry = new AgentToolRegistry(List.of(tool("list_resumes"), tool("get_resume"), browser, tool("rank_jobs_for_resume")));
+        var registry = new AgentToolRegistry(List.of(tool("list_resumes"), tool("get_resume"), tool("get_job_search_preferences"), browser, tool("rank_jobs_for_resume")));
         var loop = new AgentLoop(new ScriptedAgentModel(mapper), registry, mapper, properties, System::currentTimeMillis);
         var sink = new AgentLoopTests.RecordingSink();
         var paused = loop.run(new TranscriptPolicy(properties).normalize(List.of(AgentMessage.user("找深圳实习")), null),
@@ -74,7 +81,7 @@ class ScriptedResumeJobSearchTests {
         var outcome = loop.run(normalized, null, context, new AgentLoopTests.RecordingSink(), () -> false,
                 System.currentTimeMillis(), new AgentLoop.TurnOptions(null, List.of(), false, report));
         assertEquals(AgentLoop.State.COMPLETED, outcome.state());
-        assertEquals(List.of("list_resumes", "get_resume", "collect_boss_jobs", "rank_jobs_for_resume"), calls);
+        assertEquals(List.of("list_resumes", "get_resume", "get_job_search_preferences", "collect_boss_jobs", "rank_jobs_for_resume"), calls);
         assertEquals(1, rankings.getFirst().path("resumeId").asInt());
         assertEquals("[7]", rankings.getFirst().path("jobIds").toString());
     }
@@ -104,6 +111,7 @@ class ScriptedResumeJobSearchTests {
 
     @Test
     void aChosenDirectionCarriesAcrossLaterQuestionsWithoutAskingAgain() {
+        jobs = List.of(Map.of("jobId", 7, "title", "前端开发实习生", "companyName", "示例科技"));
         resumes = List.of(resume(1, "Java 简历", "Java Spring Boot", "2026-10-22T10:00:00"),
                 resume(2, "前端简历", "React Vue TypeScript", "2026-10-20T10:00:00"));
         var choice = run("找深圳实习");
@@ -147,10 +155,51 @@ class ScriptedResumeJobSearchTests {
     void anUnrelatedCustomerServiceBatchIsRankedButNotPresentedAsSuitable() {
         jobs = List.of(Map.of("jobId", 7, "title", "客服实习", "companyName", "示例科技"));
         var result = run("帮我找深圳实习");
-        assertEquals(1, rankings.size());
+        assertEquals(2, rankings.size());
         assertTrue(answer(result).contains("不对口"));
-        assertTrue(answer(result).contains("关键词"));
-        assertEquals(1, collections.size(), "propose a different keyword rather than repeatedly collecting");
+        assertTrue(answer(result).contains("不把这些岗位作为推荐"));
+        assertEquals(2, collections.size(), "irrelevant results should trigger one bounded alternative search");
+        assertEquals("Java开发", collections.getLast().path("keyword").asText());
+    }
+
+    @Test
+    void abnormalStopsNeverTriggerAnotherKeywordSearch() {
+        for (String reason : List.of("BOSS_NOT_LOGGED_IN", "CAPTCHA", "USER_CANCELLED", "STRUCTURE_CHANGED")) {
+            calls.clear();
+            collections.clear();
+            rankings.clear();
+            stopReason = reason;
+            finishReason = null;
+            var result = run("帮我找深圳实习");
+            assertEquals(1, collections.size(), reason);
+            assertTrue(answer(result).contains(reason), reason);
+        }
+    }
+
+    @Test
+    void aFirstPageNoMoreResultsHaltsAsSuspectedLoginProblem() {
+        finishReason = "NO_MORE_RESULTS";
+        pagesRead = 1;
+        run("帮我找深圳实习");
+        assertEquals(1, collections.size());
+        assertTrue(rankings.isEmpty(), "suspected login problems must not trigger another browser call");
+    }
+
+    @Test
+    void noMoreResultsAfterMultiplePagesMayStillReplanWithAnotherKeyword() {
+        jobs = List.of();
+        finishReason = "NO_MORE_RESULTS";
+        pagesRead = 2;
+        run("帮我找深圳实习");
+        assertEquals(2, collections.size());
+    }
+
+    @Test
+    void reachingDailyLimitDoesNotTriggerAnotherSearch() {
+        jobs = List.of();
+        finishReason = "DAILY_LIMIT";
+        run("帮我找深圳实习");
+        assertEquals(1, collections.size());
     }
 
     private AgentLoop.Outcome run(String question) {
@@ -159,7 +208,7 @@ class ScriptedResumeJobSearchTests {
     }
 
     private AgentLoop loop() {
-        var registry = new AgentToolRegistry(List.of(tool("list_resumes"), tool("get_resume"),
+        var registry = new AgentToolRegistry(List.of(tool("list_resumes"), tool("get_resume"), tool("get_job_search_preferences"),
                 tool("collect_boss_jobs"), tool("rank_jobs_for_resume")));
         return new AgentLoop(new ScriptedAgentModel(mapper), registry, mapper, properties, System::currentTimeMillis);
     }
@@ -172,6 +221,7 @@ class ScriptedResumeJobSearchTests {
                 return switch (name) {
                     case "list_resumes" -> ToolSchema.object().integer("page", "页码", false, 0, 20);
                     case "get_resume" -> ToolSchema.object().integer("resumeId", "简历", true, 1, 100);
+                    case "get_job_search_preferences" -> ToolSchema.object();
                     case "collect_boss_jobs" -> ToolSchema.object().string("keyword", "关键词", true, 50)
                             .string("city", "城市", true, 10).string("experience", "经验", false, 10)
                             .integer("maxPages", "页数", false, 1, 3);
@@ -183,6 +233,7 @@ class ScriptedResumeJobSearchTests {
                 calls.add(name);
                 return switch (name) {
                     case "list_resumes" -> Map.of("total", resumes.size(), "page", 0, "totalPages", 1, "resumes", resumes);
+                    case "get_job_search_preferences" -> Map.of("configured", true);
                     case "get_resume" -> {
                         var row = resumes.stream().filter(r -> ((Number) r.get("resumeId")).longValue() == arguments.path("resumeId").asLong())
                                 .findFirst().orElseThrow();
@@ -202,8 +253,17 @@ class ScriptedResumeJobSearchTests {
     }
 
     private Object collectedData() {
-        return Map.of("jobs", jobs, "jobIds", jobs.stream().map(j -> j.get("jobId")).toList(),
-                "collected", jobs.size(), "pagesRead", 1, "created", 0, "alreadyInLibrary", jobs.size());
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("jobs", jobs);
+        data.put("jobIds", jobs.stream().map(j -> j.get("jobId")).toList());
+        data.put("collected", jobs.size());
+        data.put("pagesRead", pagesRead);
+        data.put("created", 0);
+        data.put("alreadyInLibrary", jobs.size());
+        data.put("status", stopReason == null ? "COMPLETED" : "STOPPED");
+        if (finishReason != null) data.put("finishReason", finishReason);
+        if (stopReason != null) data.put("stopReason", stopReason);
+        return data;
     }
 
     private static Map<String, Object> resume(int id, String title, String evidence, String date) {

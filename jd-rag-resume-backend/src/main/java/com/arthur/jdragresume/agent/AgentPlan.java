@@ -20,7 +20,7 @@ public record AgentPlan(List<Step> steps) {
         var schema = mapper.createObjectNode().put("type", "object");
         schema.putObject("properties").putObject("steps").put("type", "array").put("minItems", 1).set("items", step);
         schema.putArray("required").add("steps");
-        return new AgentModel.ToolDefinition(TOOL, "多步问题先提交计划；工具失败或结果为空后可提交剩余步骤的新计划。简单查询直接调用工具。", schema);
+        return new AgentModel.ToolDefinition(TOOL, "多步问题先提交计划；工具失败、结果为空，或岗位排序后全部不对口且仍有采集预算时，可提交剩余步骤的新计划。简单查询直接调用工具。", schema);
     }
 
     static AgentPlan parse(String arguments, ObjectMapper mapper, AgentToolRegistry registry) {

@@ -80,6 +80,9 @@ final class ScriptedJobSearch {
         String basis = requested == null ? "按你的《" + selected.path("title").asText() + "》简历推断，先找" + target.label() + "方向。"
                 : "本次使用《" + selected.path("title").asText() + "》，按你指定的" + requested.label() + "方向查找。";
         if (collected == null) {
+            JsonNode savedPreferences = history.get("get_job_search_preferences");
+            if (savedPreferences == null) return call("get_job_search_preferences", Map.of());
+            if (failed(savedPreferences)) return answer("读取你的求职条件失败：" + error(savedPreferences));
             String city = null;
             String experience = null;
             for (int i = lastUser; i >= 0; i--) {
@@ -95,9 +98,12 @@ final class ScriptedJobSearch {
             return new AgentModel.Reply(BANNER + basis, reply.toolCalls());
         }
         JsonNode data = collected.path("untrusted_data");
+        var progress = JobSearchWorkflow.inspect(transcript, mapper);
+        if (progress.haltReason() != null) {
+            return answer(basis + progress.haltReason() + "。已保存的结果仍可在职位库查看。");
+        }
         JsonNode ids = data.path("jobIds");
         if (ids.isEmpty()) {
-            var progress = JobSearchWorkflow.inspect(transcript, mapper);
             if (progress.attempts().size() == 1 && progress.requestedPages() < JobSearchWorkflow.MAX_PAGES) {
                 var previous = progress.attempts().getFirst();
                 String alternative = target.alternative();
@@ -112,15 +118,35 @@ final class ScriptedJobSearch {
                     + "。当前范围没有找到候选，不能据此断定市场上没有实习；未获取完整 JD。");
         }
         JsonNode ranked = results.get("rank_jobs_for_resume");
-        if (ranked == null) return call("rank_jobs_for_resume", Map.of("resumeId", selected.path("resumeId").asLong(), "jobIds", ids, "limit", 5));
+        int latestCollect = -1;
+        int latestRank = -1;
+        for (int i = lastUser + 1; i < transcript.size(); i++) {
+            AgentMessage message = transcript.get(i);
+            if (!AgentMessage.TOOL.equals(message.role())) continue;
+            try {
+                String tool = mapper.readTree(message.content()).path("tool").asText();
+                if ("collect_boss_jobs".equals(tool)) latestCollect = i;
+                if ("rank_jobs_for_resume".equals(tool)) latestRank = i;
+            } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+                throw new IllegalStateException("invalid scripted tool envelope", ex);
+            }
+        }
+        if (ranked == null || latestCollect > latestRank)
+            return call("rank_jobs_for_resume", Map.of("resumeId", selected.path("resumeId").asLong(), "jobIds", ids, "limit", 5));
         if (failed(ranked)) return answer("岗位已采集，但按《" + selected.path("title").asText() + "》排序失败：" + error(ranked));
         List<JsonNode> visible = new ArrayList<>();
         JsonNode matches = ranked.path("untrusted_data").path("matches");
         (data.path("jobs").isEmpty() ? matches : data.path("jobs")).forEach(visible::add);
         long unrelated = visible.stream().filter(job -> direction(job) != null && direction(job) != target).count();
-        if (unrelated > visible.size() / 2) {
-            return answer(basis + "已用这份简历对本批岗位排序，目前看到的岗位大多不对口，例如“"
-                    + visible.getFirst().path("title").asText() + "”。可以把关键词换成“" + target.alternative() + "”重新采集。");
+        if (!visible.isEmpty() && unrelated > visible.size() / 2) {
+            if (progress.attempts().size() == 1 && progress.requestedPages() < JobSearchWorkflow.MAX_PAGES
+                    && (progress.dailyPagesLeft() == null || progress.dailyPagesLeft() > 0)) {
+                var previous = progress.attempts().getFirst();
+                return call("collect_boss_jobs", Map.of("keyword", target.alternative(),
+                        "city", previous.city(), "experience", previous.experience(), "maxPages", 1));
+            }
+            return answer(basis + "本批岗位大多不对口，例如“" + visible.getFirst().path("title").asText()
+                    + "”；已按预算停止补搜，不把这些岗位作为推荐。");
         }
         StringBuilder text = new StringBuilder(basis).append("已按这份简历对本次采集岗位粗排，优先查看：\n");
         List<JsonNode> preferred = new ArrayList<>();
