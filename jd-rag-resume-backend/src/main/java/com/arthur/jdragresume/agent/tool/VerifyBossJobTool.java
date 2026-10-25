@@ -48,16 +48,30 @@ public class VerifyBossJobTool implements DeferrableTool {
     public Begin begin(JsonNode arguments, AgentToolContext context) {
         JobDescriptionResponse job = jobs.findById(arguments.get("jobId").asLong());
         requireBoss(job);
-        if ("FULL".equals(job.captureDepth())) {
-            return new Done(Map.of("jobId", job.id(), "captureDepth", "FULL", "alreadyVerified", true, "verificationStatus", "ALREADY_FULL",
-                    "next", "调用 get_job 读取完整正文并核实硬性条件"));
-        }
+        if ("FULL".equals(job.captureDepth())) return alreadyFullResult(job);
         requireBossUrl(job.sourceUrl(), job.sourceJobId());
         Map<String, Object> command = Map.of("mode", "detail", "jobId", job.id(), "sourceJobId", job.sourceJobId(), "sourceUrl", job.sourceUrl());
         var action = collectors.startAction(command, context.collection());
         if (action.report() == null) return new InBrowser("browser-extension", "verifyBossJob", action.command());
         collectors.completeAction(command, action.report(), context.collection());
         return new Done(saveReport(job, action.report()));
+    }
+
+    /**
+     * Fast path checked before the BOSS browser budget: an already-persisted FULL JD
+     * does not open a page and must remain accessible when the attempt budget is spent.
+     * Returns null for LISTING so AgentLoop performs the normal budget check.
+     */
+    public Done alreadyStoredFull(JsonNode arguments) {
+        JobDescriptionResponse job = jobs.findById(arguments.get("jobId").asLong());
+        requireBoss(job);
+        return "FULL".equals(job.captureDepth()) ? alreadyFullResult(job) : null;
+    }
+
+    private static Done alreadyFullResult(JobDescriptionResponse job) {
+        return new Done(Map.of("jobId", job.id(), "captureDepth", "FULL",
+                "alreadyVerified", true, "verificationStatus", "ALREADY_FULL",
+                "next", "调用 get_job 读取完整正文并核实硬性条件"));
     }
 
     @Override
@@ -112,6 +126,10 @@ public class VerifyBossJobTool implements DeferrableTool {
                 description,
                 optionalText(item, "requirements", 20_000),
                 "BOSS", existing.sourceUrl(), existing.sourceJobId()));
+        // Only a confirmed FULL row for this job may produce a successful verification marker.
+        if (!"FULL".equals(captured.job().captureDepth()) || !existing.id().equals(captured.job().id())) {
+            throw invalidReport();
+        }
         return Map.of("jobId", captured.job().id(), "captureDepth", "FULL", "verificationStatus", "SAVED_FULL",
                 "contentChanged", captured.contentChanged(),
                 "next", "调用 get_job 查看完整 JD，对照简历逐项核实门槛；未写明的条件保持未知");
