@@ -1,0 +1,26 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "DETAIL_READ",
+    "command": {
+      "mode": "detail",
+      "jobId": 104,
+      "sourceJobId": "eval104",
+      "sourceUrl": "https://www.zhipin.com/job_detail/eval104.html"
+    },
+    "jobs": [
+      {
+        "title": "Java 后端实习（硕士及以上）",
+        "companyName": "学历回放科技",
+        "location": "深圳·南山区",
+        "employmentType": "实习",
+        "description": "招聘 Java 后端开发实习生，参与 Spring Boot 接口开发、MySQL 数据库优化和 Redis 缓存维护。学历要求为硕士及以上，必须满足最低学历门槛；要求每周到岗 5 天，至少实习 3 个月。",
+        "requirements": "硕士及以上；每周 5 天；至少实习 3 个月。",
+        "sourcePlatform": "BOSS",
+        "sourceJobId": "eval104",
+        "sourceUrl": "https://www.zhipin.com/job_detail/eval104.html"
+      }
+    ]
+  }
+}
