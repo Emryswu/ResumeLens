@@ -187,6 +187,43 @@ class JobSearchWorkflowTests {
     }
 
     @Test
+    void missingJobBeforeBrowserRefundsVerificationAndDailyPageEstimate() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[91,92],\"dailyPagesLeft\":8}");
+        verify(log, "missing", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_VERIFY_JOB_NOT_FOUND\"}}");
+        var progress = JobSearchWorkflow.inspect(log, mapper);
+        assertTrue(progress.attemptedIds().isEmpty());
+        assertTrue(progress.verifiedIds().isEmpty());
+        assertEquals(8, progress.dailyPagesLeft());
+    }
+
+    @Test
+    void invalidUrlAndUnsupportedSourceBeforeBrowserRefundVerificationAndDailyPageEstimate() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[91,92],\"dailyPagesLeft\":8}");
+        verify(log, "invalidUrl", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_URL_INVALID\"}}");
+        var afterUrl = JobSearchWorkflow.inspect(log, mapper);
+        assertTrue(afterUrl.attemptedIds().isEmpty());
+        assertEquals(8, afterUrl.dailyPagesLeft());
+        verify(log, "unsupported", 92, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_UNSUPPORTED\"}}");
+        var afterSource = JobSearchWorkflow.inspect(log, mapper);
+        assertTrue(afterSource.attemptedIds().isEmpty());
+        assertTrue(afterSource.verifiedIds().isEmpty());
+        assertEquals(8, afterSource.dailyPagesLeft());
+    }
+
+    @Test
+    void invalidReportAfterBrowserDoesNotRefundVerificationAttempt() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[91],\"dailyPagesLeft\":8}");
+        verify(log, "invalidReport", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_INVALID\"}}");
+        var progress = JobSearchWorkflow.inspect(log, mapper);
+        assertEquals(List.of(91L), progress.attemptedIds());
+        assertTrue(progress.verifiedIds().isEmpty());
+        assertEquals(7, progress.dailyPagesLeft());
+    }
+
+    @Test
     void verificationIsRefusedWhenTheDailyPagesAreGone() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
         add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[1,2],\"dailyPagesLeft\":1}");
