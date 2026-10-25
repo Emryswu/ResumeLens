@@ -1,0 +1,21 @@
+{
+  "resume": {
+    "resumeId": 1,
+    "title": "Java 后端 / AI 应用简历",
+    "text": "在校本科计算机专业，预计2027年6月毕业。Java、Spring Boot、MySQL、Redis，项目 ResumeLens 和 LabFlow。",
+    "directionEvidence": "Java Spring Boot RAG",
+    "updatedAt": "2026-10-01T00:00:00"
+  },
+  "preferences": {
+    "configured": true,
+    "preferredDistrict": "深圳",
+    "districtRequired": false,
+    "availableMonths": 6,
+    "daysPerWeek": 5,
+    "earliestStartDate": null,
+    "education": "本科",
+    "studentStatus": "在校",
+    "expectedGraduation": "2027-06",
+    "workYears": 0
+  }
+}
