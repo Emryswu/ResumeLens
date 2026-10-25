@@ -49,7 +49,7 @@ public class VerifyBossJobTool implements DeferrableTool {
         JobDescriptionResponse job = jobs.findById(arguments.get("jobId").asLong());
         requireBoss(job);
         if ("FULL".equals(job.captureDepth())) {
-            return new Done(Map.of("jobId", job.id(), "captureDepth", "FULL", "alreadyVerified", true,
+            return new Done(Map.of("jobId", job.id(), "captureDepth", "FULL", "alreadyVerified", true, "verificationStatus", "ALREADY_FULL",
                     "next", "调用 get_job 读取完整正文并核实硬性条件"));
         }
         requireBossUrl(job.sourceUrl(), job.sourceJobId());
@@ -112,7 +112,7 @@ public class VerifyBossJobTool implements DeferrableTool {
                 description,
                 optionalText(item, "requirements", 20_000),
                 "BOSS", existing.sourceUrl(), existing.sourceJobId()));
-        return Map.of("jobId", captured.job().id(), "captureDepth", "FULL",
+        return Map.of("jobId", captured.job().id(), "captureDepth", "FULL", "verificationStatus", "SAVED_FULL",
                 "contentChanged", captured.contentChanged(),
                 "next", "调用 get_job 查看完整 JD，对照简历逐项核实门槛；未写明的条件保持未知");
     }
