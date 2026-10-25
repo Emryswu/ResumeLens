@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.agent;
 
+import com.arthur.jdragresume.agent.tool.AgentTool;
 import com.arthur.jdragresume.agent.tool.AgentToolContext;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.agent.tool.DeferrableTool;
@@ -113,24 +114,40 @@ class JobSearchWorkflowTests {
         };
         AgentModel model = (system, transcript, tools, timeout) -> {
             long results = transcript.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
-            if (results == 4) return AgentModel.Reply.answer("已达到预算，按已有候选说明不足");
+            if (results == 0) return AgentModel.Reply.call(
+                    AgentMessage.ToolCall.of("pre-resume", "get_resume", "{\"resumeId\":1}"));
+            if (results == 1) return AgentModel.Reply.call(
+                    AgentMessage.ToolCall.of("pre-preferences", "get_job_search_preferences", "{}"));
+            if (results == 6) return AgentModel.Reply.answer("已达到预算，按已有候选说明不足");
             String keyword = switch ((int) results) {
-                case 0 -> "Java后端";
-                case 1 -> "Java开发";
-                case 2 -> "AI应用";
+                case 2 -> "Java后端";
+                case 3 -> "Java开发";
+                case 4 -> "AI应用";
                 default -> "Spring Boot";
             };
             return AgentModel.Reply.call(AgentMessage.ToolCall.of("c" + (results + 1), "collect_boss_jobs",
                     "{\"keyword\":\"" + keyword + "\",\"city\":\"深圳\",\"experience\":\"在校生\",\"maxPages\":1}"));
         };
-        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(collector)), mapper, properties,
+        AgentTool resume = new AgentTool() {
+            public String name() { return "get_resume"; }
+            public String description() { return "read"; }
+            public ToolSchema parameters() { return ToolSchema.object().integer("resumeId", "resume", true, 1, 10); }
+            public Object execute(JsonNode args, AgentToolContext ctx) { return Map.of("resumeId", 1, "text", "Java"); }
+        };
+        AgentTool preferences = new AgentTool() {
+            public String name() { return "get_job_search_preferences"; }
+            public String description() { return "read"; }
+            public ToolSchema parameters() { return ToolSchema.object(); }
+            public Object execute(JsonNode args, AgentToolContext ctx) { return Map.of("configured", true); }
+        };
+        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(collector, resume, preferences)), mapper, properties,
                 System::currentTimeMillis);
         var result = loop.run(new TranscriptPolicy(properties).normalize(List.of(AgentMessage.user("找深圳实习")), null),
                 null, new AgentToolContext(new AppUser()), (name, data) -> {}, () -> false);
         assertEquals(AgentLoop.State.COMPLETED, result.state());
         assertEquals(3, collections.get());
         var failure = mapper.valueToTree(result.transcript().stream()
-                .filter(m -> AgentMessage.TOOL.equals(m.role())).toList()).path(3).path("content").asText();
+                .filter(m -> AgentMessage.TOOL.equals(m.role())).toList()).path(5).path("content").asText();
         assertEquals("JOB_SEARCH_BUDGET", mapper.readTree(failure).path("error").path("code").asText());
     }
 
@@ -309,24 +326,38 @@ class JobSearchWorkflowTests {
         var verifier = new com.arthur.jdragresume.agent.tool.VerifyBossJobTool(jobs, collectors);
         AgentModel model = (system, transcript, tools, timeout) -> {
             long results = transcript.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
-            if (results == 0) return AgentModel.Reply.call(AgentMessage.ToolCall.of("collect", "collect_boss_jobs",
+            if (results == 0) return AgentModel.Reply.call(AgentMessage.ToolCall.of("resume", "get_resume", "{\"resumeId\":1}"));
+            if (results == 1) return AgentModel.Reply.call(AgentMessage.ToolCall.of("prefs", "get_job_search_preferences", "{}"));
+            if (results == 2) return AgentModel.Reply.call(AgentMessage.ToolCall.of("collect", "collect_boss_jobs",
                     "{\"keyword\":\"Java后端\",\"city\":\"深圳\",\"experience\":\"在校生\",\"maxPages\":1}"));
-            if (results == 1) return AgentModel.Reply.call(AgentMessage.ToolCall.of("missing", "verify_boss_job",
+            if (results == 3) return AgentModel.Reply.call(AgentMessage.ToolCall.of("missing", "verify_boss_job",
                     "{\"jobId\":404}"));
-            if (results == 2) return AgentModel.Reply.call(AgentMessage.ToolCall.of("bad-url", "verify_boss_job",
+            if (results == 4) return AgentModel.Reply.call(AgentMessage.ToolCall.of("bad-url", "verify_boss_job",
                     "{\"jobId\":18}"));
             return AgentModel.Reply.answer("两条职位都无法开始浏览器核实");
         };
-        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(collector, verifier)), mapper, properties,
+        AgentTool resume = new AgentTool() {
+            public String name() { return "get_resume"; }
+            public String description() { return "test"; }
+            public ToolSchema parameters() { return ToolSchema.object().integer("resumeId", "id", true, 1, 10); }
+            public Object execute(JsonNode args, AgentToolContext context) { return Map.of("resumeId", 1, "text", "Java"); }
+        };
+        AgentTool prefs = new AgentTool() {
+            public String name() { return "get_job_search_preferences"; }
+            public String description() { return "test"; }
+            public ToolSchema parameters() { return ToolSchema.object(); }
+            public Object execute(JsonNode args, AgentToolContext context) { return Map.of("configured", true); }
+        };
+        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(collector, verifier, resume, prefs)), mapper, properties,
                 System::currentTimeMillis);
         var result = loop.run(new TranscriptPolicy(properties).normalize(List.of(AgentMessage.user("找深圳实习")), null),
                 null, new AgentToolContext(new AppUser()), (name, data) -> {}, () -> false);
         assertEquals(AgentLoop.State.COMPLETED, result.state());
         var toolResults = result.transcript().stream().filter(m -> AgentMessage.TOOL.equals(m.role())).toList();
-        assertEquals(3, toolResults.size());
-        assertEquals("BOSS_VERIFY_JOB_NOT_FOUND", mapper.readTree(toolResults.get(1).content())
+        assertEquals(5, toolResults.size());
+        assertEquals("BOSS_VERIFY_JOB_NOT_FOUND", mapper.readTree(toolResults.get(3).content())
                 .path("error").path("code").asText());
-        assertEquals("BOSS_DETAIL_URL_INVALID", mapper.readTree(toolResults.get(2).content())
+        assertEquals("BOSS_DETAIL_URL_INVALID", mapper.readTree(toolResults.get(4).content())
                 .path("error").path("code").asText());
         var progress = JobSearchWorkflow.inspect(result.transcript(), mapper);
         assertTrue(progress.attemptedIds().isEmpty());
@@ -396,6 +427,124 @@ class JobSearchWorkflowTests {
             bossTools++;
         }
         assertEquals(JobSearchWorkflow.BOSS_TOOLS.size(), bossTools);
+    }
+
+    @Test
+    void stopReasonsDoNotPermitAdditionalSearches() throws Exception {
+        for (String finish : List.of("NO_RESULTS", "MAX_PAGES", "MAX_JOBS", "NO_MORE_RESULTS")) {
+            int pages = "NO_MORE_RESULTS".equals(finish) ? 2 : 1;
+            assertNull(JobSearchStopPolicy.haltReason(mapper.readTree(
+                    "{\"ok\":true,\"untrusted_data\":{\"finishReason\":\"" + finish + "\",\"pagesRead\":" + pages + "}}")));
+        }
+        assertTrue(JobSearchStopPolicy.haltReason(mapper.readTree(
+                "{\"ok\":true,\"untrusted_data\":{\"finishReason\":\"NO_MORE_RESULTS\",\"pagesRead\":1}}"))
+                .contains("疑似未登录"));
+        for (String stop : List.of("CAPTCHA", "BOSS_NOT_LOGGED_IN", "USER_CANCELLED", "STRUCTURE_CHANGED")) {
+            assertTrue(JobSearchStopPolicy.haltReason(mapper.readTree(
+                    "{\"ok\":true,\"untrusted_data\":{\"status\":\"STOPPED\",\"stopReason\":\"" + stop + "\"}}"))
+                    .contains(stop));
+        }
+        assertNotNull(JobSearchStopPolicy.haltReason(mapper.readTree(
+                "{\"ok\":true,\"untrusted_data\":{\"finishReason\":\"DAILY_LIMIT\"}}")));
+    }
+
+    @Test
+    void promptAndCollectionDescriptionShareStopRules() {
+        String guidance = JobSearchStopPolicy.guidance();
+        String prompt = AgentLoop.SYSTEM_PROMPT + "\n" + guidance;
+        String tool = new com.arthur.jdragresume.agent.tool.CollectBossJobsTool(null, null, null).description();
+        assertTrue(tool.contains(guidance));
+        for (String conflict : List.of("提议重新采集", "提议换关键词", "询问是否重新采集", "不自动反复采集")) {
+            assertFalse(prompt.contains(conflict), conflict);
+            assertFalse(tool.contains(conflict), conflict);
+        }
+    }
+
+    @Test
+    void eligibleCandidatesRequireVerifiedFullJdAndUnknownDoesNotReachTarget() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳 Java 实习")));
+        add(log, "search", "Java后端", 1, "{\"pagesRead\":1,\"jobIds\":[1,2,3,4,5]}");
+        verify(log, "v1", 1, saved(1, "SAVED_FULL"));
+        verify(log, "v2", 2, saved(2, "ALREADY_FULL"));
+        verify(log, "v3", 3, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_INVALID\"}}");
+        verify(log, "v4", 4, saved(4, "SAVED_FULL"));
+        check(log, "c1", 1, true, false, true, false);
+        check(log, "c2", 2, true, false, true, false);
+        check(log, "c3", 3, true, false, true, false); // failed verification must never count
+        check(log, "c4", 4, false, false, true, true);
+        check(log, "c5", 5, true, false, true, false); // FULL-looking check alone cannot prove verification
+        var progress = JobSearchWorkflow.inspect(log, mapper);
+        assertEquals(List.of(1L, 3L, 4L), progress.attemptedIds());
+        assertEquals(List.of(1L, 2L, 4L), progress.verifiedIds());
+        assertEquals(2, progress.qualifiedIds().size());
+        assertEquals(1, progress.unknownIds().size());
+        assertFalse(progress.reachedTarget());
+        verify(log, "v5", 5, saved(5, "ALREADY_FULL"));
+        progress = JobSearchWorkflow.inspect(log, mapper);
+        assertEquals(3, progress.qualifiedIds().size());
+        assertTrue(progress.reachedTarget());
+        assertNotNull(JobSearchWorkflow.refuse(progress, mapper.readTree(
+                "{\"keyword\":\"Java开发\",\"city\":\"深圳\",\"maxPages\":1}")));
+    }
+
+    @Test
+    void threeVerifiedAndEligibleCandidatesCauseEarlyCompletion() {
+        var settings = new AgentProperties();
+        settings.setMaxSteps(12);
+        settings.setMaxPlanningSteps(12);
+        AtomicInteger verified = new AtomicInteger();
+        AtomicInteger checked = new AtomicInteger();
+        DeferrableTool verifier = new DeferrableTool() {
+            public String name() { return "verify_boss_job"; }
+            public String description() { return "verify"; }
+            public ToolSchema parameters() { return ToolSchema.object().integer("jobId", "id", true, 1, 30); }
+            public Begin begin(JsonNode args, AgentToolContext context) {
+                verified.incrementAndGet();
+                return new Done(Map.of("jobId", args.path("jobId").asLong(), "captureDepth", "FULL", "verificationStatus", "SAVED_FULL"));
+            }
+            public Object resume(JsonNode args, JsonNode report, AgentToolContext context) { return Map.of(); }
+        };
+        AgentTool checkTool = new AgentTool() {
+            public String name() { return "check_job_preferences"; }
+            public String description() { return "check"; }
+            public ToolSchema parameters() { return ToolSchema.object().integer("jobId", "id", true, 1, 30); }
+            public Object execute(JsonNode args, AgentToolContext context) {
+                checked.incrementAndGet();
+                return Map.of("jobId", args.path("jobId").asLong(), "captureDepth", "FULL",
+                        "findings", Map.of("hardBlock", false, "jdConditionsMet", true));
+            }
+        };
+        AgentModel model = (system, transcript, tools, timeout) -> {
+            if (tools.isEmpty()) return AgentModel.Reply.answer("已找到符合条件的完整 JD 岗位");
+            int results = (int) transcript.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
+            if (results % 2 == 0) return AgentModel.Reply.call(AgentMessage.ToolCall.of("v" + results,
+                    "verify_boss_job", "{\"jobId\":" + (results / 2 + 1) + "}"));
+            return AgentModel.Reply.call(AgentMessage.ToolCall.of("c" + results,
+                    "check_job_preferences", "{\"jobId\":" + (results / 2 + 1) + "}"));
+        };
+        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(verifier, checkTool)), mapper, settings,
+                System::currentTimeMillis);
+        var result = loop.run(new TranscriptPolicy(settings).normalize(List.of(AgentMessage.user("找深圳实习")), null),
+                null, new AgentToolContext(new AppUser()), (name, data) -> {}, () -> false);
+        assertEquals(AgentLoop.State.COMPLETED, result.state());
+        assertEquals(3, verified.get());
+        assertEquals(3, checked.get());
+        assertEquals(3, JobSearchWorkflow.inspect(result.transcript(), mapper).qualifiedIds().size());
+    }
+
+    private String saved(long id, String status) {
+        return "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":" + id
+                + ",\"captureDepth\":\"FULL\",\"verificationStatus\":\"" + status + "\"}}";
+    }
+
+    private void check(List<AgentMessage> log, String callId, long jobId, boolean met,
+                       boolean blocked, boolean full, boolean unknown) {
+        log.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of(callId,
+                "check_job_preferences", "{\"jobId\":" + jobId + "}"))));
+        log.add(AgentMessage.tool(callId, "{\"tool\":\"check_job_preferences\",\"ok\":true,\"untrusted_data\":{"
+                + "\"jobId\":" + jobId + ",\"captureDepth\":\"" + (full ? "FULL" : "LISTING")
+                + "\",\"findings\":{\"hardBlock\":" + blocked + ",\"jdConditionsMet\":" + met
+                + ",\"duration\":{\"status\":\"" + (unknown ? "UNKNOWN" : "MEETS") + "\"}}}}"));
     }
 
     private void verify(List<AgentMessage> log, String id, long jobId, String result) {

@@ -67,7 +67,8 @@ class AgentBrowserTaskTests {
         assertTrue(event.taskId().matches("bt_[0-9a-f]{32}"), "the extension only accepts [A-Za-z0-9_-]");
         assertEquals(0, collect.resumed.size());
         // The call stays open: it is exactly what the next request has to report on.
-        assertTrue(outcome.transcript().stream().noneMatch(message -> AgentMessage.TOOL.equals(message.role())));
+        assertTrue(outcome.transcript().stream().noneMatch(message ->
+                AgentMessage.TOOL.equals(message.role()) && "c1".equals(message.toolCallId())));
     }
 
     @Test
@@ -290,7 +291,20 @@ class AgentBrowserTaskTests {
     }
 
     private TranscriptPolicy.Normalized fresh(String question) {
-        return policy().normalize(List.of(AgentMessage.user(question)), null);
+        // Browser protocol tests start after a previously completed resume/preferences preflight.
+        // These server-authored tool results are part of an earlier valid conversation turn.
+        return policy().normalize(List.of(
+                AgentMessage.user("先读简历和求职条件"),
+                AgentMessage.assistant(null, List.of(
+                        AgentMessage.ToolCall.of("pre-resume", "get_resume", "{\"resumeId\":1}"))),
+                AgentMessage.tool("pre-resume",
+                        "{\"tool\":\"get_resume\",\"ok\":true,\"untrusted_data\":{\"resumeId\":1,\"text\":\"Java\"}}"),
+                AgentMessage.assistant(null, List.of(
+                        AgentMessage.ToolCall.of("pre-preferences", "get_job_search_preferences", "{}"))),
+                AgentMessage.tool("pre-preferences",
+                        "{\"tool\":\"get_job_search_preferences\",\"ok\":true,\"untrusted_data\":{\"configured\":true}}"),
+                AgentMessage.user(question)
+        ), null);
     }
 
     private TranscriptPolicy policy() {
