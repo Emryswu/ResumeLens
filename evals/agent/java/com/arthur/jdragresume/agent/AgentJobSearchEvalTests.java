@@ -108,6 +108,102 @@ class AgentJobSearchEvalTests {
     }
 
     @Test
+    void inheritedFiltersAreJudgedAtCollectorAndRepeatRefusalsDoNotFailTheTurn() throws Exception {
+        JsonNode task = tasks("acceptance/v1").stream()
+                .filter(t -> "a1-context-inheritance".equals(t.path("id").asText()))
+                .findFirst().orElseThrow();
+        List<AgentMessage> messages = List.of(
+                AgentMessage.user("找深圳 Java 实习"),
+                AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of(
+                        "initial", "collect_boss_jobs", "{\"city\":\"深圳\",\"experience\":\"在校生\",\"keyword\":\"Java\"}"))),
+                AgentMessage.tool("initial", "{\"ok\":true,\"untrusted_data\":{\"jobIds\":[101]}}"),
+                AgentMessage.assistant("找到一批", null),
+                AgentMessage.user("再找几个"),
+                AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of(
+                        "duplicate", "collect_boss_jobs", "{\"keyword\":\"Java\"}"))),
+                AgentMessage.tool("duplicate", "{\"ok\":false,\"error\":{\"code\":\"JOB_SEARCH_REPEAT\"}}"),
+                AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of(
+                        "retry", "collect_boss_jobs", "{\"keyword\":\"Spring Boot\"}"))),
+                AgentMessage.tool("retry", "{\"ok\":true,\"untrusted_data\":{\"jobIds\":[102]}}"));
+        var correct = List.of(new ReplayCommand("initial", "深圳", "在校生", "Java"),
+                new ReplayCommand("retry", "深圳", "在校生", "Spring Boot"));
+        assertTrue(checkNamed(grade(task, messages, List.of(), correct), "inherit_internship"));
+        var wrong = List.of(new ReplayCommand("initial", "深圳", "在校生", "Java"),
+                new ReplayCommand("retry", "广州", "不限", "Spring Boot"));
+        assertFalse(checkNamed(grade(task, messages, List.of(), wrong), "inherit_internship"));
+        // A raw retry with city=深圳 is not enough if the collector received other effective filters.
+        assertFalse(checkNamed(grade(task, messages, List.of(),
+                List.of(new ReplayCommand("initial", "深圳", "在校生", "Java"))), "inherit_internship"));
+    }
+
+    @Test
+    void degreeGateGraderUsesAcceptedSubmissionNotModelClaims() throws Exception {
+        JsonNode masterTask = tasks("acceptance/v1").stream()
+                .filter(t -> "a7-education-master-required".equals(t.path("id").asText()))
+                .findFirst().orElseThrow();
+        List<AgentMessage> base = List.of(
+                AgentMessage.user("核实硕士及以上的岗位"),
+                AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of(
+                        "verify", "verify_boss_job", "{\"jobId\":104}"))),
+                AgentMessage.tool("verify", "{\"ok\":true,\"untrusted_data\":{\"jobId\":104,\"captureDepth\":\"FULL\"}}"),
+                AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of(
+                        "check", "check_job_preferences", "{\"jobId\":104}"))),
+                AgentMessage.tool("check", "{\"ok\":true,\"untrusted_data\":{\"jobId\":104,\"captureDepth\":\"FULL\"}}"));
+        var rejected = new ArrayList<>(base);
+        rejected.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of(
+                "submit", "submit_recommendations", "{\"recommendations\":[{\"jobId\":104}]}"))));
+        rejected.add(AgentMessage.tool("submit", "{\"ok\":true,\"untrusted_data\":{\"recommendations\":[],\"rejected\":[{\"jobId\":104}]}}"));
+        assertTrue(checkNamed(grade(masterTask, rejected, List.of(), List.of()), "education_master_excluded"));
+        var wronglyAccepted = new ArrayList<>(base);
+        wronglyAccepted.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of(
+                "submit", "submit_recommendations", "{\"recommendations\":[{\"jobId\":104}]}"))));
+        wronglyAccepted.add(AgentMessage.tool("submit", "{\"ok\":true,\"untrusted_data\":{\"recommendations\":[{\"jobId\":104}],\"rejected\":[]}}"));
+        assertFalse(checkNamed(grade(masterTask, wronglyAccepted, List.of(), List.of()), "education_master_excluded"));
+
+        JsonNode preferredTask = tasks("acceptance/v1").stream()
+                .filter(t -> "a8-education-master-preferred".equals(t.path("id").asText()))
+                .findFirst().orElseThrow();
+        var bachelor = List.of(
+                AgentMessage.user("本科及以上，硕士优先"),
+                AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("v105", "verify_boss_job", "{\"jobId\":105}"))),
+                AgentMessage.tool("v105", "{\"ok\":true,\"untrusted_data\":{\"jobId\":105,\"captureDepth\":\"FULL\"}}"),
+                AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("s105", "submit_recommendations", "{\"recommendations\":[{\"jobId\":105}]}"))),
+                AgentMessage.tool("s105", "{\"ok\":true,\"untrusted_data\":{\"recommendations\":[{\"jobId\":105}]}}"));
+        assertTrue(checkNamed(grade(preferredTask, bachelor, List.of(), List.of()), "education_preferred_accepted"));
+        assertTrue(checkNamed(grade(preferredTask, bachelor, List.of(), List.of()), "education_master_not_accepted"));
+    }
+
+    @Test
+    void registeredPreferenceCheckerIsTheActualProductionTool() throws Exception {
+        JsonNode task = tasks("acceptance/v1").stream()
+                .filter(t -> "a7-education-master-required".equals(t.path("id").asText()))
+                .findFirst().orElseThrow();
+        Scenario scenario = new Scenario(task);
+        var registry = scenario.registry(mock(ConversationStore.class));
+        AgentTool checker = registry.find("check_job_preferences").orElseThrow();
+        assertEquals(CheckJobPreferencesTool.class, checker.getClass());
+
+        JsonNode listing = read("snapshots/listings/education-pair.json").path("task").path("jobs").get(0);
+        JsonNode detail = read("snapshots/details/job-104.json").path("task").path("jobs").get(0);
+        JobDescriptionResponse sample = scenario.job(listing, "FULL");
+        scenario.jobs.put(104L, new JobDescriptionResponse(
+                104L, 1L, sample.title(), sample.companyName(), sample.location(), "实习", "在校生",
+                detail.path("description").asText(), detail.path("requirements").asText(), "BOSS",
+                sample.sourceUrl(), sample.sourceJobId(), null, null, "FULL", null, null));
+        AppUser user = new AppUser();
+        ReflectionTestUtils.setField(user, "id", 1L);
+        JsonNode result = JSON.valueToTree(checker.execute(JSON.readTree("{\"jobId\":104}"), new AgentToolContext(user)));
+        assertEquals(104L, result.path("jobId").asLong());
+        assertEquals("FULL", result.path("captureDepth").asText());
+        assertTrue(result.path("findings").has("hardBlock"));
+        assertTrue(result.path("findings").has("duration"));
+    }
+
+    private static boolean checkNamed(List<Check> checks, String name) {
+        return checks.stream().filter(check -> name.equals(check.name())).findFirst().orElseThrow().passed();
+    }
+
+    @Test
     void realDeepSeekRunsOnlyWhenExplicitlyRequested() throws Exception {
         Assumptions.assumeTrue("true".equals(System.getenv("RUN_AGENT_EVAL")),
                 "Only scripted offline tests run in CI; do not call DeepSeek");
