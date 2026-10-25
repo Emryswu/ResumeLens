@@ -228,13 +228,13 @@ public class AgentLoop {
                 }
                 Duration callTimeout = Duration.ofMillis(Math.min(remainingMs, properties.getModelCallTimeoutSeconds() * 1000));
 
-                 if (transcript.remainingSteps() == 0) {
+                if (transcript.remainingSteps() == 0) {
                     return finishAtLimit(sink, transcript, steps, system, deadline, cancelled, options);
                 }
                 List<AgentModel.ToolDefinition> tools = new ArrayList<>();
                 String instruction = system;
                 boolean relevanceReplan = false;
-                boolean jobSearch = JobSearchWorkflow.applies(transcript);
+                boolean jobSearch = recommendationTurn(transcript);
                 boolean repairingRecommendations = jobSearch && recommendationAttempts(transcript) == 1;
                 if (jobSearch) {
                     var progress = JobSearchWorkflow.inspect(transcript, objectMapper);
@@ -279,8 +279,10 @@ public class AgentLoop {
                     }
                 }
                 if (jobSearch && JobSearchWorkflow.inspect(transcript, objectMapper).reachedTarget()) {
-                    tools.removeIf(tool -> JobSearchWorkflow.governs(tool.name()));
-                    instruction += "\n本轮合格候选目标已达到，停止更多浏览器采集和核实，优先提交已检查岗位。";
+                    tools.clear();
+                    tools.addAll(registry.definitions().stream().filter(tool ->
+                            SubmitRecommendationsTool.TOOL.equals(tool.name())).toList());
+                    instruction += "\n本轮合格候选目标已达到，停止更多浏览器采集和核实，现在提交已检查岗位。";
                 }
                 AgentModel.Reply reply = model.next(instruction, List.copyOf(transcript), tools, callTimeout,
                         options.reasoningEffort());
@@ -420,7 +422,7 @@ public class AgentLoop {
     /** Only server-accepted proposals can become formal job recommendations. */
     private Outcome finishSubmittedRecommendations(AgentEventSink sink, List<AgentMessage> transcript,
                                                    int steps, JsonNode data) {
-        StringBuilder answer = new StringBuilder("以下岗位已通过完整 JD、原文证据与求职条件检查：");
+        StringBuilder answer = new StringBuilder("以下岗位已完成完整 JD、原文证据与求职条件检查：");
         int i = 0;
         for (JsonNode item : data.path("recommendations")) {
             answer.append("\n").append(++i).append(". ")
@@ -455,16 +457,31 @@ public class AgentLoop {
 
     /** A read-only closing call cannot bypass a missing recommendation submission. */
     private String recommendationSafeAnswer(String answer, List<AgentMessage> transcript) {
-        if (JobSearchWorkflow.applies(transcript) && recommendationDataExists(transcript)) {
+        if (recommendationTurn(transcript) && recommendationDataExists(transcript)) {
             return "已取得部分岗位数据，但本轮没有通过完整 JD、条件及原文证据的推荐提交，暂不列为正式推荐；可继续核实后再提交。";
         }
         return safeAnswer(answer);
     }
 
+    private boolean recommendationTurn(List<AgentMessage> transcript) {
+        if (JobSearchWorkflow.applies(transcript)) return true;
+        String question = transcript.stream().filter(message -> AgentMessage.USER.equals(message.role()))
+                .reduce((previous, current) -> current).map(AgentMessage::content).orElse("");
+        return question.contains("推荐岗位") || question.contains("推荐职位")
+                || question.contains("推荐实习") || question.contains("再找几个")
+                || question.contains("再推荐") || question.contains("还有哪些岗位");
+    }
+
     private boolean recommendationDataExists(List<AgentMessage> transcript) {
         for (AgentMessage message : transcript) {
             if (!AgentMessage.TOOL.equals(message.role())) continue;
-            JsonNode result = readEnvelope(message.content());
+            JsonNode result;
+            try {
+                result = readEnvelope(message.content());
+            } catch (IllegalStateException ex) {
+                // Legacy compacted tool records can be plain text rather than full envelopes.
+                continue;
+            }
             String name = result.path("tool").asText();
             if (SubmitRecommendationsTool.TOOL.equals(name)) return true;
             if (result.path("ok").asBoolean(false) && (
