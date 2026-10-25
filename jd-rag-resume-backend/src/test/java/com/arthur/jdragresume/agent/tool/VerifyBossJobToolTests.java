@@ -5,6 +5,7 @@ import com.arthur.jdragresume.dto.job.JobCaptureResponse;
 import com.arthur.jdragresume.dto.job.JobDescriptionResponse;
 import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.exception.BusinessException;
+import com.arthur.jdragresume.exception.ResourceNotFoundException;
 import com.arthur.jdragresume.service.JobDescriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -31,9 +32,13 @@ class VerifyBossJobToolTests {
     private final AgentToolContext context = new AgentToolContext(new AppUser());
 
     private JobDescriptionResponse job(String depth) {
+        return job(depth, "BOSS", URL);
+    }
+
+    private JobDescriptionResponse job(String depth, String platform, String url) {
         return new JobDescriptionResponse(17L, 1L, "Java 实习", "示例科技", "深圳",
                 "实习", "在校生", "（BOSS 搜索列表摘要）", "本科",
-                "BOSS", URL, "abc123", null, null, depth, null, null);
+                platform, url, "abc123", null, null, depth, null, null);
     }
 
     private ObjectNode arguments() {
@@ -57,6 +62,7 @@ class VerifyBossJobToolTests {
     @Test
     void aListingDelegatesToTheUsersChromeWithBoundIdentity() {
         when(jobs.findById(17L)).thenReturn(job("LISTING"));
+        assertNull(tool.beforeBudget(arguments()));
         var next = assertInstanceOf(DeferrableTool.InBrowser.class, tool.begin(arguments(), context));
         assertEquals("verifyBossJob", next.action());
         assertEquals(URL, next.command().get("sourceUrl"));
@@ -67,12 +73,47 @@ class VerifyBossJobToolTests {
     @Test
     void anAlreadyFullPostingNeedsNoBrowserTask() {
         when(jobs.findById(17L)).thenReturn(job("FULL"));
-        var next = assertInstanceOf(DeferrableTool.Done.class, tool.begin(arguments(), context));
+        var next = assertInstanceOf(DeferrableTool.Done.class, tool.beforeBudget(arguments()));
         assertEquals("FULL", mapper.valueToTree(next.result()).path("captureDepth").asText());
         assertEquals("ALREADY_FULL", mapper.valueToTree(next.result()).path("verificationStatus").asText());
-        assertEquals("ALREADY_FULL", mapper.valueToTree(tool.alreadyStoredFull(arguments()).result())
-                .path("verificationStatus").asText());
+        verify(jobs, times(1)).findById(17L);
         verify(jobs, never()).capture(any());
+    }
+
+    @Test
+    void missingPostingFailsBeforeBrowserWithRefundableErrorCode() {
+        when(jobs.findById(17L)).thenThrow(new ResourceNotFoundException("JobDescription", 17L));
+        var failure = assertThrows(BusinessException.class, () -> tool.beforeBudget(arguments()));
+        assertEquals("BOSS_VERIFY_JOB_NOT_FOUND", failure.getCode());
+        verify(jobs, times(1)).findById(17L);
+        verify(jobs, never()).capture(any());
+    }
+
+    @Test
+    void invalidUrlFailsBeforeBrowserWithRefundableErrorCode() {
+        when(jobs.findById(17L)).thenReturn(job("LISTING", "BOSS",
+                "https://evil.example/job_detail/abc123.html"));
+        var failure = assertThrows(BusinessException.class, () -> tool.beforeBudget(arguments()));
+        assertEquals("BOSS_DETAIL_URL_INVALID", failure.getCode());
+        verify(jobs, times(1)).findById(17L);
+        verify(jobs, never()).capture(any());
+    }
+
+    @Test
+    void wrongSourceFailsBeforeBrowserWithRefundableErrorCode() {
+        when(jobs.findById(17L)).thenReturn(job("LISTING", "OTHER", URL));
+        var failure = assertThrows(BusinessException.class, () -> tool.beforeBudget(arguments()));
+        assertEquals("BOSS_DETAIL_UNSUPPORTED", failure.getCode());
+        verify(jobs, times(1)).findById(17L);
+        verify(jobs, never()).capture(any());
+    }
+
+    @Test
+    void urlChangedAfterBrowserStartsMustNotUseRefundablePreflightCode() {
+        when(jobs.findById(17L)).thenReturn(job("LISTING", "BOSS", "https://evil.example/job_detail/abc123.html"));
+        var failure = assertThrows(BusinessException.class, () ->
+                tool.resume(arguments(), report("招聘本科 Java 后端实习生，每周到岗五天。".repeat(5)), context));
+        assertEquals("BOSS_DETAIL_INVALID", failure.getCode());
     }
 
     @Test
