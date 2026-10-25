@@ -1,0 +1,26 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "DETAIL_READ",
+    "command": {
+      "mode": "detail",
+      "jobId": 101,
+      "sourceJobId": "eval101",
+      "sourceUrl": "https://www.zhipin.com/job_detail/eval101.html"
+    },
+    "jobs": [
+      {
+        "title": "Java 后端实习生",
+        "companyName": "星河科技",
+        "location": "深圳·南山区",
+        "employmentType": "实习",
+        "description": "招聘 Java 后端实习生，参与 Spring Boot 服务接口研发、MySQL 表结构设计和 Redis 缓存实现；要求熟悉 Java，能够在深圳每周到岗五天，面向在校本科学生，提供代码审查与导师指导。",
+        "requirements": "本科、在校生、每周到岗五天",
+        "sourcePlatform": "BOSS",
+        "sourceJobId": "eval101",
+        "sourceUrl": "https://www.zhipin.com/job_detail/eval101.html"
+      }
+    ]
+  }
+}
