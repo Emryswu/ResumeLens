@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /** Persistent search filters; only explicit tool arguments mutate this conversation-local state. */
@@ -100,5 +101,17 @@ public record JobSearchContext(String city, String jobType, String keyword, Stri
                 + "，已执行搜索=" + searched.size() + " 组。";
     }
 
-    public record Search(String keyword, String city, String experience) {}
+    public record Search(String keyword, String city, String experience) {
+        public Search {
+            keyword = normalizeKeyword(keyword);
+        }
+
+        static boolean sameKeyword(String first, String second) {
+            return normalizeKeyword(first).equals(normalizeKeyword(second));
+        }
+
+        private static String normalizeKeyword(String value) {
+            return value.strip().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+        }
+    }
 }
