@@ -103,6 +103,11 @@ public class SubmitRecommendationsTool implements AgentTool {
         return new Result(true, List.copyOf(approved), List.of());
     }
 
+    @Override public int resultMaxChars(int configuredLimit) {
+        // Five valid proposals can exceed the default 4k response ceiling; the loop finishes immediately on acceptance.
+        return Math.max(configuredLimit, 12_000);
+    }
+
     @Override public Object stepFacts(Object result) {
         Result r = (Result) result;
         return java.util.Map.of("accepted", r.accepted(),
