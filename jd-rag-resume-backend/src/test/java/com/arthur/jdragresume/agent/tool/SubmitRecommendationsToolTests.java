@@ -2,7 +2,6 @@ package com.arthur.jdragresume.agent.tool;
 
 import com.arthur.jdragresume.dto.job.JobDescriptionResponse;
 import com.arthur.jdragresume.dto.user.JobSearchPreferencesView;
-import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
 import com.arthur.jdragresume.service.JobDescriptionService;
 import com.arthur.jdragresume.service.JobSearchPreferencesService;
@@ -55,40 +54,59 @@ class SubmitRecommendationsToolTests {
     }
 
     @Test
-    void listingAndInventedCitationsAndForeignJobsAreRejected() throws Exception {
+    void listingInventedCitationsAndForeignJobsAreIndividuallyRejected() throws Exception {
         when(jobs.findById(1L)).thenReturn(job(1, "LISTING", "Java 摘要", ""));
-        when(jobs.findById(2L)).thenReturn(job(2, "FULL", "Java 开发", ""));
+        when(jobs.findById(2L)).thenReturn(job(2, "FULL", "负责 Java 开发", ""));
         when(jobs.findById(3L)).thenThrow(new ResourceNotFoundException("JobDescription", 3L));
-        var error = assertThrows(BusinessException.class,
-                () -> tool.execute(proposals(item(1, "Java 摘要"), item(2, "熟悉不存在的技术"), item(3, "证据")), context));
-        assertEquals("RECOMMENDATIONS_REJECTED", error.getCode());
-        assertTrue(error.getMessage().contains("jobId=1"));
-        assertTrue(error.getMessage().contains("jobId=2"));
-        assertTrue(error.getMessage().contains("jobId=3"));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(1, "列表里的 Java 摘要"), item(2, "熟悉不存在的技术"), item(3, "候选岗位的证据文本")), context);
+        assertFalse(result.accepted());
+        assertTrue(result.recommendations().isEmpty());
+        assertEquals(List.of(1L, 2L, 3L), result.rejected().stream().map(SubmitRecommendationsTool.Rejected::jobId).toList());
+        assertTrue(result.rejected().get(0).reason().contains("FULL"));
+        assertTrue(result.rejected().get(1).reason().contains("原文"));
+        assertTrue(result.rejected().get(2).reason().contains("无权访问"));
     }
 
     @Test
-    void hardConflictsRejectAndUnknownConditionsStayExplicit() throws Exception {
+    void successfulItemsSurviveFailuresAndUnknownConditionsStayExplicit() throws Exception {
         when(jobs.findById(4L)).thenReturn(job(4, "FULL", "实习至少 7 个月，每周 5 天。负责 Java 开发", ""));
-        var error = assertThrows(BusinessException.class,
-                () -> tool.execute(proposals(item(4, "负责 Java 开发")), context));
-        assertTrue(error.getMessage().contains("硬条件冲突"));
-
-        when(jobs.findById(5L)).thenReturn(job(5, "FULL", "负责 Java 开发", "优先有 Redis"));
-        var result = (SubmitRecommendationsTool.Result) tool.execute(proposals(item(5, "负责 Java 开发")), context);
-        assertTrue(result.accepted());
+        when(jobs.findById(5L)).thenReturn(job(5, "FULL", "负责 Java 后端开发", "优先有 Redis"));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(4, "负责 Java 开发"), item(5, "负责 Java 后端开发")), context);
+        assertFalse(result.accepted());
+        assertEquals(List.of(5L), result.recommendations().stream().map(SubmitRecommendationsTool.Submitted::jobId).toList());
+        assertEquals(4L, result.rejected().getFirst().jobId());
+        assertTrue(result.rejected().getFirst().reason().contains("硬条件冲突"));
         assertTrue(result.recommendations().getFirst().unknownConditions().contains("实习时长"));
         assertTrue(result.recommendations().getFirst().unknownConditions().contains("每周到岗天数"));
     }
 
     @Test
+    void whitespaceDifferencesPassButTooShortAndTitleOnlyEvidenceFail() throws Exception {
+        when(jobs.findById(6L)).thenReturn(job(6, "FULL",
+                "职责：参与 Java    后端\\n系统开发，负责接口设计", "实习至少 3 个月，每周 5 天"));
+        var whitespace = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(6, "参与 Java 后端 系统开发")), context);
+        assertTrue(whitespace.accepted(), whitespace.rejected().toString());
+        when(jobs.findById(7L)).thenReturn(job(7, "FULL",
+                "岗位职责：负责 Java 后端实习的服务开发", ""));
+        var shortOnly = (SubmitRecommendationsTool.Result) tool.execute(proposals(item(7, "Java")), context);
+        assertEquals("JD 证据片段至少需要 8 个字符", shortOnly.rejected().getFirst().reason());
+        var titleOnly = (SubmitRecommendationsTool.Result) tool.execute(proposals(item(7, "Java 后端实习")), context);
+        assertTrue(titleOnly.rejected().getFirst().reason().contains("职位标题"));
+    }
+
+    @Test
     void invalidArrayShapesAndDuplicateIdsCannotPass() throws Exception {
         assertFalse(tool.parameters().validate(proposals()).isEmpty());
-        assertFalse(tool.parameters().validate(json.readTree("{\"recommendations\":[{\"jobId\":1,\"reason\":\"ok\"}]}")).isEmpty());
-        assertFalse(tool.parameters().validate(json.readTree("{\"recommendations\":[{\"jobId\":\"1\",\"reason\":\"ok\",\"evidence\":\"Java\"}]}")).isEmpty());
-        when(jobs.findById(2L)).thenReturn(job(2, "FULL", "Java 开发", ""));
-        var error = assertThrows(BusinessException.class,
-                () -> tool.execute(proposals(item(2, "Java"), item(2, "Java")), context));
-        assertTrue(error.getMessage().contains("重复"));
+        assertFalse(tool.parameters().validate(json.readTree("{\\"recommendations\\":[{\\"jobId\\":1,\\"reason\\":\\"ok\\"}]}")).isEmpty());
+        assertFalse(tool.parameters().validate(json.readTree("{\\"recommendations\\":[{\\"jobId\\":\\"1\\",\\"reason\\":\\"ok\\",\\"evidence\\":\\"Java\\"}]}")).isEmpty());
+        when(jobs.findById(2L)).thenReturn(job(2, "FULL", "负责 Java 后端系统开发", ""));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(2, "负责 Java 后端系统开发"), item(2, "负责 Java 后端系统开发")), context);
+        assertEquals(1, result.recommendations().size());
+        assertEquals(1, result.rejected().size());
+        assertTrue(result.rejected().getFirst().reason().contains("重复"));
     }
 }
