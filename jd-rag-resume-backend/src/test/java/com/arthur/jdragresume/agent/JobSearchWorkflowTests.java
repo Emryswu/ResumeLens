@@ -143,7 +143,7 @@ class JobSearchWorkflowTests {
         var progress = JobSearchWorkflow.inspect(log, mapper);
         assertEquals(List.of(1L, 2L, 3L, 4L), progress.verifiedIds(), "a refused call is not counted");
         assertEquals(6, progress.dailyPagesLeft(), "each verification takes one daily page");
-        assertTrue(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":2}")).contains("已尝试或完成核实"));
+        assertTrue(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":6}")).contains("核实上限"));
         assertNull(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":5}")));
         verify(log, "v5", 5, "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":5,\"captureDepth\":\"FULL\",\"verificationStatus\":\"SAVED_FULL\"}}");
         assertTrue(JobSearchWorkflow.refuse(JobSearchWorkflow.inspect(log, mapper), "verify_boss_job",
@@ -154,13 +154,13 @@ class JobSearchWorkflowTests {
     @Test
     void failedAndPendingVerificationSpendAttemptsWithoutClaimingFullJd() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
-        verify(log, "failed", 1, "{\\"tool\\":\\"verify_boss_job\\",\\"ok\\":false,\\"error\\":{\\"code\\":\\"BOSS_DETAIL_UNAVAILABLE\\"}}");
-        log.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("pending", "verify_boss_job", "{\\"jobId\\":2}"))));
+        verify(log, "failed", 1, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_UNAVAILABLE\"}}");
+        log.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("pending", "verify_boss_job", "{\"jobId\":2}"))));
         var pending = JobSearchWorkflow.inspect(log, mapper);
         assertEquals(List.of(1L, 2L), pending.attemptedIds());
         assertTrue(pending.verifiedIds().isEmpty());
         assertTrue(JobSearchWorkflow.guidance(pending).contains("已核实完整 JD 0 个"));
-        log.add(AgentMessage.tool("pending", "{\\"tool\\":\\"verify_boss_job\\",\\"ok\\":true,\\"untrusted_data\\":{\\"jobId\\":2,\\"captureDepth\\":\\"FULL\\",\\"verificationStatus\\":\\"SAVED_FULL\\"}}"));
+        log.add(AgentMessage.tool("pending", "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":2,\"captureDepth\":\"FULL\",\"verificationStatus\":\"SAVED_FULL\"}}"));
         var completed = JobSearchWorkflow.inspect(log, mapper);
         assertEquals(List.of(1L, 2L), completed.attemptedIds());
         assertEquals(List.of(2L), completed.verifiedIds());
@@ -169,7 +169,7 @@ class JobSearchWorkflowTests {
     @Test
     void alreadyFullIsVerifiedWithoutSpendingAttemptBudget() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
-        verify(log, "full", 17, "{\\"tool\\":\\"verify_boss_job\\",\\"ok\\":true,\\"untrusted_data\\":{\\"jobId\\":17,\\"captureDepth\\":\\"FULL\\",\\"verificationStatus\\":\\"ALREADY_FULL\\"}}");
+        verify(log, "full", 17, "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":17,\"captureDepth\":\"FULL\",\"verificationStatus\":\"ALREADY_FULL\"}}");
         var progress = JobSearchWorkflow.inspect(log, mapper);
         assertTrue(progress.attemptedIds().isEmpty());
         assertEquals(List.of(17L), progress.verifiedIds());
@@ -179,7 +179,7 @@ class JobSearchWorkflowTests {
     void fiveFailedVerificationsStillExhaustAttemptBudget() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
         for (int i = 1; i <= 5; i++)
-            verify(log, "failed" + i, i, "{\\"tool\\":\\"verify_boss_job\\",\\"ok\\":false,\\"error\\":{\\"code\\":\\"BOSS_DETAIL_INVALID\\"}}");
+            verify(log, "failed" + i, i, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_INVALID\"}}");
         var progress = JobSearchWorkflow.inspect(log, mapper);
         assertEquals(5, progress.attemptedIds().size());
         assertTrue(progress.verifiedIds().isEmpty());
