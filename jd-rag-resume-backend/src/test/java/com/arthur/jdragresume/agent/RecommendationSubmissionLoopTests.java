@@ -118,7 +118,7 @@ class RecommendationSubmissionLoopTests {
         String explanation = "本轮没有采集到岗位，请换个关键词再试。";
         List<String> outputs = new ArrayList<>();
         run((system, transcript, tools, timeout) -> calls.getAndIncrement() == 0
-                ? AgentModel.Reply.call(call("collect", "collect_boss_jobs", "{\\"empty\\":true}"))
+                ? AgentModel.Reply.call(call("collect", "collect_boss_jobs", "{\"empty\":true}"))
                 : AgentModel.Reply.answer(explanation), outputs);
         assertEquals(explanation, outputs.getLast());
     }
