@@ -4,6 +4,7 @@ import com.arthur.jdragresume.agent.tool.AgentTool;
 import com.arthur.jdragresume.agent.tool.AgentToolContext;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.agent.tool.DeferrableTool;
+import com.arthur.jdragresume.agent.tool.VerifyBossJobTool;
 import com.arthur.jdragresume.agent.tool.ToolText;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.ai.ReasoningEffort;
@@ -526,18 +527,26 @@ public class AgentLoop {
         requireActive(deadline, cancelled);
         DeferrableTool.Begin begin;
         try {
-            if (JobSearchWorkflow.governs(call.name())) {
-                String refused = JobSearchWorkflow.refuse(
-                        JobSearchWorkflow.inspect(transcript, objectMapper, call.id()), call.name(), prepared.arguments());
-                if (refused != null) {
-                    record(call, sink, transcript, clock.getAsLong() - started,
-                            ToolEnvelope.error(call.name(), JobSearchWorkflow.BUDGET_ERROR, refused), false,
-                            JobSearchWorkflow.BUDGET_ERROR, refused);
-                    return null;
+            // Stored FULL is a read-only fast path; it must not be denied by a browser budget.
+            // LISTING still passes through the budget gate before the browser can start.
+            DeferrableTool.Done storedFull = tool instanceof VerifyBossJobTool verifier
+                    ? verifier.alreadyStoredFull(prepared.arguments()) : null;
+            if (storedFull != null) {
+                begin = storedFull;
+            } else {
+                if (JobSearchWorkflow.governs(call.name())) {
+                    String refused = JobSearchWorkflow.refuse(
+                            JobSearchWorkflow.inspect(transcript, objectMapper, call.id()), call.name(), prepared.arguments());
+                    if (refused != null) {
+                        record(call, sink, transcript, clock.getAsLong() - started,
+                                ToolEnvelope.error(call.name(), JobSearchWorkflow.BUDGET_ERROR, refused), false,
+                                JobSearchWorkflow.BUDGET_ERROR, refused);
+                        return null;
+                    }
                 }
+                begin = tool.begin(prepared.arguments(), context.forCollection(call.id(), deadline,
+                        progress -> sink.emit("collector_progress", progress)));
             }
-            begin = tool.begin(prepared.arguments(), context.forCollection(call.id(), deadline,
-                    progress -> sink.emit("collector_progress", progress)));
         } catch (RuntimeException ex) {
             ToolFailure failure = ToolFailure.of(ex, call.name());
             record(call, sink, transcript, clock.getAsLong() - started,
