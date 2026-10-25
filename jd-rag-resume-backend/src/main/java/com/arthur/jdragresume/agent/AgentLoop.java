@@ -704,11 +704,11 @@ public class AgentLoop {
                         "JOB_SEARCH_PREREQUISITES", message);
                 return null;
             }
-            JobSearchContext.Search search = null;
-            if (JobSearchWorkflow.TOOL.equals(call.name()) && context.run() != null && conversations != null) {
+            boolean persistSearchFilters = JobSearchWorkflow.TOOL.equals(call.name())
+                    && context.run() != null && conversations != null;
+            if (persistSearchFilters) {
                 JobSearchContext previous = searchContext(context);
-                JobSearchContext next = previous.patch(prepared.arguments());
-                search = next.asSearch();
+                JobSearchContext.Search search = previous.patch(prepared.arguments()).asSearch();
                 if (previous.alreadySearched(search)) {
                     String message = "本会话已按相同关键词、城市和经验采集过，请换关键词，避免重复消耗 BOSS 每日页数";
                     record(call, sink, transcript, clock.getAsLong() - started,
@@ -735,13 +735,12 @@ public class AgentLoop {
                         return null;
                     }
                 }
+                if (persistSearchFilters) {
+                    JsonNode rawArguments = readArguments(call.arguments());
+                    conversations.updateSearchContext(context.run(), old -> old.patch(rawArguments));
+                }
                 begin = tool.begin(prepared.arguments(), context.forCollection(call.id(), deadline,
                         progress -> sink.emit("collector_progress", progress)));
-                if (search != null) {
-                    JobSearchContext.Search executed = search;
-                    JsonNode rawArguments = readArguments(call.arguments());
-                    conversations.updateSearchContext(context.run(), old -> old.patch(rawArguments).collected(executed));
-                }
             }
         } catch (RuntimeException ex) {
             ToolFailure failure = ToolFailure.of(ex, call.name());
@@ -751,7 +750,7 @@ public class AgentLoop {
         }
         if (begin instanceof DeferrableTool.Done done) {
             sink.emit("step_started", new StepStartedEvent(call.id(), call.name(), call.arguments()));
-            recordResult(tool, call, done.result(), sink, transcript, started);
+            recordResult(tool, call, done.result(), context, sink, transcript, started);
             return null;
         }
         DeferrableTool.InBrowser inBrowser = (DeferrableTool.InBrowser) begin;
@@ -814,7 +813,8 @@ public class AgentLoop {
         sink.emit("step_started", new StepStartedEvent(pending.id(), pending.name(), pending.arguments()));
         try {
             recordResult(deferrable, pending, deferrable.resume(prepared.arguments(), report.report(),
-                    context.forCollection(pending.id(), deadline, progress -> sink.emit("collector_progress", progress))), sink, transcript, started);
+                    context.forCollection(pending.id(), deadline, progress -> sink.emit("collector_progress", progress))),
+                    context, sink, transcript, started);
         } catch (RuntimeException ex) {
             ToolFailure failure = ToolFailure.of(ex, pending.name());
             record(pending, sink, transcript, clock.getAsLong() - started,
@@ -824,12 +824,17 @@ public class AgentLoop {
     }
 
     /** Serialized once: the tree goes into the envelope, its text feeds the size check and the preview. */
-    private void recordResult(AgentTool tool, AgentMessage.ToolCall call, Object result, AgentEventSink sink,
-            List<AgentMessage> transcript, long started) {
+    private void recordResult(AgentTool tool, AgentMessage.ToolCall call, Object result, AgentToolContext context,
+            AgentEventSink sink, List<AgentMessage> transcript, long started) {
         JsonNode data = ToolEnvelope.toTree(objectMapper, result);
         String dataJson = data.toString();
         String content = ToolEnvelope.ok(call.name(), data, dataJson, tool.resultMaxChars(properties.getToolResultMaxChars()));
         record(call, sink, transcript, clock.getAsLong() - started, content, true, null, dataJson, tool.stepFacts(result));
+        if (JobSearchWorkflow.TOOL.equals(call.name()) && context.run() != null && conversations != null
+                && JobSearchStopPolicy.haltReason(readEnvelope(content)) == null) {
+            JsonNode arguments = readArguments(call.arguments());
+            conversations.updateSearchContext(context.run(), old -> old.collected(old.patch(arguments).asSearch()));
+        }
     }
 
     /**
@@ -897,7 +902,7 @@ public class AgentLoop {
                     conversations.updateSearchContext(context.run(), JobSearchContext::preferencesRead);
                 }
             }
-            recordResult(tool, call, result, sink, transcript, started);
+            recordResult(tool, call, result, context, sink, transcript, started);
         } catch (RuntimeException ex) {
             ToolFailure failure = ToolFailure.of(ex, call.name());
             record(call, sink, transcript, clock.getAsLong() - started,
