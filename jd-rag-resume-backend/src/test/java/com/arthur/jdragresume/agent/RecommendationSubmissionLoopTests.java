@@ -49,9 +49,9 @@ class RecommendationSubmissionLoopTests {
         return new AgentTool() {
             @Override public String name() { return name; }
             @Override public String description() { return "test"; }
-            @Override public ToolSchema parameters() { return ToolSchema.object(); }
+            @Override public ToolSchema parameters() { return ToolSchema.object().bool("fail", "模拟采集失败", false); }
             @Override public Object execute(JsonNode args, AgentToolContext context) {
-                if (fail) throw new BusinessException("BOSS_PLUGIN_UNAVAILABLE", "插件未登录");
+                if (fail || args.path("fail").asBoolean(false)) throw new BusinessException("BOSS_PLUGIN_UNAVAILABLE", "插件未登录");
                 return result;
             }
         };
@@ -70,8 +70,7 @@ class RecommendationSubmissionLoopTests {
                 new AgentToolRegistry(List.of(read, new SubmitRecommendationsTool(jobs, preferences),
                         fake("collect_boss_jobs", Map.of("pagesRead", 1, "jobIds", List.of(7, 8)), false),
                         fake("rank_jobs_for_resume", Map.of("items", List.of(7, 8)), false),
-                        fake("list_resumes", Map.of("items", List.of("Java 版本", "AI 版本")), false),
-                        fake("failed_collection", Map.of(), true))),
+                        fake("list_resumes", Map.of("items", List.of("Java 版本", "AI 版本")), false))),
                 json, properties, System::currentTimeMillis);
     }
 
@@ -138,7 +137,7 @@ class RecommendationSubmissionLoopTests {
         String explanation = "浏览器插件没登录，采集没成功。请先登录 BOSS，再试一次。";
         List<String> outputs = new ArrayList<>();
         run((system, transcript, tools, timeout) -> calls.getAndIncrement() == 0
-                ? AgentModel.Reply.call(call("collect", "failed_collection", "{}"))
+                ? AgentModel.Reply.call(call("collect", "collect_boss_jobs", "{\\"fail\\":true}"))
                 : AgentModel.Reply.answer(explanation), outputs);
         assertEquals(explanation, outputs.getLast());
     }
