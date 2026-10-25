@@ -74,6 +74,12 @@ class AgentJobSearchEvalTests {
                     assertEquals(task.path("checks").size(), result.checks().size());
                     assertFalse(result.transcript().isEmpty());
                     assertNotNull(result.category());
+                    assertTrue(result.trace().stream().noneMatch(line -> line.startsWith("evaluation exception:")),
+                            "评测框架抛出异常: " + task.path("id").asText() + " " + result.trace());
+                    if (task.path("id").asText().contains("stop")) {
+                        assertTrue(result.trace().contains("browser_task_required"),
+                                "停止任务必须真正执行一次快照浏览器回放");
+                    }
                     if (result.passed()) passed++;
                 }
                 System.out.println("Agent scripted eval " + task.path("id").asText()
@@ -126,7 +132,6 @@ class AgentJobSearchEvalTests {
             failCounts.put(name, 0);
         }
         String status = "completed";
-        String saved = "";
         try {
             for (String group : List.of("dev", "acceptance/v1")) {
                 for (JsonNode task : tasks(group)) {
@@ -141,6 +146,8 @@ class AgentJobSearchEvalTests {
                         row.put("passed", result.passed());
                         row.put("category", result.passed() ? null : result.category());
                         row.put("checks", result.checks());
+                        row.put("replayTrace", result.trace().stream()
+                                .filter(line -> line.contains("未录制条件")).toList());
                         if (!result.passed()) row.put("transcriptSummary", summarize(result.transcript(), result.trace()));
                         trials.add(row);
                     }
@@ -166,7 +173,6 @@ class AgentJobSearchEvalTests {
             Files.createDirectories(output.getParent());
             Files.writeString(output, JSON.writerWithDefaultPrettyPrinter().writeValueAsString(report) + "\n",
                     StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
-            saved = fileName;
             Files.writeString(ROOT.resolve("RUN-LOG.md"),
                     "\n| " + time + " | " + sha + " | " + modelId + " | " + slot + " | " + status +
                             " | " + fileName + " |\n", StandardCharsets.UTF_8, StandardOpenOption.APPEND);
