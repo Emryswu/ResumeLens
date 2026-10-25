@@ -278,6 +278,64 @@ class JobSearchWorkflowTests {
     }
 
     @Test
+    void agentLoopPreflightErrorsNeverStartBrowserOrSpendDailyPages() throws Exception {
+        var properties = new AgentProperties();
+        properties.setMaxSteps(10);
+        properties.setMaxPlanningSteps(10);
+        DeferrableTool collector = new DeferrableTool() {
+            public String name() { return "collect_boss_jobs"; }
+            public String description() { return "test"; }
+            public ToolSchema parameters() {
+                return ToolSchema.object().string("keyword", "keyword", true, 50)
+                        .string("city", "city", true, 10)
+                        .string("experience", "experience", false, 10)
+                        .integer("maxPages", "pages", false, 1, 3);
+            }
+            public Begin begin(JsonNode arguments, AgentToolContext context) {
+                return new Done(Map.of("pagesRead", 1, "jobIds", List.of(404L, 18L), "dailyPagesLeft", 8));
+            }
+            public Object resume(JsonNode arguments, JsonNode report, AgentToolContext context) { return Map.of(); }
+        };
+        var jobs = org.mockito.Mockito.mock(com.arthur.jdragresume.service.JobDescriptionService.class);
+        org.mockito.Mockito.when(jobs.findById(404L)).thenThrow(
+                new com.arthur.jdragresume.exception.ResourceNotFoundException("JobDescription", 404L));
+        org.mockito.Mockito.when(jobs.findById(18L)).thenReturn(
+                new com.arthur.jdragresume.dto.job.JobDescriptionResponse(
+                        18L, 1L, "Java 实习", "示例科技", "深圳", "实习", "在校生",
+                        "列表摘要", "本科", "BOSS",
+                        "https://evil.example/job_detail/abc123.html", "abc123",
+                        null, null, "LISTING", null, null));
+        var collectors = org.mockito.Mockito.mock(com.arthur.jdragresume.collect.RoutingJobCollector.class);
+        var verifier = new com.arthur.jdragresume.agent.tool.VerifyBossJobTool(jobs, collectors);
+        AgentModel model = (system, transcript, tools, timeout) -> {
+            long results = transcript.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
+            if (results == 0) return AgentModel.Reply.call(AgentMessage.ToolCall.of("collect", "collect_boss_jobs",
+                    "{\"keyword\":\"Java后端\",\"city\":\"深圳\",\"experience\":\"在校生\",\"maxPages\":1}"));
+            if (results == 1) return AgentModel.Reply.call(AgentMessage.ToolCall.of("missing", "verify_boss_job",
+                    "{\"jobId\":404}"));
+            if (results == 2) return AgentModel.Reply.call(AgentMessage.ToolCall.of("bad-url", "verify_boss_job",
+                    "{\"jobId\":18}"));
+            return AgentModel.Reply.answer("两条职位都无法开始浏览器核实");
+        };
+        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(collector, verifier)), mapper, properties,
+                System::currentTimeMillis);
+        var result = loop.run(new TranscriptPolicy(properties).normalize(List.of(AgentMessage.user("找深圳实习")), null),
+                null, new AgentToolContext(new AppUser()), (name, data) -> {}, () -> false);
+        assertEquals(AgentLoop.State.COMPLETED, result.state());
+        var toolResults = result.transcript().stream().filter(m -> AgentMessage.TOOL.equals(m.role())).toList();
+        assertEquals(3, toolResults.size());
+        assertEquals("BOSS_VERIFY_JOB_NOT_FOUND", mapper.readTree(toolResults.get(1).content())
+                .path("error").path("code").asText());
+        assertEquals("BOSS_DETAIL_URL_INVALID", mapper.readTree(toolResults.get(2).content())
+                .path("error").path("code").asText());
+        var progress = JobSearchWorkflow.inspect(result.transcript(), mapper);
+        assertTrue(progress.attemptedIds().isEmpty());
+        assertTrue(progress.verifiedIds().isEmpty());
+        assertEquals(8, progress.dailyPagesLeft());
+        org.mockito.Mockito.verifyNoInteractions(collectors);
+    }
+
+    @Test
     void aStoredFullJdBypassesFiveSpentAttemptsWithoutOpeningTheBrowser() throws Exception {
         var properties = new AgentProperties();
         properties.setMaxSteps(10);
