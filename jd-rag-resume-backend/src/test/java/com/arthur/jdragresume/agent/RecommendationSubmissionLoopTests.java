@@ -112,6 +112,29 @@ class RecommendationSubmissionLoopTests {
     }
 
     @Test
+    void emptySuccessfulCollectionDoesNotPrefixTheExplanation() {
+        AtomicInteger calls = new AtomicInteger();
+        String explanation = "本轮没有采集到岗位，请换个关键词再试。";
+        List<String> outputs = new ArrayList<>();
+        // A valid collection tool can return no candidates while still reporting ok=true.
+        AgentModel model = (system, transcript, tools, timeout) -> calls.getAndIncrement() == 0
+                ? AgentModel.Reply.call(call("collect", "collect_boss_jobs", "{}"))
+                : AgentModel.Reply.answer(explanation);
+        // Use a turn with an already completed zero-results collection result.
+        var toolCall = call("collect", "collect_boss_jobs", "{}");
+        List<AgentMessage> old = List.of(AgentMessage.user("找深圳实习"),
+                AgentMessage.assistant(null, List.of(toolCall)),
+                AgentMessage.tool("collect", "{\\"tool\\":\\"collect_boss_jobs\\",\\"ok\\":true,\\"untrusted_data\\":{\\"pagesRead\\":0,\\"jobIds\\":[]}}"));
+        var input = new TranscriptPolicy(properties).normalize(old, null);
+        var result = loop((system, transcript, tools, timeout) -> AgentModel.Reply.answer(explanation))
+                .run(input, null, context, (event, value) -> {
+                    if ("message".equals(event)) outputs.add(((Map<?, ?>) value).get("content").toString());
+                }, () -> false);
+        assertEquals(AgentLoop.State.COMPLETED, result.state());
+        assertEquals(explanation, outputs.getLast());
+    }
+
+    @Test
     void internshipInterviewQuestionPreservesPlainAnswer() {
         String explanation = "一般会问 Java 基础、项目中的并发处理。";
         List<String> outputs = new ArrayList<>();
@@ -174,6 +197,7 @@ class RecommendationSubmissionLoopTests {
 
     @Test
     void secondFailureStillCompletesWithApprovedAndPendingReasons() {
+        when(jobs.findById(8L)).thenReturn(job(8, "FULL", "AI 应用实习", "负责大模型应用开发与 RAG 检索"));
         AtomicInteger calls = new AtomicInteger();
         String first = proposal(item(7, "负责 Java 后端开发"), item(8, "凭空捏造的不存在要求"));
         String second = proposal(item(8, "依旧不存在的岗位描述"));
