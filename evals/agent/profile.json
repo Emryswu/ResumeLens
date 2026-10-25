@@ -13,9 +13,9 @@
     "availableMonths": 6,
     "daysPerWeek": 5,
     "earliestStartDate": null,
-    "education": "本科",
-    "studentStatus": "在校",
-    "expectedGraduation": "2027-06",
-    "workYears": 0
+    "educationLevel": 2,
+    "expectedGraduationDate": "2027-06-30",
+    "workExperienceYears": 0,
+    "currentlyStudent": true
   }
 }
