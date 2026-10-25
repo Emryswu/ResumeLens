@@ -22,17 +22,23 @@ class JobSearchWorkflowTests {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    void guidanceOnlyRequestsStudentFilterForExplicitInternshipIntent() {
-        for (String question : List.of("找深圳 Java 实习", "找在校兼职", "暑期找岗位")) {
-            assertTrue(JobSearchWorkflow.guidance(JobSearchWorkflow.inspect(List.of(AgentMessage.user(question)), mapper))
-                    .contains("experience=在校生"), question);
-        }
-        for (String question : List.of("找深圳 Java 后端全职", "帮我找岗位", "找深圳 Java 社招")) {
-            String guidance = JobSearchWorkflow.guidance(JobSearchWorkflow.inspect(List.of(AgentMessage.user(question)), mapper));
-            assertFalse(guidance.contains("在校生"), question);
-            assertTrue(guidance.contains("experience=不限"), question);
-            assertTrue(guidance.contains("没限制经验"), question);
-        }
+    void guidanceUsesExplicitConversationTypeAndNotTheLatestUserMessage() {
+        var internship = JobSearchContext.empty().patch(mapper.valueToTree(Map.of(
+                "city", "深圳", "keyword", "Java", "jobType", "实习")));
+        var fullTime = JobSearchContext.empty().patch(mapper.valueToTree(Map.of("jobType", "全职")));
+        List<AgentMessage> transcript = List.of(AgentMessage.user("找深圳 Java 实习"), AgentMessage.user("再找几个"));
+        assertTrue(JobSearchWorkflow.guidance(JobSearchWorkflow.inspect(transcript, mapper, internship))
+                .contains("experience=在校生"));
+        assertTrue(JobSearchWorkflow.guidance(JobSearchWorkflow.inspect(transcript, mapper, fullTime))
+                .contains("experience=不限"));
+        assertTrue(JobSearchWorkflow.applies(transcript, internship));
+        assertFalse(JobSearchWorkflow.applies(List.of(AgentMessage.user("解释一下 Java 的 volatile")), internship),
+                "having saved conditions must not enable the workflow for unrelated questions");
+        assertFalse(JobSearchWorkflow.applies(List.of(AgentMessage.user("今天天气怎么样")), internship));
+        var toolCalled = List.of(AgentMessage.user("再说一下"), AgentMessage.assistant(null,
+                List.of(AgentMessage.ToolCall.of("x", "collect_boss_jobs", "{}"))));
+        assertTrue(JobSearchWorkflow.applies(toolCalled, internship),
+                "a collection called this turn activates the workflow even without a search phrase");
     }
 
     @Test

@@ -148,6 +148,46 @@ class JobSearchStopPolicyTests {
         assertEquals(1, progress.uniqueJobs());
     }
 
+    @Test
+    void everyBrowserAndPatchrightErrorCodeIsClassified() throws Exception {
+        java.nio.file.Path root = java.nio.file.Path.of("..").toAbsolutePath().normalize();
+        java.util.List<java.nio.file.Path> sources = new java.util.ArrayList<>();
+        for (String directory : java.util.List.of("browser-extension/src", "collector-service/src")) {
+            java.nio.file.Path path = root.resolve(directory);
+            assertTrue(java.nio.file.Files.isDirectory(path), "error-code scanner missing source directory: " + path);
+            try (var files = java.nio.file.Files.walk(path)) {
+                sources.addAll(files.filter(file -> file.toString().endsWith(".js")
+                        || file.toString().endsWith(".mjs")).toList());
+            }
+        }
+        java.nio.file.Path patchright = root.resolve(
+                "jd-rag-resume-backend/src/main/java/com/arthur/jdragresume/collect/PatchrightJobCollector.java");
+        assertTrue(java.nio.file.Files.isRegularFile(patchright));
+        sources.add(patchright);
+
+        var javascriptCodes = java.util.regex.Pattern.compile(
+                "(?:new\\s+CollectStop\\s*\\(|\\bcode\\s*[:=]\\s*|\\breturn\\s+)"
+                        + "\\s*[\\\"']([A-Z][A-Z0-9_]+)[\\\"']");
+        var javaCodes = java.util.regex.Pattern.compile(
+                "new\\s+BusinessException\\s*\\(\\s*\\\"([A-Z][A-Z0-9_]+)\\\"");
+        java.util.Set<String> discovered = new java.util.TreeSet<>();
+        java.util.List<String> unclassified = new java.util.ArrayList<>();
+        for (var source : sources) {
+            String text = java.nio.file.Files.readString(source);
+            var matches = (source.equals(patchright) ? javaCodes : javascriptCodes).matcher(text);
+            while (matches.find()) {
+                String code = matches.group(1);
+                discovered.add(code);
+                if (!JobSearchStopPolicy.PLATFORM_BLOCKING_ERRORS.contains(code)
+                        && !JobSearchStopPolicy.CORRECTABLE_ERRORS.contains(code)) {
+                    unclassified.add(root.relativize(source) + ": " + code);
+                }
+            }
+        }
+        assertFalse(discovered.isEmpty(), "source-code scan must discover actual browser error codes");
+        assertTrue(unclassified.isEmpty(), "unclassified browser/Patchright error codes: " + unclassified);
+    }
+
     private JsonNode error(String code) throws Exception {
         return mapper.readTree("{\"tool\":\"collect_boss_jobs\",\"ok\":false,\"error\":{\"code\":\""
                 + code + "\",\"message\":\"test\"}}");

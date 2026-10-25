@@ -24,6 +24,11 @@ public final class JobSearchStopPolicy {
             "BROWSER_TASK_EXPIRED", "BROWSER_TASK_UNKNOWN",
             "BROWSER_TASK_CANCELLED", "BROWSER_TASK_ABANDONED");
 
+    /** Error codes the model can repair without treating the platform as unavailable. */
+    static final Set<String> CORRECTABLE_ERRORS = Set.of(
+            "INVALID_COMMAND", "INVALID_ARGUMENTS", "BOSS_DIRECTION_REQUIRED",
+            "JOB_SEARCH_PREREQUISITES", "JOB_SEARCH_REPEAT");
+
     private JobSearchStopPolicy() { }
 
     /** Shared by the system prompt and the collection tool description. */

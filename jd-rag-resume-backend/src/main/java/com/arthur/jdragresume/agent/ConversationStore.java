@@ -173,6 +173,28 @@ public class ConversationStore {
         });
     }
 
+    /** Read and update search filters only while this user's run owns the conversation lease. */
+    public JobSearchContext searchContext(Run run) {
+        return owned(run, row -> loadSearchContext(row.id()));
+    }
+
+    public JobSearchContext updateSearchContext(Run run, java.util.function.UnaryOperator<JobSearchContext> update) {
+        return owned(run, row -> {
+            JobSearchContext next = update.apply(loadSearchContext(row.id()));
+            jdbc.update("UPDATE agent_conversation SET search_context=? WHERE id=? AND user_id=?",
+                    json(next), row.id(), run.userId());
+            return next;
+        });
+    }
+
+    private JobSearchContext loadSearchContext(long id) {
+        String value = jdbc.queryForObject("SELECT search_context FROM agent_conversation WHERE id=?",
+                String.class, id);
+        if (value == null) return JobSearchContext.empty();
+        try { return JSON.readValue(value, JobSearchContext.class); }
+        catch (JsonProcessingException ex) { throw new IllegalStateException("invalid stored search context", ex); }
+    }
+
     public boolean isCurrent(Run run) {
         return Boolean.TRUE.equals(jdbc.queryForObject("SELECT active_run=? AND run_expires_at>? FROM agent_conversation WHERE id=? AND user_id=?",
                 Boolean.class, run.runId(), System.currentTimeMillis(), run.conversationId(), run.userId()));

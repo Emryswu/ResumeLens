@@ -27,7 +27,7 @@ final class JobSearchWorkflow {
     static final String BUDGET_ERROR = "JOB_SEARCH_BUDGET";
     /** Validation rejected before browser navigation must not consume search attempts/pages. */
     static final Set<String> COLLECTION_NOT_STARTED_CODES = Set.of(
-            BUDGET_ERROR, "JOB_SEARCH_PREREQUISITES", "BOSS_DIRECTION_REQUIRED",
+            BUDGET_ERROR, "JOB_SEARCH_PREREQUISITES", "JOB_SEARCH_REPEAT", "BOSS_DIRECTION_REQUIRED",
             "INVALID_ARGUMENTS", "INVALID_COMMAND");
     /** Failures before a verification browser task starts must not consume attempt/page estimates.
      * Keep preflight codes distinct from errors that can also happen after a browser report. */
@@ -45,19 +45,35 @@ final class JobSearchWorkflow {
     }
 
     static boolean applies(List<AgentMessage> transcript) {
+        return applies(transcript, JobSearchContext.empty());
+    }
+
+    /** A remembered search alone must never activate the job-search workflow for ordinary chat. */
+    static boolean applies(List<AgentMessage> transcript, JobSearchContext context) {
+        int start = 0;
+        String question = "";
         for (int i = transcript.size() - 1; i >= 0; i--) {
-            if (!AgentMessage.USER.equals(transcript.get(i).role())) continue;
-            String question = transcript.get(i).content();
-            return question.contains("实习") || question.contains("求职") || question.contains("招聘")
-                    || question.toUpperCase(Locale.ROOT).contains("BOSS")
-                    || question.contains("采集") || question.contains("找工作")
-                    || question.contains("找岗位") || question.contains("找职位");
+            if (AgentMessage.USER.equals(transcript.get(i).role())) {
+                question = transcript.get(i).content();
+                start = i + 1;
+                break;
+            }
         }
-        return false;
+        for (int i = start; i < transcript.size(); i++) {
+            AgentMessage message = transcript.get(i);
+            if (message.hasToolCalls() && message.toolCalls().stream().anyMatch(call -> governs(call.name()))) return true;
+        }
+        return question.contains("实习") || question.contains("求职") || question.contains("招聘")
+                || question.toUpperCase(Locale.ROOT).contains("BOSS")
+                || question.contains("采集") || question.contains("找工作")
+                || question.contains("找岗位") || question.contains("找职位")
+                || context.hasConditions() && (question.contains("再找") || question.contains("继续找")
+                    || question.contains("多找") || question.contains("换个城市")
+                    || question.contains("全职") || question.contains("换岗位"));
     }
 
     static Snapshot inspect(List<AgentMessage> transcript, ObjectMapper mapper) {
-        return inspect(transcript, mapper, null);
+        return inspect(transcript, mapper, (String) null);
     }
 
     /**
@@ -65,6 +81,15 @@ final class JobSearchWorkflow {
      * has already appended the assistant's tool_call message at that point.
      */
     static Snapshot inspect(List<AgentMessage> transcript, ObjectMapper mapper, String excludeCallId) {
+        return inspect(transcript, mapper, excludeCallId, JobSearchContext.empty());
+    }
+
+    static Snapshot inspect(List<AgentMessage> transcript, ObjectMapper mapper, JobSearchContext context) {
+        return inspect(transcript, mapper, null, context);
+    }
+
+    static Snapshot inspect(List<AgentMessage> transcript, ObjectMapper mapper, String excludeCallId,
+                            JobSearchContext context) {
         int start = 0;
         for (int i = transcript.size() - 1; i >= 0; i--) {
             if (AgentMessage.USER.equals(transcript.get(i).role())) {
@@ -177,10 +202,7 @@ final class JobSearchWorkflow {
             }
         }
         int requestedPages = attempts.stream().mapToInt(Attempt::pages).sum();
-        String question = transcript.stream().filter(message -> AgentMessage.USER.equals(message.role()))
-                .reduce((previous, current) -> current).map(AgentMessage::content).orElse("");
-        boolean internship = !question.contains("社招") && !question.contains("全职")
-                && (question.contains("实习") || question.contains("在校") || question.contains("暑期") || question.contains("寒假"));
+        boolean internship = "实习".equals(context.jobType());
         Set<Long> qualified = new LinkedHashSet<>();
         Set<Long> unknown = new LinkedHashSet<>();
         checks.forEach((id, check) -> {
@@ -290,8 +312,12 @@ final class JobSearchWorkflow {
 
     /** A browser search requires successful resume and preferences reads before starting. */
     static boolean hasPrerequisites(List<AgentMessage> transcript, ObjectMapper mapper) {
-        boolean resume = false;
-        boolean preferences = false;
+        return hasPrerequisites(transcript, mapper, JobSearchContext.empty());
+    }
+
+    static boolean hasPrerequisites(List<AgentMessage> transcript, ObjectMapper mapper, JobSearchContext context) {
+        boolean resume = context.resumeId() != null;
+        boolean preferences = context.preferencesLoaded();
         for (AgentMessage message : transcript) {
             if (!AgentMessage.TOOL.equals(message.role())) continue;
             JsonNode result = parse(mapper, message.content());
