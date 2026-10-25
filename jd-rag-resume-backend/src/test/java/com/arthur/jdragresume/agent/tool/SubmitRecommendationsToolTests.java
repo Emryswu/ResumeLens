@@ -109,4 +109,39 @@ class SubmitRecommendationsToolTests {
         assertEquals(1, result.rejected().size());
         assertTrue(result.rejected().getFirst().reason().contains("重复"));
     }
+
+    @Test
+    void unmetPreferredEducationIsSubmittedWithWarningButNoBlock() throws Exception {
+        when(prefs.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5,
+                null, null, false, 2, null, 0, true));
+        when(jobs.findById(51L)).thenReturn(job(51, "FULL",
+                "参与 Java 后端开发，负责服务端接口维护", "实习至少3个月；每周5天；硕士优先"));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(51, "参与 Java 后端开发")), context);
+        assertTrue(result.accepted());
+        assertEquals(1, result.recommendations().size());
+        assertFalse(result.recommendations().getFirst().preferredWarnings().isEmpty());
+        assertFalse(result.recommendations().getFirst().unknownConditions().contains("学历"));
+    }
+
+    @Test
+    void missingEducationAcceptsAsUnknownWithProfileHintAndAbsentRequirementsPass() throws Exception {
+        when(prefs.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5, null, null, false));
+        when(jobs.findById(52L)).thenReturn(job(52, "FULL",
+                "负责 Java 后端开发；实习至少3个月；每周5天", "学历要求本科及以上"));
+        when(jobs.findById(53L)).thenReturn(job(53, "FULL",
+                "负责 Java 后端开发；实习至少3个月；每周5天", "经验不限"));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(52, "负责 Java 后端开发"), item(53, "负责 Java 后端开发")), context);
+        assertTrue(result.accepted());
+        var missing = result.recommendations().getFirst();
+        assertTrue(missing.unknownConditions().contains("学历"));
+        assertTrue(missing.missingUserFields().contains("学历"));
+        var noThreshold = result.recommendations().get(1);
+        assertFalse(noThreshold.unknownConditions().contains("学历"));
+        assertFalse(noThreshold.unknownConditions().contains("工作经验"));
+        assertTrue(noThreshold.jdNotes().contains("JD 未写学历要求"));
+        assertTrue(noThreshold.jdNotes().contains("JD 未写经验要求"));
+    }
+
 }

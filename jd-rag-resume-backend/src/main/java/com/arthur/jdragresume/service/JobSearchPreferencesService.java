@@ -47,6 +47,10 @@ public class JobSearchPreferencesService {
         stored.setEarliestStartDate(input.earliestStartDate());
         stored.setPreferredDistrict(district == null || district.isEmpty() ? null : district);
         stored.setDistrictRequired(input.districtRequired());
+        stored.setEducationLevel(input.educationLevel());
+        stored.setExpectedGraduationDate(input.expectedGraduationDate());
+        stored.setWorkExperienceYears(input.workExperienceYears());
+        stored.setCurrentlyStudent(input.currentlyStudent());
         return JobSearchPreferencesView.from(repository.save(stored));
     }
 }

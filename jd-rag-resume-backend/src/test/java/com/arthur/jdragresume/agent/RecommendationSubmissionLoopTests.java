@@ -213,4 +213,28 @@ class RecommendationSubmissionLoopTests {
         assertTrue(outputs.getLast().contains("Java 后端实习"));
         assertTrue(outputs.getLast().contains("待核实岗位"));
     }
+
+    @Test
+    void missingEducationShowsProfileHintOnceEvenWithSeveralJobs() {
+        when(jobs.findById(7L)).thenReturn(new JobDescriptionResponse(7L, 1L, "Java 后端实习",
+                "示例公司", "深圳", "实习", "在校生",
+                "负责 Java 后端开发。实习至少 3 个月，每周 5 天到岗",
+                "学历要求本科及以上", "BOSS", "https://www.zhipin.com/job_detail/abc.html",
+                "abc", null, null, "FULL", null, null));
+        when(jobs.findById(9L)).thenReturn(new JobDescriptionResponse(9L, 1L, "Java 服务开发",
+                "示例公司", "深圳", "实习", "在校生",
+                "负责 Java 系统开发。实习至少 3 个月，每周 5 天到岗",
+                "硕士及以上", "BOSS", "https://www.zhipin.com/job_detail/def.html",
+                "def", null, null, "FULL", null, null));
+        List<String> outputs = new ArrayList<>();
+        var result = run((system, transcript, tools, timeout) ->
+                AgentModel.Reply.call(call("s", "submit_recommendations", proposal(
+                        item(7, "负责 Java 后端开发"), item(9, "负责 Java 系统开发")))), outputs);
+        assertEquals(AgentLoop.State.COMPLETED, result.state());
+        String answer = outputs.getLast();
+        String hint = "在求职条件页填写学历/毕业时间后可完成判断";
+        assertTrue(answer.contains("JD 门槛说明"));
+        assertEquals(1, answer.split(hint, -1).length - 1);
+    }
+
 }

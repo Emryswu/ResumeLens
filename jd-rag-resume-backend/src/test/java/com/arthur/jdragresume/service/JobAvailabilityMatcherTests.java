@@ -93,4 +93,71 @@ class JobAvailabilityMatcherTests {
                 "实习至少3个月；每周5天。", "", "深圳·南山区·科技园");
         assertTrue(preferenceOnly.jdConditionsMet(), "a non-required district is only a ranking preference");
     }
+
+    private JobSearchPreferencesView applicant(Integer education, Integer years, Boolean student, LocalDate graduation) {
+        return new JobSearchPreferencesView(true, 6, 5, null, null, false,
+                education, graduation, years, student);
+    }
+
+    private JobAvailabilityMatcher.Comparison eligibleJd(JobSearchPreferencesView own, String additional) {
+        return JobAvailabilityMatcher.compare(own, "FULL",
+                "要求实习至少3个月；每周5天；" + additional, "", "深圳");
+    }
+
+    @Test void mastersPreferredNeverBlocksBachelorAndRetainsWarning() {
+        var result = eligibleJd(applicant(2, 0, true, LocalDate.of(2027, 6, 30)),
+                "本科及以上；硕士优先");
+        assertEquals("PREFERRED", result.education().status());
+        assertFalse(result.hardBlock());
+        assertTrue(result.jdConditionsMet());
+        assertTrue(result.preferredWarnings().getFirst().contains("硕士优先"));
+    }
+
+    @Test void bachelorMinimumAcceptsBachelorButMastersMinimumBlocksIt() {
+        var own = applicant(2, 0, true, LocalDate.of(2027, 6, 30));
+        assertEquals("MEETS", eligibleJd(own, "本科及以上").education().status());
+        var required = eligibleJd(own, "硕士及以上");
+        assertEquals("BLOCKED", required.education().status());
+        assertTrue(required.hardBlock());
+    }
+
+    @Test void threeYearsExperienceBlocksStudentAndExplicitUnlimitedPasses() {
+        var student = applicant(2, null, true, LocalDate.of(2027, 6, 30));
+        assertEquals("BLOCKED", eligibleJd(student, "3年以上工作经验").experience().status());
+        var unlimited = eligibleJd(student, "工作经验不限");
+        assertEquals("UNRESTRICTED", unlimited.experience().status());
+        assertTrue(unlimited.jdConditionsMet());
+    }
+
+    @Test void missingJdEducationExperienceRequirementsPassAndAreExplained() {
+        var result = eligibleJd(applicant(null, null, null, null), "参与 Java 后端开发");
+        assertEquals("NOT_MENTIONED", result.education().status());
+        assertEquals("NOT_MENTIONED", result.experience().status());
+        assertTrue(result.jdConditionsMet());
+        assertEquals(java.util.List.of("JD 未写学历要求", "JD 未写经验要求"), result.jdNotes());
+        assertTrue(result.missingUserFields().isEmpty());
+    }
+
+    @Test void missingUserEducationStaysUnknownAndRequestsProfileInput() {
+        var result = eligibleJd(applicant(null, null, null, null), "本科及以上");
+        assertEquals("UNKNOWN", result.education().status());
+        assertFalse(result.hardBlock());
+        assertFalse(result.jdConditionsMet());
+        assertTrue(result.missingUserFields().contains("学历"));
+    }
+
+    @Test void graduationRequirementUsesOnlyTheUsersExplicitGraduationDate() {
+        var unknown = eligibleJd(applicant(2, null, true, null), "仅限2027届");
+        assertEquals("UNKNOWN", unknown.graduation().status());
+        assertTrue(unknown.missingUserFields().contains("毕业时间"));
+        assertEquals("MEETS", eligibleJd(applicant(2, null, true, LocalDate.of(2027, 6, 30)),
+                "仅限2027届").graduation().status());
+    }
+
+    @Test void unrecognizedHardExperienceLanguageRemainsUnknown() {
+        var result = eligibleJd(applicant(2, 0, true, null), "需有丰富行业经验");
+        assertEquals("UNKNOWN", result.experience().status());
+        assertFalse(result.jdConditionsMet());
+    }
+
 }

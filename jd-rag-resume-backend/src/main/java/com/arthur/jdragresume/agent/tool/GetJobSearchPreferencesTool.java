@@ -15,7 +15,7 @@ public class GetJobSearchPreferencesTool implements AgentTool {
 
     @Override public String name() { return "get_job_search_preferences"; }
     @Override public String description() {
-        return "读取当前用户自己填写的实习时长、每周到岗天数、最早到岗日期和偏好地区。找实习和核对岗位硬条件前先读一次；"
+        return "读取用户自己填写的学历、预计毕业日期、工作经验、在校状态、实习时长、每周到岗天数、最早到岗日期和地区。找实习和核对岗位硬条件前先读一次；"
                 + "未填写的字段是未知，preferredDistrict 默认仅供排序偏好，districtRequired=true 才是硬限制。";
     }
     @Override public ToolSchema parameters() { return ToolSchema.object(); }

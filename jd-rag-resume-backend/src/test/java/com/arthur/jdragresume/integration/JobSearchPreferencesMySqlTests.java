@@ -29,9 +29,11 @@ class JobSearchPreferencesMySqlTests {
                     """);
             statement.executeUpdate("""
                     INSERT INTO job_search_preferences
-                        (user_id, available_months, days_per_week, preferred_district, district_required, created_at, updated_at)
-                    VALUES (1,6,5,'龙岗区',0,NOW(),NOW()),
-                           (2,3,3,'南山区',1,NOW(),NOW())
+                        (user_id, available_months, days_per_week, preferred_district, district_required,
+                         education_level, expected_graduation_date, work_experience_years, currently_student,
+                         created_at, updated_at)
+                    VALUES (1,6,5,'龙岗区',0,2,'2027-06-30',0,1,NOW(),NOW()),
+                           (2,3,3,'南山区',1,NULL,NULL,NULL,NULL,NOW(),NOW())
                     """);
             assertThrows(java.sql.SQLException.class, () -> statement.executeUpdate("""
                     INSERT INTO job_search_preferences
@@ -40,11 +42,13 @@ class JobSearchPreferencesMySqlTests {
                     """));
             statement.executeUpdate("DELETE FROM app_user WHERE id=1");
             try (var rows = statement.executeQuery(
-                    "SELECT user_id, available_months, preferred_district FROM job_search_preferences")) {
+                    "SELECT user_id, available_months, preferred_district, education_level, expected_graduation_date FROM job_search_preferences")) {
                 assertTrue(rows.next());
                 assertEquals(2L, rows.getLong(1));
                 assertEquals(3, rows.getInt(2));
                 assertEquals("南山区", rows.getString(3));
+                assertNull(rows.getObject(4));
+                assertNull(rows.getDate(5));
                 assertFalse(rows.next());
             }
         }

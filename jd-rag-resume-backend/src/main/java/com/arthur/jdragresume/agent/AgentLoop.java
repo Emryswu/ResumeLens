@@ -491,6 +491,7 @@ public class AgentLoop {
             }
         }
         StringBuilder answer = new StringBuilder();
+        boolean needsProfileCompletion = false;
         if (passed.isEmpty()) {
             answer.append("本轮没有通过完整 JD 与原文证据验收的正式推荐。");
         } else {
@@ -503,6 +504,18 @@ public class AgentLoop {
                         .append(item.path("location").asText())
                         .append("\n推荐理由：").append(item.path("reason").asText())
                         .append("\nJD 原文证据：「").append(item.path("evidence").asText()).append("」");
+                for (String field : new String[] {"jdNotes", "preferredWarnings"}) {
+                    JsonNode details = item.path(field);
+                    if (details.isArray() && !details.isEmpty()) {
+                        answer.append(field.equals("jdNotes") ? "\nJD 门槛说明：" : "\n优先条件未满足：");
+                        for (int j = 0; j < details.size(); j++) {
+                            if (j > 0) answer.append("、");
+                            answer.append(details.get(j).asText());
+                        }
+                    }
+                }
+                if (item.path("missingUserFields").isArray()
+                        && !item.path("missingUserFields").isEmpty()) needsProfileCompletion = true;
                 JsonNode unknown = item.path("unknownConditions");
                 if (unknown.isArray() && !unknown.isEmpty()) {
                     answer.append("\n仍需确认：");
@@ -512,6 +525,9 @@ public class AgentLoop {
                     }
                 }
             }
+        }
+        if (needsProfileCompletion) {
+            answer.append("\n在求职条件页填写学历/毕业时间后可完成判断");
         }
         if (!pending.isEmpty()) {
             answer.append("\n待核实岗位：");

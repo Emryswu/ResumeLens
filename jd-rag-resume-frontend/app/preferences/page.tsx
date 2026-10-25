@@ -3,6 +3,7 @@
 import { CalendarDays, CircleCheck, Save } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { AppShell } from "../components/AppShell";
+import { ChoiceMenu } from "../components/ChoiceMenu";
 import { useSessionUser } from "../components/use-session-user";
 import { apiRequest, visibleApiErrorMessage } from "../lib/api";
 import { preferencePayload, toPreferenceDraft, type JobPreferences, type PreferenceDraft } from "../job-preferences";
@@ -10,6 +11,7 @@ import { HOME_PATH } from "../workspace-nav";
 
 const BLANK: PreferenceDraft = {
   months: "", days: "", earliestStartDate: "", preferredDistrict: "", districtRequired: false,
+  educationLevel: "", expectedGraduationDate: "", workExperienceYears: "", currentlyStudent: "",
 };
 
 export default function JobPreferencesPage() {
@@ -85,7 +87,46 @@ export default function JobPreferencesPage() {
             onChange={(e) => setDraft({ ...draft, districtRequired: e.target.checked })} />
           必须在该地区（不勾选时仅作为排序偏好）
         </label>
-        <p className="workspace-subtitle">仅对完整 JD 中有明确文字的条件作硬性判断，招聘方未写清的要求需要继续核实。<CalendarDays size={14} aria-hidden="true" /></p>
+        <div className="field-row">
+          <div className="preference-choice">
+            <span>本人学历</span>
+            <ChoiceMenu label="本人学历" value={draft.educationLevel} disabled={disabled}
+              options={[
+                { value: "", label: "暂未填写", description: "遇到学历门槛时保留未知" },
+                { value: "1", label: "专科", description: "已取得或就读专科学历" },
+                { value: "2", label: "本科", description: "已取得或就读本科学历" },
+                { value: "3", label: "硕士", description: "已取得或就读硕士学历" },
+                { value: "4", label: "博士", description: "已取得或就读博士学历" },
+              ]}
+              onChange={(value) => setDraft({ ...draft, educationLevel: value })}>
+              {({ "": "暂未填写", "1": "专科", "2": "本科", "3": "硕士", "4": "博士" } as Record<string, string>)[draft.educationLevel]}
+            </ChoiceMenu>
+          </div>
+          <label>预计毕业日期
+            <input type="date" value={draft.expectedGraduationDate} disabled={disabled}
+              onChange={(e) => setDraft({ ...draft, expectedGraduationDate: e.target.value })} />
+          </label>
+        </div>
+        <div className="field-row">
+          <label>正式工作经验（年）
+            <input type="number" min={0} max={50} placeholder="留空表示尚未填写"
+              value={draft.workExperienceYears} disabled={disabled}
+              onChange={(e) => setDraft({ ...draft, workExperienceYears: e.target.value })} />
+          </label>
+          <div className="preference-choice">
+            <span>目前在校</span>
+            <ChoiceMenu label="目前是否在校" value={draft.currentlyStudent} disabled={disabled}
+              options={[
+                { value: "", label: "暂未填写", description: "不会根据简历猜测" },
+                { value: "yes", label: "在校生", description: "目前仍在学校就读" },
+                { value: "no", label: "已离校", description: "目前没有在校就读" },
+              ]}
+              onChange={(value) => setDraft({ ...draft, currentlyStudent: value })}>
+              {({ "": "暂未填写", yes: "在校生", no: "已离校" } as Record<string, string>)[draft.currentlyStudent]}
+            </ChoiceMenu>
+          </div>
+        </div>
+        <p className="workspace-subtitle">这些信息由你自己填写，系统不从简历推断。JD 未写学历/经验门槛不会阻断推荐；明确要求但信息缺失则待确认。<CalendarDays size={14} aria-hidden="true" /></p>
         <div className="form-actions">
           <button type="submit" className="primary" disabled={disabled}><Save size={16} aria-hidden="true" />{saving ? "保存中" : "保存条件"}</button>
         </div>
