@@ -72,6 +72,16 @@ class JobSearchWorkflowTests {
     }
 
     @Test
+    void currentTurnDuplicateUsesTheSameKeywordNormalizationAsHistory() throws Exception {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳 Java 实习")));
+        add(log, "first", "JAVA  Backend", 1, "{\"pagesRead\":1,\"jobIds\":[11]}");
+        var progress = JobSearchWorkflow.inspect(log, mapper);
+        assertTrue(JobSearchWorkflow.refuse(progress, mapper.readTree(
+                "{\"keyword\":\" java backend \",\"city\":\"深圳\",\"experience\":\"在校生\",\"maxPages\":1}"))
+                .contains("相同"));
+    }
+
+    @Test
     void enforcesSearchCountAndDailyPageBudget() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
         add(log, "a", "Java后端", 1, "{\"pagesRead\":1,\"jobIds\":[1],\"dailyPagesLeft\":1}");
