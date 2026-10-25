@@ -143,7 +143,7 @@ class JobSearchWorkflowTests {
         var progress = JobSearchWorkflow.inspect(log, mapper);
         assertEquals(List.of(1L, 2L, 3L, 4L), progress.verifiedIds(), "a refused call is not counted");
         assertEquals(6, progress.dailyPagesLeft(), "each verification takes one daily page");
-        assertTrue(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":6}")).contains("核实上限"));
+        assertTrue(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":2}")).contains("已尝试或完成核实"));
         assertNull(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":5}")));
         verify(log, "v5", 5, "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":5,\"captureDepth\":\"FULL\",\"verificationStatus\":\"SAVED_FULL\"}}");
         assertTrue(JobSearchWorkflow.refuse(JobSearchWorkflow.inspect(log, mapper), "verify_boss_job",
@@ -183,7 +183,7 @@ class JobSearchWorkflowTests {
         var progress = JobSearchWorkflow.inspect(log, mapper);
         assertEquals(5, progress.attemptedIds().size());
         assertTrue(progress.verifiedIds().isEmpty());
-        assertTrue(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\\"jobId\\":6}")).contains("核实上限"));
+        assertTrue(JobSearchWorkflow.refuse(progress, "verify_boss_job", mapper.readTree("{\"jobId\":6}")).contains("核实上限"));
     }
 
     @Test
@@ -223,6 +223,50 @@ class JobSearchWorkflowTests {
                 null, new AgentToolContext(new AppUser()), (name, data) -> {}, () -> false);
         assertEquals(AgentLoop.State.COMPLETED, result.state());
         assertEquals(JobSearchWorkflow.MAX_VERIFICATIONS, verifications.get());
+    }
+
+    @Test
+    void aStoredFullJdBypassesFiveSpentAttemptsWithoutOpeningTheBrowser() throws Exception {
+        var properties = new AgentProperties();
+        properties.setMaxSteps(10);
+        properties.setMaxPlanningSteps(10);
+        var jobs = org.mockito.Mockito.mock(com.arthur.jdragresume.service.JobDescriptionService.class);
+        org.mockito.Mockito.when(jobs.findById(org.mockito.ArgumentMatchers.anyLong())).thenAnswer(call -> {
+            long id = call.getArgument(0);
+            String sourceId = "post" + id;
+            return new com.arthur.jdragresume.dto.job.JobDescriptionResponse(id, 1L, "Java 实习", "示例科技", "深圳",
+                    "实习", "在校生", "（BOSS 搜索列表摘要）", "本科", "BOSS",
+                    "https://www.zhipin.com/job_detail/" + sourceId + ".html", sourceId,
+                    null, null, id == 17 ? "FULL" : "LISTING", null, null);
+        });
+        var collectors = org.mockito.Mockito.mock(com.arthur.jdragresume.collect.RoutingJobCollector.class);
+        org.mockito.Mockito.when(collectors.startAction(org.mockito.ArgumentMatchers.anyMap(),
+                        org.mockito.ArgumentMatchers.nullable(com.arthur.jdragresume.collect.CollectionSession.class)))
+                .thenThrow(new com.arthur.jdragresume.exception.BusinessException("BOSS_DETAIL_UNAVAILABLE", "详情页读取失败"));
+        var verifier = new com.arthur.jdragresume.agent.tool.VerifyBossJobTool(jobs, collectors);
+        AgentModel model = (system, transcript, tools, timeout) -> {
+            long results = transcript.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
+            if (results == 6) return AgentModel.Reply.answer("完整 JD 已核实");
+            long jobId = results == 5 ? 17 : results + 1;
+            return AgentModel.Reply.call(AgentMessage.ToolCall.of("v" + (results + 1), "verify_boss_job",
+                    "{\"jobId\":" + jobId + "}"));
+        };
+        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(verifier)), mapper, properties,
+                System::currentTimeMillis);
+        var result = loop.run(new TranscriptPolicy(properties).normalize(List.of(AgentMessage.user("找深圳实习")), null),
+                null, new AgentToolContext(new AppUser()), (name, data) -> {}, () -> false);
+        assertEquals(AgentLoop.State.COMPLETED, result.state());
+        var progress = JobSearchWorkflow.inspect(result.transcript(), mapper);
+        assertEquals(List.of(1L, 2L, 3L, 4L, 5L), progress.attemptedIds(),
+                "five failed browser attempts still consume the verification budget");
+        assertEquals(List.of(17L), progress.verifiedIds(), "stored FULL adds only a verified id");
+        var toolResults = result.transcript().stream().filter(m -> AgentMessage.TOOL.equals(m.role())).toList();
+        assertEquals(6, toolResults.size());
+        assertEquals("ALREADY_FULL", mapper.readTree(toolResults.get(5).content())
+                .path("untrusted_data").path("verificationStatus").asText());
+        org.mockito.Mockito.verify(collectors, org.mockito.Mockito.times(5)).startAction(
+                org.mockito.ArgumentMatchers.anyMap(),
+                org.mockito.ArgumentMatchers.nullable(com.arthur.jdragresume.collect.CollectionSession.class));
     }
 
     @Test
