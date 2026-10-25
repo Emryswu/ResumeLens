@@ -2,7 +2,6 @@ package com.arthur.jdragresume.agent.tool;
 
 import com.arthur.jdragresume.dto.job.JobDescriptionResponse;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
-import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.service.JobAvailabilityMatcher;
 import com.arthur.jdragresume.service.JobDescriptionService;
 import com.arthur.jdragresume.service.JobSearchPreferencesService;
@@ -34,9 +33,9 @@ public class SubmitRecommendationsTool implements AgentTool {
 
     @Override public String description() {
         return "正式推荐岗位前必须调用此工具提交 recommendations 数组，每项包含 jobId、reason、evidence。"
-                + "evidence 必须逐字摘自入库的完整 JD 正文或任职要求，不能引用列表摘要、猜测或简历。"
-                + "服务端会重新读取 FULL JD 并执行求职硬条件检查；BLOCKED、非 FULL、原文找不到证据均拒绝。"
-                + "UNKNOWN 可以保留但会明确标成待向 HR 核实。失败后最多修正提交一次，未经通过不得输出岗位推荐。";
+                + "evidence 至少 8 个字符，来自 FULL JD 正文或任职要求（允许空白格式不同），不能只引用职位标题。"
+                + "服务端逐条检查完整 JD、实际证据和当前求职硬条件：通过的保留，不通过的附具体原因。"
+                + "UNKNOWN 会标成需向 HR 确认；下一次只需重提未通过条目，最多修正一次。";
     }
 
     @Override public ToolSchema parameters() {
@@ -50,43 +49,55 @@ public class SubmitRecommendationsTool implements AgentTool {
     @Override public Object execute(JsonNode arguments, AgentToolContext context) {
         var own = preferences.forUser(context.user().getId());
         List<Submitted> approved = new ArrayList<>();
-        List<String> issues = new ArrayList<>();
+        List<Rejected> rejected = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
+        int position = 0;
         for (JsonNode proposal : arguments.get("recommendations")) {
+            position++;
             long id = proposal.get("jobId").asLong();
             String reason = proposal.get("reason").asText().strip();
             String evidence = proposal.get("evidence").asText().strip();
+            String label = "第" + position + "条岗位";
             if (!seen.add(id)) {
-                issues.add("jobId=" + id + " 重复提交");
+                rejected.add(new Rejected(id, label, "重复提交"));
                 continue;
             }
-            if (reason.isEmpty() || evidence.isEmpty()) {
-                issues.add("jobId=" + id + " 缺少推荐理由或证据片段");
+            if (reason.isEmpty()) {
+                rejected.add(new Rejected(id, label, "缺少推荐理由"));
+                continue;
+            }
+            if (normalize(evidence).length() < 8) {
+                rejected.add(new Rejected(id, label, "JD 证据片段至少需要 8 个字符"));
                 continue;
             }
             JobDescriptionResponse job;
             try {
-                // findById checks the authenticated owner. Never accept IDs from another account.
+                // findById checks the authenticated owner, including older FULL records.
                 job = jobs.findById(id);
             } catch (ResourceNotFoundException ex) {
-                issues.add("jobId=" + id + " 岗位不存在或无权访问");
+                rejected.add(new Rejected(id, label, "岗位不存在或无权访问"));
                 continue;
             }
+            label = job.title();
             if (!"FULL".equals(job.captureDepth())) {
-                issues.add("jobId=" + id + " 尚无 FULL JD，请先核实");
+                rejected.add(new Rejected(id, label, "尚无 FULL JD，请先核实"));
                 continue;
             }
-            String original = (job.description() == null ? "" : job.description()) + "\n"
-                    + (job.requirements() == null ? "" : job.requirements());
-            if (!original.contains(evidence)) {
-                issues.add("jobId=" + id + " 引用片段不在已入库的 JD 原文中");
+            String original = normalize((job.description() == null ? "" : job.description()) + "\n"
+                    + (job.requirements() == null ? "" : job.requirements()));
+            String normalizedEvidence = normalize(evidence);
+            if (normalize(job.title()).contains(normalizedEvidence)) {
+                rejected.add(new Rejected(id, label, "引用的只是职位标题，缺少 JD 正文证据"));
                 continue;
             }
-            // Re-check at submission time: conditions and stored JD may have changed across turns.
+            if (!original.contains(normalizedEvidence)) {
+                rejected.add(new Rejected(id, label, "引用片段不在已入库的 JD 原文中"));
+                continue;
+            }
             var check = JobAvailabilityMatcher.compare(own, job.captureDepth(),
                     job.description(), job.requirements(), job.location());
             if (check.hardBlock()) {
-                issues.add("jobId=" + id + " 与已填写的求职硬条件冲突");
+                rejected.add(new Rejected(id, label, "与已填写的求职硬条件冲突"));
                 continue;
             }
             List<String> unknown = new ArrayList<>();
@@ -98,9 +109,11 @@ public class SubmitRecommendationsTool implements AgentTool {
             approved.add(new Submitted(id, job.title(), job.companyName(), job.location(),
                     reason, evidence, List.copyOf(unknown)));
         }
-        // Atomic acceptance: one invalid entry rejects the entire list, not just that entry.
-        if (!issues.isEmpty()) throw new BusinessException("RECOMMENDATIONS_REJECTED", String.join("; ", issues));
-        return new Result(true, List.copyOf(approved), List.of());
+        return new Result(rejected.isEmpty(), List.copyOf(approved), List.copyOf(rejected));
+    }
+
+    private static String normalize(String value) {
+        return value.strip().replaceAll("\\s+", " ");
     }
 
     @Override public int resultMaxChars(int configuredLimit) {
@@ -111,10 +124,11 @@ public class SubmitRecommendationsTool implements AgentTool {
     @Override public Object stepFacts(Object result) {
         Result r = (Result) result;
         return java.util.Map.of("accepted", r.accepted(),
-                "recommended", r.recommendations().size(), "issues", r.issues().size());
+                "recommended", r.recommendations().size(), "rejected", r.rejected().size());
     }
 
     public record Submitted(long jobId, String title, String company, String location,
                             String reason, String evidence, List<String> unknownConditions) { }
-    public record Result(boolean accepted, List<Submitted> recommendations, List<String> issues) { }
+    public record Rejected(long jobId, String title, String reason) { }
+    public record Result(boolean accepted, List<Submitted> recommendations, List<Rejected> rejected) { }
 }
