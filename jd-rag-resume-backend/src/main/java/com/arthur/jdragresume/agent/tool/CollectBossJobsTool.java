@@ -48,7 +48,7 @@ public class CollectBossJobsTool implements DeferrableTool {
         return "按用户界面选定的采集方式打开 BOSS 直聘搜索页，只读采集岗位列表（每次最多 3 页、45 条），存进职位库。"
                 + "用户要求找工作、找实习、校招或去 BOSS 搜索时可调用，不要因已有职位库搜索为空就断言没有岗位。"
                 + "BOSS 用法：城市放 city，技术方向放 keyword，学生身份或年限放 experience，不要把所有条件塞进关键词。"
-                + "例如“找深圳 Java 后端实习”用 city=深圳、keyword=Java 后端、experience=在校生；"
+                + "例如“找深圳 Java 后端实习”用 city=深圳、keyword=Java 后端、jobType=实习；本会话后续不变的参数可省略。明确改成全职传 jobType=全职；清除城市传 city=空字符串；"
                 + "“找深圳实习”没指定方向时先 list_resumes 选简历、get_resume 读正文，按简历方向填写非空 keyword，并说明“按你的《xxx》简历推断”；不要直接用空关键词泛搜。"
                 + "多份简历遵循系统的方向与更新时间选择规则，同一会话沿用已选简历。校招可用 experience=应届生辅助筛选。"
                 + "只有用户明确要求不限方向时才传 broadSearch=true 允许空关键词；否则空关键词会被拒绝，请先根据简历确定方向。"
@@ -65,7 +65,8 @@ public class CollectBossJobsTool implements DeferrableTool {
         return ToolSchema.object()
                 .string("keyword", "岗位方向，如 Java 后端；城市和学生身份用对应筛选参数。未指定方向时先读选定简历推断；仅用户明确要求不限方向时可留空", false, 50)
                 .bool("broadSearch", "仅用户明确要求不限方向时传 true，允许空 keyword 泛搜；默认 false", false)
-                .string("city", "城市：全国、北京、上海、广州、深圳、杭州、南京、苏州、成都、武汉、西安、天津、重庆、长沙、厦门", true, 10)
+                .string("city", "城市：全国、北京、上海、广州、深圳、杭州、南京、苏州、成都、武汉、西安、天津、重庆、长沙、厦门；省略沿用本会话，空字符串清除城市限制", false, 10)
+                .string("jobType", "岗位意图：实习、全职、不限；省略沿用，空字符串清除。实习默认 experience=在校生，全职默认 experience=不限", false, 10)
                 .string("experience", "BOSS 工作经验筛选：不限、在校生、应届生、经验不限、1年以内、1-3年、3-5年、5-10年、10年以上；默认不限。找实习优先在校生", false, 10)
                 .integer("maxPages", "读取页数，默认 1，最多 3", false, 1, 3);
     }

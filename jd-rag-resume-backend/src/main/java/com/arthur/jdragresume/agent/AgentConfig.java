@@ -36,9 +36,10 @@ public class AgentConfig {
             AgentToolRegistry registry,
             ObjectMapper objectMapper,
             AgentProperties properties,
-            BrowserTaskRegistry browserTaskRegistry
+            BrowserTaskRegistry browserTaskRegistry,
+            ConversationStore conversations
     ) {
-        return new AgentLoop(agentModel, registry, objectMapper, properties, System::currentTimeMillis, browserTaskRegistry);
+        return new AgentLoop(agentModel, registry, objectMapper, properties, System::currentTimeMillis, browserTaskRegistry, conversations);
     }
 
     /** Small and bounded: each turn holds a thread for up to the turn budget while waiting on the model. */
