@@ -188,7 +188,7 @@ final class JobSearchWorkflow {
 
     /** Injected on each model call, not only at the start: browser-result continuations get fresh progress. */
     static String guidance(Snapshot progress) {
-        if (progress.attempts().isEmpty()) {
+        if (progress.attempts().isEmpty() && progress.attemptedIds().isEmpty() && progress.verifiedIds().isEmpty()) {
             return "\n求职搜索策略：先根据所选简历识别有证据支持的方向，优先精确关键词。"
                     + "目标约 " + SOFT_TARGET + " 个值得核实的候选岗位（软目标，非完成承诺）。"
                     + "先在本地库查看范围；本地 0 条时可去 BOSS 采集，不能推断市场没有岗位。"
