@@ -368,7 +368,7 @@ public class AgentLoop {
                     }
                     if (tool instanceof DeferrableTool deferrable) {
                         browserGate = beginDeferred(call, deferrable, context, sink, transcript, deadline, cancelled);
-                        if (plan != null && browserGate == null) {
+                        if (plan != null && browserGate == null && !recommendationOverride) {
                             JsonNode result = readEnvelope(transcript.getLast().content());
                             needsReplan = !result.path("ok").asBoolean() || emptyData(result.path("untrusted_data"));
                             if (!needsReplan) cursor++;
