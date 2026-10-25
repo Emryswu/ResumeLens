@@ -64,6 +64,7 @@ export const AGENT_TOOLS: Record<string, ToolMeta> = {
   collect_boss_jobs: { label: "去 BOSS 采集岗位", icon: ScanSearch },
   get_job_search_preferences: { label: "读取求职条件", icon: ListOrdered },
   check_job_preferences: { label: "核对到岗硬条件", icon: FileSearch },
+  submit_recommendations: { label: "提交岗位推荐验收", icon: BriefcaseBusiness },
   verify_boss_job: { label: "核实完整职位 JD", icon: FileSearch },
 };
 
