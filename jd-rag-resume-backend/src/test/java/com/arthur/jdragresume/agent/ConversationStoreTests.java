@@ -299,9 +299,12 @@ class ConversationStoreTests {
                 var outcome = runStoredCollection(loop, first, null, task);
                 if (browser) {
                     assertEquals(AgentLoop.State.AWAITING_BROWSER, outcome.state());
-                    assertEquals(0, store.searchContext(first).searched().size(),
+                    var persisted = ConversationStore.read(jdbc.queryForObject(
+                            "SELECT search_context FROM agent_conversation WHERE id=?",
+                            String.class, conversationId));
+                    assertEquals(0, persisted.path("searched").size(),
                             "issuing a browser task must not mark the search completed");
-                    assertEquals("深圳", store.searchContext(first).city(),
+                    assertEquals("深圳", persisted.path("city").asText(),
                             "filters must be persisted at begin, before the browser returns");
                     var pending = task.get();
                     assertNotNull(pending);
