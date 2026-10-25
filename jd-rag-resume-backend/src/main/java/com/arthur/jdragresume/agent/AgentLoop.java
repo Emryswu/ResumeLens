@@ -492,8 +492,14 @@ public class AgentLoop {
             JsonNode result = readEnvelope(message.content());
             if (!result.path("ok").asBoolean(false)) continue;
             String name = result.path("tool").asText();
-            if ("collect_boss_jobs".equals(name) || "rank_jobs_for_resume".equals(name)
-                    || "verify_boss_job".equals(name)) searchExecuted = true;
+            JsonNode data = result.path("untrusted_data");
+            if ("collect_boss_jobs".equals(name)
+                    && data.path("jobIds").isArray() && !data.path("jobIds").isEmpty()
+                    || "rank_jobs_for_resume".equals(name)
+                    && (data.path("items").isArray() && !data.path("items").isEmpty()
+                            || data.path("matches").isArray() && !data.path("matches").isEmpty())
+                    || "verify_boss_job".equals(name)
+                    && "FULL".equals(data.path("captureDepth").asText())) searchExecuted = true;
             if (SubmitRecommendationsTool.TOOL.equals(name)
                     && result.path("untrusted_data").path("recommendations").isArray()
                     && !result.path("untrusted_data").path("recommendations").isEmpty()) anyApproved = true;
