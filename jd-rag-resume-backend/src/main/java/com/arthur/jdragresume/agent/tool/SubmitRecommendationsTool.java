@@ -30,7 +30,7 @@ public class SubmitRecommendationsTool implements AgentTool {
         this.preferences = preferences;
     }
 
-    @Override public String name() { return TOOL; }
+    @Override public String name() { return "submit_recommendations"; }
 
     @Override public String description() {
         return "正式推荐岗位前必须调用此工具提交 recommendations 数组，每项包含 jobId、reason、evidence。"
