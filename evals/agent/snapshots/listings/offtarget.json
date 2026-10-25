@@ -1,0 +1,39 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "stopReason": null,
+    "pagesRead": 1,
+    "dailyPagesLeft": 24,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "evalJobId": 201,
+        "title": "高级视觉设计师",
+        "companyName": "画卷设计",
+        "location": "深圳·南山区",
+        "employmentType": "全职",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）",
+        "requirements": "五年以上 UI 经验",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/eval201.html",
+        "sourceJobId": "eval201",
+        "captureSource": "api"
+      },
+      {
+        "evalJobId": 202,
+        "title": "品牌营销经理",
+        "companyName": "海滨传媒",
+        "location": "深圳·福田区",
+        "employmentType": "全职",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）",
+        "requirements": "三年以上市场营销经验",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/eval202.html",
+        "sourceJobId": "eval202",
+        "captureSource": "api"
+      }
+    ]
+  }
+}
