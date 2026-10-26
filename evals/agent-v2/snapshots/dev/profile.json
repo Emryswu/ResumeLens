@@ -1,0 +1,22 @@
+{
+  "resume": {
+    "resumeId": 11,
+    "title": "AI 应用开发实习简历",
+    "candidateName": "顾明川",
+    "email": "mingchuan.gu@example.com",
+    "updatedAt": "2026-10-12T09:30:00",
+    "rawText": "顾明川\n邮箱：mingchuan.gu@example.com\n教育背景：浙江某理工大学 计算机科学与技术 本科（在读），预计 2027 年 6 月毕业\n求职意向：AI 应用开发实习（杭州）\n专业技能：Python、FastAPI、LangChain、RAG 检索增强生成、向量数据库 Milvus、Prompt 设计、Docker、MySQL\n项目经历：\n1. 校园政策问答助手（2026.03-2026.06）：基于 FastAPI + LangChain 搭建 RAG 问答服务，Milvus 存储 1.2 万段文档向量，引入重排后答案引用准确率从 71% 提升到 86%。\n2. 课程作业批改 Agent（2025.10-2026.01）：用 function calling 编排 4 个工具，自动读取作业、运行测试并生成评语，单次批改耗时从 6 分钟降到 40 秒。\n其他：没有全职工作经历，也没有企业实习经历；参加过学校 AI 创新实践营。"
+  },
+  "preferences": {
+    "configured": true,
+    "availableMonths": 6,
+    "daysPerWeek": 4,
+    "earliestStartDate": "2026-11-16",
+    "preferredDistrict": "余杭区",
+    "districtRequired": false,
+    "education": "本科",
+    "studentStatus": "在校生",
+    "expectedGraduation": "2027-06",
+    "workExperienceYears": 0
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "unrecordedCondition": true,
+    "jobs": [
+      {
+        "title": "门店导购（兼职）",
+        "companyName": "某连锁零售",
+        "location": "杭州·上城区",
+        "employmentType": "兼职",
+        "salary": "18元/时",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：门店导购（兼职）\n公司：某连锁零售\n地点：杭州·上城区\n薪资：18元/时\n标签：经验不限、兼职",
+        "requirements": "经验不限、兼职",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-gen-01.html",
+        "sourceJobId": "d2-gen-01",
+        "captureSource": "api",
+        "evalSimilarity": 0.1
+      },
+      {
+        "title": "仓储物流专员",
+        "companyName": "某供应链公司",
+        "location": "杭州·萧山区",
+        "employmentType": "全职",
+        "salary": "5-7K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：仓储物流专员\n公司：某供应链公司\n地点：杭州·萧山区\n薪资：5-7K\n标签：经验不限、物流",
+        "requirements": "经验不限、物流",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-gen-02.html",
+        "sourceJobId": "d2-gen-02",
+        "captureSource": "api",
+        "evalSimilarity": 0.1
+      },
+      {
+        "title": "电话销售代表",
+        "companyName": "某教育咨询公司",
+        "location": "杭州·拱墅区",
+        "employmentType": "全职",
+        "salary": "4-8K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：电话销售代表\n公司：某教育咨询公司\n地点：杭州·拱墅区\n薪资：4-8K\n标签：经验不限、销售",
+        "requirements": "经验不限、销售",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-gen-03.html",
+        "sourceJobId": "d2-gen-03",
+        "captureSource": "api",
+        "evalSimilarity": 0.1
+      }
+    ]
+  }
+}

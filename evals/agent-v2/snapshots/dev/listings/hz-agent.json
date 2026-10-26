@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Agent 开发实习生",
+        "companyName": "星衍科技",
+        "location": "杭州·余杭区·仓前",
+        "employmentType": "实习",
+        "salary": "220-280元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Agent 开发实习生\n公司：星衍科技\n地点：杭州·余杭区·仓前\n薪资：220-280元/天\n标签：在校/应届、4天/周、6个月、Agent",
+        "requirements": "在校/应届、4天/周、6个月、Agent",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-agent-05.html",
+        "sourceJobId": "d2-hz-agent-05",
+        "captureSource": "api",
+        "evalSimilarity": 0.87
+      },
+      {
+        "title": "智能体平台研发实习",
+        "companyName": "纵帆网络",
+        "location": "杭州·滨江区·西兴",
+        "employmentType": "实习",
+        "salary": "200-240元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：智能体平台研发实习\n公司：纵帆网络\n地点：杭州·滨江区·西兴\n薪资：200-240元/天\n标签：在校/应届、4天/周、5个月、智能体",
+        "requirements": "在校/应届、4天/周、5个月、智能体",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-agent-06.html",
+        "sourceJobId": "d2-hz-agent-06",
+        "captureSource": "api",
+        "evalSimilarity": 0.81
+      },
+      {
+        "title": "软件测试实习生",
+        "companyName": "方圆检测",
+        "location": "杭州·上城区",
+        "employmentType": "实习",
+        "salary": "150元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：软件测试实习生\n公司：方圆检测\n地点：杭州·上城区\n薪资：150元/天\n标签：在校/应届、5天/周、测试",
+        "requirements": "在校/应届、5天/周、测试",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-test-07.html",
+        "sourceJobId": "d2-hz-test-07",
+        "captureSource": "api",
+        "evalSimilarity": 0.25
+      }
+    ]
+  }
+}

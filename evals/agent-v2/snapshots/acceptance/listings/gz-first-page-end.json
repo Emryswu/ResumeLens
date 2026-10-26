@@ -1,0 +1,39 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "NO_MORE_RESULTS",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "小程序开发实习",
+        "companyName": "叮当生活",
+        "location": "广州·白云区",
+        "employmentType": "实习",
+        "salary": "150-180元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：小程序开发实习\n公司：叮当生活\n地点：广州·白云区\n薪资：150-180元/天\n标签：在校/应届、5天/周、小程序",
+        "requirements": "在校/应届、5天/周、小程序",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-mini-08.html",
+        "sourceJobId": "a2-gz-mini-08",
+        "captureSource": "api",
+        "evalSimilarity": 0.47
+      },
+      {
+        "title": "H5 游戏前端实习",
+        "companyName": "乐游互动",
+        "location": "广州·天河区",
+        "employmentType": "实习",
+        "salary": "180-220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：H5 游戏前端实习\n公司：乐游互动\n地点：广州·天河区\n薪资：180-220元/天\n标签：在校/应届、5天/周、H5",
+        "requirements": "在校/应届、5天/周、H5",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-game-09.html",
+        "sourceJobId": "a2-gz-game-09",
+        "captureSource": "api",
+        "evalSimilarity": 0.45
+      }
+    ]
+  }
+}

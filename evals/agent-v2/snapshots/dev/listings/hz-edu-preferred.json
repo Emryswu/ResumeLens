@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "RAG 检索工程实习",
+        "companyName": "知衡科技",
+        "location": "杭州·西湖区·西溪",
+        "employmentType": "实习",
+        "salary": "220-260元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：RAG 检索工程实习\n公司：知衡科技\n地点：杭州·西湖区·西溪\n薪资：220-260元/天\n标签：在校/应届、4天/周、6个月、RAG",
+        "requirements": "在校/应届、4天/周、6个月、RAG",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-edupref-20.html",
+        "sourceJobId": "d2-hz-edupref-20",
+        "captureSource": "api",
+        "evalSimilarity": 0.88
+      },
+      {
+        "title": "Python 开发实习生（AI 方向）",
+        "companyName": "青梧软件",
+        "location": "杭州·余杭区·闲林",
+        "employmentType": "实习",
+        "salary": "180-220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Python 开发实习生（AI 方向）\n公司：青梧软件\n地点：杭州·余杭区·闲林\n薪资：180-220元/天\n标签：在校/应届、4天/周、4个月、Python",
+        "requirements": "在校/应届、4天/周、4个月、Python",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-py-21.html",
+        "sourceJobId": "d2-hz-py-21",
+        "captureSource": "api",
+        "evalSimilarity": 0.79
+      },
+      {
+        "title": "AI 解决方案销售助理",
+        "companyName": "远望咨询",
+        "location": "杭州·上城区",
+        "employmentType": "全职",
+        "salary": "4-6K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：AI 解决方案销售助理\n公司：远望咨询\n地点：杭州·上城区\n薪资：4-6K\n标签：经验不限、销售",
+        "requirements": "经验不限、销售",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-sales-22.html",
+        "sourceJobId": "d2-hz-sales-22",
+        "captureSource": "api",
+        "evalSimilarity": 0.17
+      }
+    ]
+  }
+}

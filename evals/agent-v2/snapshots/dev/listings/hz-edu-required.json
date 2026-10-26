@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "大模型应用研发实习生",
+        "companyName": "深澜研究院",
+        "location": "杭州·余杭区·梦想小镇",
+        "employmentType": "实习",
+        "salary": "300-400元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：大模型应用研发实习生\n公司：深澜研究院\n地点：杭州·余杭区·梦想小镇\n薪资：300-400元/天\n标签：在校/应届、4天/周、6个月、大模型",
+        "requirements": "在校/应届、4天/周、6个月、大模型",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-edu-13.html",
+        "sourceJobId": "d2-hz-edu-13",
+        "captureSource": "api",
+        "evalSimilarity": 0.89
+      },
+      {
+        "title": "RAG 平台开发实习",
+        "companyName": "远帆信息",
+        "location": "杭州·余杭区·五常",
+        "employmentType": "实习",
+        "salary": "200-240元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：RAG 平台开发实习\n公司：远帆信息\n地点：杭州·余杭区·五常\n薪资：200-240元/天\n标签：在校/应届、4天/周、6个月、RAG",
+        "requirements": "在校/应届、4天/周、6个月、RAG",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-rag-18.html",
+        "sourceJobId": "d2-hz-rag-18",
+        "captureSource": "api",
+        "evalSimilarity": 0.8
+      },
+      {
+        "title": "AI 产品经理助理",
+        "companyName": "启明互联",
+        "location": "杭州·滨江区",
+        "employmentType": "实习",
+        "salary": "150元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：AI 产品经理助理\n公司：启明互联\n地点：杭州·滨江区\n薪资：150元/天\n标签：在校/应届、5天/周、产品",
+        "requirements": "在校/应届、5天/周、产品",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-pm-19.html",
+        "sourceJobId": "d2-hz-pm-19",
+        "captureSource": "api",
+        "evalSimilarity": 0.23
+      }
+    ]
+  }
+}

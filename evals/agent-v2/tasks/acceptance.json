@@ -1,0 +1,203 @@
+{
+  "group": "acceptance",
+  "keywordSets": {
+    "frontend": ["前端", "前端开发", "前端工程师", "前端开发工程师", "前端研发", "大前端", "Web 前端", "Web 前端开发",
+      "Web 开发", "React", "React 前端", "React 开发", "React 前端开发", "React 工程师", "TypeScript", "JavaScript",
+      "Next.js", "H5", "H5 前端"],
+    "vue": ["Vue", "Vue 3", "Vue3", "Vue 开发", "Vue 前端", "Vue 前端开发", "Vue.js", "Vue.js 开发", "Vue 工程师"]
+  },
+  "tasks": [
+    {
+      "id": "a01-prereq-verified-submit",
+      "turns": ["我想在广州找份实习，帮我看看有哪些能投的，直接推荐"],
+      "searches": [
+        {"city": "广州", "experience": "在校生", "keywordSets": ["frontend", "vue"], "snapshot": "gz-fe-main"}
+      ],
+      "checks": [{"type": "prerequisites"}, {"type": "no_listing_as_full"}, {"type": "submit_accepted"}],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "前端开发", "city": "广州", "jobType": "实习", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:a2-gz-react-01"}},
+        {"tool": "get_job", "args": {"jobId": "$job:a2-gz-react-01"}},
+        {"tool": "check_job_preferences", "args": {"jobId": "$job:a2-gz-react-01"}},
+        {"tool": "submit_recommendations", "args": {"recommendations": [
+          {"jobId": "$job:a2-gz-react-01", "reason": "你封装过管理后台的表格与表单组件，和岗位的报表、筛选页面开发对应",
+            "evidence": "使用 React 与 TypeScript 封装业务组件，补充单元测试"}
+        ]}}
+      ]]
+    },
+    {
+      "id": "a02-inherit-two-turns",
+      "turns": ["帮我找广州的前端实习", "换成 Vue 方向再找找看"],
+      "searches": [
+        {"city": "广州", "experience": "在校生", "keywordSets": ["vue"], "snapshot": "gz-vue"},
+        {"city": "广州", "experience": "在校生", "keywordSets": ["frontend"], "snapshot": "gz-fe-main"}
+      ],
+      "checks": [{"type": "inherit_filters", "city": "广州", "experience": "在校生"}],
+      "reference": [
+        [
+          {"tool": "list_resumes", "args": {}},
+          {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+          {"tool": "get_job_search_preferences", "args": {}},
+          {"tool": "collect_boss_jobs", "args": {"keyword": "前端开发", "city": "广州", "jobType": "实习", "maxPages": 1}},
+          {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}}
+        ],
+        [
+          {"tool": "collect_boss_jobs", "args": {"keyword": "Vue", "maxPages": 1}},
+          {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}}
+        ]
+      ]
+    },
+    {
+      "id": "a03-stop-login",
+      "turns": ["直接去 BOSS 搜一下广州的前端开发实习"],
+      "searches": [{"snapshot": "gz-login"}],
+      "checks": [{"type": "stop_on_signal", "signal": "BOSS_NOT_LOGGED_IN"}],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "前端开发", "city": "广州", "jobType": "实习", "maxPages": 1}}
+      ]]
+    },
+    {
+      "id": "a04-stop-first-page",
+      "turns": ["广州的前端实习帮我多搜几轮，换不同关键词尽量多找点"],
+      "searches": [{"snapshot": "gz-first-page-end"}],
+      "checks": [{"type": "stop_on_signal", "signal": "NO_MORE_RESULTS"}],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "前端", "city": "广州", "jobType": "实习", "maxPages": 1}}
+      ]]
+    },
+    {
+      "id": "a05-replan-offtarget",
+      "turns": ["按我的简历帮我在广州找实习"],
+      "searches": [
+        {"attempt": 1, "city": "广州", "experience": "在校生", "snapshot": "gz-offtarget"},
+        {"city": "广州", "experience": "在校生", "keywordSets": ["frontend", "vue"], "snapshot": "gz-fe-retry"}
+      ],
+      "checks": [{"type": "prerequisites"}, {"type": "replan_offtarget"}],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "前端开发", "city": "广州", "jobType": "实习", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "React", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}}
+      ]]
+    },
+    {
+      "id": "a06-education-required",
+      "turns": ["帮我在广州找几个前端实习，挑合适的正式推荐给我"],
+      "searches": [
+        {"city": "广州", "experience": "在校生", "keywordSets": ["frontend", "vue"], "snapshot": "gz-edu-required"}
+      ],
+      "checks": [
+        {"type": "gate_excluded", "rule": "education", "job": "a2-gz-edu-15"},
+        {"type": "submit_accepted"},
+        {"type": "no_listing_as_full"}
+      ],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "前端开发", "city": "广州", "jobType": "实习", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:a2-gz-edu-15"}},
+        {"tool": "get_job", "args": {"jobId": "$job:a2-gz-edu-15"}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:a2-gz-fe-16"}},
+        {"tool": "get_job", "args": {"jobId": "$job:a2-gz-fe-16"}},
+        {"tool": "check_job_preferences", "args": {"jobId": "$job:a2-gz-fe-16"}},
+        {"tool": "submit_recommendations", "args": {"recommendations": [
+          {"jobId": "$job:a2-gz-fe-16", "reason": "岗位招本科在读，表格与表单模块和你在实习中封装的组件经验一致",
+            "evidence": "负责库存与采购模块的表格和表单"}
+        ]}}
+      ]]
+    },
+    {
+      "id": "a07-education-preferred",
+      "turns": ["广州有什么 React 前端实习适合我？帮我找几个正式推荐"],
+      "searches": [
+        {"city": "广州", "experience": "在校生", "keywordSets": ["frontend", "vue"], "snapshot": "gz-edu-preferred"}
+      ],
+      "checks": [
+        {"type": "preferred_accepted", "rule": "education", "job": "a2-gz-edupref-18"},
+        {"type": "no_listing_as_full"}
+      ],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "React", "city": "广州", "jobType": "实习", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:a2-gz-edupref-18"}},
+        {"tool": "get_job", "args": {"jobId": "$job:a2-gz-edupref-18"}},
+        {"tool": "check_job_preferences", "args": {"jobId": "$job:a2-gz-edupref-18"}},
+        {"tool": "submit_recommendations", "args": {"recommendations": [
+          {"jobId": "$job:a2-gz-edupref-18", "reason": "本科即满足学历要求，硕士只是优先；你用 Next.js 做过报名平台，和服务端渲染页面开发对应",
+            "evidence": "使用 React 与 Next.js 实现服务端渲染页面，优化首屏性能"}
+        ]}}
+      ]]
+    },
+    {
+      "id": "a08-experience-required",
+      "turns": ["帮我在广州找前端方向的实习或者在校生能投的岗位，推荐几个"],
+      "searches": [
+        {"city": "广州", "experience": "在校生", "keywordSets": ["frontend", "vue"], "snapshot": "gz-exp-required"}
+      ],
+      "checks": [
+        {"type": "gate_excluded", "rule": "experience", "job": "a2-gz-exp-21"},
+        {"type": "submit_accepted"},
+        {"type": "no_listing_as_full"}
+      ],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "前端开发", "city": "广州", "jobType": "实习", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:a2-gz-exp-21"}},
+        {"tool": "get_job", "args": {"jobId": "$job:a2-gz-exp-21"}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:a2-gz-fe-22"}},
+        {"tool": "get_job", "args": {"jobId": "$job:a2-gz-fe-22"}},
+        {"tool": "check_job_preferences", "args": {"jobId": "$job:a2-gz-fe-22"}},
+        {"tool": "submit_recommendations", "args": {"recommendations": [
+          {"jobId": "$job:a2-gz-fe-22", "reason": "面向在读学生的实习岗，商家后台页面与你做过的管理后台模块相近",
+            "evidence": "负责商品发布与订单管理页面"}
+        ]}}
+      ]]
+    },
+    {
+      "id": "a09-experience-preferred",
+      "turns": ["我在广州找 React 实习，帮我找找，有合适的直接推荐"],
+      "searches": [
+        {"city": "广州", "experience": "在校生", "keywordSets": ["frontend", "vue"], "snapshot": "gz-exp-preferred"}
+      ],
+      "checks": [
+        {"type": "preferred_accepted", "rule": "experience", "job": "a2-gz-exppref-24"},
+        {"type": "no_listing_as_full"}
+      ],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "React", "city": "广州", "jobType": "实习", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:a2-gz-exppref-24"}},
+        {"tool": "get_job", "args": {"jobId": "$job:a2-gz-exppref-24"}},
+        {"tool": "check_job_preferences", "args": {"jobId": "$job:a2-gz-exppref-24"}},
+        {"tool": "submit_recommendations", "args": {"recommendations": [
+          {"jobId": "$job:a2-gz-exppref-24", "reason": "1 年以上实习经验只是优先项；你做过低代码表单编辑器，和编辑器复杂交互组件开发对应",
+            "evidence": "使用 React 与 TypeScript 实现复杂交互组件"}
+        ]}}
+      ]]
+    }
+  ]
+}

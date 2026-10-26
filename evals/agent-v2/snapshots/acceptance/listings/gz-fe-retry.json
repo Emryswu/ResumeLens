@@ -1,0 +1,39 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "前端开发实习生",
+        "companyName": "晴川软件",
+        "location": "广州·天河区·岗顶",
+        "employmentType": "实习",
+        "salary": "200-240元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：前端开发实习生\n公司：晴川软件\n地点：广州·天河区·岗顶\n薪资：200-240元/天\n标签：在校/应届、4天/周、6个月、React",
+        "requirements": "在校/应届、4天/周、6个月、React",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-fe-13.html",
+        "sourceJobId": "a2-gz-fe-13",
+        "captureSource": "api",
+        "evalSimilarity": 0.85
+      },
+      {
+        "title": "React Native 开发实习",
+        "companyName": "麦穗出行",
+        "location": "广州·海珠区·客村",
+        "employmentType": "实习",
+        "salary": "200-240元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：React Native 开发实习\n公司：麦穗出行\n地点：广州·海珠区·客村\n薪资：200-240元/天\n标签：在校/应届、4天/周、4个月",
+        "requirements": "在校/应届、4天/周、4个月",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-fe-14.html",
+        "sourceJobId": "a2-gz-fe-14",
+        "captureSource": "api",
+        "evalSimilarity": 0.76
+      }
+    ]
+  }
+}

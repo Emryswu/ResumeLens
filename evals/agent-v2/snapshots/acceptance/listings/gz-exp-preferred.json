@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "React 开发实习生",
+        "companyName": "映川科技",
+        "location": "广州·天河区·体育中心",
+        "employmentType": "实习",
+        "salary": "200-260元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：React 开发实习生\n公司：映川科技\n地点：广州·天河区·体育中心\n薪资：200-260元/天\n标签：在校/应届、4天/周、6个月、React",
+        "requirements": "在校/应届、4天/周、6个月、React",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-exppref-24.html",
+        "sourceJobId": "a2-gz-exppref-24",
+        "captureSource": "api",
+        "evalSimilarity": 0.87
+      },
+      {
+        "title": "前端工程化实习",
+        "companyName": "迅帆网络",
+        "location": "广州·番禺区·万博",
+        "employmentType": "实习",
+        "salary": "180-220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：前端工程化实习\n公司：迅帆网络\n地点：广州·番禺区·万博\n薪资：180-220元/天\n标签：在校/应届、4天/周、4个月",
+        "requirements": "在校/应届、4天/周、4个月",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-fe-25.html",
+        "sourceJobId": "a2-gz-fe-25",
+        "captureSource": "api",
+        "evalSimilarity": 0.8
+      },
+      {
+        "title": "招聘专员实习",
+        "companyName": "粤才人力",
+        "location": "广州·越秀区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：招聘专员实习\n公司：粤才人力\n地点：广州·越秀区\n薪资：120元/天\n标签：在校/应届、5天/周、人事",
+        "requirements": "在校/应届、5天/周、人事",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-hr-26.html",
+        "sourceJobId": "a2-gz-hr-26",
+        "captureSource": "api",
+        "evalSimilarity": 0.18
+      }
+    ]
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "RAG 应用开发实习生",
+        "companyName": "青禾智能",
+        "location": "杭州·余杭区·未来科技城",
+        "employmentType": "实习",
+        "salary": "200-260元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：RAG 应用开发实习生\n公司：青禾智能\n地点：杭州·余杭区·未来科技城\n薪资：200-260元/天\n标签：在校/应届、4天/周、6个月、Python",
+        "requirements": "在校/应届、4天/周、6个月、Python",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-rag-01.html",
+        "sourceJobId": "d2-hz-rag-01",
+        "captureSource": "api",
+        "evalSimilarity": 0.86
+      },
+      {
+        "title": "大模型应用开发实习",
+        "companyName": "澄观数据",
+        "location": "杭州·西湖区·文三路",
+        "employmentType": "实习",
+        "salary": "180-220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：大模型应用开发实习\n公司：澄观数据\n地点：杭州·西湖区·文三路\n薪资：180-220元/天\n标签：在校/应届、4天/周、3个月、大模型",
+        "requirements": "在校/应届、4天/周、3个月、大模型",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-llm-02.html",
+        "sourceJobId": "d2-hz-llm-02",
+        "captureSource": "api",
+        "evalSimilarity": 0.83
+      },
+      {
+        "title": "AI 应用工程师（实习）",
+        "companyName": "拾光云",
+        "location": "杭州·滨江区·长河",
+        "employmentType": "实习",
+        "salary": "200-250元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：AI 应用工程师（实习）\n公司：拾光云\n地点：杭州·滨江区·长河\n薪资：200-250元/天\n标签：在校/应届、3天/周、4个月、Python",
+        "requirements": "在校/应届、3天/周、4个月、Python",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-aipy-03.html",
+        "sourceJobId": "d2-hz-aipy-03",
+        "captureSource": "api",
+        "evalSimilarity": 0.79
+      },
+      {
+        "title": "AI 产品运营实习生",
+        "companyName": "一苇传媒",
+        "location": "杭州·西湖区",
+        "employmentType": "实习",
+        "salary": "150元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：AI 产品运营实习生\n公司：一苇传媒\n地点：杭州·西湖区\n薪资：150元/天\n标签：在校/应届、5天/周、运营",
+        "requirements": "在校/应届、5天/周、运营",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-ops-04.html",
+        "sourceJobId": "d2-hz-ops-04",
+        "captureSource": "api",
+        "evalSimilarity": 0.21
+      }
+    ]
+  }
+}

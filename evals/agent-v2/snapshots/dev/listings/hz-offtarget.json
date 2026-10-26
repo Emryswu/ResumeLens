@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "在线客服专员（AI 产品线）",
+        "companyName": "云栖服务",
+        "location": "杭州·拱墅区",
+        "employmentType": "全职",
+        "salary": "5-7K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：在线客服专员（AI 产品线）\n公司：云栖服务\n地点：杭州·拱墅区\n薪资：5-7K\n标签：经验不限、客服",
+        "requirements": "经验不限、客服",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-cs-10.html",
+        "sourceJobId": "d2-hz-cs-10",
+        "captureSource": "api",
+        "evalSimilarity": 0.14
+      },
+      {
+        "title": "新媒体运营实习生",
+        "companyName": "青柠文化",
+        "location": "杭州·西湖区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：新媒体运营实习生\n公司：青柠文化\n地点：杭州·西湖区\n薪资：120元/天\n标签：在校/应届、5天/周、运营",
+        "requirements": "在校/应届、5天/周、运营",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-ops-11.html",
+        "sourceJobId": "d2-hz-ops-11",
+        "captureSource": "api",
+        "evalSimilarity": 0.12
+      },
+      {
+        "title": "数据标注员",
+        "companyName": "标点数据",
+        "location": "杭州·余杭区",
+        "employmentType": "全职",
+        "salary": "4-6K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：数据标注员\n公司：标点数据\n地点：杭州·余杭区\n薪资：4-6K\n标签：经验不限、数据标注",
+        "requirements": "经验不限、数据标注",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-label-12.html",
+        "sourceJobId": "d2-hz-label-12",
+        "captureSource": "api",
+        "evalSimilarity": 0.18
+      }
+    ]
+  }
+}

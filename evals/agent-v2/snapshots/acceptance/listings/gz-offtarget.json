@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "客服专员（电商平台）",
+        "companyName": "优选商城",
+        "location": "广州·白云区",
+        "employmentType": "全职",
+        "salary": "5-6K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：客服专员（电商平台）\n公司：优选商城\n地点：广州·白云区\n薪资：5-6K\n标签：经验不限、客服",
+        "requirements": "经验不限、客服",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-cs-10.html",
+        "sourceJobId": "a2-gz-cs-10",
+        "captureSource": "api",
+        "evalSimilarity": 0.13
+      },
+      {
+        "title": "直播运营实习生",
+        "companyName": "星火传媒",
+        "location": "广州·番禺区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：直播运营实习生\n公司：星火传媒\n地点：广州·番禺区\n薪资：120元/天\n标签：在校/应届、5天/周、运营",
+        "requirements": "在校/应届、5天/周、运营",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-ops-11.html",
+        "sourceJobId": "a2-gz-ops-11",
+        "captureSource": "api",
+        "evalSimilarity": 0.11
+      },
+      {
+        "title": "网站推广销售",
+        "companyName": "万联广告",
+        "location": "广州·越秀区",
+        "employmentType": "全职",
+        "salary": "4-8K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：网站推广销售\n公司：万联广告\n地点：广州·越秀区\n薪资：4-8K\n标签：经验不限、销售",
+        "requirements": "经验不限、销售",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-sales-12.html",
+        "sourceJobId": "a2-gz-sales-12",
+        "captureSource": "api",
+        "evalSimilarity": 0.16
+      }
+    ]
+  }
+}

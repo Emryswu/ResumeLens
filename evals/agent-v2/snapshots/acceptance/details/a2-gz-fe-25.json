@@ -1,0 +1,8 @@
+{
+  "title": "前端工程化实习",
+  "companyName": "迅帆网络",
+  "location": "广州·番禺区·万博",
+  "employmentType": "实习",
+  "description": "岗位职责：\n1. 参与前端构建与发布平台的开发，维护脚手架和 CI 配置；\n2. 使用 Node.js 与 TypeScript 编写构建插件；\n3. 整理工程化文档并协助业务团队接入。\n实习安排：实习期至少 4 个月，每周至少 4 天到岗。",
+  "requirements": "1. 本科及以上学历，计算机相关专业；\n2. 熟悉 TypeScript 与 Node.js，用过 Vite 或 Webpack；\n3. 了解 Git 工作流与持续集成。"
+}
