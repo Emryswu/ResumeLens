@@ -507,7 +507,7 @@ public class AgentLoop {
                 for (String field : new String[] {"jdNotes", "preferredWarnings"}) {
                     JsonNode details = item.path(field);
                     if (details.isArray() && !details.isEmpty()) {
-                        answer.append(field.equals("jdNotes") ? "\nJD 门槛说明：" : "\n优先条件未满足：");
+                        answer.append(field.equals("jdNotes") ? "\nJD 门槛说明：" : "\n优先条件提示：");
                         for (int j = 0; j < details.size(); j++) {
                             if (j > 0) answer.append("、");
                             answer.append(details.get(j).asText());
