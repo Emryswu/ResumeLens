@@ -1,0 +1,627 @@
+{
+  "timestampUtc" : "2026-10-26T07:30:31.745006500Z",
+  "commitSha" : "44d74eaa14387a89df22c5cc4221420862180afd",
+  "targetBusinessSha" : "5fdaca01bf2c38a625b6bf98616a0c11bff6dde4",
+  "modelId" : "deepseek-flash",
+  "slot" : "baseline",
+  "status" : "completed",
+  "failureCategories" : {
+    "STEP_LIMIT" : 0,
+    "RULE_VIOLATION" : 9,
+    "SNAPSHOT_MISSING" : 0,
+    "OTHER" : 15
+  },
+  "tasks" : [ {
+    "passed" : 2,
+    "group" : "dev",
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ "未录制条件: keyword=java 后端,city=深圳,experience=不限", "未录制条件: keyword=spring boot 后端,city=深圳,experience=不限" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"列出你的简历，确定用哪一份 Java 后端方向版本\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，提取技能与项目作为搜索方向依据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你自行填写的城市、在校状态、实习时间等求职条件\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按深圳 + Java 后端 + 实习（在校生）在 BOSS 只读采集岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批采集岗位粗排，筛出对口候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位核实完整 JD，再按需读取正文与提交推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":1} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "final=无法继续执行当前计划，保留已获得的结果" ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ]
+    } ],
+    "total" : 3,
+    "taskId" : "dev-resume-before",
+    "passRate" : 0.6666666666666666
+  }, {
+    "passed" : 2,
+    "group" : "dev",
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "stop_first_page",
+        "passed" : false,
+        "reason" : "遇到 NO_MORE_RESULTS 后仍补搜，或者未观察到指定停止信号"
+      } ],
+      "replayTrace" : [ "未录制条件: keyword=java 后端,city=深圳,experience=不限", "未录制条件: keyword=java 后端开发,city=深圳,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"深圳\",\"keyword\":\"Java 后端\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":1,\"jobIds\":[901],\"limit\":10} => ok", "turn=0 collect_boss_jobs {\"keyword\":\"Java 后端开发\",\"maxPages\":1} => ok", "未录制条件: keyword=java 后端,city=深圳,experience=不限", "未录制条件: keyword=java 后端开发,city=深圳,experience=不限", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 1 个、核实完整 JD 0 个。\n先说结论：这次**没有找到可推荐的 Java 后端实习**，采到的唯一一条候选与你的方向完全不符，因此没有进入完整 JD 核实环节。\n\n**搜索设置**\n- 使用了你唯一的简历《Java 后端 / AI 应用简历》（在校本科计算机，预计 2027 年 6 月毕业，Java / Spring Boot / MySQL / Redis，项目 ResumeLens、LabFlow），方向按此推断为 Java 后" ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "stop_first_page",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "stop_first_page",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ]
+    } ],
+    "total" : 3,
+    "taskId" : "dev-first-page-stop",
+    "passRate" : 0.6666666666666666
+  }, {
+    "passed" : 1,
+    "group" : "dev",
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "fallback_trace",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ "未录制条件: keyword=java 后端,city=深圳,experience=在校生", "未录制条件: keyword=java 开发,city=深圳,experience=在校生" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "fallback_trace",
+        "passed" : false,
+        "reason" : "未录制列表条件没有返回通用结果并记录 trace"
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你上传的简历，选出与 Java 实习方向匹配的一份\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认 Java 技能与项目证据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的求职硬条件（城市、在校状态、到岗时间等）\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在深圳用「Java 后端」关键词采集 1 页实习岗位列表\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"换一个关键词（如后端开发/Java 开发）再采集 1 页，比较覆盖面\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对两批采集到的岗位合并粗排，挑出对口岗位\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":1} => ok", "final=模型未完成计划中的步骤，保留已获得的结果" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "fallback_trace",
+        "passed" : false,
+        "reason" : "未录制列表条件没有返回通用结果并记录 trace"
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你上传的简历，按 Java 方向选定一份\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的城市、在校状态、实习时间等条件\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认 Java 技能与项目证据\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在深圳按 Java 后端 + 实习采集第一页岗位\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批岗位粗排，筛出对口方向\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位核实完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取核实后的完整 JD，核对硬性条件\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交通过核实的正式推荐\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"换用其他 Java 相关关键词补充采集\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"对补搜到的岗位再次粗排并汇总\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":\"1\"} => AGENT_PLAN_MISMATCH", "final=无法继续执行当前计划，保留已获得的结果" ]
+    } ],
+    "total" : 3,
+    "taskId" : "dev-unrecorded",
+    "passRate" : 0.3333333333333333
+  }, {
+    "passed" : 0,
+    "group" : "dev",
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你上传的简历，判断方向并选定 Java 相关的简历\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写在校状态、实习时长、期望城市等求职条件\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认 Java 技能与项目证据\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 按深圳 + Java 后端 + 实习采集岗位列表（先 1 页）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批岗位粗排，挑出靠前且方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"让浏览器插件把靠前候选升级为完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文，核对学历、实习天数与时长、技术栈原文\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"基于完整 JD 证据提交正式推荐\"}]} => AGENT_PLAN_INVALID", "turn=0 list_resumes {} => AGENT_PLAN_INVALID", "turn=0 get_job_search_preferences {} => AGENT_PLAN_INVALID", "final=计划提交顺序无效" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你上传的简历，选择 Java 方向的一份\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认技能与项目里的 Java 依据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的学历、在校状态、期望城市与实习时间等硬条件\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"以 city=深圳、keyword=Java、jobType=实习、experience=在校生 采集 1 页岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批 jobIds 粗排，挑出方向相符的靠前岗位\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对靠前岗位打开详情页升级为完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文与证据片段，核对学历、技术栈、到岗要求\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"以完整 JD 逐字证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "final=无法继续执行当前计划，保留已获得的结果" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认你的简历，选出方向匹配的一份\"},{\"tool\":\"get_resume\",\"purpose\":\"读取简历正文，确认 Java 相关技能与项目证据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的城市、在校状态、实习时间等条件\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按深圳 + Java 后端 + 实习采集 BOSS 岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批 jobIds 做粗排，挑出对口岗位\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"把靠前对口岗位升级为完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文与证据片段\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"用逐字 JD 证据正式推荐并通过硬条件核对\"}]} => ok", "turn=0 list_resumes {} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "final=无法继续执行当前计划，保留已获得的结果" ]
+    } ],
+    "total" : 3,
+    "taskId" : "dev-listing-only",
+    "passRate" : 0.0
+  }, {
+    "passed" : 0,
+    "group" : "acceptance/v1",
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "inherit_internship",
+        "passed" : false,
+        "reason" : "没有两轮真正到达采集器且继承 city=深圳、experience=在校生 的成功命令"
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你已上传的简历，选出与 Java 后端方向匹配的一份\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的求职条件（城市、实习时间、在校状态等）\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认技术栈和项目证据\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 只读采集深圳 Java 后端实习岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本次采集的岗位做粗排，挑出对口候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位抓取完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文与证据，核对学历、实习时长、每周到岗天数和技术栈\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交正式推荐（附逐字 JD 证据）\"}]} => ok", "turn=0 list_resumes {} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "turn=1 list_resumes {} => ok", "turn=1 get_resume {\"resumeId\":1} => ok", "turn=1 get_job_search_preferences {} => ok", "turn=1 collect_boss_jobs {\"city\":\"深圳\",\"keyword\":\"Java 后端\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=1 rank_jobs_for_resume {\"resumeId\":1,\"jobIds\":[101,102,103]} => ok", "turn=1 verify_boss_job {\"jobId\":101} => ok", "turn=1 verify_boss_job {\"jobId\":103} => ONE_PENDING_ACTION_AT_A_TIME", "turn=1 get_job {\"jobId\":101} => ok", "turn=1 submit_recommendations {\"recommendations\":[{\"jobId\":101,\"reason\":\"深圳南山 Java 后端实习，要求 Java + Spring Boot + MySQL + Redis，与你《Java 后端 / AI 应用简历》中的技术栈和项目（ResumeLens、LabFlow）直接对应；你在校本科、预计 2027 年 6 月毕业，符合在校生要求，每周可到岗 5 天与 JD 要求一致。\",\"evidence\":\"招聘 Java 后端实习生，参与 Spring Boot 服务接口研发、MySQL 表结构设计和 Redis 缓存实现；要求熟悉 Java，能够在深圳每周到岗五天，面向在校本科学生\"}]} => ok", "final=通过验收的岗位：\n1. Java 后端实习生｜星河科技｜深圳·南山区\n推荐理由：深圳南山 Java 后端实习，要求 Java + Spring Boot + MySQL + Redis，与你《Java 后端 / AI 应用简历》中的技术栈和项目（ResumeLens、LabFlow）直接对应；你在校本科、预计 2027 年 6 月毕业，符合在校生要求，每周可到岗 5 天与 JD 要求一致。\nJD 原文证据：「招聘 Java 后端实习生，参与 Spring Boot 服务接口研发、MySQL 表结" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "inherit_internship",
+        "passed" : false,
+        "reason" : "没有两轮真正到达采集器且继承 city=深圳、experience=在校生 的成功命令"
+      } ],
+      "replayTrace" : [ "未录制条件: keyword=java 后端,city=深圳,experience=不限", "未录制条件: keyword=java 开发,city=深圳,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你上传的简历，选定 Java 后端方向的一份\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的求职条件（城市、在校状态、实习时间等）\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认 Java 后端技能与项目证据\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 按深圳、Java 后端、实习采集 1 页岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用所选简历对本批采集岗位粗排，筛出对口岗位\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对靠前且方向相符的岗位核实完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文，核对学历、实习时长、每周天数和技术栈\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"用逐字 JD 证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "turn=1 submit_plan {\"steps\":[{\"purpose\":\"查看你的简历列表，选定 Java 后端方向的一份\",\"tool\":\"list_resumes\"},{\"purpose\":\"读取你填写的求职条件（在校状态、期望城市、实习时间等）\",\"tool\":\"get_job_search_preferences\"},{\"purpose\":\"读取选定简历正文，确认 Java 后端技能与项目事实\",\"tool\":\"get_resume\"},{\"purpose\":\"在 BOSS 按深圳、Java 后端、实习只读采集职位列表\",\"tool\":\"collect_boss_jobs\"},{\"purpose\":\"用所选简历对本次采集到的 jobIds 粗排，筛出方向对口岗位\",\"tool\":\"rank_jobs_for_resume\"},{\"purpose\":\"对粗排靠前且方向相符的岗位核实完整 JD\",\"tool\":\"verify_boss_job\"},{\"purpose\":\"读取完整 JD 正文，核对学历、实习时长、每周到岗天数与技术栈\",\"tool\":\"get_job\"},{\"purpose\":\"用逐字 JD 证据提交正式推荐\",\"tool\":\"submit_recommendations\"}]} => ok", "turn=1 list_resumes {} => ok", "turn=1 get_job_search_preferences {} => ok", "turn=1 get_resume {\"resumeId\":1} => ok", "turn=1 collect_boss_jobs {\"city\":\"深圳\",\"keyword\":\"Java 后端\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=1 rank_jobs_for_resume {\"resumeId\":1,\"jobIds\":[901],\"limit\":10} => ok", "turn=1 collect_boss_jobs {\"keyword\":\"Java 开发\",\"maxPages\":1} => ok", "未录制条件: keyword=java 后端,city=深圳,experience=不限", "未录制条件: keyword=java 开发,city=深圳,experience=不限", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 1 个、核实完整 JD 0 个。\n## 结论：这次没找到可推荐的实习岗位\n\n**采集情况（深圳 · 实习 · Java 后端方向）**\n\n| 关键词 | 结果 |\n|---|---|\n| Java 后端 | 1 条：高级平面设计师（深圳·福田，通用回放样本） |\n| Java 开发 | 同一条：高级平面设计师 |\n\n- 这条岗位与你的《Java 后端 / AI 应用简历》方向完全不符（粗排相似度仅 0.12，只是排序相似度，不是匹配分）。" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "inherit_internship",
+        "passed" : false,
+        "reason" : "没有两轮真正到达采集器且继承 city=深圳、experience=在校生 的成功命令"
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"列出你的简历，选方向匹配的一份\"},{\"tool\":\"get_resume\",\"purpose\":\"读取简历正文，确认 Java 后端相关技能与项目\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的城市、实习时间等求职条件\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 采集深圳 Java 后端实习岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"对本批岗位按简历粗排，筛出对口候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"核实靠前候选的完整 JD，再核对硬性条件并提交推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":1} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "turn=1 submit_plan {\"steps\":[{\"purpose\":\"读取你填写的求职硬条件（城市、实习时长、到岗时间等）\",\"tool\":\"get_job_search_preferences\"},{\"purpose\":\"读取你的《Java 后端 / AI 应用简历》正文，确认技能与项目证据\",\"tool\":\"get_resume\"},{\"purpose\":\"在 BOSS 采集深圳 Java 后端实习岗位列表\",\"tool\":\"collect_boss_jobs\"},{\"purpose\":\"对本次采到的 jobIds 做粗排，找出与简历方向相符的候选\",\"tool\":\"rank_jobs_for_resume\"},{\"purpose\":\"核实靠前且对口岗位的完整 JD\",\"tool\":\"verify_boss_job\"},{\"purpose\":\"读取已核实岗位的 FULL 正文\",\"tool\":\"get_job\"},{\"purpose\":\"提交正式推荐，校核硬条件与 JD 证据\",\"tool\":\"submit_recommendations\"}]} => ok", "turn=1 get_job_search_preferences {} => ok", "turn=1 get_resume {\"resumeId\":1} => ok", "turn=1 collect_boss_jobs {\"city\":\"深圳\",\"keyword\":\"Java 后端\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=1 rank_jobs_for_resume {\"resumeId\":1,\"jobIds\":[101,102,103],\"limit\":10} => ok", "turn=1 verify_boss_job {\"jobId\":101} => ok", "turn=1 get_job {\"jobId\":101} => ok", "turn=1 verify_boss_job {\"jobId\":103} => ok", "turn=1 get_job {\"jobId\":103} => ok", "turn=1 submit_recommendations {\"recommendations\":[{\"jobId\":101,\"reason\":\"星河科技 Java 后端实习生，职责是 Spring Boot 接口、MySQL 表结构与 Redis 缓存，与你简历里的 Java/Spring Boot/MySQL/Redis 及 ResumeLens 项目直接对应；JD 写明本科、在校生、每周到岗五天，与你填的每周 5 天、在校生身份一致。实习时长 JD 未说明，到岗日期也需向 HR 确认。\",\"evidence\":\"招聘 Java 后端实习生，参与 Spring Boot 服务接口研发、MySQL 表结构设计和 Redis 缓存实现\"},{\"jobId\":103,\"reason\":\"万象科技后端研发实习生，做 Java Spring Boot 项目、MySQL 查询优化与 Redis 缓存设计，要求 REST API 实践和团队协作，与你简历的后端技能栈和项目经历相符；面向在校本科、每周五天，符合你的条件。JD 未写实习时长，需向 HR 确认。\",\"evidence\":\"招聘后端研发实习生，参与 Java Spring Boot 项目、MySQL 查询优化及 Redis 缓存设计；要求有 REST API 实践、团队协作能力\"}]} => ok", "final=通过验收的岗位：\n1. Java 后端实习生｜星河科技｜深圳·南山区\n推荐理由：星河科技 Java 后端实习生，职责是 Spring Boot 接口、MySQL 表结构与 Redis 缓存，与你简历里的 Java/Spring Boot/MySQL/Redis 及 ResumeLens 项目直接对应；JD 写明本科、在校生、每周到岗五天，与你填的每周 5 天、在校生身份一致。实习时长 JD 未说明，到岗日期也需向 HR 确认。\nJD 原文证据：「招聘 Java 后端实习生，参与 Spring B" ]
+    } ],
+    "total" : 3,
+    "taskId" : "a1-context-inheritance",
+    "passRate" : 0.0
+  }, {
+    "passed" : 2,
+    "group" : "acceptance/v1",
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "stop_login",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "stop_login",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      }, {
+        "name" : "stop_login",
+        "passed" : false,
+        "reason" : "遇到 BOSS_NOT_LOGGED_IN 后仍补搜，或者未观察到指定停止信号"
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认用你哪份简历来找深圳Java后端实习\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的求职条件（城市、在校状态、实习时间等）\"},{\"tool\":\"get_resume\",\"purpose\":\"读取所选简历正文，确认Java后端相关技能与项目证据\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在深圳按Java后端+实习采集BOSS岗位列表摘要\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用简历对本批岗位粗排，筛出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对少量靠前且对口的岗位核实完整JD，并提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "final=无法继续执行当前计划，保留已获得的结果" ]
+    } ],
+    "total" : 3,
+    "taskId" : "a2-login-stop",
+    "passRate" : 0.6666666666666666
+  }, {
+    "passed" : 2,
+    "group" : "acceptance/v1",
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "stop_first_page",
+        "passed" : false,
+        "reason" : "遇到 NO_MORE_RESULTS 后仍补搜，或者未观察到指定停止信号"
+      } ],
+      "replayTrace" : [ "未录制条件: keyword=java 后端,city=深圳,experience=不限", "未录制条件: keyword=java 开发,city=深圳,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"深圳\",\"keyword\":\"Java 后端\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"keyword\":\"Java 开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":1,\"jobIds\":[901]} => ok", "未录制条件: keyword=java 后端,city=深圳,experience=不限", "未录制条件: keyword=java 开发,city=深圳,experience=不限", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 1 个、核实完整 JD 0 个。\n**结论：这轮没找到对口的深圳 Java 后端实习，不给你凑数推荐。**\n\n**采集情况**\n- 按你的《Java 后端 / AI 应用简历》推断方向（Java、Spring Boot、MySQL、Redis，项目 ResumeLens、LabFlow），共发起 **3 次采集（已达本轮上限 3/3）**，城市深圳、类型实习、经验不限，关键词先后用「Java 后端」和「Java 开发」，每次读 1 页。\n" ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "stop_first_page",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "stop_first_page",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ]
+    } ],
+    "total" : 3,
+    "taskId" : "a3-first-page-stop",
+    "passRate" : 0.6666666666666666
+  }, {
+    "passed" : 1,
+    "group" : "acceptance/v1",
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 提交并通过至少一条岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你上传的简历，选定 Java 后端方向的版本\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认技能与项目方向\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的学历、在校状态、实习时间、城市等条件\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 按深圳、Java 后端、实习、在校生采集岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批岗位粗排，挑出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对靠前候选升级为完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD，核对学历、实习时长、每周天数、技术栈与职责\"},{\"tool\":\"check_job_preferences\",\"purpose\":\"与你填写的到岗时间、实习月数、每周天数、地区偏好对照\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"以逐字 JD 证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":1} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "final=无法继续执行当前计划，保留已获得的结果" ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 提交并通过至少一条岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认你上传的简历，按方向与更新时间选定用于本次搜索的一份\"},{\"tool\":\"get_resume + get_job_search_preferences\",\"purpose\":\"读取选定简历正文，以及你自行填写的实习时长、每周到岗天数、城市等求职条件\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 按深圳、Java 后端、实习（在校生）采集第一页岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本次采集到的 jobIds 粗排，筛出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的少量岗位抓取完整 JD 正文\"},{\"tool\":\"get_job + check_job_preferences\",\"purpose\":\"核对完整 JD 里的学历、实习月数、每周天数、技术栈等要求与你的条件\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"以 jobId、推荐理由和逐字 JD 证据提交正式推荐\"}]} => AGENT_PLAN_INVALID", "final=每步必须包含已注册 tool 和不超过 500 字的 purpose" ]
+    } ],
+    "total" : 3,
+    "taskId" : "a4-submit-verified",
+    "passRate" : 0.3333333333333333
+  }, {
+    "passed" : 0,
+    "group" : "acceptance/v1",
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮岗位不对口后没有先排序再换关键词补搜"
+      } ],
+      "replayTrace" : [ "未录制条件: keyword=java 开发,city=深圳,experience=在校生" ],
+      "transcriptSummary" : [ "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":1} => ok", "turn=0 submit_plan {\"steps\":[{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按你的《Java 后端 / AI 应用简历》方向，在深圳采集 Java 后端实习岗位列表（1 页，经验不限/在校生）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用 resumeId=1 对本批 jobIds 粗排，筛出方向对口的岗位\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位读取 BOSS 完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取已核实岗位的 FULL 正文，核对学历、实习时长、每周天数、技术栈等条件\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"按 FULL JD 原文证据提交正式推荐\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"若本批岗位全部不对口，换关键词（如 Java 开发、后端开发）再采集 1 页补搜\"}]} => ok", "turn=0 collect_boss_jobs {\"city\":\"深圳\",\"keyword\":\"Java 后端\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"深圳\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"Java 开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":1,\"jobIds\":[201,202,901],\"limit\":10} => ok", "未录制条件: keyword=java 开发,city=深圳,experience=在校生", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 0 个。\n**结论：本轮没有找到对口的深圳 Java 后端实习岗位，所以没有可正式推荐或核实的岗位。**\n\n按你的《Java 后端 / AI 应用简历》方向（Java、Spring Boot、MySQL、Redis，ResumeLens / LabFlow 项目）采集了两轮：\n\n| 轮次 | 关键词 | 采到的岗位 | 判断 |\n|---|---|---|---|\n| 1 | Java 后端（深圳·实习·在校生） " ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮岗位不对口后没有先排序再换关键词补搜"
+      } ],
+      "replayTrace" : [ "未录制条件: keyword=java 后端,city=深圳,experience=不限", "未录制条件: keyword=java 开发,city=深圳,experience=不限", "未录制条件: keyword=spring boot,city=深圳,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认你上传的简历及方向，选定用于本次 Java 后端实习搜索的简历\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，提取可支撑 Java 后端方向的技能与项目证据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的求职硬条件（城市、学历、在校状态、实习时间等）\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按深圳 + Java 后端 + 实习在 BOSS 只读采集岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批采集到的岗位做粗排，筛出对口候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位核验完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取已核实岗位的完整正文与硬性条件证据\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交通过核实的岗位作为正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":1} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"深圳\",\"keyword\":\"Java 后端\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"深圳\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"Java 开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":1,\"jobIds\":[901],\"limit\":5} => ok", "turn=0 collect_boss_jobs {\"city\":\"深圳\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"Spring Boot\",\"maxPages\":1} => ok", "未录制条件: keyword=java 后端,city=深圳,experience=不限", "未录制条件: keyword=java 开发,city=深圳,experience=不限", "未录制条件: keyword=spring boot,city=深圳,experience=不限", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 1 个、核实完整 JD 0 个。\n我根据你的《Java 后端 / AI 应用简历》推断方向：在校本科计算机专业，Spring Boot + MySQL + Redis，做过 ResumeLens、LabFlow 两个项目，按“深圳 + Java 后端 + 实习”搜索。\n\n**结论：这一轮没有找到对口岗位，因此没有可正式推荐的职位。**\n\n**搜索覆盖情况**\n\n| 项 | 实际情况 |\n|---|---|\n| 关键词 | Java 后端、" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮岗位不对口后没有先排序再换关键词补搜"
+      } ],
+      "replayTrace" : [ "未录制条件: keyword=后端开发,city=深圳,experience=在校生" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你上传的简历，选出方向匹配的一份\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认 Java 后端相关技能与项目证据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你自行填写的学历、在校状态、期望城市与实习时间等条件\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"以深圳、Java 后端、实习、在校生条件采集 BOSS 岗位列表摘要\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本次采集到的岗位做粗排，筛出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位抓取完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取已核实岗位的完整 JD 正文，核对硬性条件\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交带逐字 JD 证据的正式推荐；若全部不对口则改关键词补搜\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":1} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"深圳\",\"keyword\":\"Java 后端\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"深圳\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"后端开发\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"深圳\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"Spring Boot\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":1,\"jobIds\":[101,102,103],\"limit\":3} => ok", "turn=0 verify_boss_job {\"jobId\":101} => ok", "turn=0 get_job {\"jobId\":101} => ok", "turn=0 check_job_preferences {\"jobId\":101} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":101,\"reason\":\"星河科技 Java 后端实习生，技术栈与你简历里的 Java、Spring Boot、MySQL、Redis 完全对应，深圳南山区、面向在校本科，可每周到岗五天；实习时长与最早到岗时间 JD 未写明，需向 HR 确认。\",\"evidence\":\"招聘 Java 后端实习生，参与 Spring Boot 服务接口研发、MySQL 表结构设计和 Redis 缓存实现；要求熟悉 Java，能够在深圳每周到岗五天，面向在校本科学生，提供代码审查与导师指导。\"}]} => ok", "未录制条件: keyword=后端开发,city=深圳,experience=在校生", "final=通过验收的岗位：\n1. Java 后端实习生｜星河科技｜深圳·南山区\n推荐理由：星河科技 Java 后端实习生，技术栈与你简历里的 Java、Spring Boot、MySQL、Redis 完全对应，深圳南山区、面向在校本科，可每周到岗五天；实习时长与最早到岗时间 JD 未写明，需向 HR 确认。\nJD 原文证据：「招聘 Java 后端实习生，参与 Spring Boot 服务接口研发、MySQL 表结构设计和 Redis 缓存实现；要求熟悉 Java，能够在深圳每周到岗五天，面向在校本科学生，" ]
+    } ],
+    "total" : 3,
+    "taskId" : "a5-replan-offtarget",
+    "passRate" : 0.0
+  }, {
+    "passed" : 1,
+    "group" : "acceptance/v1",
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你的简历，确认 Java 方向的版本\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时间、城市等条件\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，提取真实的 Java 技能与项目\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按深圳 + Java 方向 + 实习采集 BOSS 岗位列表（1 页）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用你的简历对本批岗位粗排，挑出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前的候选打开 BOSS 详情页，读取完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"查看已核实岗位的完整 JD 正文与证据片段\"},{\"tool\":\"check_job_preferences\",\"purpose\":\"核对完整 JD 与你的到岗时间、实习月数、每周天数\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"以完整 JD 逐字证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "final=无法继续执行当前计划，保留已获得的结果" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"列出你的简历，确定用于 Java 实习方向的简历版本\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认 Java 技能与项目证据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的学历、在校状态、期望城市、实习时间等条件\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在深圳按 Java 实习方向采集 BOSS 岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定 resumeId 对本批 jobIds 做粗排，筛出对口候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位升级为完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取 FULL JD 正文与学历、实习时长、技术栈等证据片段\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交带逐字 JD 证据的正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":1} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "final=无法继续执行当前计划，保留已获得的结果" ]
+    } ],
+    "total" : 3,
+    "taskId" : "a6-no-listing-as-jd",
+    "passRate" : 0.3333333333333333
+  }, {
+    "passed" : 0,
+    "group" : "acceptance/v1",
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "education_master_excluded",
+        "passed" : false,
+        "reason" : "硕士硬门槛岗位未经真实条件检查，或被正式验收为推荐"
+      } ],
+      "replayTrace" : [ "未录制条件: keyword=java 后端,city=深圳,experience=不限", "未录制条件: keyword=java 开发,city=深圳,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你的简历列表，选出 Java 后端方向的简历\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的学历、在校状态、实习时间与城市偏好\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认技能与项目方向\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 采集深圳 Java 后端实习岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批岗位粗排，挑出方向相符的靠前岗位\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位抓取完整 JD，重点核对学历门槛\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文，确认学历、技术栈与职责原文\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"只把学历门槛不高于本科、条件吻合的岗位提交为正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"深圳\",\"keyword\":\"Java 后端\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":1,\"jobIds\":[901],\"limit\":10} => ok", "turn=0 collect_boss_jobs {\"city\":\"深圳\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"Java 开发\",\"maxPages\":1} => ok", "未录制条件: keyword=java 后端,city=深圳,experience=不限", "未录制条件: keyword=java 开发,city=深圳,experience=不限", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 1 个、核实完整 JD 0 个。\n## 结论：这次没采到可用的 Java 后端实习岗位，无法给出正式推荐\n\n### 你的条件（来自你填写的求职条件 + 《Java 后端 / AI 应用简历》）\n- 深圳，在校本科生，预计 2027 年 6 月毕业；可实习 6 个月、每周到岗 5 天\n- 技能：Java、Spring Boot、MySQL、Redis；项目：ResumeLens、LabFlow\n- 求职方向：Java 后端实习（按你的简历方" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      }, {
+        "name" : "education_master_excluded",
+        "passed" : false,
+        "reason" : "硕士硬门槛岗位未经真实条件检查，或被正式验收为推荐"
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认你要用的简历版本\"},{\"tool\":\"get_resume\",\"purpose\":\"读取简历正文，确认技术方向与学历层次\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的学历、城市、实习时长等硬条件\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 只读采集深圳 Java 后端实习岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用简历对本批岗位粗排，挑出方向相符的靠前候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对靠前候选升级完整 JD，重点核实学历要求是否卡硕士及以上\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文与学历原文证据\"},{\"tool\":\"check_job_preferences\",\"purpose\":\"对照你的实习时间等硬条件\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"只把学历门槛符合本科的岗位正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":1} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "final=无法继续执行当前计划，保留已获得的结果" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      }, {
+        "name" : "education_master_excluded",
+        "passed" : false,
+        "reason" : "硕士硬门槛岗位未经真实条件检查，或被正式验收为推荐"
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认你的简历及方向，选定 Java 后端方向的一份\"},{\"tool\":\"get_resume\",\"purpose\":\"读简历正文，确认你的学历层次（本科/硕士）和技术栈，用于判断学历门槛与技术匹配\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的求职条件（学历、在校状态、城市、实习时间）\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在深圳按 Java 后端方向采集实习岗位列表（本会话首次，显式传 jobType=实习）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批 jobIds 粗排，筛出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对粗排靠前的岗位升级为完整 JD，核实学历要求，重点识别硕士及以上岗位\"},{\"tool\":\"get_job\",\"purpose\":\"读取核实后的 FULL 正文与证据片段\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"只提交学历门槛为本科及不限、且与简历匹配的岗位，其余标为不符合并说明\"}]} => ok", "turn=0 list_resumes {} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "final=无法继续执行当前计划，保留已获得的结果" ]
+    } ],
+    "total" : 3,
+    "taskId" : "a7-education-master-required",
+    "passRate" : 0.0
+  }, {
+    "passed" : 1,
+    "group" : "acceptance/v1",
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "education_preferred_accepted",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "education_master_not_accepted",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      }, {
+        "name" : "education_preferred_accepted",
+        "passed" : false,
+        "reason" : "本科及以上、硕士优先的 FULL JD 未被正式验收"
+      }, {
+        "name" : "education_master_not_accepted",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你的简历列表，选出与 Java 后端方向匹配的一份\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认技能与项目经历\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的求职条件（学历、在校状态、期望城市、实习时间）\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 只读采集深圳 Java 后端实习岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用简历对本次采集到的 jobIds 做粗排\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位升级为完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD，逐项核对学历、技术栈与实习要求\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交核实通过的岗位作为正式推荐\"}]} => ok", "turn=0 list_resumes {} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "final=无法继续执行当前计划，保留已获得的结果" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "采集前未成功读取简历正文及求职条件"
+      }, {
+        "name" : "education_preferred_accepted",
+        "passed" : false,
+        "reason" : "本科及以上、硕士优先的 FULL JD 未被正式验收"
+      }, {
+        "name" : "education_master_not_accepted",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认你的简历及方向，选出 Java 后端相关且最新的一份\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的学历、在校状态、期望城市和实习时间等求职条件\"},{\"tool\":\"get_resume\",\"purpose\":\"读取所选简历正文，确认 Java 后端技能与项目证据\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 按城市=深圳、keyword=Java 后端、jobType=实习采集 1 页岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本次采集的 jobIds 粗排，挑出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的少数岗位抓取完整 JD，核实学历要求\"},{\"tool\":\"get_job\",\"purpose\":\"读取已核实岗位的 FULL 正文与证据片段，核对学历、实习天数等硬条件\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"以 jobId、推荐理由和逐字 JD 证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "final=无法继续执行当前计划，保留已获得的结果" ]
+    } ],
+    "total" : 3,
+    "taskId" : "a8-education-master-preferred",
+    "passRate" : 0.3333333333333333
+  } ]
+}
