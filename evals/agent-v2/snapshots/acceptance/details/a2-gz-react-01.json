@@ -1,0 +1,8 @@
+{
+  "title": "React 前端开发实习生",
+  "companyName": "栖木科技",
+  "location": "广州·天河区·珠江新城",
+  "employmentType": "实习",
+  "description": "岗位职责：\n1. 参与 SaaS 运营后台的前端开发，负责报表、筛选与权限相关页面；\n2. 使用 React 与 TypeScript 封装业务组件，补充单元测试；\n3. 配合后端完成接口联调，定位并修复线上问题。\n实习安排：实习期至少 6 个月，每周至少 4 天到岗，工作地点在广州天河区珠江新城。",
+  "requirements": "1. 本科及以上学历，计算机、软件工程相关专业在读；\n2. 熟悉 React 与 TypeScript，了解组件设计与状态管理；\n3. 了解前端工程化，用过 Vite 或 Webpack。"
+}

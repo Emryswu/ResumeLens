@@ -1,0 +1,22 @@
+{
+  "resume": {
+    "resumeId": 23,
+    "title": "前端开发实习简历",
+    "candidateName": "罗书瑶",
+    "email": "shuyao.luo@example.com",
+    "updatedAt": "2026-10-18T20:10:00",
+    "rawText": "罗书瑶\n邮箱：shuyao.luo@example.com\n教育背景：华南某大学 软件工程 本科（在读），预计 2027 年 6 月毕业\n求职意向：前端开发实习（广州）\n专业技能：TypeScript、React 18、Next.js、Vite、Vue 3（课程项目）、CSS 动画、Jest/Vitest 单元测试、Webpack 构建优化、Git\n实习经历：\n广州某初创工作室 前端开发实习生（2025.07-2025.10，共 4 个月）：负责小程序管理后台的表格与表单模块，封装 12 个通用组件，首屏加载时间从 3.1s 降到 1.4s。\n项目经历：\n1. 社团活动报名平台（2026.02-2026.05）：Next.js + TypeScript 实现报名、排队与签到，服务 900 名同学，Lighthouse 性能评分 93。\n2. 低代码表单编辑器（2025.11-2026.01）：React + 拖拽实现 20 种表单控件，配置导出为 JSON Schema。\n其他：没有全职工作经历。"
+  },
+  "preferences": {
+    "configured": true,
+    "availableMonths": 6,
+    "daysPerWeek": 4,
+    "earliestStartDate": "2026-11-23",
+    "preferredDistrict": "天河区",
+    "districtRequired": false,
+    "education": "本科",
+    "studentStatus": "在校生",
+    "expectedGraduation": "2027-06",
+    "workExperienceYears": 0
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "unrecordedCondition": true,
+    "jobs": [
+      {
+        "title": "餐饮门店店员",
+        "companyName": "某连锁餐饮",
+        "location": "广州·越秀区",
+        "employmentType": "全职",
+        "salary": "4-5K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：餐饮门店店员\n公司：某连锁餐饮\n地点：广州·越秀区\n薪资：4-5K\n标签：经验不限、餐饮",
+        "requirements": "经验不限、餐饮",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gen-01.html",
+        "sourceJobId": "a2-gen-01",
+        "captureSource": "api",
+        "evalSimilarity": 0.1
+      },
+      {
+        "title": "快递分拣员",
+        "companyName": "某物流公司",
+        "location": "广州·白云区",
+        "employmentType": "全职",
+        "salary": "5-6K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：快递分拣员\n公司：某物流公司\n地点：广州·白云区\n薪资：5-6K\n标签：经验不限、物流",
+        "requirements": "经验不限、物流",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gen-02.html",
+        "sourceJobId": "a2-gen-02",
+        "captureSource": "api",
+        "evalSimilarity": 0.1
+      },
+      {
+        "title": "保险顾问",
+        "companyName": "某保险代理公司",
+        "location": "广州·天河区",
+        "employmentType": "全职",
+        "salary": "4-10K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：保险顾问\n公司：某保险代理公司\n地点：广州·天河区\n薪资：4-10K\n标签：经验不限、销售",
+        "requirements": "经验不限、销售",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gen-03.html",
+        "sourceJobId": "a2-gen-03",
+        "captureSource": "api",
+        "evalSimilarity": 0.1
+      }
+    ]
+  }
+}

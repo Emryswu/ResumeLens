@@ -1,0 +1,39 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "NO_MORE_RESULTS",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "NLP 算法实习生",
+        "companyName": "观复智能",
+        "location": "杭州·西湖区·紫金港",
+        "employmentType": "实习",
+        "salary": "250-300元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：NLP 算法实习生\n公司：观复智能\n地点：杭州·西湖区·紫金港\n薪资：250-300元/天\n标签：在校/应届、5天/周、NLP",
+        "requirements": "在校/应届、5天/周、NLP",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-nlp-08.html",
+        "sourceJobId": "d2-hz-nlp-08",
+        "captureSource": "api",
+        "evalSimilarity": 0.48
+      },
+      {
+        "title": "计算机视觉算法实习",
+        "companyName": "明镜科技",
+        "location": "杭州·滨江区",
+        "employmentType": "实习",
+        "salary": "250-300元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：计算机视觉算法实习\n公司：明镜科技\n地点：杭州·滨江区\n薪资：250-300元/天\n标签：在校/应届、5天/周、CV",
+        "requirements": "在校/应届、5天/周、CV",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-cv-09.html",
+        "sourceJobId": "d2-hz-cv-09",
+        "captureSource": "api",
+        "evalSimilarity": 0.41
+      }
+    ]
+  }
+}

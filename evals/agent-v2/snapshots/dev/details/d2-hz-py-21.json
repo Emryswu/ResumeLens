@@ -1,0 +1,8 @@
+{
+  "title": "Python 开发实习生（AI 方向）",
+  "companyName": "青梧软件",
+  "location": "杭州·余杭区·闲林",
+  "employmentType": "实习",
+  "description": "岗位职责：\n1. 参与 AI 写作工具的后端接口开发，负责文本生成任务的调度与重试；\n2. 编写 Python 脚本处理用户反馈数据，输出周报；\n3. 参与代码评审并完善单元测试。\n实习安排：实习期至少 4 个月，每周至少 4 天到岗。",
+  "requirements": "1. 本科及以上学历，计算机相关专业在读；\n2. 熟悉 Python 与 MySQL；\n3. 了解大模型 API 的基本调用方式。"
+}

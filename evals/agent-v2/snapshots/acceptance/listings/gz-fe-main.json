@@ -1,0 +1,67 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "React 前端开发实习生",
+        "companyName": "栖木科技",
+        "location": "广州·天河区·珠江新城",
+        "employmentType": "实习",
+        "salary": "200-250元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：React 前端开发实习生\n公司：栖木科技\n地点：广州·天河区·珠江新城\n薪资：200-250元/天\n标签：在校/应届、4天/周、6个月、React",
+        "requirements": "在校/应届、4天/周、6个月、React",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-react-01.html",
+        "sourceJobId": "a2-gz-react-01",
+        "captureSource": "api",
+        "evalSimilarity": 0.87
+      },
+      {
+        "title": "前端工程师（实习）",
+        "companyName": "越汇互娱",
+        "location": "广州·海珠区·琶洲",
+        "employmentType": "实习",
+        "salary": "220-260元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：前端工程师（实习）\n公司：越汇互娱\n地点：广州·海珠区·琶洲\n薪资：220-260元/天\n标签：在校/应届、4天/周、4个月、TypeScript",
+        "requirements": "在校/应届、4天/周、4个月、TypeScript",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-ts-02.html",
+        "sourceJobId": "a2-gz-ts-02",
+        "captureSource": "api",
+        "evalSimilarity": 0.84
+      },
+      {
+        "title": "Web 前端实习生",
+        "companyName": "南拾教育",
+        "location": "广州·番禺区·大学城",
+        "employmentType": "实习",
+        "salary": "150-200元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Web 前端实习生\n公司：南拾教育\n地点：广州·番禺区·大学城\n薪资：150-200元/天\n标签：在校/应届、3天/周、3个月",
+        "requirements": "在校/应届、3天/周、3个月",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-web-03.html",
+        "sourceJobId": "a2-gz-web-03",
+        "captureSource": "api",
+        "evalSimilarity": 0.8
+      },
+      {
+        "title": "UI 设计实习生",
+        "companyName": "拾色设计",
+        "location": "广州·越秀区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：UI 设计实习生\n公司：拾色设计\n地点：广州·越秀区\n薪资：120元/天\n标签：在校/应届、5天/周、设计",
+        "requirements": "在校/应届、5天/周、设计",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-ui-04.html",
+        "sourceJobId": "a2-gz-ui-04",
+        "captureSource": "api",
+        "evalSimilarity": 0.22
+      }
+    ]
+  }
+}

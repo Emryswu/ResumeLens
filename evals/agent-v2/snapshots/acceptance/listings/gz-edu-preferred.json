@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Web 前端开发实习",
+        "companyName": "青萝网络",
+        "location": "广州·天河区·天河北",
+        "employmentType": "实习",
+        "salary": "200-250元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Web 前端开发实习\n公司：青萝网络\n地点：广州·天河区·天河北\n薪资：200-250元/天\n标签：在校/应届、4天/周、6个月、React",
+        "requirements": "在校/应届、4天/周、6个月、React",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-edupref-18.html",
+        "sourceJobId": "a2-gz-edupref-18",
+        "captureSource": "api",
+        "evalSimilarity": 0.88
+      },
+      {
+        "title": "前端实习生（数据可视化）",
+        "companyName": "图景数据",
+        "location": "广州·越秀区·东山口",
+        "employmentType": "实习",
+        "salary": "180-220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：前端实习生（数据可视化）\n公司：图景数据\n地点：广州·越秀区·东山口\n薪资：180-220元/天\n标签：在校/应届、4天/周、4个月",
+        "requirements": "在校/应届、4天/周、4个月",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-fe-19.html",
+        "sourceJobId": "a2-gz-fe-19",
+        "captureSource": "api",
+        "evalSimilarity": 0.8
+      },
+      {
+        "title": "测试实习生",
+        "companyName": "恒测软件",
+        "location": "广州·黄埔区",
+        "employmentType": "实习",
+        "salary": "150元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：测试实习生\n公司：恒测软件\n地点：广州·黄埔区\n薪资：150元/天\n标签：在校/应届、5天/周、测试",
+        "requirements": "在校/应届、5天/周、测试",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-test-20.html",
+        "sourceJobId": "a2-gz-test-20",
+        "captureSource": "api",
+        "evalSimilarity": 0.29
+      }
+    ]
+  }
+}

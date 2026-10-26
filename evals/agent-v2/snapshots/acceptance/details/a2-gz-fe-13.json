@@ -1,0 +1,8 @@
+{
+  "title": "前端开发实习生",
+  "companyName": "晴川软件",
+  "location": "广州·天河区·岗顶",
+  "employmentType": "实习",
+  "description": "岗位职责：\n1. 参与企业协同办公系统的前端开发，负责审批流与消息中心页面；\n2. 使用 React 与 TypeScript 开发组件并编写单元测试；\n3. 参与前端性能监控，分析并优化首屏耗时。\n实习安排：实习期至少 6 个月，每周至少 4 天到岗。",
+  "requirements": "1. 本科及以上学历，计算机相关专业在读；\n2. 熟悉 React、TypeScript 与 CSS 布局；\n3. 了解 Jest 或 Vitest 等测试框架。"
+}

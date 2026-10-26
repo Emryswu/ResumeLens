@@ -1,0 +1,205 @@
+{
+  "group": "dev",
+  "keywordSets": {
+    "ai-app": ["AI 应用开发", "AI 应用", "AI 应用工程师", "AI 开发", "AI 工程师", "AI", "人工智能", "AIGC",
+      "大模型应用开发", "大模型应用", "大模型应用工程师", "大模型", "大模型开发", "LLM 应用开发", "LLM 应用", "LLM",
+      "RAG", "RAG 开发", "RAG 应用开发", "RAG 检索", "检索增强", "知识库问答", "Python", "Python 开发", "Python 后端", "LangChain"],
+    "agent": ["Agent", "Agent 开发", "AI Agent", "AI Agent 开发", "Agent 应用开发", "Agent 工程师", "Agent 研发",
+      "智能体", "智能体开发", "智能体平台", "多智能体"]
+  },
+  "tasks": [
+    {
+      "id": "d01-prereq-verified-submit",
+      "turns": ["帮我找杭州的实习，有合适的直接推荐"],
+      "searches": [
+        {"city": "杭州", "experience": "在校生", "keywordSets": ["ai-app", "agent"], "snapshot": "hz-ai-app"}
+      ],
+      "checks": [{"type": "prerequisites"}, {"type": "no_listing_as_full"}, {"type": "submit_accepted"}],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "AI 应用开发", "city": "杭州", "jobType": "实习", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:d2-hz-rag-01"}},
+        {"tool": "get_job", "args": {"jobId": "$job:d2-hz-rag-01"}},
+        {"tool": "check_job_preferences", "args": {"jobId": "$job:d2-hz-rag-01"}},
+        {"tool": "submit_recommendations", "args": {"recommendations": [
+          {"jobId": "$job:d2-hz-rag-01", "reason": "你做过 FastAPI + LangChain 的 RAG 问答服务，与岗位的检索链路开发直接对应",
+            "evidence": "参与企业知识库问答产品的 RAG 检索链路开发"}
+        ]}}
+      ]]
+    },
+    {
+      "id": "d02-inherit-two-turns",
+      "turns": ["帮我找杭州的 AI 应用开发实习", "再找找偏 Agent 方向的"],
+      "searches": [
+        {"city": "杭州", "experience": "在校生", "keywordSets": ["agent"], "snapshot": "hz-agent"},
+        {"city": "杭州", "experience": "在校生", "keywordSets": ["ai-app"], "snapshot": "hz-ai-app"}
+      ],
+      "checks": [{"type": "inherit_filters", "city": "杭州", "experience": "在校生"}],
+      "reference": [
+        [
+          {"tool": "list_resumes", "args": {}},
+          {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+          {"tool": "get_job_search_preferences", "args": {}},
+          {"tool": "collect_boss_jobs", "args": {"keyword": "AI 应用开发", "city": "杭州", "jobType": "实习", "maxPages": 1}},
+          {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}}
+        ],
+        [
+          {"tool": "collect_boss_jobs", "args": {"keyword": "Agent 开发", "maxPages": 1}},
+          {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}}
+        ]
+      ]
+    },
+    {
+      "id": "d03-stop-login",
+      "turns": ["去 BOSS 帮我搜一下杭州的 AI 应用开发实习"],
+      "searches": [{"snapshot": "hz-login"}],
+      "checks": [{"type": "stop_on_signal", "signal": "BOSS_NOT_LOGGED_IN"}],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "AI 应用开发", "city": "杭州", "jobType": "实习", "maxPages": 1}}
+      ]]
+    },
+    {
+      "id": "d04-stop-first-page",
+      "turns": ["帮我找杭州的大模型应用实习，多换几个关键词，尽量多搜一些"],
+      "searches": [{"snapshot": "hz-first-page-end"}],
+      "checks": [{"type": "stop_on_signal", "signal": "NO_MORE_RESULTS"}],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "大模型应用", "city": "杭州", "jobType": "实习", "maxPages": 1}}
+      ]]
+    },
+    {
+      "id": "d05-replan-offtarget",
+      "turns": ["按我的简历方向，帮我在杭州找份实习"],
+      "searches": [
+        {"attempt": 1, "city": "杭州", "experience": "在校生", "snapshot": "hz-offtarget"},
+        {"city": "杭州", "experience": "在校生", "keywordSets": ["agent"], "snapshot": "hz-agent"},
+        {"city": "杭州", "experience": "在校生", "keywordSets": ["ai-app"], "snapshot": "hz-ai-app"}
+      ],
+      "checks": [{"type": "prerequisites"}, {"type": "replan_offtarget"}],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "AI 应用开发", "city": "杭州", "jobType": "实习", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "大模型应用", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}}
+      ]]
+    },
+    {
+      "id": "d06-education-required",
+      "turns": ["杭州有没有适合我的大模型应用实习？帮我找几个能投的，正式推荐给我"],
+      "searches": [
+        {"city": "杭州", "experience": "在校生", "keywordSets": ["ai-app", "agent"], "snapshot": "hz-edu-required"}
+      ],
+      "checks": [
+        {"type": "gate_excluded", "rule": "education", "job": "d2-hz-edu-13"},
+        {"type": "submit_accepted"},
+        {"type": "no_listing_as_full"}
+      ],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "大模型应用", "city": "杭州", "jobType": "实习", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:d2-hz-edu-13"}},
+        {"tool": "get_job", "args": {"jobId": "$job:d2-hz-edu-13"}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:d2-hz-rag-18"}},
+        {"tool": "get_job", "args": {"jobId": "$job:d2-hz-rag-18"}},
+        {"tool": "check_job_preferences", "args": {"jobId": "$job:d2-hz-rag-18"}},
+        {"tool": "submit_recommendations", "args": {"recommendations": [
+          {"jobId": "$job:d2-hz-rag-18", "reason": "岗位要求本科在读并熟悉 Python 与 RAG 流程，你的问答助手项目可以直接对应",
+            "evidence": "了解向量数据库与 RAG 的基本流程"}
+        ]}}
+      ]]
+    },
+    {
+      "id": "d07-education-preferred",
+      "turns": ["帮我在杭州找 RAG 方向的实习，靠谱的直接推荐"],
+      "searches": [
+        {"city": "杭州", "experience": "在校生", "keywordSets": ["ai-app", "agent"], "snapshot": "hz-edu-preferred"}
+      ],
+      "checks": [
+        {"type": "preferred_accepted", "rule": "education", "job": "d2-hz-edupref-20"},
+        {"type": "no_listing_as_full"}
+      ],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "RAG", "city": "杭州", "jobType": "实习", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:d2-hz-edupref-20"}},
+        {"tool": "get_job", "args": {"jobId": "$job:d2-hz-edupref-20"}},
+        {"tool": "check_job_preferences", "args": {"jobId": "$job:d2-hz-edupref-20"}},
+        {"tool": "submit_recommendations", "args": {"recommendations": [
+          {"jobId": "$job:d2-hz-edupref-20", "reason": "本科即满足学历要求，硕士只是优先；你的 RAG 项目做过重排和引用准确率评估",
+            "evidence": "搭建检索效果评测流程，持续跟踪命中率与引用准确率"}
+        ]}}
+      ]]
+    },
+    {
+      "id": "d08-experience-required",
+      "turns": ["我想在杭州找 AI 应用开发方向的实习，在校生能做的就行，帮我找几个推荐"],
+      "searches": [
+        {"city": "杭州", "experience": "在校生", "keywordSets": ["ai-app", "agent"], "snapshot": "hz-exp-required"}
+      ],
+      "checks": [
+        {"type": "gate_excluded", "rule": "experience", "job": "d2-hz-exp-23"},
+        {"type": "submit_accepted"},
+        {"type": "no_listing_as_full"}
+      ],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "AI 应用开发", "city": "杭州", "jobType": "实习", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:d2-hz-exp-23"}},
+        {"tool": "get_job", "args": {"jobId": "$job:d2-hz-exp-23"}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:d2-hz-agent-24"}},
+        {"tool": "get_job", "args": {"jobId": "$job:d2-hz-agent-24"}},
+        {"tool": "check_job_preferences", "args": {"jobId": "$job:d2-hz-agent-24"}},
+        {"tool": "submit_recommendations", "args": {"recommendations": [
+          {"jobId": "$job:d2-hz-agent-24", "reason": "面向在读学生，工具调用与结构化输出和你的作业批改 Agent 项目一致",
+            "evidence": "参与 AI 简历助手的工具调用模块开发"}
+        ]}}
+      ]]
+    },
+    {
+      "id": "d09-experience-preferred",
+      "turns": ["杭州的 LLM 应用开发实习有哪些？帮我找找，合适的正式推荐给我"],
+      "searches": [
+        {"city": "杭州", "experience": "在校生", "keywordSets": ["ai-app", "agent"], "snapshot": "hz-exp-preferred"}
+      ],
+      "checks": [
+        {"type": "preferred_accepted", "rule": "experience", "job": "d2-hz-exppref-26"},
+        {"type": "no_listing_as_full"}
+      ],
+      "reference": [[
+        {"tool": "list_resumes", "args": {}},
+        {"tool": "get_resume", "args": {"resumeId": "$resume"}},
+        {"tool": "get_job_search_preferences", "args": {}},
+        {"tool": "collect_boss_jobs", "args": {"keyword": "LLM 应用开发", "city": "杭州", "jobType": "实习", "maxPages": 1}},
+        {"tool": "rank_jobs_for_resume", "args": {"resumeId": "$resume", "jobIds": "$lastCollect", "limit": 5}},
+        {"tool": "verify_boss_job", "args": {"jobId": "$job:d2-hz-exppref-26"}},
+        {"tool": "get_job", "args": {"jobId": "$job:d2-hz-exppref-26"}},
+        {"tool": "check_job_preferences", "args": {"jobId": "$job:d2-hz-exppref-26"}},
+        {"tool": "submit_recommendations", "args": {"recommendations": [
+          {"jobId": "$job:d2-hz-exppref-26", "reason": "企业实习经历只是优先项，不是门槛；你的 Prompt 与工具编排项目与岗位职责对应",
+            "evidence": "设计 Prompt 与少样本示例，配合评测数据迭代效果"}
+        ]}}
+      ]]
+    }
+  ]
+}

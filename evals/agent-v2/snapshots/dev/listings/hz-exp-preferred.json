@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "LLM 应用开发实习生",
+        "companyName": "映雪科技",
+        "location": "杭州·余杭区·良渚",
+        "employmentType": "实习",
+        "salary": "200-260元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：LLM 应用开发实习生\n公司：映雪科技\n地点：杭州·余杭区·良渚\n薪资：200-260元/天\n标签：在校/应届、4天/周、6个月、LLM",
+        "requirements": "在校/应届、4天/周、6个月、LLM",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-exppref-26.html",
+        "sourceJobId": "d2-hz-exppref-26",
+        "captureSource": "api",
+        "evalSimilarity": 0.87
+      },
+      {
+        "title": "知识库问答开发实习",
+        "companyName": "墨林信息",
+        "location": "杭州·拱墅区·运河",
+        "employmentType": "实习",
+        "salary": "180-220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：知识库问答开发实习\n公司：墨林信息\n地点：杭州·拱墅区·运河\n薪资：180-220元/天\n标签：在校/应届、4天/周、3个月、RAG",
+        "requirements": "在校/应届、4天/周、3个月、RAG",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-rag-27.html",
+        "sourceJobId": "d2-hz-rag-27",
+        "captureSource": "api",
+        "evalSimilarity": 0.8
+      },
+      {
+        "title": "视觉设计实习",
+        "companyName": "白鹭设计",
+        "location": "杭州·西湖区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：视觉设计实习\n公司：白鹭设计\n地点：杭州·西湖区\n薪资：120元/天\n标签：在校/应届、5天/周、设计",
+        "requirements": "在校/应届、5天/周、设计",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-design-28.html",
+        "sourceJobId": "d2-hz-design-28",
+        "captureSource": "api",
+        "evalSimilarity": 0.14
+      }
+    ]
+  }
+}

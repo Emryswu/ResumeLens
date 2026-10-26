@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "前端研发实习生（基础架构）",
+        "companyName": "霁光科技",
+        "location": "广州·海珠区·琶洲",
+        "employmentType": "实习",
+        "salary": "300-350元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：前端研发实习生（基础架构）\n公司：霁光科技\n地点：广州·海珠区·琶洲\n薪资：300-350元/天\n标签：在校/应届、4天/周、6个月、前端",
+        "requirements": "在校/应届、4天/周、6个月、前端",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-edu-15.html",
+        "sourceJobId": "a2-gz-edu-15",
+        "captureSource": "api",
+        "evalSimilarity": 0.89
+      },
+      {
+        "title": "前端开发实习（B 端）",
+        "companyName": "鹿鸣软件",
+        "location": "广州·天河区·车陂",
+        "employmentType": "实习",
+        "salary": "180-220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：前端开发实习（B 端）\n公司：鹿鸣软件\n地点：广州·天河区·车陂\n薪资：180-220元/天\n标签：在校/应届、4天/周、6个月",
+        "requirements": "在校/应届、4天/周、6个月",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-fe-16.html",
+        "sourceJobId": "a2-gz-fe-16",
+        "captureSource": "api",
+        "evalSimilarity": 0.81
+      },
+      {
+        "title": "产品助理实习",
+        "companyName": "合众网络",
+        "location": "广州·天河区",
+        "employmentType": "实习",
+        "salary": "150元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：产品助理实习\n公司：合众网络\n地点：广州·天河区\n薪资：150元/天\n标签：在校/应届、5天/周、产品",
+        "requirements": "在校/应届、5天/周、产品",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-pm-17.html",
+        "sourceJobId": "a2-gz-pm-17",
+        "captureSource": "api",
+        "evalSimilarity": 0.27
+      }
+    ]
+  }
+}

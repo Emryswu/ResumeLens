@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Vue 前端开发实习",
+        "companyName": "粤港通",
+        "location": "广州·天河区·五山",
+        "employmentType": "实习",
+        "salary": "200-230元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Vue 前端开发实习\n公司：粤港通\n地点：广州·天河区·五山\n薪资：200-230元/天\n标签：在校/应届、4天/周、6个月、Vue",
+        "requirements": "在校/应届、4天/周、6个月、Vue",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-vue-05.html",
+        "sourceJobId": "a2-gz-vue-05",
+        "captureSource": "api",
+        "evalSimilarity": 0.83
+      },
+      {
+        "title": "前端开发实习生（Vue）",
+        "companyName": "澜图信息",
+        "location": "广州·黄埔区·科学城",
+        "employmentType": "实习",
+        "salary": "180-220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：前端开发实习生（Vue）\n公司：澜图信息\n地点：广州·黄埔区·科学城\n薪资：180-220元/天\n标签：在校/应届、4天/周、5个月",
+        "requirements": "在校/应届、4天/周、5个月",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-vue-06.html",
+        "sourceJobId": "a2-gz-vue-06",
+        "captureSource": "api",
+        "evalSimilarity": 0.79
+      },
+      {
+        "title": "Java 后端实习",
+        "companyName": "广信软件",
+        "location": "广州·天河区",
+        "employmentType": "实习",
+        "salary": "180元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 后端实习\n公司：广信软件\n地点：广州·天河区\n薪资：180元/天\n标签：在校/应届、5天/周、Java",
+        "requirements": "在校/应届、5天/周、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-java-07.html",
+        "sourceJobId": "a2-gz-java-07",
+        "captureSource": "api",
+        "evalSimilarity": 0.3
+      }
+    ]
+  }
+}

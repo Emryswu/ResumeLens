@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "AI 应用开发工程师",
+        "companyName": "澜启科技",
+        "location": "杭州·余杭区·未来科技城",
+        "employmentType": "全职",
+        "salary": "15-25K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：AI 应用开发工程师\n公司：澜启科技\n地点：杭州·余杭区·未来科技城\n薪资：15-25K\n标签：Python、LangChain、RAG",
+        "requirements": "Python、LangChain、RAG",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-exp-23.html",
+        "sourceJobId": "d2-hz-exp-23",
+        "captureSource": "api",
+        "evalSimilarity": 0.88
+      },
+      {
+        "title": "AI 应用开发实习生",
+        "companyName": "禾木智能",
+        "location": "杭州·西湖区·蒋村",
+        "employmentType": "实习",
+        "salary": "200-240元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：AI 应用开发实习生\n公司：禾木智能\n地点：杭州·西湖区·蒋村\n薪资：200-240元/天\n标签：在校/应届、4天/周、6个月、Python",
+        "requirements": "在校/应届、4天/周、6个月、Python",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-agent-24.html",
+        "sourceJobId": "d2-hz-agent-24",
+        "captureSource": "api",
+        "evalSimilarity": 0.81
+      },
+      {
+        "title": "人力资源实习生",
+        "companyName": "百川人力",
+        "location": "杭州·拱墅区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：人力资源实习生\n公司：百川人力\n地点：杭州·拱墅区\n薪资：120元/天\n标签：在校/应届、5天/周、人事",
+        "requirements": "在校/应届、5天/周、人事",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/d2-hz-hr-25.html",
+        "sourceJobId": "d2-hz-hr-25",
+        "captureSource": "api",
+        "evalSimilarity": 0.15
+      }
+    ]
+  }
+}

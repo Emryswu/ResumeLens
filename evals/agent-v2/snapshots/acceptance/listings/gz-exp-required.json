@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "前端开发工程师（React）",
+        "companyName": "鲸跃科技",
+        "location": "广州·天河区·珠江新城",
+        "employmentType": "全职",
+        "salary": "14-20K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：前端开发工程师（React）\n公司：鲸跃科技\n地点：广州·天河区·珠江新城\n薪资：14-20K\n标签：React、TypeScript",
+        "requirements": "React、TypeScript",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-exp-21.html",
+        "sourceJobId": "a2-gz-exp-21",
+        "captureSource": "api",
+        "evalSimilarity": 0.88
+      },
+      {
+        "title": "前端开发实习生（电商）",
+        "companyName": "拾贝电商",
+        "location": "广州·白云区·白云新城",
+        "employmentType": "实习",
+        "salary": "180-220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：前端开发实习生（电商）\n公司：拾贝电商\n地点：广州·白云区·白云新城\n薪资：180-220元/天\n标签：在校/应届、4天/周、6个月",
+        "requirements": "在校/应届、4天/周、6个月",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-fe-22.html",
+        "sourceJobId": "a2-gz-fe-22",
+        "captureSource": "api",
+        "evalSimilarity": 0.81
+      },
+      {
+        "title": "视觉设计实习",
+        "companyName": "格物设计",
+        "location": "广州·海珠区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：视觉设计实习\n公司：格物设计\n地点：广州·海珠区\n薪资：120元/天\n标签：在校/应届、5天/周、设计",
+        "requirements": "在校/应届、5天/周、设计",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/a2-gz-design-23.html",
+        "sourceJobId": "a2-gz-design-23",
+        "captureSource": "api",
+        "evalSimilarity": 0.2
+      }
+    ]
+  }
+}
