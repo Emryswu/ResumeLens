@@ -1,0 +1,1148 @@
+{
+  "evalVersion" : "v2",
+  "timestampUtc" : "2026-10-26T09:48:06.488007300Z",
+  "commitSha" : "de758f52d1ed5ed80ebb71eb029ae18e78a5d359",
+  "targetBusinessSha" : "c1c80c5ace3314de34949fd74e061dea8bb20990",
+  "modelId" : "deepseek-flash",
+  "slot" : "baseline",
+  "status" : "completed",
+  "acceptanceDigest" : "0b11fd025bc58d6bd130af5883419e020705c70f627915908cc9020cd7e9d351",
+  "repetitionsPerTask" : 3,
+  "failureCategories" : {
+    "STEP_LIMIT" : 0,
+    "RULE_VIOLATION" : 8,
+    "SNAPSHOT_MISSING" : 0,
+    "PLAN_PROTOCOL" : 1,
+    "OTHER" : 18
+  },
+  "checkSummary" : {
+    "dev" : {
+      "gate_excluded:education" : {
+        "passed" : 1,
+        "total" : 3
+      },
+      "gate_excluded:experience" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "inherit_filters" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "no_listing_as_full" : {
+        "passed" : 12,
+        "total" : 15
+      },
+      "preferred_accepted:education" : {
+        "passed" : 2,
+        "total" : 3
+      },
+      "preferred_accepted:experience" : {
+        "passed" : 2,
+        "total" : 3
+      },
+      "prerequisites" : {
+        "passed" : 5,
+        "total" : 6
+      },
+      "replan_offtarget" : {
+        "passed" : 2,
+        "total" : 3
+      },
+      "stop_on_signal:BOSS_NOT_LOGGED_IN" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "stop_on_signal:NO_MORE_RESULTS" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "submit_accepted" : {
+        "passed" : 5,
+        "total" : 9
+      }
+    },
+    "acceptance" : {
+      "gate_excluded:education" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "gate_excluded:experience" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "inherit_filters" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "no_listing_as_full" : {
+        "passed" : 15,
+        "total" : 15
+      },
+      "preferred_accepted:education" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "preferred_accepted:experience" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "prerequisites" : {
+        "passed" : 3,
+        "total" : 6
+      },
+      "replan_offtarget" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "stop_on_signal:BOSS_NOT_LOGGED_IN" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "stop_on_signal:NO_MORE_RESULTS" : {
+        "passed" : 1,
+        "total" : 3
+      },
+      "submit_accepted" : {
+        "passed" : 3,
+        "total" : 9
+      }
+    }
+  },
+  "tasks" : [ {
+    "group" : "dev",
+    "taskId" : "d01-prereq-verified-submit",
+    "rules" : [ "prerequisites", "no_listing_as_full", "submit_accepted" ],
+    "referencePassed" : true,
+    "passed" : 2,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"列出简历，判断求职方向并选出匹配的一份\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，提取技能与项目证据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗天数、到岗日期和地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按简历方向在杭州采集实习岗位列表（city=杭州、jobType=实习、experience=在校生）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"对该批采集到的 jobIds 做粗排，挑出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前的候选核实完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取核实后的完整 JD 与证据片段\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交正式推荐，逐条附 JD 证据\"}]} => AGENT_PLAN_INVALID", "turn=0 list_resumes {} => AGENT_PLAN_INVALID", "turn=0 submit_plan {\"steps\":[{\"purpose\":\"列出简历，判断求职方向并选出匹配的一份\",\"tool\":\"list_resumes\"},{\"purpose\":\"读取选定简历正文，提取技能与项目证据\",\"tool\":\"get_resume\"},{\"purpose\":\"读取你填写的实习时长、每周到岗天数、到岗日期和地区偏好\",\"tool\":\"get_job_search_preferences\"},{\"purpose\":\"按简历方向在杭州采集实习岗位列表（city=杭州、jobType=实习、experience=在校生）\",\"tool\":\"collect_boss_jobs\"},{\"purpose\":\"对该批采集到的 jobIds 做粗排，挑出方向相符的候选\",\"tool\":\"rank_jobs_for_resume\"},{\"purpose\":\"对排名靠前的候选核实完整 JD\",\"tool\":\"verify_boss_job\"},{\"purpose\":\"读取核实后的完整 JD 与证据片段\",\"tool\":\"get_job\"},{\"purpose\":\"提交正式推荐，逐条附 JD 证据\",\"tool\":\"submit_recommendations\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"AI 应用开发\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103,104],\"limit\":10} => ok", "turn=0 verify_boss_job {\"jobId\":101} => ok", "turn=0 get_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => ok", "turn=0 get_job {\"jobId\":102} => ok", "turn=0 list_job_applications {} => ok", "turn=0 check_job_preferences {\"jobId\":101} => ok", "turn=0 check_job_preferences {\"jobId\":102} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":101,\"reason\":\"RAG 检索链路开发与你的校园政策问答助手项目高度重合，技术栈 FastAPI + LangChain + Milvus 全部命中；6 个月、每周 4 天与你的可用时间一致，地点在余杭区未来科技城也符合你的地区偏好。\",\"evidence\":\"1. 参与企业知识库问答产品的 RAG 检索链路开发，包括文档切分、向量召回与重排；2. 使用 FastAPI 编写检索与问答服务接口，配合前端完成联调；熟悉 Python，了解 LangChain 或 LlamaIndex 等框架；实习期至少 6 个月，每周至少 4 天到岗，工作地点在杭州余杭区未来科技城\"},{\"jobId\":102,\"reason\":\"职责为 Prompt 设计与 function calling 工具调用编排，与你课程作业批改 Agent 的经历直接对应；Python 服务开发也是你的强项，实习 3 个月、每周 4 天你都能满足。\",\"evidence\":\"1. 基于开源大模型开发数据分析助手，负责 Prompt 设计与工具调用编排；2. 编写 Python 服务对接内部数据接口，处理结构化查询结果；2. 熟练使用 Python，了解 function calling 或 Agent 编排；实习安排：实习期至少 3 个月，每周至少 4 天到岗\"}]} => ok", "states=[COMPLETED] errors=[]", "final=本轮没有通过完整 JD 与原文证据验收的正式推荐。\n待核实岗位：\nRAG 应用开发实习生：引用片段不在已入库的 JD 原文中\n大模型应用开发实习：引用片段不在已入库的 JD 原文中" ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d02-inherit-two-turns",
+    "rules" : [ "inherit_filters" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED", "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED", "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED", "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d03-stop-login",
+    "rules" : [ "stop_on_signal:BOSS_NOT_LOGGED_IN" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d04-stop-first-page",
+    "rules" : [ "stop_on_signal:NO_MORE_RESULTS" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d05-replan-offtarget",
+    "rules" : [ "prerequisites", "replan_offtarget" ],
+    "referencePassed" : true,
+    "passed" : 2,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "PLAN_PROTOCOL",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮实际采集结果不是全部不对口，任务前提不成立"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AGENT_PLAN_MISMATCH" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认你有哪些简历及各自方向，选出用于本次找实习的简历\"},{\"tool\":\"get_resume\",\"purpose\":\"读取所选简历正文，识别有证据支持的技能与项目方向\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗天数、最早到岗日期与地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在杭州按简历方向采集实习岗位列表（1 页）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用所选简历对本批采集到的岗位粗排，筛出对口候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位核实真实完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文，核对学历、实习时长、每周到岗天数、技术栈与职责要求\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交通过核实的岗位作为正式推荐\"}]} => ok", "turn=0 list_resumes {} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "turn=0 list_resumes {} => ok", "turn=0 get_resume {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"resumeId\":11,\"city\":\"杭州\",\"jobType\":\"实习\",\"keyword\":\"AI 应用开发\",\"collectionExperience\":\"在校生\",\"page\":1} => INVALID_ARGUMENTS", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"jobType\":\"实习\",\"keyword\":\"AI 应用开发\",\"experience\":\"不限\",\"maxPages\":1} => AGENT_PLAN_MISMATCH", "turn=0 submit_plan {\"steps\":[{\"purpose\":\"用修正后的参数（keyword、city、jobType、experience、maxPages）在杭州采集 AI 应用开发实习岗位，maxPages=1\",\"tool\":\"collect_boss_jobs\"},{\"purpose\":\"用简历 11 对本批 jobIds 粗排，挑出方向相符的候选\",\"tool\":\"rank_jobs_for_resume\"},{\"purpose\":\"核实靠前候选的真实完整 JD\",\"tool\":\"verify_boss_job\"},{\"purpose\":\"读取完整 JD 正文核对硬条件\",\"tool\":\"get_job\"},{\"purpose\":\"提交通过核实的正式推荐\",\"tool\":\"submit_recommendations\"}]} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"jobType\":\"实习\",\"keyword\":\"AI 应用开发\",\"experience\":\"不限\",\"maxPages\":1} => JOB_SEARCH_BUDGET", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"大模型应用开发\",\"maxPages\":1} => AGENT_PLAN_MISMATCH", "states=[FAILED] errors=[AGENT_PLAN_MISMATCH]", "final=无法继续执行当前计划，保留已获得的结果" ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d06-education-required",
+    "rules" : [ "gate_excluded:education", "submit_accepted", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : false,
+        "reason" : "提交了未经 verify_boss_job 核实完整 JD 的岗位（即使服务端已拒绝）"
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=RAG 检索增强,city=杭州,experience=在校生" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你的简历，按大模型应用方向选定一份\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认大模型/AI 应用相关的技能与项目证据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的到岗时间、实习时长、每周天数与地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"去 BOSS 只读采集杭州的大模型应用实习岗位列表（实习、在校生、经验不限）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批采集到的岗位粗排，筛出对口候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位抓取完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文，核对学历、技术栈、实习时长等硬条件\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交通过核实的岗位作为正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"大模型应用\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103],\"limit\":5} => ok", "turn=0 verify_boss_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "turn=0 get_job {\"jobId\":102} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"RAG 检索增强\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"LangChain\",\"maxPages\":1} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":102,\"reason\":\"岗位方向与你在《AI 应用开发实习简历》中的 FastAPI + LangChain + Milvus 的 RAG 项目最接近，列表标签显示每周 4 天、6 个月，与你已填写的每周 4 天、可实习 6 个月吻合；但完整 JD 尚未读取成功，需要向 HR 核实学历与技术栈细节。\",\"evidence\":\"在校/应届、4天/周、6个月、RAG\"}]} => ok", "未录制条件: keyword=RAG 检索增强,city=杭州,experience=在校生", "states=[COMPLETED] errors=[]", "final=本轮没有通过完整 JD 与原文证据验收的正式推荐。\n待核实岗位：\nRAG 平台开发实习：尚无 FULL JD，请先核实" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "不满足学历硬门槛的岗位通过了正式验收"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : false,
+        "reason" : "提交了未经 verify_boss_job 核实完整 JD 的岗位（即使服务端已拒绝）"
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你的简历列表，挑出大模型方向且最新的版本\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认大模型相关技能与项目证据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的到岗时间、实习月数、每周天数与地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按简历方向在杭州采集大模型应用实习岗位列表（实习、在校生、1 页）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批岗位粗排，挑出方向相符的靠前候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对靠前候选升级为完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文，核对学历、实习时长、每周天数与技术栈\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交正式推荐并确认硬条件校验结果\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"大模型应用\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103],\"limit\":3} => ok", "turn=0 verify_boss_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "turn=0 get_job {\"jobId\":102} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":101,\"reason\":\"岗位方向是检索增强与工具调用应用研发，与你简历中 FastAPI+LangChain 的 RAG 问答助手、function calling 批改 Agent 项目直接对应；实习期至少 6 个月、每周至少 4 天，与你可实习 6 个月、每周 4 天及 2026-11-16 到岗吻合，且公司在余杭区梦想小镇，靠近你偏好的余杭区。需注意 JD 写明硕士及以上在读，你是本科在读。\",\"evidence\":\"实习安排：实习期至少 6 个月，每周至少 4 天到岗。\"},{\"jobId\":102,\"reason\":\"RAG 平台开发实习，标签为在校/应届、4天/周、6个月、RAG，与你 LangChain + Milvus 的检索增强项目经验及可实习条件表面吻合，但仅拿到搜索列表摘要，完整 JD 尚未核实。\",\"evidence\":\"在校/应届、4天/周、6个月、RAG\"}]} => ok", "turn=0 check_job_preferences {\"jobId\":101} => ok", "states=[COMPLETED] errors=[]", "final=通过验收的岗位：\n1. 大模型应用研发实习生｜深澜研究院｜杭州·余杭区·梦想小镇\n推荐理由：岗位方向是检索增强与工具调用应用研发，与你简历中 FastAPI+LangChain 的 RAG 问答助手、function calling 批改 Agent 项目直接对应；实习期至少 6 个月、每周至少 4 天，与你可实习 6 个月、每周 4 天及 2026-11-16 到岗吻合，且公司在余杭区梦想小镇，靠近你偏好的余杭区。需注意 JD 写明硕士及以上在读，你是本科在读。\nJD 原文证据：「实习安排：实" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "不满足学历硬门槛的岗位通过了正式验收"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=大模型应用,city=杭州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你有哪些简历，判断是否有大模型/AI 应用方向的版本\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周天数、到岗时间和地区偏好，作为硬条件\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认大模型相关技能与项目，用于确定关键词和判断证据\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在杭州按大模型应用方向、实习类型采集 BOSS 岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批采集到的 jobIds 做粗排，挑出方向相符的靠前岗位\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对靠前且方向相符的少量岗位抓取真实完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取升级后的 FULL JD 正文，核对学历、技术栈、实习要求\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"按完整 JD 证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"大模型应用\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"AI应用开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[104,105,106],\"limit\":3} => ok", "turn=0 verify_boss_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => JOB_SEARCH_BUDGET", "turn=0 get_job {\"jobId\":105} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":104,\"reason\":\"方向与你的简历高度一致：JD 做检索增强与工具调用方向应用研发，对应你 RAG 问答助手与 function calling Agent 项目；实习期至少 6 个月、每周至少 4 天到岗，与你填写的 6 个月/4 天吻合。但 JD 写明硕士及以上学历，你是本科在读，这是明显门槛风险。\",\"evidence\":\"1. 学历要求：硕士研究生及以上学历，计算机、人工智能或相关专业在读；2. 熟悉 Python 与 PyTorch，读过检索增强生成相关论文\"}]} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"evidence\":\"参与大模型检索增强与工具调用方向的应用研发，复现并改进前沿方法\",\"jobId\":104,\"reason\":\"方向与你的简历一致：检索增强与工具调用，对应你的 RAG 问答助手（Milvus+重排）和 function calling Agent 项目；实习期至少 6 个月、每周至少 4 天与你的条件吻合。需注意 JD 写明硕士及以上学历，你是本科在读。\"}]} => ok", "未录制条件: keyword=大模型应用,city=杭州,experience=不限", "states=[COMPLETED] errors=[]", "final=通过验收的岗位：\n1. 大模型应用研发实习生｜深澜研究院｜杭州·余杭区·梦想小镇\n推荐理由：方向与你的简历一致：检索增强与工具调用，对应你的 RAG 问答助手（Milvus+重排）和 function calling Agent 项目；实习期至少 6 个月、每周至少 4 天与你的条件吻合。需注意 JD 写明硕士及以上学历，你是本科在读。\nJD 原文证据：「参与大模型检索增强与工具调用方向的应用研发，复现并改进前沿方法」\n仍需确认：最早到岗日期需与 HR 确认" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d07-education-preferred",
+    "rules" : [ "preferred_accepted:education", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 2,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : false,
+        "reason" : "学历只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认你有哪些简历，按 RAG/AI 方向选一份\"},{\"tool\":\"get_resume / get_job_search_preferences\",\"purpose\":\"读取选定简历正文与你填写的实习时长、每周到岗天数、到岗时间与地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在杭州按 RAG 方向采集实习岗位列表（city=杭州，jobType=实习，experience=在校生）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批岗位粗排，筛出方向相符的候选\"},{\"tool\":\"verify_boss_job + get_job\",\"purpose\":\"对靠前且方向相符的少数岗位核实完整 JD\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交正式推荐，只保留通过核实与硬条件检查的岗位\"}]} => AGENT_PLAN_INVALID", "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认你有哪些简历，按 RAG/AI 方向选一份\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，找出 RAG、检索、大模型相关的技能与项目\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗天数、到岗时间与地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在杭州按 RAG 方向采集实习岗位列表（city=杭州，jobType=实习，experience=在校生），先采 1 页\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本次采到的岗位粗排，筛出方向相符的候选\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"核实靠前岗位完整 JD 后提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"jobType\":\"实习\",\"keyword\":\"RAG\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103]} => ok", "turn=0 verify_boss_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "turn=0 get_job {\"jobId\":102} => ok", "turn=0 check_job_preferences {\"jobId\":101} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":101,\"reason\":\"知衡科技 RAG 检索工程实习，职责是法律文书检索的召回与重排、检索效果评测和 FastAPI 封装检索服务，与你在《AI 应用开发实习简历》中 FastAPI + LangChain 搭 RAG、Milvus 向量检索、引入重排把引用准确率从 71% 提到 86% 的经历高度对口。JD 写明实习至少 6 个月、每周至少 4 天，与你填写的 6 个月、4 天/周一致；到岗日期需向 HR 确认。岗位在西湖区，不是你优先的余杭区。\",\"evidence\":\"实习安排：实习期至少 6 个月，每周至少 4 天到岗；3. 做过 RAG 项目，能说明如何评估检索质量\"}]} => ok", "states=[COMPLETED] errors=[]", "final=本轮没有通过完整 JD 与原文证据验收的正式推荐。\n待核实岗位：\nRAG 检索工程实习：引用片段不在已入库的 JD 原文中" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d08-experience-required",
+    "rules" : [ "gate_excluded:experience", "submit_accepted", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 1,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"AI 应用开发\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103]} => ok", "turn=0 verify_boss_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "turn=0 get_job {\"jobId\":102} => ok", "turn=0 collect_boss_jobs {\"keyword\":\"大模型应用\",\"maxPages\":1} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 1 个。\n本轮搜索已跑完，结果如实汇报：**这次还没能给你一个“已核实合格”的正式推荐**，原因如下。\n\n## 搜索覆盖\n- 条件：杭州、实习、在校生，按你的《AI 应用开发实习简历》推断方向\n- 已跑两组关键词：「AI 应用开发」「大模型应用」，各读 1 页\n- 去重后只有 **3 条候选**，补搜没有新增岗位（同一个岗位反复出现）\n\n## 候选情况\n\n| 岗位 | 公司/地点 | 核实状态 | 判断 |\n|--" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : false,
+        "reason" : "提交了未经 verify_boss_job 核实完整 JD 的岗位（即使服务端已拒绝）"
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "未录制条件: keyword=LangChain RAG,city=杭州,experience=在校生" ],
+      "transcriptSummary" : [ "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"AI 应用开发\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"LangChain RAG\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"大模型应用开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[104,105,106],\"limit\":5} => ok", "turn=0 verify_boss_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => JOB_SEARCH_BUDGET", "turn=0 get_job {\"jobId\":105} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":105,\"reason\":\"禾木智能的 AI 应用开发实习生，与你《AI 应用开发实习简历》中 Python、LangChain/RAG 项目方向一致；列表摘要显示在校/应届可投、4天/周、6个月，与你每周 4 天、可实习 6 个月的条件吻合，但完整 JD 尚未核实，需向 HR 确认细节。\",\"evidence\":\"在校/应届、4天/周、6个月、Python\"}]} => ok", "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "未录制条件: keyword=LangChain RAG,city=杭州,experience=在校生", "states=[COMPLETED] errors=[]", "final=本轮没有通过完整 JD 与原文证据验收的正式推荐。\n待核实岗位：\nAI 应用开发实习生：尚无 FULL JD，请先核实" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d09-experience-preferred",
+    "rules" : [ "preferred_accepted:experience", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 2,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : false,
+        "reason" : "经验只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 submit_plan {\"steps\":[{\"tool\":\"get_resume\",\"purpose\":\"读取《AI 应用开发实习简历》正文，确认 LLM/RAG 相关技能与项目证据，确定搜索方向\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 采集杭州 LLM 应用开发实习岗位列表（实习、在校生、1 页）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用简历对该批 jobIds 粗排，挑出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位核实完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取核实后的完整 JD 正文，核对学历、实习时长、每周天数与技术栈要求\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"以逐字 JD 证据提交正式推荐\"}]} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"LLM 应用开发\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103],\"limit\":10} => ok", "turn=0 verify_boss_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "turn=0 get_job {\"jobId\":102} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":101,\"reason\":\"职责是教育场景 LLM 应用研发、Prompt/少样本设计、Python 服务上线，与你《AI 应用开发实习简历》中的 RAG 问答助手（FastAPI+LangChain+Milvus）和 function calling 批改 Agent 项目直接对口；JD 写明本科在读、熟悉 Python 与大模型框架，你均满足；实习期至少 6 个月、每周至少 4 天与你填写的可用 6 个月、每周 4 天一致，地点余杭区也符合你的偏好。唯一缺口是“有 AI 应用企业实习经历者优先”，属优先项而非硬性门槛。\",\"evidence\":\"实习安排：实习期至少 6 个月，每周至少 4 天到岗；1. 本科及以上学历，计算机、人工智能相关专业在读\"}]} => INVALID_ARGUMENTS", "turn=0 submit_recommendations {\"recommendations\":[{\"evidence\":\"实习安排：实习期至少 6 个月，每周至少 4 天到岗；1. 本科及以上学历，计算机、人工智能相关专业在读\",\"jobId\":101,\"reason\":\"职责为教育场景 LLM 应用研发、Prompt 设计与 Python 服务上线，与你简历中的 RAG 问答助手、function calling 批改 Agent 项目直接对口；JD 要求本科在读、熟悉 Python 与大模型框架，你满足；至少 6 个月、每周 4 天与你填写条件一致。缺口：企业实习经历仅为优先项。\"}]} => ok", "states=[COMPLETED] errors=[]", "final=本轮没有通过完整 JD 与原文证据验收的正式推荐。\n待核实岗位：\nLLM 应用开发实习生：引用片段不在已入库的 JD 原文中" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a01-prereq-verified-submit",
+    "rules" : [ "prerequisites", "no_listing_as_full", "submit_accepted" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=前端,city=广州,experience=不限" ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a02-inherit-two-turns",
+    "rules" : [ "inherit_filters" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED", "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED", "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED", "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a03-stop-login",
+    "rules" : [ "stop_on_signal:BOSS_NOT_LOGGED_IN" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a04-stop-first-page",
+    "rules" : [ "stop_on_signal:NO_MORE_RESULTS" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认你的简历版本与前端方向\"},{\"tool\":\"get_resume\",\"purpose\":\"读取简历正文，确定有事实依据的前端方向与技能关键词\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的到岗时间、每周天数、实习月数和地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"第一轮：广州 + 前端 + 实习，采集 1 页列表摘要\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对这批岗位粗排，判断相关度\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"换下一个前端细分关键词再补搜一轮，扩大候选池\"}]} => AGENT_PLAN_INVALID", "turn=0 list_resumes {} => AGENT_PLAN_INVALID", "turn=0 get_job_search_preferences {} => AGENT_PLAN_INVALID", "turn=0 submit_plan {\"steps\":[{\"purpose\":\"确认你的简历版本与前端方向\",\"tool\":\"list_resumes\"},{\"purpose\":\"读取简历正文，确定有事实依据的前端方向与技能关键词\",\"tool\":\"get_resume\"},{\"purpose\":\"读取你填写的到岗时间、每周天数、实习月数和地区偏好\",\"tool\":\"get_job_search_preferences\"},{\"purpose\":\"第一轮：广州 + 前端 + 实习，采集 1 页列表摘要\",\"tool\":\"collect_boss_jobs\"},{\"purpose\":\"用选定简历对这批岗位粗排，判断相关度\",\"tool\":\"rank_jobs_for_resume\"},{\"purpose\":\"换下一个前端细分关键词再补搜一轮，扩大候选池\",\"tool\":\"collect_boss_jobs\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":23} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"keyword\":\"前端\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : false,
+        "reason" : "没有观察到 NO_MORE_RESULTS 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : false,
+        "reason" : "没有观察到 NO_MORE_RESULTS 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a05-replan-offtarget",
+    "rules" : [ "prerequisites", "replan_offtarget" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮实际采集结果不是全部不对口，任务前提不成立"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮实际采集结果不是全部不对口，任务前提不成立"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮实际采集结果不是全部不对口，任务前提不成立"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a06-education-required",
+    "rules" : [ "gate_excluded:education", "submit_accepted", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a07-education-preferred",
+    "rules" : [ "preferred_accepted:education", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : false,
+        "reason" : "学历只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : false,
+        "reason" : "学历只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : false,
+        "reason" : "学历只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a08-experience-required",
+    "rules" : [ "gate_excluded:experience", "submit_accepted", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a09-experience-preferred",
+    "rules" : [ "preferred_accepted:experience", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : false,
+        "reason" : "经验只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : false,
+        "reason" : "经验只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : false,
+        "reason" : "经验只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  } ]
+}
