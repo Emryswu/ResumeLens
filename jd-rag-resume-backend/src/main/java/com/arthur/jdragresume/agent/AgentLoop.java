@@ -49,6 +49,11 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class AgentLoop {
     private static final Logger log = LoggerFactory.getLogger(AgentLoop.class);
+    /**
+     * Per-turn chances to fix a plan protocol slip (a malformed plan, a plan sent alongside tools, a call that is
+     * not the next plan step). The slipped calls are closed unexecuted with a hint, so a correction never runs a tool.
+     */
+    static final int MAX_PROTOCOL_CORRECTIONS = 2;
 
     static final String SYSTEM_PROMPT = """
             你是 ResumeLens 的求职助手，帮助用户理解自己的简历与职位库的匹配情况。
@@ -211,6 +216,7 @@ public class AgentLoop {
         AgentPlan plan = null;
         int cursor = 0;
         boolean needsReplan = false;
+        int corrections = 0;
         boolean summaryReady = false;
         try {
             // An approval may have expired or been cancelled while waiting in the executor queue.
@@ -325,7 +331,14 @@ public class AgentLoop {
                 }
                 if (reply.toolCalls().stream().anyMatch(call -> AgentPlan.TOOL.equals(call.name()))) {
                     if (reply.toolCalls().size() != 1 || (plan != null && !needsReplan && !relevanceReplan)) {
-                        closeCalls(reply, transcript, "AGENT_PLAN_INVALID", "计划必须单独提交，且仅在失败、空结果或求职排序全不对口后重规划");
+                        String reason = "计划必须单独提交，且仅在失败、空结果或求职排序全不对口后重规划";
+                        if (corrections < MAX_PROTOCOL_CORRECTIONS) {
+                            corrections++;
+                            modelBudget++;
+                            closeCalls(reply, transcript, "AGENT_PLAN_INVALID", reason + "。本次调用均未执行，请修正后重试");
+                            continue;
+                        }
+                        closeCalls(reply, transcript, "AGENT_PLAN_INVALID", reason);
                         throw new BusinessException("AGENT_PLAN_INVALID", "计划提交顺序无效");
                     }
                     AgentMessage.ToolCall call = reply.toolCalls().getFirst();
@@ -338,6 +351,12 @@ public class AgentLoop {
                         if (plan != null) replans++;
                         plan = nextPlan;
                     } catch (BusinessException ex) {
+                        if (corrections < MAX_PROTOCOL_CORRECTIONS) {
+                            corrections++;
+                            modelBudget++;
+                            closeCalls(reply, transcript, ex.getCode(), ex.getMessage() + "。计划未采纳，请修正后重新提交");
+                            continue;
+                        }
                         closeCalls(reply, transcript, ex.getCode(), ex.getMessage());
                         throw ex;
                     }
@@ -355,23 +374,39 @@ public class AgentLoop {
                                 || "verify_boss_job".equals(reply.toolCalls().getFirst().name())
                                 || "check_job_preferences".equals(reply.toolCalls().getFirst().name())));
                 if (plan != null && !recommendationOverride
-                        && (needsReplan || cursor >= plan.steps().size() || reply.toolCalls().size() != 1
-                        || !reply.toolCalls().getFirst().name().equals(plan.steps().get(cursor).tool()))) {
+                        && (needsReplan || !followsPlan(reply.toolCalls(), plan, cursor))) {
                     String code = needsReplan && replans >= properties.getMaxReplans() ? "AGENT_REPLAN_LIMIT" : "AGENT_PLAN_MISMATCH";
+                    if ("AGENT_PLAN_MISMATCH".equals(code) && corrections < MAX_PROTOCOL_CORRECTIONS) {
+                        corrections++;
+                        modelBudget++;
+                        closeCalls(reply, transcript, code, planCorrection(plan, cursor, needsReplan));
+                        continue;
+                    }
                     closeCalls(reply, transcript, code, "只能执行当前计划步骤，失败后须重规划或回答");
                     return fail(sink, transcript, steps, "AGENT_REPLAN_LIMIT".equals(code) ? State.REPLAN_LIMIT : State.FAILED,
                             code, "无法继续执行当前计划，保留已获得的结果");
                 }
                 PendingConfirmation gate = null;
                 BrowserTaskEvent browserGate = null;
-                for (AgentMessage.ToolCall call : reply.toolCalls()) {
+                List<AgentMessage.ToolCall> calls = reply.toolCalls();
+                for (int position = 0; position < calls.size(); position++) {
+                    AgentMessage.ToolCall call = calls.get(position);
                     requireActive(deadline, cancelled);
                     if (transcript.remainingSteps() == 0) {
-                        for (int index = reply.toolCalls().indexOf(call); index < reply.toolCalls().size(); index++) {
-                            var omitted = reply.toolCalls().get(index);
+                        for (int index = position; index < calls.size(); index++) {
+                            var omitted = calls.get(index);
                             transcript.add(AgentMessage.tool(omitted.id(), ToolEnvelope.error(omitted.name(), "AGENT_STEP_LIMIT", "执行步数已达上限，未执行")));
                         }
                         return finishAtLimit(sink, transcript, steps, system, deadline, cancelled, options, context);
+                    }
+                    // A batch of consecutive plan steps runs only while each earlier step finished with data.
+                    if (plan != null && position > 0 && (needsReplan || gate != null || browserGate != null)) {
+                        for (int index = position; index < calls.size(); index++) {
+                            var skipped = calls.get(index);
+                            transcript.add(AgentMessage.tool(skipped.id(), ToolEnvelope.error(skipped.name(), "AGENT_PLAN_STEP_SKIPPED",
+                                    "未执行：前一个计划步骤失败、结果为空或正在等待确认，需先处理")));
+                        }
+                        break;
                     }
                     transcript.usedSteps++;
                     AgentTool tool = registry.find(call.name()).orElse(null);
@@ -635,6 +670,26 @@ public class AgentLoop {
             return !arrays.isEmpty() && arrays.stream().allMatch(JsonNode::isEmpty);
         }
         return false;
+    }
+
+    /** The calls must be the next plan steps, in plan order; a single call is the common case. */
+    static boolean followsPlan(List<AgentMessage.ToolCall> calls, AgentPlan plan, int cursor) {
+        if (calls.isEmpty() || cursor + calls.size() > plan.steps().size()) return false;
+        for (int index = 0; index < calls.size(); index++) {
+            if (!calls.get(index).name().equals(plan.steps().get(cursor + index).tool())) return false;
+        }
+        return true;
+    }
+
+    private String planCorrection(AgentPlan plan, int cursor, boolean needsReplan) {
+        if (needsReplan) {
+            return "本次调用均未执行。上一步失败或结果为空：请调用 submit_plan 重规划剩余步骤，或直接根据已有结果回答";
+        }
+        if (cursor >= plan.steps().size()) {
+            return "本次调用均未执行。计划步骤已全部完成：请根据已有结果回答，求职场景要推荐岗位时调用 submit_recommendations";
+        }
+        return "本次调用均未执行。当前应执行计划第 " + (cursor + 1) + " 步：" + objectMapper.valueToTree(plan.steps().get(cursor))
+                + "。可以单独调用这一步，也可以按计划顺序一次调用接下来连续的几步";
     }
 
     private static void closeCalls(AgentModel.Reply reply, List<AgentMessage> transcript, String code, String message) {
