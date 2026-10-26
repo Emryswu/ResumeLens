@@ -1,0 +1,1144 @@
+{
+  "evalVersion" : "v2",
+  "timestampUtc" : "2026-10-26T10:33:13.039737200Z",
+  "commitSha" : "4aa9eb58928a8dfeb83b6c1b5865d05151627988",
+  "targetBusinessSha" : "c1c80c5ace3314de34949fd74e061dea8bb20990",
+  "modelId" : "deepseek-flash",
+  "slot" : "baseline",
+  "status" : "completed",
+  "acceptanceDigest" : "0b11fd025bc58d6bd130af5883419e020705c70f627915908cc9020cd7e9d351",
+  "repetitionsPerTask" : 3,
+  "failureCategories" : {
+    "STEP_LIMIT" : 1,
+    "RULE_VIOLATION" : 21,
+    "SNAPSHOT_MISSING" : 1,
+    "PLAN_PROTOCOL" : 0,
+    "OTHER" : 0
+  },
+  "checkSummary" : {
+    "dev" : {
+      "gate_excluded:education" : {
+        "passed" : 1,
+        "total" : 3
+      },
+      "gate_excluded:experience" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "inherit_filters" : {
+        "passed" : 1,
+        "total" : 3
+      },
+      "no_listing_as_full" : {
+        "passed" : 15,
+        "total" : 15
+      },
+      "preferred_accepted:education" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "preferred_accepted:experience" : {
+        "passed" : 2,
+        "total" : 3
+      },
+      "prerequisites" : {
+        "passed" : 6,
+        "total" : 6
+      },
+      "replan_offtarget" : {
+        "passed" : 1,
+        "total" : 3
+      },
+      "stop_on_signal:BOSS_NOT_LOGGED_IN" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "stop_on_signal:NO_MORE_RESULTS" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "submit_accepted" : {
+        "passed" : 3,
+        "total" : 9
+      }
+    },
+    "acceptance" : {
+      "gate_excluded:education" : {
+        "passed" : 2,
+        "total" : 3
+      },
+      "gate_excluded:experience" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "inherit_filters" : {
+        "passed" : 1,
+        "total" : 3
+      },
+      "no_listing_as_full" : {
+        "passed" : 15,
+        "total" : 15
+      },
+      "preferred_accepted:education" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "preferred_accepted:experience" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "prerequisites" : {
+        "passed" : 6,
+        "total" : 6
+      },
+      "replan_offtarget" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "stop_on_signal:BOSS_NOT_LOGGED_IN" : {
+        "passed" : 3,
+        "total" : 3
+      },
+      "stop_on_signal:NO_MORE_RESULTS" : {
+        "passed" : 2,
+        "total" : 3
+      },
+      "submit_accepted" : {
+        "passed" : 4,
+        "total" : 9
+      }
+    }
+  },
+  "tasks" : [ {
+    "group" : "dev",
+    "taskId" : "d01-prereq-verified-submit",
+    "rules" : [ "prerequisites", "no_listing_as_full", "submit_accepted" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=AI应用开发,city=杭州,experience=不限", "未录制条件: keyword=大模型应用开发,city=杭州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"jobType\":\"实习\",\"experience\":\"不限\",\"keyword\":\"AI应用开发\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"keyword\":\"大模型应用开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103],\"limit\":10} => ok", "未录制条件: keyword=AI应用开发,city=杭州,experience=不限", "未录制条件: keyword=大模型应用开发,city=杭州,experience=不限", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 0 个。\n## 结论：这轮没有可推荐的岗位\n\n两次采集都没有拿到 AI 相关岗位，因此我不会把这几条当作推荐给你。\n\n**这次采集到了什么**\n\n| 关键词 | 城市 | 采到 | 结果 |\n|---|---|---|---|\n| AI应用开发 | 杭州 | 3 条 | 门店导购（兼职）、仓储物流专员、电话销售代表 |\n| 大模型应用开发 | 杭州 | 3 条 | 与上一次**完全相同**的 3 条 |\n\n按你的《" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "未录制条件: keyword=大模型应用开发,city=杭州,experience=不限", "未录制条件: keyword=Python 后端,city=杭州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你的简历，判断应聘方向\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周天数、到岗时间和地区偏好\"},{\"tool\":\"get_resume\",\"purpose\":\"读取所选简历正文，确定有证据支持的搜索关键词\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按简历方向在杭州采集实习岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"对本批采集到的岗位按你的简历粗排\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位抓取完整 JD 核实硬条件\"},{\"tool\":\"get_job\",\"purpose\":\"读取已核实岗位的完整正文与证据\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交正式推荐并核对硬条件\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"AI 应用开发\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"大模型应用开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103],\"limit\":10} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"Python 后端\",\"maxPages\":1} => ok", "turn=0 search_jobs {\"keyword\":\"AI\",\"page\":0} => ok", "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "未录制条件: keyword=大模型应用开发,city=杭州,experience=不限", "未录制条件: keyword=Python 后端,city=杭州,experience=不限", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 0 个。\n**结论：这一轮没有可推荐的杭州实习岗位，因此我没有提交正式推荐，也不会拿不相关的岗位来凑数。**\n\n**执行情况（按你的《AI 应用开发实习简历》推断方向：Python / FastAPI / LangChain / RAG / Milvus）**\n\n| 项目 | 结果 |\n|---|---|\n| 采集条件 | 杭州 · 实习 · 经验不限 |\n| 已尝试关键词 | AI 应用开发、大模型应用开发、Py" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "未录制条件: keyword=大模型应用开发,city=杭州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"jobType\":\"实习\",\"experience\":\"不限\",\"keyword\":\"AI 应用开发\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"大模型应用开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103],\"limit\":3} => ok", "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "未录制条件: keyword=大模型应用开发,city=杭州,experience=不限", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 0 个。\n**结论：这轮没找到可以直接推荐给你的岗位，因此我不提交正式推荐。** 采到的 3 条全部与 AI 应用开发无关，按规则不能凑数推荐。\n\n**本轮搜索情况**\n- 方向依据：按你的《AI 应用开发实习简历》推断（Python、FastAPI、LangChain、RAG、Milvus）。\n- 范围：杭州 · 实习 · 关键词「AI 应用开发」「大模型应用开发」各 1 页，共读 2 页，去重后 3 条候选。\n" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d02-inherit-two-turns",
+    "rules" : [ "inherit_filters" ],
+    "referencePassed" : true,
+    "passed" : 1,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : false,
+        "reason" : "不是每次到达采集器的搜索都保持 city=杭州、experience=在校生，或缺少首轮/后续轮的实际搜索"
+      } ],
+      "turnStates" : [ "COMPLETED", "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "未录制条件: keyword=大模型,city=杭州,experience=不限", "未录制条件: keyword=Agent,city=杭州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"AI 应用开发\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"大模型\",\"maxPages\":1} => ok", "turn=1 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"Agent\",\"maxPages\":1} => ok", "turn=1 search_jobs {\"keyword\":\"Agent\"} => ok", "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "未录制条件: keyword=大模型,city=杭州,experience=不限", "未录制条件: keyword=Agent,city=杭州,experience=不限", "states=[COMPLETED, COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 0 个。\n## 结论\n偏 Agent 方向这次仍然是**零可用岗位**：第三次采集（关键词“Agent”）返回的依旧是那 3 条无关岗位，新增 0 条。我判断这不是关键词选得不对，而是**采集链路本身没有按关键词返回真实结果**。\n\n## 三轮采集记录\n\n| 关键词 | 城市、类型、经验 | 返回结果 | 新增 |\n|---|---|---|---|\n| AI 应用开发 | 杭州、实习、不限 | 门店导购(兼职)、" ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED", "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : false,
+        "reason" : "不是每次到达采集器的搜索都保持 city=杭州、experience=在校生，或缺少首轮/后续轮的实际搜索"
+      } ],
+      "turnStates" : [ "COMPLETED", "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"读取你的简历列表，选出与 AI 应用开发方向匹配的版本\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗天数、到岗时间和地区偏好，作为后续核对的硬条件\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，了解技能与项目，确定有依据的搜索方向\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按简历方向在杭州采集 AI 应用开发方向的实习岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批采集到的岗位粗排，筛出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对靠前且方向相符的岗位抓取完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文，核对学历、实习时长、每周到岗天数与技术栈\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"带 JD 逐字证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"AI 应用开发\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"大模型应用\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103,104,105,106,107],\"limit\":7} => ok", "turn=0 verify_boss_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 verify_boss_job {\"jobId\":106} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => JOB_SEARCH_BUDGET", "turn=0 check_job_preferences {\"jobId\":104} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":104,\"reason\":\"岗位做企业知识库 RAG 检索链路与 FastAPI 服务开发，和你《AI 应用开发实习简历》中校园政策问答助手（FastAPI + LangChain + Milvus 重排，准确率 71%→86%）高度对口；每周 4 天、6 个月与你填写的到岗条件相符，地点在余杭区未来科技城，正是你偏好的区域。\",\"evidence\":\"1. 参与企业知识库问答产品的 RAG 检索链路开发，包括文档切分、向量召回与重排\"}]} => ok", "turn=1 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"Agent 开发\",\"maxPages\":1} => ok", "turn=1 rank_jobs_for_resume {\"jobIds\":[108,109,110],\"limit\":3,\"resumeId\":11} => ok", "turn=1 verify_boss_job {\"jobId\":108} => ok", "turn=1 get_job {\"jobId\":108} => ok", "turn=1 verify_boss_job {\"jobId\":109} => ok", "turn=1 get_job {\"jobId\":109} => ok", "turn=1 check_job_preferences {\"jobId\":108} => ok", "turn=1 check_job_preferences {\"jobId\":109} => ok", "turn=1 list_job_applications {} => ok", "turn=1 submit_recommendations {\"recommendations\":[{\"evidence\":\"1. 参与面向电商客服的多工具 Agent 开发，负责工具定义、调用编排与异常回退\",\"jobId\":108,\"reason\":\"多工具 Agent 开发、工具调用编排与轨迹评测，与你《AI 应用开发实习简历》中课程作业批改 Agent（function calling 编排 4 个工具，6 分钟降到 40 秒）直接对口；每周 4 天、至少 6 个月与你填写条件相符，地点在余杭区仓前。\"},{\"evidence\":\"2. 熟悉 Python 和 FastAPI，了解 RESTful 接口设计\",\"jobId\":109,\"reason\":\"智能体编排平台后端开发，用 FastAPI 写接口与单测，对应你简历中 FastAPI + LangChain 服务开发与工具编排经验；要求至少 5 个月、每周 4 天均满足，仅地点在滨江区，不是你优先的余杭区。\"}]} => ok", "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "states=[COMPLETED, COMPLETED] errors=[]", "final=通过验收的岗位：\n1. Agent 开发实习生｜星衍科技｜杭州·余杭区·仓前\n推荐理由：多工具 Agent 开发、工具调用编排与轨迹评测，与你《AI 应用开发实习简历》中课程作业批改 Agent（function calling 编排 4 个工具，6 分钟降到 40 秒）直接对口；每周 4 天、至少 6 个月与你填写条件相符，地点在余杭区仓前。\nJD 原文证据：「1. 参与面向电商客服的多工具 Agent 开发，负责工具定义、调用编排与异常回退」\n仍需确认：最早到岗日期需与 HR 确认\n2. 智" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d03-stop-login",
+    "rules" : [ "stop_on_signal:BOSS_NOT_LOGGED_IN" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d04-stop-first-page",
+    "rules" : [ "stop_on_signal:NO_MORE_RESULTS" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d05-replan-offtarget",
+    "rules" : [ "prerequisites", "replan_offtarget" ],
+    "referencePassed" : true,
+    "passed" : 1,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮不对口后没有先排序、再换关键词成功补搜（或触发了采集预算拒绝）"
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "未录制条件: keyword=RAG 大模型,city=杭州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"列出你的简历，确定投递方向与使用的版本\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，提取技能与项目方向，确定搜索关键词\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗天数、到岗时间与地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按简历方向在杭州采集实习岗位列表（city=杭州、jobType=实习）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批采集到的岗位做粗排\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位核实完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取核实后的完整 JD 正文与证据\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交正式推荐并核对你填写的硬条件\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"AI 应用开发\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"RAG 大模型\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103],\"limit\":5} => ok", "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "未录制条件: keyword=RAG 大模型,city=杭州,experience=不限", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 0 个。\n## 结论：这次在你的本地职位库中没找到对口实习，两轮采集结果都异常\n\n**使用的简历**：《AI 应用开发实习简历》（顾明川，求职意向就是 AI 应用开发实习·杭州）。根据简历，我把搜索方向定为 **AI 应用开发、RAG 大模型**，并据此完成采集；技术栈包括 Python、FastAPI、LangChain、Milvus。\n\n**采集情况**\n| 轮次 | 关键词 | 城市与类型 | 读到页数 | " ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮不对口后没有先排序、再换关键词成功补搜（或触发了采集预算拒绝）"
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "未录制条件: keyword=大模型应用,city=杭州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你的简历列表，判断方向并选定用于找实习的简历\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周天数、到岗时间和地区偏好\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，提炼技能与项目方向\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按简历方向在杭州用实习身份采集 BOSS 岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批采集到的岗位做粗排\"},{\"tool\":\"verify_boss_job / get_job\",\"purpose\":\"对排名靠前且方向相符的岗位核实完整 JD\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交带 JD 证据的正式推荐\"}]} => AGENT_PLAN_INVALID", "turn=0 submit_plan {\"steps\":[{\"purpose\":\"查看你的简历列表，判断方向并选定用于找实习的简历\",\"tool\":\"list_resumes\"},{\"purpose\":\"读取你填写的实习时长、每周天数、到岗时间和地区偏好\",\"tool\":\"get_job_search_preferences\"},{\"purpose\":\"读取选定简历正文，提炼技能与项目方向\",\"tool\":\"get_resume\"},{\"purpose\":\"按简历方向在杭州以实习身份采集 BOSS 岗位列表\",\"tool\":\"collect_boss_jobs\"},{\"purpose\":\"用选定简历对本批采集到的岗位做粗排\",\"tool\":\"rank_jobs_for_resume\"},{\"purpose\":\"对排名靠前且方向相符的岗位核实完整 JD 并读取正文\",\"tool\":\"verify_boss_job\"},{\"purpose\":\"提交带 JD 证据的正式推荐\",\"tool\":\"submit_recommendations\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"jobType\":\"实习\",\"keyword\":\"AI 应用开发\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"大模型应用\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103],\"limit\":10} => ok", "未录制条件: keyword=AI 应用开发,city=杭州,experience=不限", "未录制条件: keyword=大模型应用,city=杭州,experience=不限", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 0 个。\n## 结论：这次没能在 BOSS 上找到合适的实习岗位，暂时不能为你推荐\n\n**我采用的判断依据**：你只有一份简历《AI 应用开发实习简历》（顾明川），方向是 AI 应用开发实习，技能为 Python、FastAPI、LangChain、RAG、Milvus、Prompt 设计、Docker。你的求职条件是实习 6 个月、每周 4 天、最早 2026-11-16 到岗，偏好余杭区（只是偏好，不是硬性条件" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d06-education-required",
+    "rules" : [ "gate_excluded:education", "submit_accepted", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "SNAPSHOT_MISSING",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=大模型应用,city=杭州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"列出你的简历，选出与大模型/AI 应用方向匹配的版本\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗天数、到岗时间和地区偏好\"},{\"tool\":\"get_resume\",\"purpose\":\"读取所选简历正文，确认技能与项目证据\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 采集杭州的大模型应用方向实习岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"对本次采集到的岗位按你的简历粗排\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位抓取完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文，核对学历、实习时长、技术栈等条件\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"带 JD 逐字证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"大模型应用\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"AI 应用开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103,104,105,106],\"limit\":6} => ok", "turn=0 verify_boss_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => JOB_SEARCH_BUDGET", "turn=0 verify_boss_job {\"jobId\":106} => pending", "未录制条件: keyword=大模型应用,city=杭州,experience=不限", "evaluation exception: EVAL_SNAPSHOT_MISSING: 未录制详情 sourceJobId=d2-hz-pm-19", "states=[FAILED] errors=[]", "final=105 的核实机会已经用掉了（不能重复打开同一详情页），只能停在列表摘要。我再看下排名第三的 106。" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "不满足学历硬门槛的岗位通过了正式验收"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认你的简历，判断是否有大模型/算法方向\"},{\"tool\":\"get_resume\",\"purpose\":\"读取所选简历正文，找出大模型相关技能与项目证据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗天数、到岗日期与偏好地区\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在杭州按大模型应用方向采集实习岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用所选简历给本批采集岗位粗排\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"把靠前且方向相符的岗位升级为完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文核对学历、时长、天数、技术栈等硬条件\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"带 JD 证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"大模型应用\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103],\"limit\":5} => ok", "turn=0 verify_boss_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "turn=0 collect_boss_jobs {\"keyword\":\"RAG\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"keyword\":\"AI 应用开发\",\"maxPages\":1} => ok", "turn=0 check_job_preferences {\"jobId\":101} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":101,\"reason\":\"方向与你的 RAG/工具调用项目经历直接对口，实习期与每周到岗天数也和你的条件一致；但 JD 写明要求硕士在读，你是本科在读，需由你判断是否仍想联系 HR 争取。\",\"evidence\":\"实习安排：实习期至少 6 个月，每周至少 4 天到岗\"}]} => ok", "states=[COMPLETED] errors=[]", "final=通过验收的岗位：\n1. 大模型应用研发实习生｜深澜研究院｜杭州·余杭区·梦想小镇\n推荐理由：方向与你的 RAG/工具调用项目经历直接对口，实习期与每周到岗天数也和你的条件一致；但 JD 写明要求硕士在读，你是本科在读，需由你判断是否仍想联系 HR 争取。\nJD 原文证据：「实习安排：实习期至少 6 个月，每周至少 4 天到岗」\n仍需确认：最早到岗日期需与 HR 确认" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=大模型应用,city=杭州,experience=不限", "未录制条件: keyword=RAG,city=杭州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 submit_plan {\"steps\":[{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按你的《AI 应用开发实习简历》方向，在 BOSS 采集杭州大模型应用/RAG 相关实习岗位列表（experience=不限）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用 resumeId=11 对本批 jobIds 粗排，筛出与大模型应用方向相符的岗位\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"把排名靠前且方向相符的岗位升级为已核实完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取 FULL 正文，核对学历、实习时长、每周到岗天数、技术栈与职责要求\"},{\"tool\":\"check_job_preferences\",\"purpose\":\"对照你填写的 6 个月、每周 4 天、2026-11-16 到岗与余杭区偏好\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"用逐字 JD 证据正式提交推荐，供服务端复核硬条件\"}]} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"jobType\":\"实习\",\"keyword\":\"大模型应用\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"RAG\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103],\"limit\":10} => ok", "未录制条件: keyword=大模型应用,city=杭州,experience=不限", "未录制条件: keyword=RAG,city=杭州,experience=不限", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 0 个。\n## 结论：这一轮没有找到能正式推荐的大模型应用实习\n\n按你的《AI 应用开发实习简历》（Python / FastAPI / LangChain / RAG / Milvus）方向，我在杭州实习条件下搜了两组关键词，采到的岗位都与你的方向不符，所以**没有调用 submit_recommendations 做正式推荐**，也不会把不相关岗位硬凑成推荐。\n\n**实际采集情况**\n\n| 关键词 | 采到 |" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d07-education-preferred",
+    "rules" : [ "preferred_accepted:education", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=RAG,city=杭州,experience=不限" ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d08-experience-required",
+    "rules" : [ "gate_excluded:experience", "submit_accepted", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 2,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"AI 应用开发\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103]} => ok", "turn=0 verify_boss_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "turn=0 get_job {\"jobId\":102} => ok", "turn=0 collect_boss_jobs {\"keyword\":\"大模型应用\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"keyword\":\"RAG\",\"maxPages\":1} => ok", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 1 个。\n**结论：这轮没找到能确认为“合格”的实习岗位 —— 只有 1 个方向对口的候选（禾木智能），但它的完整 JD 没能读取到，所以我没有把它当作正式推荐。**\n\n按你的《AI 应用开发实习简历》（Python / FastAPI / LangChain / RAG / Milvus）在杭州、在校生条件下采集，覆盖情况如下：\n\n**采集覆盖**\n| 采集关键词 | 范围 | 页数 | 结果 |\n|---|--" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d09-experience-preferred",
+    "rules" : [ "preferred_accepted:experience", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 2,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=LLM 应用开发,city=杭州,experience=不限" ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : false,
+        "reason" : "经验只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=LLM 应用开发,city=杭州,experience=不限", "未录制条件: keyword=大模型应用,city=杭州,experience=不限", "未录制条件: keyword=RAG,city=杭州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"列出你的简历，按 LLM/算法方向选出匹配的版本\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认技能与项目证据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗、到岗日期与地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 采集杭州 LLM 应用开发实习列表（关键词按简历方向）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"对本批采集到的岗位按简历粗排，挑出对口候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对靠前候选升级为完整 JD 以便核实硬性条件\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文与证据片段\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"按 JD 证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"keyword\":\"LLM 应用开发\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":11,\"jobIds\":[101,102,103]} => ok", "turn=0 submit_plan {\"steps\":[{\"purpose\":\"换关键词「大模型应用」在杭州采集实习岗，避开上一批不对口结果\",\"tool\":\"collect_boss_jobs\"},{\"purpose\":\"对新一批岗位按你的简历粗排\",\"tool\":\"rank_jobs_for_resume\"},{\"purpose\":\"对靠前且方向相符的岗位升级为完整 JD 并读取正文证据\",\"tool\":\"verify_boss_job\"},{\"purpose\":\"读取完整 JD 正文\",\"tool\":\"get_job\"},{\"purpose\":\"按 JD 证据提交正式推荐\",\"tool\":\"submit_recommendations\"}]} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"大模型应用\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"RAG\",\"maxPages\":1} => ok", "未录制条件: keyword=LLM 应用开发,city=杭州,experience=不限", "未录制条件: keyword=大模型应用,city=杭州,experience=不限", "未录制条件: keyword=RAG,city=杭州,experience=不限", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 0 个。\n**结论：这次没找到可推荐的 LLM 应用开发实习，三组关键词采集回来的都是同一批无关岗位，疑似 BOSS 采集链路异常，需要你先检查登录状态。**\n\n**我做了什么**\n- 按你的《AI 应用开发实习简历》判断方向（Python、FastAPI、LangChain、RAG、Milvus、function calling 两个项目），杭州、实习类型。\n- 读取你的求职条件：可实习 **6 个月**、每周 " ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a01-prereq-verified-submit",
+    "rules" : [ "prerequisites", "no_listing_as_full", "submit_accepted" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a02-inherit-two-turns",
+    "rules" : [ "inherit_filters" ],
+    "referencePassed" : true,
+    "passed" : 1,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED", "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : false,
+        "reason" : "不是每次到达采集器的搜索都保持 city=广州、experience=在校生，或缺少首轮/后续轮的实际搜索"
+      } ],
+      "turnStates" : [ "COMPLETED", "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=前端,city=广州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你的简历列表，挑出方向为前端的版本\"},{\"tool\":\"get_resume\",\"purpose\":\"读取所选简历正文，确认前端技能与项目依据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的到岗时间、实习时长、每周天数与地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 采集广州前端实习岗位列表（1 页起步）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用你的简历对本批采集到的岗位做粗排\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位核实完整 JD\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"基于完整 JD 证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":23} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"keyword\":\"前端\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"前端开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":23,\"jobIds\":[104,105,106,107],\"limit\":10} => ok", "turn=0 verify_boss_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => JOB_SEARCH_BUDGET", "turn=0 get_job {\"jobId\":105} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":104,\"reason\":\"广州天河珠江新城的 React 前端实习，职责是 SaaS 运营后台的报表/筛选/权限页开发与 React+TypeScript 组件封装，与你在简历中的 React 18 + TypeScript、通用组件封装和构建优化经验直接对应；JD 写明实习至少 6 个月、每周 4 天，与你填写的 6 个月、每周 4 天一致，且地点是你的偏好区天河区。\",\"evidence\":\"2. 使用 React 与 TypeScript 封装业务组件，补充单元测试；实习安排：实习期至少 6 个月，每周至少 4 天到岗，工作地点在广州天河区珠江新城\"}]} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"evidence\":\"实习安排：实习期至少 6 个月，每周至少 4 天到岗，工作地点在广州天河区珠江新城。\",\"jobId\":104,\"reason\":\"广州天河珠江新城的 React 前端实习，工作内容是 SaaS 运营后台报表、筛选与权限页开发，对应你简历里的 React 18 + TypeScript 组件封装与后台表单模块经验；JD 实习期为 6 个月、每周 4 天，与你填写的实习月数、每周天数一致，地点也在你偏好的天河区。\"}]} => ok", "turn=1 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"Vue\",\"maxPages\":1} => ok", "turn=1 rank_jobs_for_resume {\"jobIds\":[108,109,110],\"limit\":10,\"resumeId\":23} => ok", "turn=1 verify_boss_job {\"jobId\":108} => ok", "turn=1 get_job {\"jobId\":108} => ok", "turn=1 verify_boss_job {\"jobId\":109} => ok", "turn=1 get_job {\"jobId\":109} => ok", "turn=1 submit_recommendations {\"recommendations\":[{\"evidence\":\"2. 使用 Vue 3 与 TypeScript 开发业务模块，维护公共组件库\",\"jobId\":108,\"reason\":\"广州天河五山的 Vue 3 + TypeScript 运营端实习，做订单与轨迹查询页面、维护公共组件库，与你简历里的 TypeScript、公共组件封装和后台页面经验对应；JD 为至少 6 个月、每周 4 天，与你填写的实习月数、每周天数一致。需提醒：你的 Vue 3 只有课程项目经验，组合式 API 深度可能被追问。\"},{\"evidence\":\"2. 使用 Vue 与 ECharts 实现统计图表\",\"jobId\":109,\"reason\":\"广州黄埕的 Vue 可视化实习，涉及图层控制、数据面板与单元测试，对应你简历里的 Jest/Vitest 单元测试与性能优化经验；JD 写至少 5 个月、每周 4 天，符合你的 6 个月、每周 4 天。缺口：ECharts 可视化与数据可视化项目经验在简历中未体现，且地点不在你偏好的天河区，通勤需自己权衡。\"}]} => ok", "未录制条件: keyword=前端,city=广州,experience=不限", "states=[COMPLETED, COMPLETED] errors=[]", "final=通过验收的岗位：\n1. Vue 前端开发实习｜粤港通｜广州·天河区·五山\n推荐理由：广州天河五山的 Vue 3 + TypeScript 运营端实习，做订单与轨迹查询页面、维护公共组件库，与你简历里的 TypeScript、公共组件封装和后台页面经验对应；JD 为至少 6 个月、每周 4 天，与你填写的实习月数、每周天数一致。需提醒：你的 Vue 3 只有课程项目经验，组合式 API 深度可能被追问。\nJD 原文证据：「2. 使用 Vue 3 与 TypeScript 开发业务模块，维护公共组件" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : false,
+        "reason" : "不是每次到达采集器的搜索都保持 city=广州、experience=在校生，或缺少首轮/后续轮的实际搜索"
+      } ],
+      "turnStates" : [ "COMPLETED", "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=前端,city=广州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"找出前端方向的简历（若多份按方向与更新时间选择）\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗天数、到岗日期与地区偏好\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认前端技能与项目方向\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 采集广州前端实习岗位列表（1 页，经验不限）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历给本批采集到的岗位做粗排\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"核实排名靠前且方向对口岗位的完整 JD\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"以 JD 原文证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":23} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"keyword\":\"前端\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"前端开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"limit\":5,\"resumeId\":23,\"jobIds\":[104,105,106,107]} => ok", "turn=0 verify_boss_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":104} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":104,\"reason\":\"岗位做 SaaS 运营后台，用 React + TypeScript 封装业务组件并补单元测试，与你简历里的管理后台表格/表单模块、React 18 + TS、Vitest/Jest 测试经历直接对应；要求本科计算机或软件工程在读你也符合。JD 写明实习至少 6 个月、每周至少 4 天，与你填写的 6 个月、每周 4 天一致；地点在天河区珠江新城，正是你偏好的区域（该偏好非硬性限制）。到岗日期需与 HR 确认。\",\"evidence\":\"2. 使用 React 与 TypeScript 封装业务组件，补充单元测试\"}]} => ok", "turn=1 submit_plan {\"steps\":[{\"purpose\":\"把本会话方向改为 Vue，在 BOSS 采集广州 Vue 前端实习列表（1 页）\",\"tool\":\"collect_boss_jobs\"},{\"purpose\":\"用你的前端简历给本批岗位粗排\",\"tool\":\"rank_jobs_for_resume\"},{\"purpose\":\"核实排名靠前且方向对口岗位的完整 JD\",\"tool\":\"verify_boss_job\"},{\"purpose\":\"读取完整 JD 并核对硬性条件\",\"tool\":\"get_job\"},{\"purpose\":\"以 JD 原文证据提交正式推荐\",\"tool\":\"submit_recommendations\"}]} => ok", "turn=1 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"Vue\",\"maxPages\":1} => ok", "turn=1 rank_jobs_for_resume {\"jobIds\":[108,109,110],\"limit\":5,\"resumeId\":23} => ok", "turn=1 verify_boss_job {\"jobId\":108} => ok", "turn=1 get_job {\"jobId\":108} => ok", "turn=1 submit_recommendations {\"recommendations\":[{\"evidence\":\"2. 使用 Vue 3 与 TypeScript 开发业务模块，维护公共组件库\",\"jobId\":108,\"reason\":\"岗位用 Vue 3 + TypeScript 开发运营端业务模块并维护公共组件库，与你封装 12 个通用组件的后台模块经历相近，TS 是你的主力技术；实习至少 6 个月、每周至少 4 天，与你填写的一致；地点天河区五山也符合你的区域偏好（非硬性）。需注意：JD 要求“熟悉 Vue 3 组合式 API”，你简历中 Vue 3 仅来自课程项目，实项目经验是 React，这块要在沟通中补说明；到岗日期待与 HR 确认。\"}]} => ok", "未录制条件: keyword=前端,city=广州,experience=不限", "states=[COMPLETED, COMPLETED] errors=[]", "final=通过验收的岗位：\n1. Vue 前端开发实习｜粤港通｜广州·天河区·五山\n推荐理由：岗位用 Vue 3 + TypeScript 开发运营端业务模块并维护公共组件库，与你封装 12 个通用组件的后台模块经历相近，TS 是你的主力技术；实习至少 6 个月、每周至少 4 天，与你填写的一致；地点天河区五山也符合你的区域偏好（非硬性）。需注意：JD 要求“熟悉 Vue 3 组合式 API”，你简历中 Vue 3 仅来自课程项目，实项目经验是 React，这块要在沟通中补说明；到岗日期待与 HR 确认。" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a03-stop-login",
+    "rules" : [ "stop_on_signal:BOSS_NOT_LOGGED_IN" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a04-stop-first-page",
+    "rules" : [ "stop_on_signal:NO_MORE_RESULTS" ],
+    "referencePassed" : true,
+    "passed" : 2,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "STEP_LIMIT",
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : false,
+        "reason" : "没有观察到 NO_MORE_RESULTS 停止信号"
+      } ],
+      "turnStates" : [ "STEP_LIMIT" ],
+      "errorCodes" : [ "AGENT_STEP_LIMIT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"列出你的简历，选出前端方向且最近更新的一份\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认前端技能栈与项目，作为关键词和匹配依据\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的到岗时间、实习月数、每周天数与地区偏好\"},{\"tool\":\"list_job_applications\",\"purpose\":\"查看已登记的投递状态，避免重复推荐已投岗位\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"第一轮：广州 + 前端开发 + 实习 + 在校生，采集1页列表摘要\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历给第一轮采到的岗位粗排，判断方向相关性\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"第二轮：换关键词（如 Vue/React 前端）继续采集广州前端实习\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"对第二轮新采岗位粗排，筛出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位核实完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取已核实岗位的 FULL 正文，核对学历、实习时长、每周天数与技术栈\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交通过核实的岗位作为正式推荐，并如实标注待核实项\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":23} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 list_job_applications {} => ok", "turn=0 collect_boss_jobs {\"resumeId\":23,\"city\":\"广州\",\"keyword\":\"前端开发\",\"jobType\":\"实习\",\"experience\":\"不限\",\"page\":1} => AGENT_PLAN_MISMATCH", "turn=0 submit_plan {\"steps\":[{\"purpose\":\"第一轮采集：广州 + 前端开发 + 实习 + 在校生，1页\",\"tool\":\"collect_boss_jobs\"},{\"purpose\":\"用简历23给本批岗位粗排\",\"tool\":\"rank_jobs_for_resume\"},{\"purpose\":\"第二轮换关键词（React / Vue 前端）继续采集广州前端实习\",\"tool\":\"collect_boss_jobs\"},{\"purpose\":\"对第二轮岗位粗排\",\"tool\":\"rank_jobs_for_resume\"},{\"purpose\":\"核实排名靠前且方向相符岗位的完整 JD\",\"tool\":\"verify_boss_job\"},{\"purpose\":\"读取 FULL 正文，核对学历、实习时长、每周天数与技术栈\",\"tool\":\"get_job\"},{\"purpose\":\"提交正式推荐并标注待核实项\",\"tool\":\"submit_recommendations\"}]} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"前端开发\",\"maxPages\":1,\"resumeId\":23} => INVALID_ARGUMENTS", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"前端开发\",\"maxPages\":1} => AGENT_PLAN_MISMATCH", "turn=0 submit_plan {\"steps\":[{\"purpose\":\"第一轮采集广州前端开发实习（在校生），1页\",\"tool\":\"collect_boss_jobs\"},{\"purpose\":\"对采集结果粗排\",\"tool\":\"rank_jobs_for_resume\"},{\"purpose\":\"提交正式推荐并标注待核实项\",\"tool\":\"submit_recommendations\"}]} => ok", "states=[STEP_LIMIT] errors=[AGENT_STEP_LIMIT]", "final=<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name=\"collect_boss_jobs\">\n<｜｜DSML｜｜ parameter name=\"city\" string=\"true\">广州</｜｜DSML｜｜ parameter>\n<｜｜DSML｜｜ parameter name=\"experience\" string=\"true\">在校生</｜｜DSML｜｜ parameter>\n<｜｜DSML｜｜ parameter name=\"jobType\" string=\"" ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a05-replan-offtarget",
+    "rules" : [ "prerequisites", "replan_offtarget" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮不对口后没有先排序、再换关键词成功补搜（或触发了采集预算拒绝）"
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"列出你的简历，判断方向并选定用于本次广州实习搜索的简历\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认技能与项目方向\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗天数、到岗时间和地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按简历方向在广州采集实习岗位列表（在校生经验，1页起步）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批采集到的岗位粗排，筛出对口候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位核实用真实完整JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取已核实岗位的完整JD正文\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交正式推荐并核对硬性条件\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":23} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"keyword\":\"前端开发\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"Web前端\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":23,\"jobIds\":[101,102,103,104,105],\"limit\":5} => ok", "turn=0 verify_boss_job {\"jobId\":104} => ok", "turn=0 get_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => ok", "turn=0 get_job {\"jobId\":105} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":104,\"reason\":\"天河区岗顶的前端开发实习，React+TypeScript+组件与单测、首屏性能优化都与你的技能和上段实习内容对应；JD 要求至少 6 个月、每周 4 天到岗，与你填写的可实习 6 个月、每周 4 天一致。\",\"evidence\":\"实习安排：实习期至少 6 个月，每周至少 4 天到岗。2. 使用 React 与 TypeScript 开发组件并编写单元测试；3. 参与前端性能监控，分析并优化首屏耗时。\"},{\"jobId\":105,\"reason\":\"海珠区客村的跨端开发实习，React+TypeScript 与你的技术栈重叠，RN 只要求了解或愿意学习；JD 要求至少 4 个月、每周 4 天到岗，低于你可实习的 6 个月和每周 4 天，无冲突。\",\"evidence\":\"实习安排：实习期至少 4 个月，每周至少 4 天到岗。2. 使用 React Native 与 TypeScript 实现业务功能；2. 熟悉 React，了解 React Native 或愿意学习移动端开发。\"}]} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"evidence\":\"实习安排：实习期至少 6 个月，每周至少 4 天到岗。\",\"jobId\":104,\"reason\":\"天河区岗顶的前端开发实习；JD 要求 React、TypeScript、CSS 布局和 Jest/Vitest，并做组件与首屏性能优化，与你简历里的技能和上段实习内容直接对应；6 个月、每周 4 天到岗与你填写的可实习时长、每周天数一致。\"},{\"evidence\":\"实习安排：实习期至少 4 个月，每周至少 4 天到岗。\",\"jobId\":105,\"reason\":\"海珠区客村的跨端开发实习，工作用 React Native + TypeScript，你的 React/TS 基础可迁移；JD 只要求“了解 React Native 或愿意学习”；4 个月、每周 4 天到岗低于你的可用时长，无冲突。\"}]} => ok", "states=[COMPLETED] errors=[]", "final=通过验收的岗位：\n1. 前端开发实习生｜晴川软件｜广州·天河区·岗顶\n推荐理由：天河区岗顶的前端开发实习；JD 要求 React、TypeScript、CSS 布局和 Jest/Vitest，并做组件与首屏性能优化，与你简历里的技能和上段实习内容直接对应；6 个月、每周 4 天到岗与你填写的可实习时长、每周天数一致。\nJD 原文证据：「实习安排：实习期至少 6 个月，每周至少 4 天到岗。」\n仍需确认：最早到岗日期需与 HR 确认\n2. React Native 开发实习｜麦穗出行｜广州·海珠区" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮不对口后没有先排序、再换关键词成功补搜（或触发了采集预算拒绝）"
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"get_resume\",\"purpose\":\"读取你的简历正文，确认有证据支持的实习方向（若有多份简历，先按方向与更新时间选定）\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你自行填写的实习时长、每周到岗天数、最早到岗日期与偏好地区（可与上一步并行）\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"以广州、实习、按简历推断的方向采集 1 页岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用所选简历对本次采集到的 jobIds 做粗排，挑出方向相符的靠前岗位\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的少量岗位核实完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取已核实岗位的全文与条件证据\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"附逐字 JD 证据提交正式推荐，其余岗位标记为待核实\"}]} => ok", "turn=0 get_resume {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"keyword\":\"前端开发\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"Web前端\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":23,\"jobIds\":[101,102,103,104,105],\"limit\":5} => ok", "turn=0 verify_boss_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":104} => ok", "turn=0 check_job_preferences {\"jobId\":104} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":104,\"reason\":\"广州天河区前端开发实习，按你的《前端开发实习简历》：React、TypeScript、Jest/Vitest 都是 JD 明确要求的技能；你 4 个月的前端实习做过通用组件封装和首屏优化，正对应审批流页面开发与首屏耗时优化职责。\",\"evidence\":\"2. 使用 React 与 TypeScript 开发组件并编写单元测试；3. 参与前端性能监控，分析并优化首屏耗时；实习期至少 6 个月，每周至少 4 天到岗。\"}]} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"evidence\":\"使用 React 与 TypeScript 开发组件并编写单元测试\",\"jobId\":104,\"reason\":\"广州天河区前端开发实习；JD 要求的 React、TypeScript、单元测试均对应你简历里的技能，你 4 个月前端实习的组件封装与首屏优化经验也直接对口。实习期至少 6 个月、每周至少 4 天，与你自填的 6 个月/4 天一致；到岗日期需向 HR 确认。\"}]} => ok", "states=[COMPLETED] errors=[]", "final=通过验收的岗位：\n1. 前端开发实习生｜晴川软件｜广州·天河区·岗顶\n推荐理由：广州天河区前端开发实习；JD 要求的 React、TypeScript、单元测试均对应你简历里的技能，你 4 个月前端实习的组件封装与首屏优化经验也直接对口。实习期至少 6 个月、每周至少 4 天，与你自填的 6 个月/4 天一致；到岗日期需向 HR 确认。\nJD 原文证据：「使用 React 与 TypeScript 开发组件并编写单元测试」\n仍需确认：最早到岗日期需与 HR 确认" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮不对口后没有先排序、再换关键词成功补搜（或触发了采集预算拒绝）"
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":23} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"keyword\":\"前端开发\",\"jobType\":\"实习\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"keyword\":\"前端\",\"jobType\":\"实习\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":23,\"jobIds\":[101,102,103,104,105],\"limit\":5} => ok", "turn=0 verify_boss_job {\"jobId\":104} => ok", "turn=0 get_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => ok", "turn=0 get_job {\"jobId\":105} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"jobId\":104,\"reason\":\"晴川软件前端开发实习生，位于天河区岗顶，与你填写的偏好区一致。要求 React/TypeScript/CSS 与 Jest 或 Vitest，正好覆盖你简历里的 TypeScript、React 18、Jest/Vitest；职责中的审批流页面与首屏耗时优化，与你实习时封装 12 个通用组件、把首屏从 3.1s 降到 1.4s 的经历直接对应。实习期至少 6 个月、每周至少 4 天，与你填写的 6 个月、每周 4 天一致；到岗日期 JD 未说明，需向 HR 确认。\",\"evidence\":\"使用 React 与 TypeScript 开发组件并编写单元测试；参与前端性能监控，分析并优化首屏耗时。实习安排：实习期至少 6 个月，每周至少 4 天到岗。3. 了解 Jest 或 Vitest 等测试框架。\"},{\"jobId\":105,\"reason\":\"麦穗出行 React Native 开发实习，明确写了熟悉 React、了解 React Native 或愿意学习移动端开发即可，你的 React 18 + TypeScript、Next.js 项目经验可迁移，但 React Native 未出现在你简历技能中，属于需要补的部分。实习期至少 4 个月、每周至少 4 天，在你 6 个月、每周 4 天的可用范围内；地点在海珠区客村，不是你偏好的天河区，可作为备选。\",\"evidence\":\"2. 熟悉 React，了解 React Native 或愿意学习移动端开发；使用 React Native 与 TypeScript 实现业务功能。实习安排：实习期至少 4 个月，每周至少 4 天到岗。\"}]} => ok", "turn=0 submit_recommendations {\"recommendations\":[{\"evidence\":\"实习安排：实习期至少 6 个月，每周至少 4 天到岗\",\"jobId\":104,\"reason\":\"晴川软件前端开发实习生，天河区岗顶，与你填写的偏好区一致。岗位要求 React、TypeScript 与 Jest/Vitest，正好对应你简历里的 TypeScript、React 18、Jest/Vitest；职责含组件开发与首屏耗时优化，与你实习时封装 12 个通用组件、首屏 3.1s→1.4s 的经历对应。实习 6 个月/每周 4 天与你填写的条件一致；到岗日期 JD 未说明，需向 HR 确认。\"},{\"evidence\":\"实习安排：实习期至少 4 个月，每周至少 4 天到岗\",\"jobId\":105,\"reason\":\"麦穗出行 React Native 开发实习，要求熟悉 React、了解 RN 或愿意学移动端，你的 React 18 + TypeScript 项目经验可迁移，但 RN 未出现在你简历技能中，需补。实习 4 个月/每周 4 天在你可用范围内；地点海珠区客村，非你偏好的天河区，可作备选。\"}]} => ok", "states=[COMPLETED] errors=[]", "final=通过验收的岗位：\n1. 前端开发实习生｜晴川软件｜广州·天河区·岗顶\n推荐理由：晴川软件前端开发实习生，天河区岗顶，与你填写的偏好区一致。岗位要求 React、TypeScript 与 Jest/Vitest，正好对应你简历里的 TypeScript、React 18、Jest/Vitest；职责含组件开发与首屏耗时优化，与你实习时封装 12 个通用组件、首屏 3.1s→1.4s 的经历对应。实习 6 个月/每周 4 天与你填写的条件一致；到岗日期 JD 未说明，需向 HR 确认。\nJD 原文证" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a06-education-required",
+    "rules" : [ "gate_excluded:education", "submit_accepted", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 1,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=前端,city=广州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你的简历，判断是否有前端方向的版本\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周天数、到岗时间和地区偏好\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认前端技能与项目证据\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在广州按简历前端方向采集实习岗位列表（首轮 1 页）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批采集到的岗位做粗排\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位抓取 BOSS 完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取已核实岗位的完整正文与证据片段\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交通过核实的正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":23} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"keyword\":\"前端\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"前端开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":23,\"jobIds\":[104,105,106],\"limit\":5} => ok", "turn=0 verify_boss_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":104} => ok", "turn=0 verify_boss_job {\"jobId\":105} => JOB_SEARCH_BUDGET", "turn=0 get_job {\"jobId\":105} => ok", "未录制条件: keyword=前端,city=广州,experience=不限", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 6 个、核实完整 JD 1 个。\n这次我没能给你提交正式推荐，原因是符合条件的岗位不足。先说结论：\n\n**本轮结果：0 个岗位通过完整 JD 核实，未提交正式推荐**\n\n**搜索覆盖情况（按你的《前端开发实习简历》推断方向）**\n- 已发起采集 3 次预算中用了 2 次，各读 1 页：`广州·前端·不限` → 返回的是餐饮店员、快递分拣员、保险顾问，完全不相关；`广州·前端开发·在校生` → 拿到 3 条，其中 2 条前端岗。\n- 去重后" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=前端,city=广州,experience=不限", "未录制条件: keyword=前端开发,city=广州,experience=不限" ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"查看你的简历列表，选出前端方向的版本\"},{\"tool\":\"get_resume\",\"purpose\":\"读取所选简历正文，确认前端技能与项目方向\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗天数、到岗时间和地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在广州按前端方向、实习意图采集 BOSS 岗位列表摘要\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用所选简历对本批采集结果粗排，挑出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对靠前且对口的岗位抓取完整 JD 进行核实\"},{\"tool\":\"get_job\",\"purpose\":\"读取已核实岗位的完整正文，核对硬性条件\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交正式推荐，附逐字 JD 证据\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":23} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"keyword\":\"前端\",\"jobType\":\"实习\",\"experience\":\"不限\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"不限\",\"jobType\":\"实习\",\"keyword\":\"前端开发\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":23,\"jobIds\":[101,102,103],\"limit\":5} => ok", "未录制条件: keyword=前端,city=广州,experience=不限", "未录制条件: keyword=前端开发,city=广州,experience=不限", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 0 个。\n**结论：这一轮没有找到可以正式推荐的前端实习岗位，因此我没有提交任何推荐。**\n\n**发生了什么**\n\n- 我按你的《前端开发实习简历》（罗书瑶，求职意向为前端开发实习·广州）进行了采集，条件为广州 + 前端、实习、经验不限。\n- 第一轮关键词“前端”返回 3 条：餐饮门店店员（越秀区）、快递分拣员（白云区）、保险顾问（天河区）。\n- 第二轮我换了关键词“前端开发”再采，返回的仍是同样这 3 条，没有任" ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a07-education-preferred",
+    "rules" : [ "preferred_accepted:education", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ "未录制条件: keyword=React 前端,city=广州,experience=不限" ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a08-experience-required",
+    "rules" : [ "gate_excluded:experience", "submit_accepted", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认用哪份简历，并判断是否有前端方向的简历版本\"},{\"tool\":\"get_resume\",\"purpose\":\"读取所选简历正文，提取前端相关技能、项目与技术栈\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗天数、最早到岗日期和偏好地区\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在 BOSS 按城市=广州、关键词=前端、实习/在校生采集职位列表（先 1 页）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用所选简历对本批采集到的职位做粗排，挑出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的少量岗位打开详情页核实完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取已核实岗位的 FULL 正文，核对学历、实习时长、技术栈等要求\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"附逐字 JD 证据提交正式推荐，并区分已核实与待核实岗位\"}]} => ok", "turn=0 get_resume {} => AGENT_PLAN_MISMATCH", "turn=0 get_job_search_preferences {} => AGENT_PLAN_MISMATCH", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":23} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"keyword\":\"前端\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":23,\"jobIds\":[101,102,103],\"limit\":5} => ok", "turn=0 verify_boss_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"React 前端开发\",\"maxPages\":1} => ok", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 1 个。\n按你的《前端开发实习简历》，我在广州前端方向搜索了实习/在校生岗位，结果如下：**本轮没有可以正式推荐的已核实岗位**，只有 1 个对口但尚未核实的实习候选。下面是依据。\n\n**你的情况（来自简历与求职条件）**\n- 简历：前端开发实习简历（罗书瑶），技能为 TypeScript、React 18、Next.js、Vite、Vitest；有 4 个月前端实习（管理后台组件化、首屏加载时间 3.1s→1.4" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"先查看你有哪些简历，选出前端方向的版本（同方向取最近更新）\"},{\"tool\":\"get_resume\",\"purpose\":\"读取选定简历正文，确认前端技能与项目事实\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你自行填写的到岗时间、实习月数、每周天数与地区偏好\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按你的简历方向采集广州前端实习岗位（在校生，1 页）\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用选定简历对本批 jobIds 粗排，筛出对口岗位\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位抓取真实完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取 FULL 正文，核对学历、实习时长、每周到岗天数与技术栈要求\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"以真实 JD 证据提交正式推荐\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_resume {\"resumeId\":23} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"keyword\":\"前端\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"resumeId\":23,\"jobIds\":[101,102,103],\"limit\":3} => ok", "turn=0 verify_boss_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "turn=0 get_job {\"jobId\":102} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"React\",\"maxPages\":1} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"Web前端\",\"maxPages\":1} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "turn=0 rank_jobs_for_resume {\"resumeId\":23,\"limit\":10} => ok", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 1 个。\n## 结论\n\n我按你的《前端开发实习简历》（前端开发实习·广州，TypeScript / React 18 / Next.js，含 4 个月前端实习经历）去 BOSS 采集了广州在校生，但在本轮**没有找到可正式推荐的岗位**，原因见下。\n\n## 采集与核实情况\n\n采集条件：城市广州、类型实习、经验在校生；关键词依次试了「前端」「React」「Web前端」，各读 1 页，去重后只有 3 条候选（职位库现有" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "RULE_VIOLATION",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认你有哪些简历，挑出前端方向的版本\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你填写的实习时长、每周到岗天数、到岗时间和地区偏好\"},{\"tool\":\"get_resume\",\"purpose\":\"读取所选简历正文，确认前端技能栈与项目经历\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"按广州、前端方向、在校生/实习条件只采集第一页岗位\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"用所选简历对本批采集岗位粗排，筛出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对排名靠前且方向相符的岗位抓取完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"读取完整 JD 正文，核对学历、实习时长、技术栈等要求\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交通过核实的正式推荐，未核实的标注待核实\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":23} => ok", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"keyword\":\"前端\",\"jobType\":\"实习\",\"experience\":\"在校生\",\"maxPages\":1} => ok", "turn=0 rank_jobs_for_resume {\"jobIds\":[101,102,103],\"resumeId\":23,\"limit\":10} => ok", "turn=0 verify_boss_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => ONE_PENDING_ACTION_AT_A_TIME", "turn=0 get_job {\"jobId\":101} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "turn=0 collect_boss_jobs {\"city\":\"广州\",\"experience\":\"在校生\",\"jobType\":\"实习\",\"keyword\":\"React 前端开发\",\"maxPages\":1} => ok", "turn=0 verify_boss_job {\"jobId\":102} => JOB_SEARCH_BUDGET", "states=[COMPLETED] errors=[]", "final=状态：尚未经推荐验收，以下不是正式岗位推荐；本轮采集候选 3 个、核实完整 JD 1 个。\n## 结论\n\n本轮没有能作为正式推荐的合格实习岗位，原因是采集到的候选太少，而且唯一核实成功的岗位条件不符。**我不会把未核实的岗位当成推荐给你。**\n\n### 本次覆盖情况\n- 简历：使用你的《前端开发实习简历》（resumeId 23，TypeScript / React 18 / Next.js + 4 个月广州前端实习）\n- 采集：广州 + 在校生 + 实习，关键词「前端」与「React 前端开发" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a09-experience-preferred",
+    "rules" : [ "preferred_accepted:experience", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 3,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 3,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    } ]
+  } ]
+}
