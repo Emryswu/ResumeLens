@@ -83,6 +83,44 @@ final class AgentEvalV2 {
     record Trial(boolean passed, List<Check> checks, String category, List<AgentLoop.State> states,
                  List<String> errorCodes, List<AgentMessage> transcript, List<String> trace) { }
 
+    /**
+     * The business code under test decides which profile fields it understands; the rest are ignored.
+     * Wiring repair after #107 (see RUN-LOG): the frozen profile names (education, studentStatus,
+     * expectedGraduation) are copied onto the business field names; the profile files are not edited.
+     * Unrecognized values fail without echoing them, so this never reveals acceptance data.
+     */
+    static JobSearchPreferencesView preferencesView(JsonNode profilePreferences) throws IOException {
+        var mapped = (com.fasterxml.jackson.databind.node.ObjectNode) profilePreferences.deepCopy();
+        if (profilePreferences.hasNonNull("education")) {
+            mapped.put("educationLevel", switch (profilePreferences.path("education").asText().strip()) {
+                case "专科", "大专" -> 1;
+                case "本科" -> 2;
+                case "硕士", "研究生" -> 3;
+                case "博士" -> 4;
+                default -> throw new IllegalStateException("profile education value is not mapped");
+            });
+        }
+        if (profilePreferences.hasNonNull("studentStatus")) {
+            String status = profilePreferences.path("studentStatus").asText().strip();
+            if (status.contains("在校") || status.contains("在读")) mapped.put("currentlyStudent", true);
+            else if (status.contains("已毕业") || status.contains("在职") || status.contains("离职")) mapped.put("currentlyStudent", false);
+            else throw new IllegalStateException("profile studentStatus value is not mapped");
+        }
+        if (profilePreferences.hasNonNull("expectedGraduation")) {
+            String graduation = profilePreferences.path("expectedGraduation").asText().strip();
+            try {
+                // Year-month in the profile; the business code compares graduation years only.
+                mapped.put("expectedGraduationDate", graduation.length() == 7
+                        ? java.time.YearMonth.parse(graduation).atDay(1).toString()
+                        : java.time.LocalDate.parse(graduation).toString());
+            } catch (java.time.format.DateTimeParseException ex) {
+                throw new IllegalStateException("profile expectedGraduation value is not mapped");
+            }
+        }
+        return JSON.copy().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+                .treeToValue(mapped, JobSearchPreferencesView.class);
+    }
+
     static JsonNode read(String relative) throws IOException {
         try (InputStream in = Files.newInputStream(ROOT.resolve(relative))) {
             return JSON.readTree(in);
@@ -261,11 +299,7 @@ final class AgentEvalV2 {
                 if (!stored.id().equals(id)) throw new ResourceNotFoundException("Resume", id);
                 return stored;
             });
-            // The business code under test decides which profile fields it understands; the rest are ignored.
-            JobSearchPreferencesView view = JSON.copy()
-                    .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-                    .treeToValue(group.profile().path("preferences"), JobSearchPreferencesView.class);
-            when(preferences.forUser(anyLong())).thenReturn(view);
+            when(preferences.forUser(anyLong())).thenReturn(preferencesView(group.profile().path("preferences")));
             when(jobService.findById(anyLong())).thenAnswer(inv -> {
                 Long id = inv.getArgument(0);
                 JobDescriptionResponse job = jobs.get(id);

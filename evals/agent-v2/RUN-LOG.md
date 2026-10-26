@@ -13,7 +13,7 @@
 
 ## 接线修复与 dev 参考解更新记录
 
-暂无。
+- 2026-10-26，分支 `eval/v2-wiring-preferences`（#107 合入后、structured 运行前），由非结构化一方修复。原因：#107 把求职条件新增字段命名为 `educationLevel`、`currentlyStudent`、`expectedGraduationDate`，与 profile 中冻结的 `education`、`studentStatus`、`expectedGraduation` 不一致，原样反序列化时这三项被忽略。修复：`AgentEvalV2.preferencesView` 在反序列化前把 profile 字段映射到新字段名（学历按 专科/大专=1、本科=2、硕士/研究生=3、博士=4；在校状态含「在校/在读」为 true；年月取当月 1 日，业务代码只比较年份），无法识别的取值直接报错且不回显取值。文件范围：`AgentEvalV2.java`（接线）、`AgentJobSearchEvalV2Tests.java`（新增映射测试）、本文件。未修改任务、快照、profile、`AgentEvalV2Grading.java` 或判定语义，`ACCEPTANCE_DIGEST` 不变；未查看 acceptance profile 的取值，仅由测试断言其各字段映射成功。
 
 ## 作废运行
 
