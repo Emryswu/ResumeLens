@@ -19,8 +19,12 @@
 
 2026-10-26 的 baseline 运行（结果文件 results/2026-10-26T09-48-06.488007300Z-baseline.json，原状态 completed）作废：运行中途模型服务商余额耗尽，18 次 trial 以 AI_BALANCE_INSUFFICIENT 结束并被计为 OTHER（failureCategories.OTHER = 18，与该错误码的 trial 数一致）。作废依据仅为错误码计数，未查看分数或任务详情。#112 起服务商故障会直接中止运行并记为 interrupted。baseline 槽位按未使用处理。
 
+2026-10-26T09:43 的 baseline 运行（结果文件 results/2026-10-26T09-43-11.423624600Z-baseline.json，原状态 completed）同样作废：开始运行时余额已不足，54 次 trial 中 53 次计为 OTHER，AI_BALANCE_INSUFFICIENT 共出现 118 次。该行曾在整理 #113 时被误删，现依据本地备份补回。作废依据仅为错误码计数。
+
 ## 实际运行记录
 
 | 时间 (UTC) | 运行 commit | 模型 | 槽位 | 状态 | 结果文件 |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-26T09:43:11.423624600Z | de758f52d1ed5ed80ebb71eb029ae18e78a5d359 | deepseek-flash | baseline | void | results/2026-10-26T09-43-11.423624600Z-baseline.json |
 | 2026-10-26T09:48:06.488007300Z | de758f52d1ed5ed80ebb71eb029ae18e78a5d359 | deepseek-flash | baseline | void | results/2026-10-26T09-48-06.488007300Z-baseline.json |
+| 2026-10-26T10:33:13.039737200Z | 4aa9eb58928a8dfeb83b6c1b5865d05151627988 | deepseek-flash | baseline | completed | results/2026-10-26T10-33-13.039737200Z-baseline.json |

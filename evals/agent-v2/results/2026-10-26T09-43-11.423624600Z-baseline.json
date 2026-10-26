@@ -1,0 +1,1174 @@
+{
+  "evalVersion" : "v2",
+  "timestampUtc" : "2026-10-26T09:43:11.423624600Z",
+  "commitSha" : "de758f52d1ed5ed80ebb71eb029ae18e78a5d359",
+  "targetBusinessSha" : "c1c80c5ace3314de34949fd74e061dea8bb20990",
+  "modelId" : "deepseek-flash",
+  "slot" : "baseline",
+  "status" : "completed",
+  "acceptanceDigest" : "0b11fd025bc58d6bd130af5883419e020705c70f627915908cc9020cd7e9d351",
+  "repetitionsPerTask" : 3,
+  "failureCategories" : {
+    "STEP_LIMIT" : 0,
+    "RULE_VIOLATION" : 0,
+    "SNAPSHOT_MISSING" : 0,
+    "PLAN_PROTOCOL" : 0,
+    "OTHER" : 53
+  },
+  "checkSummary" : {
+    "dev" : {
+      "gate_excluded:education" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "gate_excluded:experience" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "inherit_filters" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "no_listing_as_full" : {
+        "passed" : 15,
+        "total" : 15
+      },
+      "preferred_accepted:education" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "preferred_accepted:experience" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "prerequisites" : {
+        "passed" : 2,
+        "total" : 6
+      },
+      "replan_offtarget" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "stop_on_signal:BOSS_NOT_LOGGED_IN" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "stop_on_signal:NO_MORE_RESULTS" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "submit_accepted" : {
+        "passed" : 1,
+        "total" : 9
+      }
+    },
+    "acceptance" : {
+      "gate_excluded:education" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "gate_excluded:experience" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "inherit_filters" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "no_listing_as_full" : {
+        "passed" : 15,
+        "total" : 15
+      },
+      "preferred_accepted:education" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "preferred_accepted:experience" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "prerequisites" : {
+        "passed" : 0,
+        "total" : 6
+      },
+      "replan_offtarget" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "stop_on_signal:BOSS_NOT_LOGGED_IN" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "stop_on_signal:NO_MORE_RESULTS" : {
+        "passed" : 0,
+        "total" : 3
+      },
+      "submit_accepted" : {
+        "passed" : 0,
+        "total" : 9
+      }
+    }
+  },
+  "tasks" : [ {
+    "group" : "dev",
+    "taskId" : "d01-prereq-verified-submit",
+    "rules" : [ "prerequisites", "no_listing_as_full", "submit_accepted" ],
+    "referencePassed" : true,
+    "passed" : 1,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : true,
+      "category" : null,
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "COMPLETED" ],
+      "errorCodes" : [ ],
+      "replayTrace" : [ ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "turn=0 submit_plan {\"steps\":[{\"tool\":\"list_resumes\",\"purpose\":\"确认用哪份简历（未指定方向时按规则选择）\"},{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读取你自己填写的实习时长、每周天数、最早到岗与地区偏好\"},{\"tool\":\"get_resume\",\"purpose\":\"读取简历正文，确定有证据支持的实习方向与关键词\"},{\"tool\":\"collect_boss_jobs\",\"purpose\":\"在杭州按简历方向采集实习岗位列表\"},{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"对本批采集结果按简历粗排，挑出方向相符的候选\"},{\"tool\":\"verify_boss_job\",\"purpose\":\"对靠前候选抓取 BOSS 完整 JD\"},{\"tool\":\"get_job\",\"purpose\":\"查看完整 JD 正文与条件证据\"},{\"tool\":\"submit_recommendations\",\"purpose\":\"提交正式推荐（含逐字 JD 证据）\"}]} => ok", "turn=0 list_resumes {} => ok", "turn=0 get_job_search_preferences {} => ok", "turn=0 get_resume {\"resumeId\":11} => ok", "turn=0 collect_boss_jobs {\"city\":\"杭州\",\"jobType\":\"实习\",\"keyword\":\"AI 应用开发\",\"maxPages\":1} => ok", "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d02-inherit-two-turns",
+    "rules" : [ "inherit_filters" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : false,
+        "reason" : "不是每次到达采集器的搜索都保持 city=杭州、experience=在校生，或缺少首轮/后续轮的实际搜索"
+      } ],
+      "turnStates" : [ "FAILED", "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT", "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED, FAILED] errors=[AI_BALANCE_INSUFFICIENT, AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : false,
+        "reason" : "不是每次到达采集器的搜索都保持 city=杭州、experience=在校生，或缺少首轮/后续轮的实际搜索"
+      } ],
+      "turnStates" : [ "FAILED", "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT", "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED, FAILED] errors=[AI_BALANCE_INSUFFICIENT, AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : false,
+        "reason" : "不是每次到达采集器的搜索都保持 city=杭州、experience=在校生，或缺少首轮/后续轮的实际搜索"
+      } ],
+      "turnStates" : [ "FAILED", "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT", "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED, FAILED] errors=[AI_BALANCE_INSUFFICIENT, AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d03-stop-login",
+    "rules" : [ "stop_on_signal:BOSS_NOT_LOGGED_IN" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : false,
+        "reason" : "没有观察到 BOSS_NOT_LOGGED_IN 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : false,
+        "reason" : "没有观察到 BOSS_NOT_LOGGED_IN 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : false,
+        "reason" : "没有观察到 BOSS_NOT_LOGGED_IN 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d04-stop-first-page",
+    "rules" : [ "stop_on_signal:NO_MORE_RESULTS" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : false,
+        "reason" : "没有观察到 NO_MORE_RESULTS 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : false,
+        "reason" : "没有观察到 NO_MORE_RESULTS 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : false,
+        "reason" : "没有观察到 NO_MORE_RESULTS 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d05-replan-offtarget",
+    "rules" : [ "prerequisites", "replan_offtarget" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮实际采集结果不是全部不对口，任务前提不成立"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮实际采集结果不是全部不对口，任务前提不成立"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮实际采集结果不是全部不对口，任务前提不成立"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d06-education-required",
+    "rules" : [ "gate_excluded:education", "submit_accepted", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d07-education-preferred",
+    "rules" : [ "preferred_accepted:education", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : false,
+        "reason" : "学历只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : false,
+        "reason" : "学历只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : false,
+        "reason" : "学历只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d08-experience-required",
+    "rules" : [ "gate_excluded:experience", "submit_accepted", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "dev",
+    "taskId" : "d09-experience-preferred",
+    "rules" : [ "preferred_accepted:experience", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : false,
+        "reason" : "经验只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : false,
+        "reason" : "经验只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : false,
+        "reason" : "经验只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a01-prereq-verified-submit",
+    "rules" : [ "prerequisites", "no_listing_as_full", "submit_accepted" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a02-inherit-two-turns",
+    "rules" : [ "inherit_filters" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : false,
+        "reason" : "不是每次到达采集器的搜索都保持 city=广州、experience=在校生，或缺少首轮/后续轮的实际搜索"
+      } ],
+      "turnStates" : [ "FAILED", "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT", "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED, FAILED] errors=[AI_BALANCE_INSUFFICIENT, AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : false,
+        "reason" : "不是每次到达采集器的搜索都保持 city=广州、experience=在校生，或缺少首轮/后续轮的实际搜索"
+      } ],
+      "turnStates" : [ "FAILED", "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT", "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED, FAILED] errors=[AI_BALANCE_INSUFFICIENT, AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "inherit_filters",
+        "passed" : false,
+        "reason" : "不是每次到达采集器的搜索都保持 city=广州、experience=在校生，或缺少首轮/后续轮的实际搜索"
+      } ],
+      "turnStates" : [ "FAILED", "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT", "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED, FAILED] errors=[AI_BALANCE_INSUFFICIENT, AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a03-stop-login",
+    "rules" : [ "stop_on_signal:BOSS_NOT_LOGGED_IN" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : false,
+        "reason" : "没有观察到 BOSS_NOT_LOGGED_IN 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : false,
+        "reason" : "没有观察到 BOSS_NOT_LOGGED_IN 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:BOSS_NOT_LOGGED_IN",
+        "passed" : false,
+        "reason" : "没有观察到 BOSS_NOT_LOGGED_IN 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a04-stop-first-page",
+    "rules" : [ "stop_on_signal:NO_MORE_RESULTS" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : false,
+        "reason" : "没有观察到 NO_MORE_RESULTS 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : false,
+        "reason" : "没有观察到 NO_MORE_RESULTS 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "stop_on_signal:NO_MORE_RESULTS",
+        "passed" : false,
+        "reason" : "没有观察到 NO_MORE_RESULTS 停止信号"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a05-replan-offtarget",
+    "rules" : [ "prerequisites", "replan_offtarget" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮实际采集结果不是全部不对口，任务前提不成立"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮实际采集结果不是全部不对口，任务前提不成立"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "prerequisites",
+        "passed" : false,
+        "reason" : "第一次采集前没有成功读取简历正文和求职条件"
+      }, {
+        "name" : "replan_offtarget",
+        "passed" : false,
+        "reason" : "首轮实际采集结果不是全部不对口，任务前提不成立"
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a06-education-required",
+    "rules" : [ "gate_excluded:education", "submit_accepted", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:education",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a07-education-preferred",
+    "rules" : [ "preferred_accepted:education", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : false,
+        "reason" : "学历只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : false,
+        "reason" : "学历只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:education",
+        "passed" : false,
+        "reason" : "学历只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a08-experience-required",
+    "rules" : [ "gate_excluded:experience", "submit_accepted", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "gate_excluded:experience",
+        "passed" : false,
+        "reason" : "没有核实门槛岗位的完整 JD，无法证明是依据门槛排除"
+      }, {
+        "name" : "submit_accepted",
+        "passed" : false,
+        "reason" : "没有经 submit_recommendations 验收通过至少一个岗位"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  }, {
+    "group" : "acceptance",
+    "taskId" : "a09-experience-preferred",
+    "rules" : [ "preferred_accepted:experience", "no_listing_as_full" ],
+    "referencePassed" : true,
+    "passed" : 0,
+    "total" : 3,
+    "trials" : [ {
+      "repetition" : 1,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : false,
+        "reason" : "经验只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 2,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : false,
+        "reason" : "经验只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    }, {
+      "repetition" : 3,
+      "passed" : false,
+      "category" : "OTHER",
+      "checks" : [ {
+        "name" : "preferred_accepted:experience",
+        "passed" : false,
+        "reason" : "经验只是「优先」的岗位没有核实后通过正式验收"
+      }, {
+        "name" : "no_listing_as_full",
+        "passed" : true,
+        "reason" : ""
+      } ],
+      "turnStates" : [ "FAILED" ],
+      "errorCodes" : [ "AI_BALANCE_INSUFFICIENT" ],
+      "replayTrace" : [ ],
+      "transcriptSummary" : [ "states=[FAILED] errors=[AI_BALANCE_INSUFFICIENT]", "final=AI account balance is insufficient" ]
+    } ]
+  } ]
+}
