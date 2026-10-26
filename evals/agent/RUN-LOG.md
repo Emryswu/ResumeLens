@@ -2,10 +2,14 @@
 
 | 预登记槽位 | 被测版本 | 状态 | 正式运行结果 |
 | --- | --- | --- | --- |
-| baseline | 5fdaca01bf2c38a625b6bf98616a0c11bff6dde4 | 待运行（等通知） | — |
-| structured | 「学历/经验结构化」PR 合入 main 后 | 待运行 | — |
+| baseline | 5fdaca01bf2c38a625b6bf98616a0c11bff6dde4 | 已完成 | results/2026-10-26T07-30-31.745006500Z-baseline.json（12/36） |
+| structured | 「学历/经验结构化」PR 合入 main 后 | 作废（v1 已关闭，见下） | — |
 
 后续每次真实调用追加日期（UTC）、运行 commit、模型、槽位、状态和结果文件路径。失败、中断、误触也要记录。
+
+## v1 关闭（2026-10-26）
+
+baseline 正式运行后，查看了其失败 transcript（含 acceptance/v1 任务），据此在 #109（`5b3126b`）修改了 Agent 计划执行器：并行调用多个计划步骤、计划与工具同发、计划格式无效时不再直接结束整轮，改为可纠正。按 PROTOCOL.md「基于 acceptance 结果调整了 Agent，v1 即作废」，v1 自此关闭：structured 槽位不再运行，`AgentJobSearchEvalTests` 拒绝任何新的 v1 正式运行。baseline 结果保留为历史记录，不与之后的版本直接比较。后续正式报数使用 v2（全新 acceptance 任务，出题方不读取 `evals/agent/`），v2 预登记两次运行：#109 之后的 main，以及「学历/经验结构化」PR 合入后。
 
 ## 实际运行记录
 

@@ -35,6 +35,8 @@ import static org.mockito.Mockito.*;
 class AgentJobSearchEvalTests {
     private static final Path ROOT = Path.of("..", "evals", "agent");
     private static final String BASELINE = "5fdaca01bf2c38a625b6bf98616a0c11bff6dde4";
+    /** #109 changed the agent after reading v1 acceptance output, so v1 takes no further formal runs (see RUN-LOG). */
+    private static final boolean V1_CLOSED = true;
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final Set<String> CHECKS = Set.of("prerequisites", "inherit_internship",
             "stop_first_page", "stop_login", "no_listing_as_full", "submit_accepted",
@@ -211,6 +213,9 @@ class AgentJobSearchEvalTests {
         String endpoint = require("AI_BASE_URL");
         String modelId = require("AI_MODEL");
         String slot = require("AGENT_EVAL_SLOT");
+        if (V1_CLOSED) {
+            throw new IllegalStateException("v1 已关闭：#109 依据 v1 结果修改了 Agent，正式运行请使用 v2");
+        }
         if (!List.of("baseline", "structured").contains(slot)) {
             throw new IllegalArgumentException("AGENT_EVAL_SLOT must be baseline or structured");
         }
@@ -272,9 +277,11 @@ class AgentJobSearchEvalTests {
             Files.createDirectories(output.getParent());
             Files.writeString(output, JSON.writerWithDefaultPrettyPrinter().writeValueAsString(report) + "\n",
                     StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
-            Files.writeString(ROOT.resolve("RUN-LOG.md"),
-                    "\n| " + time + " | " + sha + " | " + modelId + " | " + slot + " | " + status +
-                            " | " + fileName + " |\n", StandardCharsets.UTF_8, StandardOpenOption.APPEND);
+            Path log = ROOT.resolve("RUN-LOG.md");
+            // A blank line between table rows ends the Markdown table, so only add a newline when one is missing.
+            String separator = Files.readString(log).endsWith("\n") ? "" : "\n";
+            Files.writeString(log, separator + "| " + time + " | " + sha + " | " + modelId + " | " + slot + " | " + status
+                    + " | " + fileName + " |\n", StandardCharsets.UTF_8, StandardOpenOption.APPEND);
             System.out.println("Agent eval report: " + output.toAbsolutePath());
         }
     }
