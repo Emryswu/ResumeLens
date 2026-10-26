@@ -322,6 +322,23 @@ class AgentJobSearchEvalV2Tests {
     }
 
     @Test
+    void everyProfileFieldReachesTheBusinessPreferences() throws Exception {
+        // Wiring only: the profile keeps its frozen field names; each one must land in the business DTO.
+        for (String name : AgentEvalV2.GROUPS) {
+            var view = AgentEvalV2.preferencesView(AgentEvalV2.group(name).profile().path("preferences"));
+            assertNotNull(view.educationLevel(), name + ": education");
+            assertNotNull(view.currentlyStudent(), name + ": studentStatus");
+            assertNotNull(view.expectedGraduationDate(), name + ": expectedGraduation");
+            assertNotNull(view.workExperienceYears(), name + ": workExperienceYears");
+        }
+        var dev = AgentEvalV2.preferencesView(AgentEvalV2.group("dev").profile().path("preferences"));
+        assertEquals(2, dev.educationLevel());
+        assertEquals(Boolean.TRUE, dev.currentlyStudent());
+        assertEquals(2027, dev.expectedGraduationDate().getYear());
+        assertEquals(0, dev.workExperienceYears());
+    }
+
+    @Test
     void providerFailuresAbortTheRunInsteadOfBeingScored() throws Exception {
         Group dev = AgentEvalV2.group("dev");
         JsonNode task = dev.tasks().getFirst();
