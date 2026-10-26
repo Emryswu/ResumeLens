@@ -36,6 +36,104 @@ class AgentPlanningTests {
         }
     };
 
+    private final List<String> detailCalls = new ArrayList<>();
+    private final AgentTool detail = new AgentTool() {
+        public String name() { return "detail"; }
+        public String description() { return "detail"; }
+        public ToolSchema parameters() { return ToolSchema.object(); }
+        public Object execute(JsonNode arguments, AgentToolContext context) {
+            detailCalls.add("detail");
+            return Map.of("detail", "公司甲详情");
+        }
+    };
+
+    @Test
+    void consecutivePlanStepsCalledTogetherRunInOrder() {
+        AtomicInteger calls = new AtomicInteger();
+        var outcome = run((system, transcript, tools, timeout) -> switch (calls.incrementAndGet()) {
+            case 1 -> plan("lookup", "detail");
+            case 2 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("a", "lookup", "{}"),
+                    AgentMessage.ToolCall.of("b", "detail", "{}"));
+            default -> AgentModel.Reply.answer("优先准备公司甲");
+        }, false);
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(1, executions.get());
+        assertEquals(1, detailCalls.size());
+    }
+
+    @Test
+    void aBatchStopsAtTheFirstFailedStepAndClosesTheRest() {
+        fails = true;
+        AtomicInteger calls = new AtomicInteger();
+        var outcome = run((system, transcript, tools, timeout) -> switch (calls.incrementAndGet()) {
+            case 1 -> plan("lookup", "detail");
+            case 2 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("a", "lookup", "{}"),
+                    AgentMessage.ToolCall.of("b", "detail", "{}"));
+            default -> AgentModel.Reply.answer("数据库暂时不可用，没有查到");
+        }, false);
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(1, executions.get());
+        assertTrue(detailCalls.isEmpty(), "a step after a failed step must not run");
+        assertDoesNotThrow(() -> new TranscriptPolicy(properties).normalize(withQuestion(outcome.transcript()), null));
+    }
+
+    @Test
+    void anOutOfOrderBatchGetsACorrectionNamingTheExpectedStep() {
+        AtomicInteger calls = new AtomicInteger();
+        var outcome = run((system, transcript, tools, timeout) -> switch (calls.incrementAndGet()) {
+            case 1 -> plan("lookup", "detail");
+            case 2 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("a", "detail", "{}"),
+                    AgentMessage.ToolCall.of("b", "lookup", "{}"));
+            case 3 -> {
+                String correction = transcript.getLast().content();
+                assertTrue(correction.contains("AGENT_PLAN_MISMATCH"));
+                assertTrue(correction.contains("lookup"), "correction should name the expected step");
+                yield call("lookup");
+            }
+            case 4 -> call("detail");
+            default -> AgentModel.Reply.answer("优先准备公司甲");
+        }, false);
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(1, executions.get());
+        assertEquals(1, detailCalls.size());
+    }
+
+    @Test
+    void aPlanSubmittedTogetherWithToolsGetsACorrection() {
+        AtomicInteger calls = new AtomicInteger();
+        var outcome = run((system, transcript, tools, timeout) -> switch (calls.incrementAndGet()) {
+            case 1 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("p", AgentPlan.TOOL, planArguments("lookup")),
+                    AgentMessage.ToolCall.of("a", "lookup", "{}"));
+            case 2 -> plan("lookup");
+            case 3 -> call("lookup");
+            default -> AgentModel.Reply.answer("优先准备公司甲");
+        }, false);
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(1, executions.get());
+    }
+
+    @Test
+    void aMalformedPlanGetsACorrection() {
+        AtomicInteger calls = new AtomicInteger();
+        var outcome = run((system, transcript, tools, timeout) -> switch (calls.incrementAndGet()) {
+            case 1 -> plan("lookup + detail");
+            case 2 -> plan("lookup");
+            case 3 -> call("lookup");
+            default -> AgentModel.Reply.answer("优先准备公司甲");
+        }, false);
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(1, executions.get());
+    }
+
+    @Test
+    void protocolCorrectionsAreBounded() {
+        AtomicInteger calls = new AtomicInteger();
+        var outcome = run((system, transcript, tools, timeout) -> calls.incrementAndGet() == 1 ? plan(1) : call("detail"), false);
+        assertEquals(AgentLoop.State.FAILED, outcome.state());
+        assertTrue(detailCalls.isEmpty());
+        assertEquals(2 + AgentLoop.MAX_PROTOCOL_CORRECTIONS, calls.get());
+    }
+
     @Test
     void simpleQuestionCallsToolsDirectlyWithoutAPlanningCallOrTrace() {
         AtomicInteger calls = new AtomicInteger();
@@ -221,7 +319,7 @@ class AgentPlanningTests {
     }
 
     private AgentLoop.Outcome run(AgentModel model, boolean trace) {
-        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(lookup)), mapper, properties, () -> 1000L);
+        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(lookup, detail)), mapper, properties, () -> 1000L);
         return loop.run(new TranscriptPolicy(properties).normalize(List.of(AgentMessage.user("这周优先准备哪几家")), null),
                 null, new AgentToolContext(new AppUser()), (event, payload) -> { events.add(event); payloads.add(payload); },
                 () -> false, 1000L, new AgentLoop.TurnOptions(null, List.of(), trace));
@@ -235,6 +333,16 @@ class AgentPlanningTests {
         var steps = mapper.createArrayNode();
         for (int index = 0; index < count; index++) steps.addObject().put("tool", "lookup").put("purpose", "查找准备依据");
         return AgentModel.Reply.call(AgentMessage.ToolCall.of("plan", AgentPlan.TOOL, mapper.createObjectNode().set("steps", steps).toString()));
+    }
+
+    private AgentModel.Reply plan(String... tools) {
+        return AgentModel.Reply.call(AgentMessage.ToolCall.of("plan", AgentPlan.TOOL, planArguments(tools)));
+    }
+
+    private String planArguments(String... tools) {
+        var steps = mapper.createArrayNode();
+        for (String tool : tools) steps.addObject().put("tool", tool).put("purpose", "查找准备依据");
+        return mapper.createObjectNode().set("steps", steps).toString();
     }
 
     private static AgentModel.Reply call(String tool) {
