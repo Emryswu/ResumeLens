@@ -63,4 +63,5 @@ v1 已关闭（见 `evals/agent/RUN-LOG.md`「v1 关闭」）。v2 是全新的�
 - CI 只运行离线检查：ScriptedAgentModel 跑通评测管线；dev 参考解通过；acceptance 参考解能完整回放；检查项与失败分类的自测；数据完整性与冻结摘要。CI 永远不调用真实模型。
 - acceptance 参考解是否通过取决于被测业务代码，所以 CI 不对它做断言，只在正式运行时记录。v2 合入前，已在 baseline 业务代码上确认 acceptance 参考解全部通过。
 - 真实模型只有在显式设置 `RUN_AGENT_EVAL=true`，并提供 `AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 和运行槽位 `AGENT_EVAL_SLOT` 时才会运行。槽位只能是 `baseline` 或 `structured`；`RUN-LOG.md` 中已有 `| <slot> | completed |` 的槽位不得再次运行。
+- 模型服务商故障（余额不足、鉴权失败、未配置、限流、服务不可用、网络请求失败或中断，即错误码 `AI_BALANCE_INSUFFICIENT`、`AI_AUTH_FAILED`、`AI_NOT_CONFIGURED`、`AI_RATE_LIMITED`、`AI_SERVICE_UNAVAILABLE`、`AI_REQUEST_ERROR`、`AI_REQUEST_INTERRUPTED`）与被测 Agent 无关：任何一次 trial 出现这类错误，运行立即中止并记为 `interrupted`，该 trial 不计入结果，报告写明 `abortReason`，槽位不被占用。超时（`AI_TIMEOUT`）和模型回复格式异常仍按 `OTHER` 计分。判断只依据错误码，不得参考任何分数。
 - 首次 baseline 运行等待人工通知。没有正式运行之前，日志里只有两条预登记计划。

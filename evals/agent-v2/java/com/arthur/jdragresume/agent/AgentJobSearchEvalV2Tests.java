@@ -322,6 +322,22 @@ class AgentJobSearchEvalV2Tests {
     }
 
     @Test
+    void providerFailuresAbortTheRunInsteadOfBeingScored() throws Exception {
+        Group dev = AgentEvalV2.group("dev");
+        JsonNode task = dev.tasks().getFirst();
+        for (String code : List.of("AI_BALANCE_INSUFFICIENT", "AI_AUTH_FAILED", "AI_RATE_LIMITED", "AI_SERVICE_UNAVAILABLE")) {
+            Trial trial = AgentEvalV2.run(dev, task, scenario -> (system, transcript, tools, timeout) -> {
+                throw new com.arthur.jdragresume.exception.BusinessException(code, "provider failure");
+            });
+            assertEquals(Optional.of(code), providerFailure(trial), trial.errorCodes() + " " + trial.trace());
+        }
+        // A model that simply answers badly is scored, not treated as an outage.
+        Trial scored = AgentEvalV2.run(dev, task, scenario -> (system, transcript, tools, timeout) ->
+                AgentModel.Reply.answer("不查了"));
+        assertEquals(Optional.empty(), providerFailure(scored));
+    }
+
+    @Test
     void realModelRunsOnlyWhenExplicitlyRequested() throws Exception {
         Assumptions.assumeTrue("true".equals(System.getenv("RUN_AGENT_EVAL")),
                 "Only offline scripted checks run in CI; the real model is never called");
@@ -345,6 +361,7 @@ class AgentJobSearchEvalV2Tests {
         AgentEvalV2Grading.FAILURE_CATEGORIES.forEach(name -> failures.put(name, 0));
         Map<String, Map<String, int[]>> checkSummary = new LinkedHashMap<>();
         String status = "completed";
+        String abortReason = null;
         try {
             for (String name : AgentEvalV2.GROUPS) {
                 Group group = AgentEvalV2.group(name);
@@ -356,6 +373,12 @@ class AgentJobSearchEvalV2Tests {
                     int passed = 0;
                     for (int repetition = 1; repetition <= REPETITIONS; repetition++) {
                         Trial result = AgentEvalV2.run(group, task, scenario -> model);
+                        Optional<String> outage = providerFailure(result);
+                        if (outage.isPresent()) {
+                            abortReason = outage.get() + "（" + name + "/" + task.path("id").asText() + " 第 " + repetition
+                                    + " 次）；该次 trial 未计入结果";
+                            throw new IllegalStateException("模型服务商故障 " + outage.get() + "，中止本次运行");
+                        }
                         if (result.passed()) passed++;
                         else failures.merge(result.category(), 1, Integer::sum);
                         for (Check check : result.checks()) {
@@ -398,6 +421,7 @@ class AgentJobSearchEvalV2Tests {
             report.put("modelId", modelId);
             report.put("slot", slot);
             report.put("status", status);
+            if (abortReason != null) report.put("abortReason", abortReason);
             report.put("acceptanceDigest", ACCEPTANCE_DIGEST);
             report.put("repetitionsPerTask", REPETITIONS);
             report.put("failureCategories", failures);
@@ -423,6 +447,19 @@ class AgentJobSearchEvalV2Tests {
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /**
+     * Outages of the model provider say nothing about the agent, so one of them stops the run (status interrupted,
+     * the slot stays free) instead of being scored. Timeouts and malformed replies are still scored as OTHER.
+     */
+    static final Set<String> PROVIDER_FAILURES = Set.of("AI_BALANCE_INSUFFICIENT", "AI_AUTH_FAILED", "AI_NOT_CONFIGURED",
+            "AI_RATE_LIMITED", "AI_SERVICE_UNAVAILABLE", "AI_REQUEST_ERROR", "AI_REQUEST_INTERRUPTED");
+
+    static Optional<String> providerFailure(Trial trial) {
+        Stream<String> fromTrace = trial.trace().stream().filter(line -> line.startsWith("evaluation exception: "))
+                .map(line -> line.substring("evaluation exception: ".length()).split(":", 2)[0]);
+        return Stream.concat(trial.errorCodes().stream(), fromTrace).filter(PROVIDER_FAILURES::contains).findFirst();
+    }
 
     static void requireRunnable(String slot, String runLog) {
         if (!SLOTS.contains(slot)) throw new IllegalArgumentException("AGENT_EVAL_SLOT must be baseline or structured");
