@@ -2,6 +2,7 @@ package com.arthur.jdragresume.agent.tool;
 
 import com.arthur.jdragresume.dto.job.JobDescriptionResponse;
 import com.arthur.jdragresume.service.JobDescriptionService;
+import com.arthur.jdragresume.service.JobRequirementExtractor;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
 
@@ -50,7 +51,9 @@ public class GetJobTool implements AgentTool {
                 ToolText.clip(job.description(), TEXT_LIMIT),
                 ToolText.clip(job.requirements(), TEXT_LIMIT),
                 "FULL".equals(job.captureDepth())
-                        ? JobRequirementEvidence.extract(job.description(), job.requirements()) : null
+                        ? JobRequirementEvidence.extract(job.description(), job.requirements()) : null,
+                "FULL".equals(job.captureDepth())
+                        ? JobRequirementExtractor.extract(job.description(), job.requirements()) : null
         );
     }
 
@@ -64,7 +67,8 @@ public class GetJobTool implements AgentTool {
             String sourceUrl,
             String description,
             String requirements,
-            JobRequirementEvidence.Fields evidence
+            JobRequirementEvidence.Fields evidence,
+            JobRequirementExtractor.Extraction structuredRequirements
     ) {
     }
 }

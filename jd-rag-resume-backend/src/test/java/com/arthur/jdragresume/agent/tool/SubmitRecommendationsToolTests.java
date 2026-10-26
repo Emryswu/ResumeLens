@@ -109,4 +109,86 @@ class SubmitRecommendationsToolTests {
         assertEquals(1, result.rejected().size());
         assertTrue(result.rejected().getFirst().reason().contains("重复"));
     }
+
+    @Test
+    void unmetPreferredEducationIsSubmittedWithWarningButNoBlock() throws Exception {
+        when(prefs.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5,
+                null, null, false, 2, null, 0, true));
+        when(jobs.findById(51L)).thenReturn(job(51, "FULL",
+                "参与 Java 后端开发，负责服务端接口维护", "实习至少3个月；每周5天；硕士优先"));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(51, "参与 Java 后端开发")), context);
+        assertTrue(result.accepted());
+        assertEquals(1, result.recommendations().size());
+        assertFalse(result.recommendations().getFirst().preferredWarnings().isEmpty());
+        assertFalse(result.recommendations().getFirst().unknownConditions().contains("学历"));
+    }
+
+    @Test
+    void missingEducationAcceptsAsUnknownWithProfileHintAndAbsentRequirementsPass() throws Exception {
+        when(prefs.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5, null, null, false));
+        when(jobs.findById(52L)).thenReturn(job(52, "FULL",
+                "负责 Java 后端开发；实习至少3个月；每周5天", "学历要求本科及以上"));
+        when(jobs.findById(53L)).thenReturn(job(53, "FULL",
+                "负责 Java 后端开发；实习至少3个月；每周5天", "经验不限"));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(52, "负责 Java 后端开发"), item(53, "负责 Java 后端开发")), context);
+        assertTrue(result.accepted());
+        var missing = result.recommendations().getFirst();
+        assertTrue(missing.unknownConditions().contains("学历"));
+        assertTrue(missing.missingUserFields().contains("学历"));
+        var noThreshold = result.recommendations().get(1);
+        assertFalse(noThreshold.unknownConditions().contains("学历"));
+        assertFalse(noThreshold.unknownConditions().contains("工作经验"));
+        assertTrue(noThreshold.jdNotes().contains("JD 未写学历要求"));
+        assertTrue(noThreshold.jdNotes().contains("JD 未写经验要求"));
+    }
+
+
+    @Test
+    void quantifiedDevelopmentExperienceIsARecommendationNoteNotUnknown() throws Exception {
+        when(prefs.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5,
+                null, null, false, 2, null, 0, true));
+        when(jobs.findById(54L)).thenReturn(job(54, "FULL",
+                "负责 Java 后端开发；实习至少3个月；每周5天",
+                "1年以上Java开发经验"));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(54, "负责 Java 后端开发")), context);
+        assertTrue(result.accepted());
+        assertTrue(result.rejected().isEmpty());
+        var recommended = result.recommendations().getFirst();
+        assertFalse(recommended.unknownConditions().contains("工作经验"));
+        assertTrue(recommended.jdNotes().stream().anyMatch(note ->
+                note.contains("JD 要求 1 年开发经验") && note.contains("需自行判断项目经历是否算数")));
+        assertTrue(recommended.missingUserFields().isEmpty());
+    }
+
+    @Test
+    void unquantifiedSkillExperienceDoesNotCreateUnknownOrAWarning() throws Exception {
+        when(prefs.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5,
+                null, null, false, 2, null, 0, true));
+        when(jobs.findById(55L)).thenReturn(job(55, "FULL",
+                "负责 Java 后端开发；实习至少3个月；每周5天",
+                "有 Spring Boot 项目经验优先"));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(55, "负责 Java 后端开发")), context);
+        assertTrue(result.accepted());
+        assertFalse(result.recommendations().getFirst().unknownConditions().contains("工作经验"));
+        assertEquals(List.of("JD 未写学历要求", "JD 未写经验要求"),
+                result.recommendations().getFirst().jdNotes());
+    }
+
+    @Test
+    void formalWorkExperienceStillRejectsZeroYearStudent() throws Exception {
+        when(prefs.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5,
+                null, null, false, 2, null, 0, true));
+        when(jobs.findById(56L)).thenReturn(job(56, "FULL",
+                "负责 Java 后端开发；实习至少3个月；每周5天", "3年以上工作经验"));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(
+                proposals(item(56, "负责 Java 后端开发")), context);
+        assertFalse(result.accepted());
+        assertTrue(result.recommendations().isEmpty());
+        assertEquals(56L, result.rejected().getFirst().jobId());
+    }
+
 }

@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -559,7 +560,7 @@ class JobSearchWorkflowTests {
                 "check_job_preferences", "{\"jobId\":" + jobId + "}"))));
         log.add(AgentMessage.tool(callId, "{\"tool\":\"check_job_preferences\",\"ok\":true,\"untrusted_data\":{"
                 + "\"jobId\":" + jobId + ",\"captureDepth\":\"" + (full ? "FULL" : "LISTING")
-                + "\",\"findings\":{\"hardBlock\":" + blocked + ",\"jdConditionsMet\":" + met
+                + "\",\"findings\":{\"hardBlock\":" + blocked + ",\"hasUnknown\":" + unknown + ",\"jdConditionsMet\":" + met
                 + ",\"duration\":{\"status\":\"" + (unknown ? "UNKNOWN" : "MEETS") + "\"}}}}"));
     }
 
@@ -574,4 +575,27 @@ class JobSearchWorkflowTests {
                 "{\"keyword\":\"" + keyword + "\",\"city\":\"深圳\",\"experience\":\"在校生\",\"maxPages\":" + pages + "}"))));
         log.add(AgentMessage.tool(id, "{\"tool\":\"collect_boss_jobs\",\"ok\":true,\"untrusted_data\":" + data + "}"));
     }
+
+    @Test
+    void educationUnknownNeverCountsAsQualifiedButNotMentionedDoes() {
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
+        verify(log, "v101", 101, saved(101, "SAVED_FULL"));
+        verify(log, "v102", 102, saved(102, "SAVED_FULL"));
+        log.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("c101",
+                "check_job_preferences", "{\"jobId\":101}"))));
+        log.add(AgentMessage.tool("c101", "{\"tool\":\"check_job_preferences\",\"ok\":true,"
+                + "\"untrusted_data\":{\"jobId\":101,\"captureDepth\":\"FULL\","
+                + "\"findings\":{\"hardBlock\":false,\"hasUnknown\":true,\"jdConditionsMet\":false,"
+                + "\"education\":{\"status\":\"UNKNOWN\"}}}}"));
+        log.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("c102",
+                "check_job_preferences", "{\"jobId\":102}"))));
+        log.add(AgentMessage.tool("c102", "{\"tool\":\"check_job_preferences\",\"ok\":true,"
+                + "\"untrusted_data\":{\"jobId\":102,\"captureDepth\":\"FULL\","
+                + "\"findings\":{\"hardBlock\":false,\"jdConditionsMet\":true,"
+                + "\"education\":{\"status\":\"NOT_MENTIONED\"},\"experience\":{\"status\":\"UNRESTRICTED\"}}}}"));
+        var result = JobSearchWorkflow.inspect(log, mapper);
+        assertEquals(Set.of(102L), result.qualifiedIds());
+        assertEquals(Set.of(101L), result.unknownIds());
+    }
+
 }

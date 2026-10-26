@@ -22,10 +22,10 @@ public class CheckJobPreferencesTool implements AgentTool {
 
     @Override public String name() { return "check_job_preferences"; }
     @Override public String description() {
-        return "把用户真实填写的到岗时间、实习月数、每周天数、地区偏好与单个职位的 FULL JD 对照。"
+        return "把用户自己填写的学历、毕业时间、工作经验、在校状态和实习到岗条件与 FULL JD 对照。"
                 + "BLOCKED 是明确冲突，UNKNOWN 表示缺少可靠信息，LOWER_PRIORITY 只是地理偏好不合。"
                 + "列表摘要不能当作核实完成；模型不得把 UNKNOWN 当 MEETS，也不得把偏好当硬性淘汰条件。"
-                + "jdConditionsMet=true 只表示 JD 写明的实习月数、每周天数（以及限定地区时的地区）都满足；到岗日期始终要向 HR 确认。";
+                + "JD 未提及或明确不限的学历、经验计入合格；有要求但资料未填或规则无法解析才 UNKNOWN。jdConditionsMet 不把 UNKNOWN 计入已确认符合，到岗日期仍需向 HR 确认。";
     }
     @Override public ToolSchema parameters() {
         return ToolSchema.object().integer("jobId", "当前用户的职位 id", true, 1, Long.MAX_VALUE);

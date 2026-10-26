@@ -47,12 +47,23 @@ class JobSearchPreferencesServiceTests {
         assertEquals(42L, rows.keySet().iterator().next());
         assertEquals("龙岗区", saved.preferredDistrict());
         assertEquals(5, saved.daysPerWeek());
+        assertNull(saved.educationLevel());
+        assertNull(saved.expectedGraduationDate());
         assertTrue(saved.configured());
         assertFalse(service.forUser(17L).configured(), "another user's preferences are not returned");
 
+        var filled = service.save(new JobSearchPreferencesInput(6, 5, null, null, false,
+                2, LocalDate.of(2027, 6, 30), 0, true));
+        assertEquals(2, filled.educationLevel());
+        assertEquals(LocalDate.of(2027, 6, 30), filled.expectedGraduationDate());
+        assertEquals(0, filled.workExperienceYears());
+        assertEquals(true, filled.currentlyStudent());
         var blank = service.save(new JobSearchPreferencesInput(null, null, null, null, false));
         assertNull(blank.availableMonths());
         assertNull(blank.earliestStartDate());
+        assertNull(blank.educationLevel());
+        assertNull(blank.workExperienceYears());
+        assertNull(blank.currentlyStudent());
         assertEquals(1, rows.size(), "save replaces current user's record, it does not append");
     }
 

@@ -35,7 +35,8 @@ public class SubmitRecommendationsTool implements AgentTool {
         return "正式推荐岗位前必须调用此工具提交 recommendations 数组，每项包含 jobId、reason、evidence。"
                 + "evidence 至少 8 个字符，来自 FULL JD 正文或任职要求（允许空白格式不同），不能只引用职位标题。"
                 + "服务端逐条检查完整 JD、实际证据和当前求职硬条件：通过的保留，不通过的附具体原因。"
-                + "UNKNOWN 会标成需向 HR 确认；下一次只需重提未通过条目，最多修正一次。";
+                + "JD 未提及学历/经验或明确不限时计入合格并标注；优先条件不满足只提示。"
+                + "学历/毕业日期等用户资料缺失才保持 UNKNOWN，提示到求职条件页填写；最多修正一次。";
     }
 
     @Override public ToolSchema parameters() {
@@ -104,10 +105,14 @@ public class SubmitRecommendationsTool implements AgentTool {
             if ("UNKNOWN".equals(check.duration().status())) unknown.add("实习时长");
             if ("UNKNOWN".equals(check.attendance().status())) unknown.add("每周到岗天数");
             if ("UNKNOWN".equals(check.district().status())) unknown.add("地区");
+            if ("UNKNOWN".equals(check.education().status())) unknown.add("学历");
+            if ("UNKNOWN".equals(check.experience().status())) unknown.add("工作经验");
+            if ("UNKNOWN".equals(check.graduation().status())) unknown.add("毕业时间");
             if ("UNKNOWN".equals(check.startDate().status())) unknown.add("最早到岗日期需与 HR 确认");
             if (!own.configured()) unknown.add("用户尚未配置求职条件");
             approved.add(new Submitted(id, job.title(), job.companyName(), job.location(),
-                    reason, evidence, List.copyOf(unknown)));
+                    reason, evidence, List.copyOf(unknown), check.preferredWarnings(),
+                    check.jdNotes(), check.missingUserFields()));
         }
         return new Result(rejected.isEmpty(), List.copyOf(approved), List.copyOf(rejected));
     }
@@ -128,7 +133,9 @@ public class SubmitRecommendationsTool implements AgentTool {
     }
 
     public record Submitted(long jobId, String title, String company, String location,
-                            String reason, String evidence, List<String> unknownConditions) { }
+                            String reason, String evidence, List<String> unknownConditions,
+                            List<String> preferredWarnings, List<String> jdNotes,
+                            List<String> missingUserFields) { }
     public record Rejected(long jobId, String title, String reason) { }
     public record Result(boolean accepted, List<Submitted> recommendations, List<Rejected> rejected) { }
 }

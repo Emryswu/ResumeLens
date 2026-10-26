@@ -10,6 +10,16 @@ public record JobSearchPreferencesInput(
         @Min(1) @Max(7) Integer daysPerWeek,
         LocalDate earliestStartDate,
         @Size(max = 80) String preferredDistrict,
-        boolean districtRequired
+        boolean districtRequired,
+        @Min(1) @Max(4) Integer educationLevel,
+        LocalDate expectedGraduationDate,
+        @Min(0) @Max(50) Integer workExperienceYears,
+        Boolean currentlyStudent
 ) {
+    public JobSearchPreferencesInput(Integer availableMonths, Integer daysPerWeek,
+                                     LocalDate earliestStartDate, String preferredDistrict,
+                                     boolean districtRequired) {
+        this(availableMonths, daysPerWeek, earliestStartDate, preferredDistrict, districtRequired,
+                null, null, null, null);
+    }
 }

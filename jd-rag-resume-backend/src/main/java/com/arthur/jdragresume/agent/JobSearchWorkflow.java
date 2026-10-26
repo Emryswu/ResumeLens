@@ -150,9 +150,7 @@ final class JobSearchWorkflow {
                     JsonNode findings = data.path("findings");
                     boolean blocked = findings.path("hardBlock").asBoolean(false);
                     boolean eligible = findings.path("jdConditionsMet").asBoolean(false);
-                    boolean unknown = "UNKNOWN".equals(findings.path("duration").path("status").asText())
-                            || "UNKNOWN".equals(findings.path("attendance").path("status").asText())
-                            || "UNKNOWN".equals(findings.path("district").path("status").asText());
+                    boolean unknown = findings.path("hasUnknown").asBoolean(false);
                     checks.put(checkedJob, new Check(!blocked && eligible, !blocked && !eligible && unknown));
                 }
                 continue;
