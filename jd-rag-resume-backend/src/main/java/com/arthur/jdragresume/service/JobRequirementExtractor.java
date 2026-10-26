@@ -11,10 +11,18 @@ import java.util.regex.Pattern;
 public final class JobRequirementExtractor {
     public enum Mode { REQUIRED, PREFERRED, NOT_MENTIONED, UNRESTRICTED, UNKNOWN }
 
-    /** Levels: junior college=1, bachelor=2, master=3, doctorate=4. */
+    /** required/preferred are inclusive lower bounds; maximums apply to experience years. */
     public record Requirement(Mode mode, Integer required, Integer preferred,
                               String requiredEvidence, String preferredEvidence,
-                              Set<Integer> allowedGraduationYears, Set<Integer> preferredGraduationYears) {
+                              Set<Integer> allowedGraduationYears, Set<Integer> preferredGraduationYears,
+                              Integer requiredMaximum, Integer preferredMaximum) {
+        public Requirement(Mode mode, Integer required, Integer preferred,
+                           String requiredEvidence, String preferredEvidence,
+                           Set<Integer> allowedGraduationYears, Set<Integer> preferredGraduationYears) {
+            this(mode, required, preferred, requiredEvidence, preferredEvidence,
+                    allowedGraduationYears, preferredGraduationYears, null, null);
+        }
+
         public Requirement(Mode mode, Integer required, Integer preferred,
                            String requiredEvidence, String preferredEvidence) {
             this(mode, required, preferred, requiredEvidence, preferredEvidence, Set.of(), Set.of());
@@ -33,7 +41,8 @@ public final class JobRequirementExtractor {
             "学历|学位|教育背景|本科及以上|硕士及以上|博士及以上|及以上|以上|不低于|"
             + "优先|加分|更佳|更好|均可|皆可|可接受|限|仅限|要求|必须|须|毕业|在读|应届");
     private static final Pattern EXPERIENCE_YEARS = Pattern.compile(
-            "([0-9一二三四五六七八九十两]+)\\s*(?:[-~至]\\s*[0-9一二三四五六七八九十两]+\\s*)?年");
+            "(不超过\\s*)?([0-9零一二三四五六七八九十两]+)\\s*"
+            + "(?:[-~至]\\s*([0-9零一二三四五六七八九十两]+)\\s*)?年\\s*(以内|以下|之内)?");
     private static final Pattern GRADUATION = Pattern.compile(
             "20\\d{2}(?:\\s*[、/，,或和及]\\s*20\\d{2})*\\s*届|20\\d{2}(?:\\s*[、/，,或和及]\\s*20\\d{2})*\\s*年毕业");
     private static final Pattern YEAR = Pattern.compile("20\\d{2}");
@@ -145,6 +154,7 @@ public final class JobRequirementExtractor {
      */
     private static ExperienceExtraction extractExperience(String full) {
         Integer required = null, preferred = null;
+        Integer requiredMaximum = null, preferredMaximum = null;
         String requiredText = null, preferredText = null;
         boolean unrestricted = false;
         List<String> notes = new ArrayList<>();
@@ -160,36 +170,52 @@ public final class JobRequirementExtractor {
 
             // Words like "有项目经验优先" contain no duration and are merely skill descriptions.
             Matcher years = EXPERIENCE_YEARS.matcher(clause);
-            Integer minimum = null;
+            Integer minimum = null, maximum = null;
             while (years.find()) {
-                int parsed = number(years.group(1));
-                if (parsed > 0) minimum = minimum == null ? parsed : Math.max(minimum, parsed);
+                int parsed = number(years.group(2));
+                if (parsed < 0) continue;
+                if (years.group(3) != null) {
+                    minimum = minimum == null ? parsed : Math.max(minimum, parsed);
+                    int upper = number(years.group(3));
+                    maximum = maximum == null ? upper : Math.min(maximum, upper);
+                } else if (years.group(1) != null || years.group(4) != null) {
+                    maximum = maximum == null ? parsed : Math.min(maximum, parsed);
+                } else {
+                    minimum = minimum == null ? parsed : Math.max(minimum, parsed);
+                }
             }
-            if (minimum == null) continue;
+            if (minimum == null && maximum == null) continue;
 
             boolean formalWork = clause.contains("工作经验") || clause.contains("全职")
                     || clause.contains("正式工作");
             if (!formalWork) {
                 String kind = clause.contains("项目经验") ? "项目"
                         : clause.contains("开发经验") ? "开发" : "相关";
-                notes.add("JD 要求 " + minimum + " 年" + kind
+                String duration = minimum == null ? "不超过 " + maximum
+                        : maximum == null ? minimum.toString() : minimum + "–" + maximum;
+                notes.add("JD 要求 " + duration + " 年" + kind
                         + "经验，需自行判断项目经历是否算数（原文：" + clause + "）");
                 continue;
             }
             if (PREFERRED.matcher(clause).find()) {
-                if (preferred == null || minimum > preferred) {
-                    preferred = minimum;
-                    preferredText = clause;
-                }
-            } else if (required == null || minimum > required) {
-                required = minimum;
-                requiredText = clause;
+                if (minimum != null) preferred = preferred == null ? minimum : Math.max(preferred, minimum);
+                if (maximum != null) preferredMaximum = preferredMaximum == null
+                        ? maximum : Math.min(preferredMaximum, maximum);
+                preferredText = preferredText == null ? clause : preferredText + "；" + clause;
+            } else {
+                if (minimum != null) required = required == null ? minimum : Math.max(required, minimum);
+                if (maximum != null) requiredMaximum = requiredMaximum == null
+                        ? maximum : Math.min(requiredMaximum, maximum);
+                requiredText = requiredText == null ? clause : requiredText + "；" + clause;
             }
         }
         Requirement requirement;
-        if (required != null || preferred != null) {
-            requirement = new Requirement(required != null ? Mode.REQUIRED : Mode.PREFERRED,
-                    required, preferred, requiredText, preferredText);
+        if (required != null && requiredMaximum != null && required > requiredMaximum) {
+            requirement = Requirement.unknown(requiredText);
+        } else if (requiredText != null || preferredText != null) {
+            requirement = new Requirement(requiredText != null ? Mode.REQUIRED : Mode.PREFERRED,
+                    required, preferred, requiredText, preferredText, Set.of(), Set.of(),
+                    requiredMaximum, preferredMaximum);
         } else {
             requirement = unrestricted ? Requirement.unrestricted() : Requirement.absent();
         }

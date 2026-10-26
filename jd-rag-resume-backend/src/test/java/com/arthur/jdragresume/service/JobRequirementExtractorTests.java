@@ -114,4 +114,33 @@ class JobRequirementExtractorTests {
         assertEquals(1, extracted.experienceNotes().size());
     }
 
+    @Test void upperExperienceWordingSetsOnlyAnUpperBound() {
+        for (String wording : new String[] { "3年以内工作经验", "工作经验3年以下",
+                "工作经验不超过3年", "不超过3年工作经验", "3年之内工作经验" }) {
+            var experience = JobRequirementExtractor.extract("", wording).experience();
+            assertEquals(JobRequirementExtractor.Mode.REQUIRED, experience.mode(), wording);
+            assertNull(experience.required(), wording);
+            assertEquals(3, experience.requiredMaximum(), wording);
+        }
+    }
+
+    @Test void experienceIntervalsRetainBothBoundsAndIntersectHardClauses() {
+        var range = JobRequirementExtractor.extract("", "1-3年工作经验；工作经验不超过2年").experience();
+        assertEquals(1, range.required());
+        assertEquals(2, range.requiredMaximum());
+        assertTrue(range.requiredEvidence().contains("1-3年工作经验"));
+        assertTrue(range.requiredEvidence().contains("工作经验不超过2年"));
+        var conflicting = JobRequirementExtractor.extract("", "3年以上工作经验；1年以内工作经验").experience();
+        assertEquals(JobRequirementExtractor.Mode.UNKNOWN, conflicting.mode());
+    }
+
+    @Test void preferredUpperExperienceBoundDoesNotCreateAHardRequirement() {
+        var range = JobRequirementExtractor.extract("", "3年以内工作经验优先").experience();
+        assertEquals(JobRequirementExtractor.Mode.PREFERRED, range.mode());
+        assertNull(range.required());
+        assertNull(range.requiredMaximum());
+        assertNull(range.preferred());
+        assertEquals(3, range.preferredMaximum());
+    }
+
 }

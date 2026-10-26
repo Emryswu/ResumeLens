@@ -218,4 +218,59 @@ class JobAvailabilityMatcherTests {
         assertFalse(result.jdConditionsMet());
     }
 
+    @Test void upperExperienceLimitsAcceptStudentsWithZeroYears() {
+        for (String jd : new String[] { "1年以内工作经验", "工作经验3年以下",
+                "工作经验不超过3年", "3年之内工作经验" }) {
+            var result = eligibleJd(applicant(2, 0, true, null), jd);
+            assertEquals("MEETS", result.experience().status(), jd);
+            assertFalse(result.hardBlock(), jd);
+            assertTrue(result.jdConditionsMet(), jd);
+        }
+    }
+
+    @Test void preferredEducationWithoutAUserValueRemainsEligibleAndRequestsInput() {
+        var result = eligibleJd(applicant(null, 0, true, null), "硕士优先");
+        assertEquals("PREFERRED", result.education().status());
+        assertFalse(result.hardBlock());
+        assertTrue(result.jdConditionsMet());
+        assertFalse(result.hasUnknown());
+        assertTrue(result.missingUserFields().contains("学历"));
+        assertTrue(result.preferredWarnings().getFirst().contains("硕士优先"));
+    }
+
+    @Test void upperExperienceLimitsAcceptTheEndpointAndBlockValuesAboveIt() {
+        assertEquals("MEETS", eligibleJd(applicant(2, 3, false, null), "3年以下工作经验").experience().status());
+        var above = eligibleJd(applicant(2, 4, false, null), "3年以下工作经验");
+        assertEquals("BLOCKED", above.experience().status());
+        assertTrue(above.hardBlock());
+        assertFalse(above.jdConditionsMet());
+    }
+
+    @Test void experienceRangesCheckBothEndpoints() {
+        for (int years : new int[] { 0, 1, 3, 4 }) {
+            var result = eligibleJd(applicant(2, years, false, null), "1-3年工作经验");
+            boolean within = years >= 1 && years <= 3;
+            assertEquals(within ? "MEETS" : "BLOCKED", result.experience().status());
+            assertEquals(within, result.jdConditionsMet());
+        }
+    }
+
+    @Test void upperExperienceLimitWithMissingYearsDoesNotInferAStudentHardBlock() {
+        var result = eligibleJd(applicant(2, null, true, null), "3年以内工作经验");
+        assertEquals("UNKNOWN", result.experience().status());
+        assertFalse(result.hardBlock());
+        assertTrue(result.missingUserFields().contains("经验"));
+    }
+
+    @Test void preferredUpperExperienceLimitRemainsOptionalForMissingAndExcessYears() {
+        for (Integer years : new Integer[] { null, 4 }) {
+            var result = eligibleJd(applicant(2, years, false, null), "3年以内工作经验优先");
+            assertEquals("PREFERRED", result.experience().status());
+            assertFalse(result.hardBlock());
+            assertTrue(result.jdConditionsMet());
+            assertFalse(result.hasUnknown());
+            assertEquals(years == null, result.missingUserFields().contains("经验"));
+        }
+    }
+
 }

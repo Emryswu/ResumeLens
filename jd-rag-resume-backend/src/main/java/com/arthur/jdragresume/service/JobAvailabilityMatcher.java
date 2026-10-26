@@ -104,15 +104,20 @@ public final class JobAvailabilityMatcher {
         if (requirement.mode() == JobRequirementExtractor.Mode.UNKNOWN)
             return new Finding("UNKNOWN", "JD 的" + label + "条件无法可靠解析：" + requirement.requiredEvidence());
         if (userValue == null) {
+            if (requirement.required() == null && requirement.requiredMaximum() == null)
+                return new Finding("PREFERRED", "JD 仅有" + label + "优先条件：" + requirement.preferredEvidence()
+                        + "；尚未填写对应求职条件，可补充后核实偏好");
             if ("经验".equals(label) && currentlyStudent && requirement.required() != null
                     && requirement.required() >= 3)
                 return new Finding("BLOCKED", "你填写了在校生，岗位明确要求至少 "
                         + requirement.required() + " 年工作经验");
             return new Finding("UNKNOWN", "JD 写有" + label + "要求，但你尚未填写对应求职条件");
         }
-        if (requirement.required() != null && userValue < requirement.required())
-            return new Finding("BLOCKED", label + "低于 JD 明确门槛：" + requirement.requiredEvidence());
-        if (requirement.preferred() != null && userValue < requirement.preferred())
+        if ((requirement.required() != null && userValue < requirement.required())
+                || (requirement.requiredMaximum() != null && userValue > requirement.requiredMaximum()))
+            return new Finding("BLOCKED", label + "不符合 JD 明确门槛：" + requirement.requiredEvidence());
+        if ((requirement.preferred() != null && userValue < requirement.preferred())
+                || (requirement.preferredMaximum() != null && userValue > requirement.preferredMaximum()))
             return new Finding("PREFERRED", "未满足 JD 的" + label + "优先条件：" + requirement.preferredEvidence());
         return new Finding("MEETS", label + "满足 JD 明确要求");
     }
@@ -144,7 +149,7 @@ public final class JobAvailabilityMatcher {
             if (!"毕业时间".equals(label)) notes.add("JD 未写" + label + "要求");
         }
         if ("PREFERRED".equals(finding.status())) warnings.add(finding.explanation());
-        if ("UNKNOWN".equals(finding.status()) && actual == null
+        if (("UNKNOWN".equals(finding.status()) || "PREFERRED".equals(finding.status())) && actual == null
                 && (requirement.mode() == JobRequirementExtractor.Mode.REQUIRED
                     || requirement.mode() == JobRequirementExtractor.Mode.PREFERRED))
             missing.add(label);
