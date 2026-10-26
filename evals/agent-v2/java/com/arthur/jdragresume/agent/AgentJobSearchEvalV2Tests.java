@@ -1,8 +1,8 @@
 package com.arthur.jdragresume.agent;
 
-import com.arthur.jdragresume.agent.AgentEvalV2.Check;
+import com.arthur.jdragresume.agent.AgentEvalV2Grading.Check;
 import com.arthur.jdragresume.agent.AgentEvalV2.Group;
-import com.arthur.jdragresume.agent.AgentEvalV2.Library;
+import com.arthur.jdragresume.agent.AgentEvalV2Grading.Library;
 import com.arthur.jdragresume.agent.AgentEvalV2.Trial;
 import com.arthur.jdragresume.agent.tool.CheckJobPreferencesTool;
 import com.arthur.jdragresume.agent.tool.CollectBossJobsTool;
@@ -38,7 +38,7 @@ class AgentJobSearchEvalV2Tests {
     /** Business code under test for the baseline slot: main after #109, before the education/experience PR. */
     static final String BASELINE = "c1c80c5ace3314de34949fd74e061dea8bb20990";
     /** Frozen acceptance inputs. Changing any acceptance task or snapshot changes this value; see PROTOCOL.md. */
-    static final String ACCEPTANCE_DIGEST = "b297c66f994bc1f8be6640a6ce44a737fa4a34b48549c0d3be37ee03d03ee9af";
+    static final String ACCEPTANCE_DIGEST = "0b11fd025bc58d6bd130af5883419e020705c70f627915908cc9020cd7e9d351";
     static final List<String> SLOTS = List.of("baseline", "structured");
     private static final int REPETITIONS = 3;
     private static final Set<String> CHECK_TYPES = Set.of("prerequisites", "inherit_filters", "stop_on_signal",
@@ -61,7 +61,7 @@ class AgentJobSearchEvalV2Tests {
                         assertNull(owners.put(id, name + "/" + file.getFileName()), "sourceJobId reused: " + id);
                         rows.put(id, row);
                         boolean halts = "NO_MORE_RESULTS".equals(task.path("finishReason").asText());
-                        if (!halts && row.path("evalSimilarity").asDouble() >= AgentEvalV2.ON_TARGET) {
+                        if (!halts && row.path("evalSimilarity").asDouble() >= AgentEvalV2Grading.ON_TARGET) {
                             assertTrue(Files.exists(ROOT.resolve("snapshots/" + name + "/details/" + id + ".json")),
                                     "on-target listing row without a detail snapshot: " + id);
                         }
@@ -97,16 +97,16 @@ class AgentJobSearchEvalV2Tests {
                             String job = check.path("job").asText();
                             assertTrue(Set.of("education", "experience").contains(check.path("rule").asText()), id);
                             assertTrue(listed.contains(job), id + ": checked job is not in the task's listings: " + job);
-                            assertTrue(rows.get(job).path("evalSimilarity").asDouble() >= AgentEvalV2.ON_TARGET,
+                            assertTrue(rows.get(job).path("evalSimilarity").asDouble() >= AgentEvalV2Grading.ON_TARGET,
                                     id + ": the gated job must rank on target so a careful agent inspects it");
                         }
                         default -> { }
                     }
-                    covered.add(AgentEvalV2.rule(check));
+                    covered.add(AgentEvalV2Grading.rule(check));
                 }
             }
-            assertTrue(covered.containsAll(AgentEvalV2.RULES), name + " misses rules: "
-                    + AgentEvalV2.RULES.stream().filter(rule -> !covered.contains(rule)).toList());
+            assertTrue(covered.containsAll(AgentEvalV2Grading.RULES), name + " misses rules: "
+                    + AgentEvalV2Grading.RULES.stream().filter(rule -> !covered.contains(rule)).toList());
         }
     }
 
@@ -150,7 +150,7 @@ class AgentJobSearchEvalV2Tests {
                     Trial result = AgentEvalV2.run(group, task, scenario -> new ScriptedAgentModel(JSON));
                     assertEquals(task.path("checks").size(), result.checks().size());
                     assertFalse(result.transcript().isEmpty());
-                    assertTrue(result.category().equals("PASS") || AgentEvalV2.FAILURE_CATEGORIES.contains(result.category()));
+                    assertTrue(result.category().equals("PASS") || AgentEvalV2Grading.FAILURE_CATEGORIES.contains(result.category()));
                     assertTrue(result.trace().stream().noneMatch(line -> line.startsWith("evaluation exception:")),
                             "评测框架抛出异常: " + task.path("id").asText() + " " + result.trace());
                     if (stream(task.path("checks")).anyMatch(check -> "stop_on_signal".equals(check.path("type").asText()))) {
@@ -206,13 +206,13 @@ class AgentJobSearchEvalV2Tests {
                 AgentMessage.tool("v1", "{\"ok\":true,\"tool\":\"verify_boss_job\",\"untrusted_data\":{\"jobId\":104,\"captureDepth\":\"FULL\"}}"),
                 AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("v2", "verify_boss_job", "{\"jobId\":105}"))),
                 AgentMessage.tool("v2", "{\"ok\":true,\"tool\":\"verify_boss_job\",\"untrusted_data\":{\"jobId\":105,\"captureDepth\":\"FULL\"}}"));
-        List<Check> correct = AgentEvalV2.grade(task, submitted(verified, "[105]", "[104]"), List.of(), library);
+        List<Check> correct = AgentEvalV2Grading.grade(task, submitted(verified, "[105]", "[104]"), List.of(), library);
         assertTrue(correct.get(0).passed(), "a gate the server rejected is excluded");
         assertTrue(correct.get(1).passed());
-        List<Check> wrong = AgentEvalV2.grade(task, submitted(verified, "[104]", "[105]"), List.of(), library);
+        List<Check> wrong = AgentEvalV2Grading.grade(task, submitted(verified, "[104]", "[105]"), List.of(), library);
         assertFalse(wrong.get(0).passed(), "an accepted gate job is a violation");
         assertFalse(wrong.get(1).passed(), "a rejected preferred job is a violation");
-        List<Check> claimed = AgentEvalV2.grade(task, List.of(AgentMessage.user("找实习"),
+        List<Check> claimed = AgentEvalV2Grading.grade(task, List.of(AgentMessage.user("找实习"),
                 AgentMessage.assistant("正式推荐 105 号岗位", null)), List.of(), library);
         assertFalse(claimed.get(0).passed(), "a gate never inspected in full is not shown to be excluded");
         assertFalse(claimed.get(1).passed(), "a recommendation claimed in prose is not an accepted submission");
@@ -239,21 +239,21 @@ class AgentJobSearchEvalV2Tests {
         List<AgentMessage> transcript = List.of(AgentMessage.user("找杭州实习"), AgentMessage.assistant("好的", null));
         var completed = List.of(AgentLoop.State.COMPLETED);
         var failed = List.of(AgentLoop.State.FAILED);
-        assertEquals("PASS", AgentEvalV2.category(passing, transcript, completed, List.of(), null));
-        assertEquals("RULE_VIOLATION", AgentEvalV2.category(failing, transcript, completed, List.of(), null));
-        assertEquals("STEP_LIMIT", AgentEvalV2.category(failing, transcript, List.of(AgentLoop.State.STEP_LIMIT),
+        assertEquals("PASS", AgentEvalV2Grading.category(passing, transcript, completed, List.of(), null));
+        assertEquals("RULE_VIOLATION", AgentEvalV2Grading.category(failing, transcript, completed, List.of(), null));
+        assertEquals("STEP_LIMIT", AgentEvalV2Grading.category(failing, transcript, List.of(AgentLoop.State.STEP_LIMIT),
                 List.of("AGENT_STEP_LIMIT"), null));
-        assertEquals("SNAPSHOT_MISSING", AgentEvalV2.category(failing, transcript, failed, List.of(), "EVAL_SNAPSHOT_MISSING"));
+        assertEquals("SNAPSHOT_MISSING", AgentEvalV2Grading.category(failing, transcript, failed, List.of(), "EVAL_SNAPSHOT_MISSING"));
         for (String code : List.of("AGENT_PLAN_INVALID", "AGENT_PLAN_MISMATCH", "AGENT_PLAN_INCOMPLETE")) {
-            assertEquals("PLAN_PROTOCOL", AgentEvalV2.category(failing, transcript, failed, List.of(code), null), code);
+            assertEquals("PLAN_PROTOCOL", AgentEvalV2Grading.category(failing, transcript, failed, List.of(code), null), code);
         }
-        assertEquals("OTHER", AgentEvalV2.category(failing, transcript, failed, List.of("AGENT_TIMEOUT"), null));
-        assertEquals("OTHER", AgentEvalV2.category(failing, transcript, failed, List.of(), "IllegalStateException"));
+        assertEquals("OTHER", AgentEvalV2Grading.category(failing, transcript, failed, List.of("AGENT_TIMEOUT"), null));
+        assertEquals("OTHER", AgentEvalV2Grading.category(failing, transcript, failed, List.of(), "IllegalStateException"));
         // AGENT_REPLAN_LIMIT does not carry the AGENT_PLAN_ prefix and stays a rule violation, as in v1.
-        assertEquals("RULE_VIOLATION", AgentEvalV2.category(failing, transcript, List.of(AgentLoop.State.REPLAN_LIMIT),
+        assertEquals("RULE_VIOLATION", AgentEvalV2Grading.category(failing, transcript, List.of(AgentLoop.State.REPLAN_LIMIT),
                 List.of("AGENT_REPLAN_LIMIT"), null));
         // A later completed turn does not hide an earlier failed one.
-        assertEquals("OTHER", AgentEvalV2.category(passing, transcript,
+        assertEquals("OTHER", AgentEvalV2Grading.category(passing, transcript,
                 List.of(AgentLoop.State.FAILED, AgentLoop.State.COMPLETED), List.of("AGENT_TIMEOUT"), null));
 
         // End to end: a model that keeps sending malformed plans ends the turn with AGENT_PLAN_INVALID.
@@ -292,12 +292,12 @@ class AgentJobSearchEvalV2Tests {
                 AgentMessage.tool("c2", "{\"ok\":false,\"tool\":\"collect_boss_jobs\",\"error\":{\"code\":\"JOB_SEARCH_REPEAT\"}}"),
                 AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("c3", "collect_boss_jobs", "{\"keyword\":\"Vue\"}"))),
                 AgentMessage.tool("c3", "{\"ok\":true,\"tool\":\"collect_boss_jobs\",\"untrusted_data\":{\"jobIds\":[102]}}"));
-        var inherited = List.of(new AgentEvalV2.ReplayCommand("c1", 0, "广州", "在校生", "前端"),
-                new AgentEvalV2.ReplayCommand("c3", 1, "广州", "在校生", "Vue"));
-        assertTrue(AgentEvalV2.grade(task, messages, inherited, Library.empty()).getFirst().passed());
-        var widened = List.of(inherited.getFirst(), new AgentEvalV2.ReplayCommand("c3", 1, "广州", "不限", "Vue"));
-        assertFalse(AgentEvalV2.grade(task, messages, widened, Library.empty()).getFirst().passed());
-        assertFalse(AgentEvalV2.grade(task, messages, List.of(inherited.getFirst()), Library.empty()).getFirst().passed(),
+        var inherited = List.of(new AgentEvalV2Grading.ReplayCommand("c1", 0, "广州", "在校生", "前端"),
+                new AgentEvalV2Grading.ReplayCommand("c3", 1, "广州", "在校生", "Vue"));
+        assertTrue(AgentEvalV2Grading.grade(task, messages, inherited, Library.empty()).getFirst().passed());
+        var widened = List.of(inherited.getFirst(), new AgentEvalV2Grading.ReplayCommand("c3", 1, "广州", "不限", "Vue"));
+        assertFalse(AgentEvalV2Grading.grade(task, messages, widened, Library.empty()).getFirst().passed());
+        assertFalse(AgentEvalV2Grading.grade(task, messages, List.of(inherited.getFirst()), Library.empty()).getFirst().passed(),
                 "a later turn without any collector arrival cannot show inheritance");
     }
 
@@ -342,7 +342,7 @@ class AgentJobSearchEvalV2Tests {
         Instant time = Instant.now();
         List<Map<String, Object>> results = new ArrayList<>();
         Map<String, Integer> failures = new LinkedHashMap<>();
-        AgentEvalV2.FAILURE_CATEGORIES.forEach(name -> failures.put(name, 0));
+        AgentEvalV2Grading.FAILURE_CATEGORIES.forEach(name -> failures.put(name, 0));
         Map<String, Map<String, int[]>> checkSummary = new LinkedHashMap<>();
         String status = "completed";
         try {
@@ -377,7 +377,7 @@ class AgentJobSearchEvalV2Tests {
                     Map<String, Object> entry = new LinkedHashMap<>();
                     entry.put("group", name);
                     entry.put("taskId", task.path("id").asText());
-                    entry.put("rules", stream(task.path("checks")).map(AgentEvalV2::rule).toList());
+                    entry.put("rules", stream(task.path("checks")).map(AgentEvalV2Grading::rule).toList());
                     entry.put("referencePassed", referencePassed);
                     entry.put("passed", passed);
                     entry.put("total", REPETITIONS);

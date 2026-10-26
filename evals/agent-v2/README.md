@@ -11,7 +11,8 @@ v2 替代已关闭的 v1（`evals/agent/`），纪律见 [`PROTOCOL.md`](PROTOCO
 | `snapshots/<group>/profile.json` | 构造简历与求职条件（dev 为杭州 AI 应用开发方向，acceptance 为广州前端方向） |
 | `snapshots/<group>/listings/` | 插件最终事件格式的列表快照，含 `generic-unrecorded.json` 和未登录快照 |
 | `snapshots/<group>/details/` | 按 `sourceJobId` 命名的完整 JD 快照 |
-| `java/.../AgentEvalV2.java` | 回放、判定、失败分类与参考解模型 |
+| `java/.../AgentEvalV2Grading.java` | 评分语义：检查项、失败分类、相似度阈值；随 acceptance 冻结 |
+| `java/.../AgentEvalV2.java` | 回放、工具接线与参考解模型；接线修复只改这个文件 |
 | `java/.../AgentJobSearchEvalV2Tests.java` | 离线检查与真实运行入口 |
 | `RUN-LOG.md` | 预登记与运行记录 |
 | `results/` | 正式运行时生成的报告 |

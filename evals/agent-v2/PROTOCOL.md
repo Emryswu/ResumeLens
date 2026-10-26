@@ -5,7 +5,8 @@ v1 已关闭（见 `evals/agent/RUN-LOG.md`「v1 关闭」）。v2 是全新的�
 ## 版本构成与冻结
 - `tasks/dev.json` 和 `snapshots/dev/` 是 dev 集，可用于排障和调试。
 - `tasks/acceptance.json` 和 `snapshots/acceptance/` 是 acceptance 集。合入即冻结，任务输入、原始快照、构造简历、金标规则和判定代码的语义共同构成 v2。
-- acceptance 输入的 SHA-256 摘要写死在 `AgentJobSearchEvalV2Tests.ACCEPTANCE_DIGEST`。改动任何 acceptance 文件，CI 就会失败；正式运行入口也会校验摘要，不一致则拒绝运行。需要改变时建立 v3，不得为了通过检查去改常量。
+- 评分语义（各检查项、失败分类及其顺序、相似度阈值、关键词归一化）单独放在 `java/.../AgentEvalV2Grading.java`。这个文件随 acceptance 一起冻结。回放与接线代码放在 `AgentEvalV2.java`，不属于评分语义。
+- 摘要覆盖 `tasks/acceptance.json`、`snapshots/acceptance/` 下的全部文件和 `AgentEvalV2Grading.java`，计算时忽略换行符差异，结果写死在 `AgentJobSearchEvalV2Tests.ACCEPTANCE_DIGEST`。改动其中任何文件，CI 就会失败；正式运行入口也会校验摘要，不一致则拒绝运行。需要改变时建立 v3，不得为了通过检查去改常量。
 - dev 与 acceptance 不共用任务，也不共用快照。每个岗位的 `sourceJobId` 全局唯一，测试会检查这一点。
 
 ## 预先登记的两次正式运行
@@ -17,7 +18,12 @@ v1 已关闭（见 `evals/agent/RUN-LOG.md`「v1 关闭」）。v2 是全新的�
 除这两次运行外，只要依据 acceptance 结果调整了 Agent、数据或配置，v2 即作废，继续正式报数要另建新版本。禁止中途查看 acceptance 输出后调参再补跑。失败、中断和误触也要写入 `RUN-LOG.md`，不能当作没有运行过。
 
 ## 冻结后唯一允许的接线修复
-结构化 PR 如果改了构造函数、依赖或 DTO，导致评测 Java 接线代码编译失败，可以由**非结构化 PR 的一方**只修复接线：构造函数参数、依赖注入、mock 与 DTO 的字段映射（包括把 `profile.json` 中已有的学历、在校状态、毕业年月、工作年数映射到新字段名）。不得修改任务、快照、检查条件或判定语义，也不得依据 acceptance 成绩调整业务代码。每次修复都要在 `RUN-LOG.md` 登记日期、commit、原因和只涉及接线的文件范围。接线修复不会重置正式运行次数，也不会带来第三次报数资格。
+结构化 PR 如果改了构造函数、依赖或 DTO，导致评测 Java 接线代码编译失败，可以由**非结构化 PR 的一方**只修复接线：构造函数参数、依赖注入、mock 与 DTO 的字段映射（包括把 `profile.json` 中已有的学历、在校状态、毕业年月、工作年数映射到新字段名）。接线修复只能改 `AgentEvalV2.java`，不得改 `AgentEvalV2Grading.java`，也不得修改任务、快照、检查条件或判定语义，更不得依据 acceptance 成绩调整业务代码。每次修复都要在 `RUN-LOG.md` 登记日期、commit、原因和只涉及接线的文件范围。接线修复不会重置正式运行次数，也不会带来第三次报数资格。
+
+结构化 PR 的 CI 中，任何 v2 测试失败（包括编译失败）时：
+- 结构化 PR 的作者立即停手，不读失败日志，也不读 `evals/agent-v2/`，把排查交给非结构化一方。
+- 非结构化一方判断失败原因。属于接线问题的，按上一段修复。
+- dev 集不冻结。如果 dev 参考解失败，且确属业务的正当变化，可以由非结构化一方更新 dev 参考解，并在 `RUN-LOG.md` 登记日期、commit、原因和改动的任务。acceptance 和评分文件仍然不得改动。
 
 ## 数据与隔离
 - 所有列表和详情都是构造的测试数据，绝不访问 BOSS 或其他招聘服务。简历邮箱使用 `example.com`，公司名为虚构。

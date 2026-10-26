@@ -9,9 +9,9 @@
 
 ## 冻结前检查（不计入正式运行）
 
-2026-10-26：在 baseline 业务代码上，用离线参考解跑通全部 dev 与 acceptance 任务（均 PASS），确认任务可解；未调用真实模型。随后计算 acceptance 摘要 `b297c66f994bc1f8be6640a6ce44a737fa4a34b48549c0d3be37ee03d03ee9af`，写入 `AgentJobSearchEvalV2Tests.ACCEPTANCE_DIGEST`。
+2026-10-26：在 baseline 业务代码上，用离线参考解跑通全部 dev 与 acceptance 任务（均 PASS），确认任务可解；未调用真实模型。#111 review 后，评分逻辑拆到 `AgentEvalV2Grading.java` 并纳入摘要，拆分后重新确认 acceptance 参考解均 PASS。摘要覆盖 `tasks/acceptance.json`、`snapshots/acceptance/` 和 `java/com/arthur/jdragresume/agent/AgentEvalV2Grading.java`，值为 `0b11fd025bc58d6bd130af5883419e020705c70f627915908cc9020cd7e9d351`，已写入 `AgentJobSearchEvalV2Tests.ACCEPTANCE_DIGEST`。
 
-## 接线修复记录
+## 接线修复与 dev 参考解更新记录
 
 暂无。
 
