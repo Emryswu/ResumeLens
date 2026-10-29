@@ -34,7 +34,8 @@ public class RelaxJobSearchConditionTool implements AgentTool {
 
     @Override public ToolSchema parameters() {
         return ToolSchema.object()
-                .string("experience", "放宽后的经验筛选，如 不限", true, 10);
+                .string("experience", "放宽后的经验筛选，如 不限", true, 10)
+                .string("jobType", "岗位类型；会话里还没记下时（如第一轮）传 实习，省略则沿用会话", false, 10);
     }
 
     @Override public boolean requiresConfirmation() {
@@ -45,11 +46,12 @@ public class RelaxJobSearchConditionTool implements AgentTool {
         JobSearchContext current = current(context);
         String requested = arguments.path("experience").asText().strip();
         JobSearchContext next = current.patch(arguments);
-        if (SearchConditionPolicy.conflict(next, profile.currentlyStudent(context.user().getId())).isEmpty()) {
-            throw new BusinessException("INVALID_ARGUMENTS",
-                    "当前条件下经验筛选传 " + requested + " 不需要放宽，直接在 collect_boss_jobs 里传即可");
+        Boolean student = profile.currentlyStudent(context.user().getId());
+        // Whether a card is needed, and what to do instead, both come from the policy that refuses the search.
+        if (SearchConditionPolicy.conflict(next, student).isEmpty()) {
+            throw new BusinessException("INVALID_ARGUMENTS", SearchConditionPolicy.relaxationNotNeeded(next, student));
         }
-        return new Preview("experience", current.effectiveExperience(), requested,
+        return new Preview("experience", SearchConditionPolicy.STUDENT_EXPERIENCE, requested,
                 "你填写的求职条件是在校生找实习，默认只看在校生岗位");
     }
 

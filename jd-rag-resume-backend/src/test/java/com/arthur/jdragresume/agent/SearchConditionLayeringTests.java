@@ -174,6 +174,70 @@ class SearchConditionLayeringTests {
                 context()), "asking the user to approve the value already required is pointless");
     }
 
+    @Test
+    void askingToRelaxInTheVeryFirstTurnShowsTheCardAndTheApprovedSearchCollectsWithoutAnyConflict() throws Exception {
+        // A fresh conversation: no jobType stored yet. The user says "我在校，找实习，经验不限的也看看".
+        stored.set(JobSearchContext.empty().selectedResume(3).preferencesRead());
+        var relax = new RelaxJobSearchConditionTool(store, userId -> student);
+        AgentModel model = (system, messages, tools, timeout) -> {
+            List<AgentMessage> results = messages.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).toList();
+            if (results.isEmpty()) {
+                return AgentModel.Reply.call(AgentMessage.ToolCall.of("relax", relax.name(),
+                        "{\"jobType\":\"实习\",\"experience\":\"不限\"}"));
+            }
+            if (results.size() == 1) {
+                return AgentModel.Reply.call(AgentMessage.ToolCall.of("collect", JobSearchWorkflow.TOOL,
+                        "{\"keyword\":\"AI 应用开发\",\"city\":\"杭州\"}"));
+            }
+            return AgentModel.Reply.answer("好的");
+        };
+        var loop = new AgentLoop(model, new AgentToolRegistry(List.of(collector(), relax)), mapper, new AgentProperties(),
+                System::currentTimeMillis, new BrowserTaskRegistry(), store, userId -> student);
+        var policy = new TranscriptPolicy(new AgentProperties());
+        var sink = new AgentEventSink() {
+            final List<Object> confirmations = new ArrayList<>();
+            @Override public void emit(String name, Object payload) {
+                if ("confirmation_required".equals(name)) confirmations.add(payload);
+            }
+            @Override public void checkpoint(List<AgentMessage> messages, String summary) { }
+        };
+
+        AgentLoop.Outcome paused = loop.run(policy.normalize(new ArrayList<>(List.of(
+                AgentMessage.user("我在校，找杭州实习，经验不限的也看看"))), null), null, context(), sink, () -> false);
+        assertEquals(AgentLoop.State.AWAITING_CONFIRMATION, paused.state(), "the card is shown on the first try");
+        assertEquals(1, sink.confirmations.size());
+        String card = mapper.writeValueAsString(((AgentLoop.PendingConfirmation) sink.confirmations.getFirst()).preview());
+        assertTrue(card.contains("\"from\":\"在校生\"") && card.contains("\"to\":\"不限\""), card);
+        assertNull(stored.get().jobType(), "nothing is stored before the user decides");
+
+        var approval = new TranscriptPolicy.Approval("relax", true);
+        AgentLoop.Outcome done = loop.run(policy.normalize(new ArrayList<>(paused.transcript()), approval), approval,
+                context(), sink, () -> false);
+        assertEquals(AgentLoop.State.COMPLETED, done.state());
+        assertTrue(done.transcript().stream().noneMatch(m -> m.content() != null
+                && m.content().contains(SearchConditionPolicy.CONFLICT)), "no refusal anywhere on the approved path");
+        assertEquals("实习", stored.get().jobType());
+        assertEquals(1, collected.size());
+        assertEquals("不限", collected.getFirst().path("experience").asText());
+    }
+
+    @Test
+    void everyRefusalPointsToANextStepThatWorksFromTheSameState() {
+        // From an empty session, the collector's refusal says to call relax with jobType; that call must be accepted.
+        stored.set(JobSearchContext.empty().selectedResume(3).preferencesRead());
+        String refusal = SearchConditionPolicy.conflict(JobSearchContext.empty().patch(
+                mapper.createObjectNode().put("jobType", "实习").put("experience", "不限")), true).orElseThrow();
+        assertTrue(refusal.contains("jobType=实习"), refusal);
+        var relax = new RelaxJobSearchConditionTool(store, userId -> student);
+        assertDoesNotThrow(() -> relax.preview(mapper.createObjectNode().put("jobType", "实习").put("experience", "不限"),
+                context()));
+        // Without jobType the relax tool explains how to proceed instead of sending the model back to the collector.
+        var missingType = assertThrows(BusinessException.class, () -> relax.preview(
+                mapper.createObjectNode().put("experience", "不限"), context()));
+        assertTrue(missingType.getMessage().contains("jobType=实习"), missingType.getMessage());
+        assertFalse(missingType.getMessage().contains("collect_boss_jobs 里传即可"), missingType.getMessage());
+    }
+
     private AgentToolContext context() {
         return new AgentToolContext(user, run);
     }
