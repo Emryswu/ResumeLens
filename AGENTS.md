@@ -58,6 +58,8 @@ CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
 - 会打开 BOSS 页面的工具（采集、核实详情等）必须加进 `JobSearchWorkflow.BOSS_TOOLS`，统一走一个预算入口（每轮采集次数、页数、核实次数、插件每日页数）。类名请带 `Boss`，`JobSearchWorkflowTests.everyBossToolInTheRegistryIsGovernedByTheBudget` 会扫描并拦下漏登记的工具。
 - 职位的 `location` 由插件按 `城市·区·商圈` 拼接（见 `browser-extension/src/boss-api-extractor.js`），老数据可能是 `深圳市龙岗区` 这种纯文本。比对地点时去掉分隔符再比，测试要用真实格式的样本。
 - AgentLoop 里新增的拒绝码（工具还没执行就拒绝的情况）必须走统一出口 `rejectBeforeExecution`，不得直接返回 `ToolEnvelope.error`：只有带 `executed=false` 的结果才不计入找岗预算、允许重试。工具自己在打开浏览器前拒绝时抛 `ToolNotStartedException`。工具执行前的校验（前置条件、会话条件、重复搜索、预算等）必须放在 `beginDeferred` 里执行前那段 try 中，异常会自动按未执行处理；和 `tool.begin(...)` 同一个 try 的只能是工具本身的执行。`UnexecutedCallBudgetTests` 会扫描 AgentLoop 源码拦下绕过出口的写法。
+- 搜索条件分层（高到低）：用户在确认卡片上同意的值 > 用户求职条件里的硬条件 > 会话已存条件 > 模型参数。模型可以收紧条件、填未设置的字段、换关键词，但不能放宽更高层的硬条件；规则集中在 `SearchConditionPolicy`，`collect_boss_jobs` 和 `update_job_search_context` 必须共用它。放宽只能走需要确认的 `relax_job_search_condition`，同意后才记入 `JobSearchContext.userConfirmed`；不得从用户消息文字或工具参数推断用户授权，`patch` 只能删除授权不能添加。放宽搜索筛选不改用户的在校状态，也不跳过推荐前的岗位资格检查。
+- 工具拒绝时给模型的"下一步"，在当前状态下必须真的走得通：被指去的工具要能接住同样的参数，不能互相推回去。补测试时从空会话开始走一遍这条路径（例：`SearchConditionLayeringTests` 首轮就要放宽的用例）。
 - 浏览器插件里每次打开 BOSS 页面都要先扣每日页数；连续打开详情页之间要有随机间隔，不能一口气秒开多个页面。
 - 跨进程比较日期必须使用同一时区（BOSS 每日额度统一为 `Asia/Shanghai`），后端是日期的唯一来源，插件和采集服务按该时区校验后端下发的 `budgetDate`。
 

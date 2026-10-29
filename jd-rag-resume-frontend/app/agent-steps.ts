@@ -3,7 +3,7 @@
  * pending confirmation; durations and result sizes are only ever the numbers the server reported.
  */
 import {
-  BriefcaseBusiness, FileSearch, FileStack, Gauge, History, ListOrdered, ScanSearch, Search, Wrench, type LucideIcon,
+  BriefcaseBusiness, FileSearch, FileStack, Gauge, History, ListOrdered, ScanSearch, Search, SlidersHorizontal, Wrench, type LucideIcon,
 } from "lucide-react";
 import type { AgentTurn } from "./agent-stream";
 import { collectionReason } from "./collection-log.ts";
@@ -64,6 +64,7 @@ export const AGENT_TOOLS: Record<string, ToolMeta> = {
   collect_boss_jobs: { label: "去 BOSS 采集岗位", icon: ScanSearch },
   get_job_search_preferences: { label: "读取求职条件", icon: ListOrdered },
   update_job_search_context: { label: "更新会话搜索条件", icon: Search },
+  relax_job_search_condition: { label: "放宽搜索条件", icon: SlidersHorizontal },
   check_job_preferences: { label: "核对到岗硬条件", icon: FileSearch },
   submit_recommendations: { label: "提交岗位推荐验收", icon: BriefcaseBusiness },
   verify_boss_job: { label: "核实完整职位 JD", icon: FileSearch },
