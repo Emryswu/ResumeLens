@@ -111,7 +111,8 @@ class UnexecutedCallBudgetTests {
     /** Second line of defence: a refusal written straight to ToolEnvelope.error would be counted as executed again. */
     @Test
     void everyRefusalInAgentLoopGoesThroughTheSingleExit() throws IOException {
-        String source = Files.readString(Path.of("src/main/java/com/arthur/jdragresume/agent/AgentLoop.java"));
+        String source = Files.readString(Path.of("src/main/java/com/arthur/jdragresume/agent/AgentLoop.java"))
+                .replace("\r\n", "\n");
         assertEquals(1, count(source, "ToolEnvelope.error("), "only executionFailure may build a plain error envelope");
         assertEquals(1, count(source, "ToolEnvelope.notExecuted("), "only rejectBeforeExecution may build a refusal");
         assertTrue(body(source, "executionFailure").contains("ToolEnvelope.error("));
@@ -128,6 +129,15 @@ class UnexecutedCallBudgetTests {
         String outsideFailureRecord = source.substring(0, source.indexOf("private record ToolFailure("));
         assertFalse(outsideFailureRecord.contains("new ToolFailure("),
                 "a hand-made ToolFailure would let a refusal through executionFailure");
+        // A check placed in the same try as tool.begin would turn its refusal into an executed failure again.
+        int method = source.indexOf("private BrowserTaskEvent beginDeferred(");
+        String beginDeferred = source.substring(method, source.indexOf("\n    }\n", method));
+        int failure = beginDeferred.indexOf("recordFailure(");
+        assertEquals(failure, beginDeferred.lastIndexOf("recordFailure("), "beginDeferred records one executed failure");
+        String guarded = beginDeferred.substring(beginDeferred.lastIndexOf("try {", failure) + "try {".length(),
+                beginDeferred.lastIndexOf("} catch", failure)).strip();
+        assertTrue(guarded.startsWith("begin = tool.begin(") && guarded.indexOf(';') == guarded.length() - 1,
+                "only tool.begin may share a try with recordFailure, found: " + guarded);
     }
 
     private static String arguments(String source, int start) {

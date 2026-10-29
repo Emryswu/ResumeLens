@@ -799,7 +799,10 @@ public class AgentLoop {
             return null;
         }
         requireActive(deadline, cancelled);
+        // Everything before tool.begin only checks the call, so any failure here means it never ran.
         DeferrableTool.Begin begin;
+        boolean persistSearchFilters = JobSearchWorkflow.TOOL.equals(call.name())
+                && context.run() != null && conversations != null;
         try {
             // Collection requires a selected resume and preferences before a browser can start.
             if (JobSearchWorkflow.TOOL.equals(call.name())
@@ -809,8 +812,6 @@ public class AgentLoop {
                         "JOB_SEARCH_PREREQUISITES", message, message);
                 return null;
             }
-            boolean persistSearchFilters = JobSearchWorkflow.TOOL.equals(call.name())
-                    && context.run() != null && conversations != null;
             if (persistSearchFilters) {
                 JobSearchContext previous = searchContext(context);
                 JobSearchContext.Search search = previous.patch(prepared.arguments()).asSearch();
@@ -825,29 +826,37 @@ public class AgentLoop {
             }
             // Keep #101 pre-budget behavior: existing FULL and invalid browser targets
             // finish or fail before verification attempt/page budget is charged.
-            DeferrableTool.Done preBudgetResult = tool.beforeBudget(prepared.arguments());
-            if (preBudgetResult != null) {
-                begin = preBudgetResult;
-            } else {
-                if (JobSearchWorkflow.governs(call.name())) {
-                    String refused = JobSearchWorkflow.refuse(
-                            JobSearchWorkflow.inspect(transcript, objectMapper, call.id(), searchContext(context)), call.name(), prepared.arguments());
-                    if (refused != null) {
-                        rejectBeforeExecution(call, sink, transcript, clock.getAsLong() - started,
-                                JobSearchWorkflow.BUDGET_ERROR, refused, refused);
-                        return null;
-                    }
+            begin = tool.beforeBudget(prepared.arguments());
+            if (begin == null && JobSearchWorkflow.governs(call.name())) {
+                String refused = JobSearchWorkflow.refuse(
+                        JobSearchWorkflow.inspect(transcript, objectMapper, call.id(), searchContext(context)), call.name(), prepared.arguments());
+                if (refused != null) {
+                    rejectBeforeExecution(call, sink, transcript, clock.getAsLong() - started,
+                            JobSearchWorkflow.BUDGET_ERROR, refused, refused);
+                    return null;
                 }
-                if (persistSearchFilters) {
-                    JsonNode rawArguments = readArguments(call.arguments());
-                    conversations.updateSearchContext(context.run(), old -> old.patch(rawArguments));
-                }
+            }
+            if (begin == null && persistSearchFilters) {
+                JsonNode rawArguments = readArguments(call.arguments());
+                conversations.updateSearchContext(context.run(), old -> old.patch(rawArguments));
+            }
+        } catch (AgentEventSink.ClientGoneException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            ToolFailure failure = ToolFailure.of(ex, call.name());
+            rejectBeforeExecution(call, sink, transcript, clock.getAsLong() - started,
+                    failure.code(), failure.message(), failure.message());
+            return null;
+        }
+        if (begin == null) {
+            // Only the tool's own work belongs here: its failures count as executed unless it says otherwise.
+            try {
                 begin = tool.begin(prepared.arguments(), context.forCollection(call.id(), deadline,
                         progress -> sink.emit("collector_progress", progress)));
+            } catch (RuntimeException ex) {
+                recordFailure(call, sink, transcript, clock.getAsLong() - started, ex);
+                return null;
             }
-        } catch (RuntimeException ex) {
-            recordFailure(call, sink, transcript, clock.getAsLong() - started, ex);
-            return null;
         }
         if (begin instanceof DeferrableTool.Done done) {
             sink.emit("step_started", new StepStartedEvent(call.id(), call.name(), call.arguments()));
