@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -57,6 +58,19 @@ class CollectBossJobsToolTests {
         assertEquals(0, collector.completions);
         assertTrue(jobs.batches.isEmpty());
         org.mockito.Mockito.verifyNoInteractions(history);
+    }
+
+    @Test
+    void onlyAnExtensionRefusingTheParametersCountsAsNotStarted() {
+        collector.result = CollectionResult.failed("INVALID_COMMAND", "插件认为采集参数不正确");
+        assertInstanceOf(com.arthur.jdragresume.exception.ToolNotStartedException.class,
+                assertThrows(BusinessException.class, () -> tool.resume(arguments(), report(), context)));
+        collector.result = CollectionResult.failed("BOSS_NOT_LOGGED_IN", "未登录");
+        BusinessException ran = assertThrows(BusinessException.class, () -> tool.resume(arguments(), report(), context));
+        assertFalse(ran instanceof com.arthur.jdragresume.exception.ToolNotStartedException,
+                "a failure after the browser opened BOSS still uses up the budget");
+        assertInstanceOf(com.arthur.jdragresume.exception.ToolNotStartedException.class,
+                assertThrows(BusinessException.class, () -> tool.begin(objectMapper.createObjectNode().put("city", "深圳"), context)));
     }
 
     @Test

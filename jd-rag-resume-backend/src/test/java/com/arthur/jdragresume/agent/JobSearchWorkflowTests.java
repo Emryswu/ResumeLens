@@ -173,7 +173,7 @@ class JobSearchWorkflowTests {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳 Java 实习")));
         add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[1,2,3,4,5,6,7],\"dailyPagesLeft\":10}");
         for (int i = 1; i <= 4; i++) verify(log, "v" + i, i, "{\"tool\":\"verify_boss_job\",\"ok\":true,\"untrusted_data\":{\"jobId\":" + i + ",\"captureDepth\":\"FULL\",\"verificationStatus\":\"SAVED_FULL\"}}");
-        verify(log, "dup", 1, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"JOB_SEARCH_BUDGET\"}}");
+        verify(log, "dup", 1, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"executed\":false,\"error\":{\"code\":\"JOB_SEARCH_BUDGET\"}}");
         var progress = JobSearchWorkflow.inspect(log, mapper);
         assertEquals(List.of(1L, 2L, 3L, 4L), progress.verifiedIds(), "a refused call is not counted");
         assertEquals(6, progress.dailyPagesLeft(), "each verification takes one daily page");
@@ -224,7 +224,7 @@ class JobSearchWorkflowTests {
     void missingJobBeforeBrowserRefundsVerificationAndDailyPageEstimate() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
         add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[91,92],\"dailyPagesLeft\":8}");
-        verify(log, "missing", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_VERIFY_JOB_NOT_FOUND\"}}");
+        verify(log, "missing", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"executed\":false,\"error\":{\"code\":\"BOSS_VERIFY_JOB_NOT_FOUND\"}}");
         var progress = JobSearchWorkflow.inspect(log, mapper);
         assertTrue(progress.attemptedIds().isEmpty());
         assertTrue(progress.verifiedIds().isEmpty());
@@ -235,11 +235,11 @@ class JobSearchWorkflowTests {
     void invalidUrlAndUnsupportedSourceBeforeBrowserRefundVerificationAndDailyPageEstimate() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
         add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[91,92],\"dailyPagesLeft\":8}");
-        verify(log, "invalidUrl", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_URL_INVALID\"}}");
+        verify(log, "invalidUrl", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"executed\":false,\"error\":{\"code\":\"BOSS_DETAIL_URL_INVALID\"}}");
         var afterUrl = JobSearchWorkflow.inspect(log, mapper);
         assertTrue(afterUrl.attemptedIds().isEmpty());
         assertEquals(8, afterUrl.dailyPagesLeft());
-        verify(log, "unsupported", 92, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_DETAIL_UNSUPPORTED\"}}");
+        verify(log, "unsupported", 92, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"executed\":false,\"error\":{\"code\":\"BOSS_DETAIL_UNSUPPORTED\"}}");
         var afterSource = JobSearchWorkflow.inspect(log, mapper);
         assertTrue(afterSource.attemptedIds().isEmpty());
         assertTrue(afterSource.verifiedIds().isEmpty());
@@ -261,7 +261,7 @@ class JobSearchWorkflowTests {
     void preflightRefundAtZeroDailyPagesDoesNotInventAvailablePages() throws Exception {
         List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
         add(log, "a", "Java 后端", 1, "{\"pagesRead\":1,\"jobIds\":[91],\"dailyPagesLeft\":0}");
-        verify(log, "missing", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"error\":{\"code\":\"BOSS_VERIFY_JOB_NOT_FOUND\"}}");
+        verify(log, "missing", 91, "{\"tool\":\"verify_boss_job\",\"ok\":false,\"executed\":false,\"error\":{\"code\":\"BOSS_VERIFY_JOB_NOT_FOUND\"}}");
         var progress = JobSearchWorkflow.inspect(log, mapper);
         assertTrue(progress.attemptedIds().isEmpty());
         assertEquals(0, progress.dailyPagesLeft());

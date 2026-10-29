@@ -9,6 +9,7 @@ import com.arthur.jdragresume.agent.tool.SubmitRecommendationsTool;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.ai.ReasoningEffort;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
+import com.arthur.jdragresume.exception.ToolNotStartedException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -395,7 +396,7 @@ public class AgentLoop {
                     if (transcript.remainingSteps() == 0) {
                         for (int index = position; index < calls.size(); index++) {
                             var omitted = calls.get(index);
-                            transcript.add(AgentMessage.tool(omitted.id(), ToolEnvelope.error(omitted.name(), "AGENT_STEP_LIMIT", "执行步数已达上限，未执行")));
+                            transcript.add(AgentMessage.tool(omitted.id(), rejectBeforeExecution(omitted.name(), "AGENT_STEP_LIMIT", "执行步数已达上限，未执行")));
                         }
                         return finishAtLimit(sink, transcript, steps, system, deadline, cancelled, options, context);
                     }
@@ -403,7 +404,7 @@ public class AgentLoop {
                     if (plan != null && position > 0 && (needsReplan || gate != null || browserGate != null)) {
                         for (int index = position; index < calls.size(); index++) {
                             var skipped = calls.get(index);
-                            transcript.add(AgentMessage.tool(skipped.id(), ToolEnvelope.error(skipped.name(), "AGENT_PLAN_STEP_SKIPPED",
+                            transcript.add(AgentMessage.tool(skipped.id(), rejectBeforeExecution(skipped.name(), "AGENT_PLAN_STEP_SKIPPED",
                                     "未执行：前一个计划步骤失败、结果为空或正在等待确认，需先处理")));
                         }
                         break;
@@ -412,8 +413,8 @@ public class AgentLoop {
                     AgentTool tool = registry.find(call.name()).orElse(null);
                     boolean pauses = tool != null && (tool.requiresConfirmation() || tool instanceof DeferrableTool);
                     if (pauses && browserGate != null || tool instanceof DeferrableTool && gate != null) {
-                        record(call, sink, transcript, 0, ToolEnvelope.error(call.name(), "ONE_PENDING_ACTION_AT_A_TIME",
-                                "一次只能等待一个需要用户确认或浏览器执行的操作，请等它完成后再发起"), false, "ONE_PENDING_ACTION_AT_A_TIME", "");
+                        rejectBeforeExecution(call, sink, transcript, 0, "ONE_PENDING_ACTION_AT_A_TIME",
+                                "一次只能等待一个需要用户确认或浏览器执行的操作，请等它完成后再发起", "");
                         continue;
                     }
                     if (tool instanceof DeferrableTool deferrable) {
@@ -427,8 +428,8 @@ public class AgentLoop {
                     }
                     if (tool != null && tool.requiresConfirmation()) {
                         if (gate != null) {
-                            record(call, sink, transcript, 0, ToolEnvelope.error(call.name(), "ONE_CONFIRMATION_AT_A_TIME",
-                                    "一次只能请用户确认一个操作，请等这个操作确认后再发起"), false, "ONE_CONFIRMATION_AT_A_TIME", "");
+                            rejectBeforeExecution(call, sink, transcript, 0, "ONE_CONFIRMATION_AT_A_TIME",
+                                    "一次只能请用户确认一个操作，请等这个操作确认后再发起", "");
                             continue;
                         }
                         gate = prepareConfirmation(call, tool, context, sink, transcript);
@@ -709,7 +710,41 @@ public class AgentLoop {
     }
 
     private static void closeCalls(AgentModel.Reply reply, List<AgentMessage> transcript, String code, String message) {
-        reply.toolCalls().forEach(call -> transcript.add(AgentMessage.tool(call.id(), ToolEnvelope.error(call.name(), code, message))));
+        reply.toolCalls().forEach(call -> transcript.add(AgentMessage.tool(call.id(), rejectBeforeExecution(call.name(), code, message))));
+    }
+
+    /**
+     * The single exit for a call refused before it ran: the result says executed=false, so JobSearchWorkflow
+     * charges no attempt or page for it and the model may retry it. Never build such a result with
+     * ToolEnvelope.error, which a budget counts as a call that ran.
+     */
+    private static String rejectBeforeExecution(String tool, String code, String message) {
+        return ToolEnvelope.notExecuted(tool, code, message);
+    }
+
+    private void rejectBeforeExecution(AgentMessage.ToolCall call, AgentEventSink sink, List<AgentMessage> transcript,
+                                       long latencyMs, String code, String message, String previewSource) {
+        record(call, sink, transcript, latencyMs, rejectBeforeExecution(call.name(), code, message), false, code, previewSource);
+    }
+
+    /** A tool that ran and failed; only a caught failure fits here, never a refusal decided by the loop. */
+    private static String executionFailure(String tool, ToolFailure failure) {
+        return ToolEnvelope.error(tool, failure.code(), failure.message());
+    }
+
+    /**
+     * A browser tool's failure counts as executed (a server-side collector may already have read pages),
+     * unless the tool itself says it refused before doing anything.
+     */
+    private void recordFailure(AgentMessage.ToolCall call, AgentEventSink sink, List<AgentMessage> transcript,
+                               long latencyMs, RuntimeException ex) {
+        ToolFailure failure = ToolFailure.of(ex, call.name());
+        if (ex instanceof ToolNotStartedException) {
+            rejectBeforeExecution(call, sink, transcript, latencyMs, failure.code(), failure.message(), failure.message());
+        } else {
+            record(call, sink, transcript, latencyMs, executionFailure(call.name(), failure), false,
+                    failure.code(), failure.message());
+        }
     }
 
     /** Lets the request thread refuse a turn the model could never serve, before any stream opens. */
@@ -738,8 +773,8 @@ public class AgentLoop {
         if (approved) {
             execute(pending, registry.find(pending.name()).orElse(null), context, sink, transcript, deadline, cancelled);
         } else {
-            record(pending, sink, transcript, 0, ToolEnvelope.error(pending.name(), "USER_REJECTED",
-                    "用户拒绝了这次操作。除非用户再次明确要求，不要重试。"), false, "USER_REJECTED", "用户拒绝执行");
+            rejectBeforeExecution(pending, sink, transcript, 0, "USER_REJECTED",
+                    "用户拒绝了这次操作。除非用户再次明确要求，不要重试。", "用户拒绝执行");
         }
     }
 
@@ -764,27 +799,26 @@ public class AgentLoop {
             return null;
         }
         requireActive(deadline, cancelled);
+        // Everything before tool.begin only checks the call, so any failure here means it never ran.
         DeferrableTool.Begin begin;
+        boolean persistSearchFilters = JobSearchWorkflow.TOOL.equals(call.name())
+                && context.run() != null && conversations != null;
         try {
             // Collection requires a selected resume and preferences before a browser can start.
             if (JobSearchWorkflow.TOOL.equals(call.name())
                     && !JobSearchWorkflow.hasPrerequisites(transcript, objectMapper, searchContext(context))) {
                 String message = "开始 BOSS 采集前必须先 get_resume 读取简历正文，再 get_job_search_preferences 读取求职条件";
-                record(call, sink, transcript, clock.getAsLong() - started,
-                        ToolEnvelope.error(call.name(), "JOB_SEARCH_PREREQUISITES", message), false,
-                        "JOB_SEARCH_PREREQUISITES", message);
+                rejectBeforeExecution(call, sink, transcript, clock.getAsLong() - started,
+                        "JOB_SEARCH_PREREQUISITES", message, message);
                 return null;
             }
-            boolean persistSearchFilters = JobSearchWorkflow.TOOL.equals(call.name())
-                    && context.run() != null && conversations != null;
             if (persistSearchFilters) {
                 JobSearchContext previous = searchContext(context);
                 JobSearchContext.Search search = previous.patch(prepared.arguments()).asSearch();
                 if (previous.alreadySearched(search)) {
                     String message = "本会话已按相同关键词、城市和经验采集过，请换关键词，避免重复消耗 BOSS 每日页数";
-                    record(call, sink, transcript, clock.getAsLong() - started,
-                            ToolEnvelope.error(call.name(), "JOB_SEARCH_REPEAT", message), false,
-                            "JOB_SEARCH_REPEAT", message);
+                    rejectBeforeExecution(call, sink, transcript, clock.getAsLong() - started,
+                            "JOB_SEARCH_REPEAT", message, message);
                     return null;
                 }
                 prepared = new Prepared(previous.effective((com.fasterxml.jackson.databind.node.ObjectNode) prepared.arguments()),
@@ -792,32 +826,37 @@ public class AgentLoop {
             }
             // Keep #101 pre-budget behavior: existing FULL and invalid browser targets
             // finish or fail before verification attempt/page budget is charged.
-            DeferrableTool.Done preBudgetResult = tool.beforeBudget(prepared.arguments());
-            if (preBudgetResult != null) {
-                begin = preBudgetResult;
-            } else {
-                if (JobSearchWorkflow.governs(call.name())) {
-                    String refused = JobSearchWorkflow.refuse(
-                            JobSearchWorkflow.inspect(transcript, objectMapper, call.id(), searchContext(context)), call.name(), prepared.arguments());
-                    if (refused != null) {
-                        record(call, sink, transcript, clock.getAsLong() - started,
-                                ToolEnvelope.error(call.name(), JobSearchWorkflow.BUDGET_ERROR, refused), false,
-                                JobSearchWorkflow.BUDGET_ERROR, refused);
-                        return null;
-                    }
+            begin = tool.beforeBudget(prepared.arguments());
+            if (begin == null && JobSearchWorkflow.governs(call.name())) {
+                String refused = JobSearchWorkflow.refuse(
+                        JobSearchWorkflow.inspect(transcript, objectMapper, call.id(), searchContext(context)), call.name(), prepared.arguments());
+                if (refused != null) {
+                    rejectBeforeExecution(call, sink, transcript, clock.getAsLong() - started,
+                            JobSearchWorkflow.BUDGET_ERROR, refused, refused);
+                    return null;
                 }
-                if (persistSearchFilters) {
-                    JsonNode rawArguments = readArguments(call.arguments());
-                    conversations.updateSearchContext(context.run(), old -> old.patch(rawArguments));
-                }
-                begin = tool.begin(prepared.arguments(), context.forCollection(call.id(), deadline,
-                        progress -> sink.emit("collector_progress", progress)));
             }
+            if (begin == null && persistSearchFilters) {
+                JsonNode rawArguments = readArguments(call.arguments());
+                conversations.updateSearchContext(context.run(), old -> old.patch(rawArguments));
+            }
+        } catch (AgentEventSink.ClientGoneException ex) {
+            throw ex;
         } catch (RuntimeException ex) {
             ToolFailure failure = ToolFailure.of(ex, call.name());
-            record(call, sink, transcript, clock.getAsLong() - started,
-                    ToolEnvelope.error(call.name(), failure.code(), failure.message()), false, failure.code(), failure.message());
+            rejectBeforeExecution(call, sink, transcript, clock.getAsLong() - started,
+                    failure.code(), failure.message(), failure.message());
             return null;
+        }
+        if (begin == null) {
+            // Only the tool's own work belongs here: its failures count as executed unless it says otherwise.
+            try {
+                begin = tool.begin(prepared.arguments(), context.forCollection(call.id(), deadline,
+                        progress -> sink.emit("collector_progress", progress)));
+            } catch (RuntimeException ex) {
+                recordFailure(call, sink, transcript, clock.getAsLong() - started, ex);
+                return null;
+            }
         }
         if (begin instanceof DeferrableTool.Done done) {
             sink.emit("step_started", new StepStartedEvent(call.id(), call.name(), call.arguments()));
@@ -887,9 +926,7 @@ public class AgentLoop {
                     context.forCollection(pending.id(), deadline, progress -> sink.emit("collector_progress", progress))),
                     context, sink, transcript, started);
         } catch (RuntimeException ex) {
-            ToolFailure failure = ToolFailure.of(ex, pending.name());
-            record(pending, sink, transcript, clock.getAsLong() - started,
-                    ToolEnvelope.error(pending.name(), failure.code(), failure.message()), false, failure.code(), failure.message());
+            recordFailure(pending, sink, transcript, clock.getAsLong() - started, ex);
         }
         return true;
     }
@@ -929,9 +966,10 @@ public class AgentLoop {
             Object preview = tool.preview(prepared.arguments(), context);
             return new PendingConfirmation(call.id(), call.name(), prepared.arguments(), preview);
         } catch (RuntimeException ex) {
+            // The preview only checks the call; the tool has not run.
             ToolFailure failure = ToolFailure.of(ex, call.name());
-            record(call, sink, transcript, clock.getAsLong() - started, ToolEnvelope.error(call.name(), failure.code(), failure.message()),
-                    false, failure.code(), failure.message());
+            rejectBeforeExecution(call, sink, transcript, clock.getAsLong() - started,
+                    failure.code(), failure.message(), failure.message());
             return null;
         }
     }
@@ -948,7 +986,7 @@ public class AgentLoop {
         long started = clock.getAsLong();
         if (tool == null) {
             String message = "未知工具 " + call.name() + "，可用工具：" + registry.names();
-            record(call, sink, transcript, 0, ToolEnvelope.error(call.name(), "UNKNOWN_TOOL", message), false, "UNKNOWN_TOOL", message);
+            rejectBeforeExecution(call, sink, transcript, 0, "UNKNOWN_TOOL", message, message);
             return;
         }
         Prepared prepared = prepare(call, tool);
@@ -975,9 +1013,7 @@ public class AgentLoop {
             }
             recordResult(tool, call, result, context, sink, transcript, started);
         } catch (RuntimeException ex) {
-            ToolFailure failure = ToolFailure.of(ex, call.name());
-            record(call, sink, transcript, clock.getAsLong() - started,
-                    ToolEnvelope.error(call.name(), failure.code(), failure.message()), false, failure.code(), failure.message());
+            recordFailure(call, sink, transcript, clock.getAsLong() - started, ex);
         }
     }
 
@@ -994,12 +1030,12 @@ public class AgentLoop {
             arguments = objectMapper.readTree(call.arguments());
         } catch (Exception ex) {
             String message = "arguments 不是合法 JSON";
-            return Prepared.failed(ToolEnvelope.error(call.name(), "INVALID_ARGUMENTS", message), message);
+            return Prepared.failed(rejectBeforeExecution(call.name(), "INVALID_ARGUMENTS", message), message);
         }
         List<String> problems = tool.parameters().validate(arguments);
         if (!problems.isEmpty()) {
             String message = String.join("; ", problems);
-            return Prepared.failed(ToolEnvelope.error(call.name(), "INVALID_ARGUMENTS", message), message);
+            return Prepared.failed(rejectBeforeExecution(call.name(), "INVALID_ARGUMENTS", message), message);
         }
         return new Prepared(arguments, null, null, null);
     }
@@ -1058,7 +1094,7 @@ public class AgentLoop {
             if (item.hasToolCalls()) item.toolCalls().forEach(call -> open.put(call.id(), call));
             if (AgentMessage.TOOL.equals(item.role())) open.remove(item.toolCallId());
         }
-        open.values().forEach(call -> transcript.add(AgentMessage.tool(call.id(), ToolEnvelope.error(call.name(), code, "本轮停止，未执行此操作"))));
+        open.values().forEach(call -> transcript.add(AgentMessage.tool(call.id(), rejectBeforeExecution(call.name(), code, "本轮停止，未执行此操作"))));
     }
 
     private Outcome done(AgentEventSink sink, State state, List<AgentMessage> transcript, int steps) {
