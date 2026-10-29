@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeftRight, Ban, CircleCheck, CircleDashed, CircleHelp, Hand, LoaderCircle } from "lucide-react";
+import { ArrowLeftRight, ArrowRight, Ban, CircleCheck, CircleDashed, CircleHelp, Hand, LoaderCircle } from "lucide-react";
 import type { AgentConfirmation } from "../../agent-stream";
 import { toolLabel } from "../../agent-steps";
 import { workspaceHref } from "../../workspace-nav";
@@ -16,6 +16,10 @@ export function ConfirmationCard({ confirmation, decision, approvalSent, active,
   disabled: boolean;
   onDecide: (approved: boolean) => void;
 }) {
+  if (confirmation.tool === "relax_job_search_condition") {
+    return <RelaxConditionCard confirmation={confirmation} decision={decision} approvalSent={approvalSent}
+      active={active} disabled={disabled} onDecide={onDecide} />;
+  }
   const preview = confirmation.preview ?? {};
   const resumeTitle = String(preview.resumeTitle ?? `简历 #${String(confirmation.arguments.resumeId ?? "")}`);
   const jobTitle = String(preview.jobTitle ?? `职位 #${String(confirmation.arguments.jobId ?? "")}`);
@@ -49,6 +53,52 @@ export function ConfirmationCard({ confirmation, decision, approvalSent, active,
           {decision === "approved" ? <><CircleCheck size={16} aria-hidden="true" />已同意</>
             : decision === "rejected" ? <><Ban size={16} aria-hidden="true" />已拒绝</>
               : approvalSent && active ? <><LoaderCircle className="spin" size={16} aria-hidden="true" />已同意，正在提交</>
+                : approvalSent ? <><CircleHelp size={16} aria-hidden="true" />已同意，结果未知</>
+                  : <><CircleDashed size={16} aria-hidden="true" />未确认</>}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Loosening a hard search condition (today: a student's internship search beyond 在校生). The user's click here is
+ * the only thing the server accepts as permission; nothing the model writes counts.
+ */
+function RelaxConditionCard({ confirmation, decision, approvalSent, active, disabled, onDecide }: {
+  confirmation: AgentConfirmation;
+  decision?: "approved" | "rejected";
+  approvalSent: boolean;
+  active: boolean;
+  disabled: boolean;
+  onDecide: (approved: boolean) => void;
+}) {
+  const preview = confirmation.preview ?? {};
+  const from = String(preview.from ?? "在校生");
+  const to = String(preview.to ?? confirmation.arguments.experience ?? "");
+  const open = active && !decision && !approvalSent;
+  return (
+    <div className={`agent-confirm${open ? " open" : ""}`} role="group" aria-label="待确认的操作">
+      <Hand className="agent-confirm-icon" size={20} aria-hidden="true" />
+      <div className="agent-confirm-body">
+        <h3>需要你确认：放宽经验筛选</h3>
+        <p className="agent-confirm-pair">
+          <strong>{from}</strong>
+          <ArrowRight size={16} aria-label="改为" />
+          <strong>{to}</strong>
+        </p>
+        <small>{preview.reason ? `${String(preview.reason)}。` : ""}同意后本会话的搜索都按「{to}」筛选，你的在校状态不变，推荐前仍会核对岗位要求。</small>
+      </div>
+      {open ? (
+        <div className="agent-confirm-actions">
+          <button className="ghost" type="button" disabled={disabled} onClick={() => onDecide(false)}>保持{from}</button>
+          <button className="primary" type="button" disabled={disabled} onClick={() => onDecide(true)}>同意放宽</button>
+        </div>
+      ) : (
+        <span className={`agent-confirm-result ${decision ?? (approvalSent ? (active ? "sending" : "unknown") : "none")}`}>
+          {decision === "approved" ? <><CircleCheck size={16} aria-hidden="true" />已同意</>
+            : decision === "rejected" ? <><Ban size={16} aria-hidden="true" />已拒绝</>
+              : approvalSent && active ? <><LoaderCircle className="spin" size={16} aria-hidden="true" />已同意，正在保存</>
                 : approvalSent ? <><CircleHelp size={16} aria-hidden="true" />已同意，结果未知</>
                   : <><CircleDashed size={16} aria-hidden="true" />未确认</>}
         </span>

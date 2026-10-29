@@ -124,6 +124,36 @@ class ConversationStoreTests {
     }
 
     @Test
+    void aUserApprovedRelaxationIsStoredAndInheritedByTheNextTurnWhileTheUpdateToolCannotForgeIt() {
+        long conversationId = store.create(1).conversation().id();
+        var policy = new TranscriptPolicy(new AgentProperties());
+        var mapper = ConversationStore.JSON;
+        var user = new com.arthur.jdragresume.entity.AppUser();
+        org.springframework.test.util.ReflectionTestUtils.setField(user, "id", 1L);
+        JobSearchProfile student = userId -> true;
+        var first = store.accept(1, conversationId, "找杭州实习", null, null, 90000,
+                messages -> policy.normalize(messages, null));
+        store.updateSearchContext(first, old -> old.patch(mapper.createObjectNode().put("jobType", "实习").put("city", "杭州")));
+        var context = new com.arthur.jdragresume.agent.tool.AgentToolContext(user, first);
+
+        var update = new com.arthur.jdragresume.agent.tool.UpdateJobSearchContextTool(store, student);
+        assertThrows(com.arthur.jdragresume.exception.ToolNotStartedException.class,
+                () -> update.execute(mapper.createObjectNode().put("experience", "不限"), context));
+        assertNull(store.searchContext(first).experience(), "a refused update leaves the stored row unchanged");
+
+        new com.arthur.jdragresume.agent.tool.RelaxJobSearchConditionTool(store, student)
+                .execute(mapper.createObjectNode().put("experience", "不限"), context);
+        store.emit(first, "done", java.util.Map.of("state", "COMPLETED", "steps", 1));
+
+        var second = store.accept(1, conversationId, "再找找", null, null, 90000,
+                messages -> policy.normalize(messages, null));
+        var restored = store.searchContext(second);
+        assertEquals("不限", restored.experience());
+        assertTrue(restored.userConfirmed().contains("experience"));
+        assertTrue(SearchConditionPolicy.conflict(restored, true).isEmpty(), "the approval is not re-imposed next turn");
+    }
+
+    @Test
     void agentLoopCollectsInheritedFiltersAndBlocksRepeatBeforeBrowser() {
         long conversationId = store.create(1).conversation().id();
         var policy = new TranscriptPolicy(new AgentProperties());

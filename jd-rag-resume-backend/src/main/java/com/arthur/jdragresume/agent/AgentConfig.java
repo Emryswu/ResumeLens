@@ -3,6 +3,7 @@ package com.arthur.jdragresume.agent;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.ai.AiClient;
 import com.arthur.jdragresume.ai.AiProperties;
+import com.arthur.jdragresume.service.JobSearchPreferencesService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
@@ -37,9 +38,17 @@ public class AgentConfig {
             ObjectMapper objectMapper,
             AgentProperties properties,
             BrowserTaskRegistry browserTaskRegistry,
-            ConversationStore conversations
+            ConversationStore conversations,
+            JobSearchProfile jobSearchProfile
     ) {
-        return new AgentLoop(agentModel, registry, objectMapper, properties, System::currentTimeMillis, browserTaskRegistry, conversations);
+        return new AgentLoop(agentModel, registry, objectMapper, properties, System::currentTimeMillis, browserTaskRegistry,
+                conversations, jobSearchProfile);
+    }
+
+    /** Hard conditions come from what the user saved on the preferences page, looked up fresh for every check. */
+    @Bean
+    public JobSearchProfile jobSearchProfile(JobSearchPreferencesService preferences) {
+        return userId -> userId == null ? null : preferences.forUser(userId).currentlyStudent();
     }
 
     /** Small and bounded: each turn holds a thread for up to the turn budget while waiting on the model. */

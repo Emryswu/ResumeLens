@@ -9,15 +9,41 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-/** Persistent search filters; only explicit tool arguments mutate this conversation-local state. */
+/**
+ * Persistent search filters; only explicit tool arguments mutate this conversation-local state.
+ *
+ * <p>Every field is in one of three states: unset/cleared ({@code null}, the default applies), or a value. A value the
+ * model wrote is the model's; {@link #userConfirmed} lists the fields whose current value the user approved on a
+ * confirmation card, which is the only way a value outranks a hard condition (see {@link SearchConditionPolicy}).
+ * Tool arguments can never add to it: {@link #patch} only ever removes approvals.
+ */
 public record JobSearchContext(String city, String jobType, String keyword, String experience,
-                               Long resumeId, boolean preferencesLoaded, List<Search> searched) {
+                               Long resumeId, boolean preferencesLoaded, List<Search> searched,
+                               List<String> userConfirmed) {
+    /** Fields a user approval can apply to; each has a hard rule in {@link SearchConditionPolicy}. */
+    static final List<String> CONFIRMABLE = List.of("experience");
+
     public JobSearchContext {
         searched = List.copyOf(Objects.requireNonNullElse(searched, List.of()));
+        userConfirmed = List.copyOf(Objects.requireNonNullElse(userConfirmed, List.<String>of()).stream()
+                .filter(CONFIRMABLE::contains).distinct().toList());
+    }
+
+    public JobSearchContext(String city, String jobType, String keyword, String experience,
+                            Long resumeId, boolean preferencesLoaded, List<Search> searched) {
+        this(city, jobType, keyword, experience, resumeId, preferencesLoaded, searched, List.of());
     }
 
     public static JobSearchContext empty() {
-        return new JobSearchContext(null, null, null, null, null, false, List.of());
+        return new JobSearchContext(null, null, null, null, null, false, List.of(), List.of());
+    }
+
+    /** Records that the user approved the current value of {@code field}; called only after a confirmation card. */
+    public JobSearchContext confirmedByUser(String field) {
+        if (!CONFIRMABLE.contains(field)) throw new IllegalArgumentException("not a confirmable field: " + field);
+        List<String> approved = new ArrayList<>(userConfirmed);
+        if (!approved.contains(field)) approved.add(field);
+        return new JobSearchContext(city, jobType, keyword, experience, resumeId, preferencesLoaded, searched, approved);
     }
 
     /** Missing property inherits, explicit null/empty text clears. Changing job type resets experience. */
@@ -34,9 +60,12 @@ public record JobSearchContext(String city, String jobType, String keyword, Stri
             JsonNode id = fields.get("resumeId");
             newResume = id.isNull() ? null : id.asLong();
         }
+        // An approval covers one exact value: any change to it, or to the job type it was given for, drops it.
+        List<String> approved = userConfirmed.stream().filter(name -> !"experience".equals(name)
+                || Objects.equals(newExperience, experience) && Objects.equals(newType, jobType)).toList();
         return new JobSearchContext(field(fields, "city", city), newType,
                 field(fields, "keyword", keyword), newExperience,
-                newResume, preferencesLoaded, searched);
+                newResume, preferencesLoaded, searched, approved);
     }
 
     private static String field(JsonNode node, String name, String previous) {
@@ -75,15 +104,15 @@ public record JobSearchContext(String city, String jobType, String keyword, Stri
     public JobSearchContext collected(Search search) {
         List<Search> history = new ArrayList<>(searched);
         if (!history.contains(search)) history.add(search);
-        return new JobSearchContext(city, jobType, keyword, experience, resumeId, preferencesLoaded, history);
+        return new JobSearchContext(city, jobType, keyword, experience, resumeId, preferencesLoaded, history, userConfirmed);
     }
 
     public JobSearchContext selectedResume(long id) {
-        return new JobSearchContext(city, jobType, keyword, experience, id, preferencesLoaded, searched);
+        return new JobSearchContext(city, jobType, keyword, experience, id, preferencesLoaded, searched, userConfirmed);
     }
 
     public JobSearchContext preferencesRead() {
-        return new JobSearchContext(city, jobType, keyword, experience, resumeId, true, searched);
+        return new JobSearchContext(city, jobType, keyword, experience, resumeId, true, searched, userConfirmed);
     }
 
     public boolean hasConditions() {

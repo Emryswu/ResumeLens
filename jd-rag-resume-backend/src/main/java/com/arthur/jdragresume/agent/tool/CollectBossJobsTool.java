@@ -68,7 +68,7 @@ public class CollectBossJobsTool implements DeferrableTool {
                 .bool("broadSearch", "仅用户明确要求不限方向时传 true，允许空 keyword 泛搜；默认 false", false)
                 .string("city", "城市：全国、北京、上海、广州、深圳、杭州、南京、苏州、成都、武汉、西安、天津、重庆、长沙、厦门；省略沿用本会话，空字符串清除城市限制", false, 10)
                 .string("jobType", "岗位意图：实习、全职、不限；省略沿用，空字符串清除。实习默认 experience=在校生，全职默认 experience=不限", false, 10)
-                .string("experience", "BOSS 工作经验筛选：不限、在校生、应届生、经验不限、1年以内、1-3年、3-5年、5-10年、10年以上；默认不限。找实习优先在校生", false, 10)
+                .string("experience", "BOSS 工作经验筛选：不限、在校生、应届生、经验不限、1年以内、1-3年、3-5年、5-10年、10年以上；默认不限。用户求职条件为在校生且找实习时只能是在校生（服务端会拒绝更宽的值），用户明确要放宽须先调用 relax_job_search_condition", false, 10)
                 .integer("maxPages", "读取页数，默认 1，最多 3", false, 1, 3);
     }
 

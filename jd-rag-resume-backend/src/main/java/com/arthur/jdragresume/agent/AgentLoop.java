@@ -111,6 +111,7 @@ public class AgentLoop {
                 首次有失败时只重提 rejected 的条目一次，第二次后即收尾；通过验收的作为正式推荐，其余标为“待核实”并说明原因。
                 没有通过的岗位不能当作正式推荐；采集失败、搜索覆盖和下一步的说明应如实保留。
             21. 找岗位时以本会话保存的城市、jobType、keyword、experience 和所选简历为默认条件。用户明确改变条件时，必须通过 collect_boss_jobs 或 update_job_search_context 的工具参数写出改变的字段；未传继承，空字符串或 null 清空，绝不能仅靠对话文本猜测修改。第一次找实习必须显式传 jobType=实习；改为全职传 jobType=全职。再次补搜必须换关键词，不能重复本会话历史上已执行的相同关键词、城市、经验组合。
+            22. 用户在求职条件里填了在校生、又在找实习时，experience 只能是在校生，不要自己改成不限或应届生；服务端会以 JOB_SEARCH_CONDITION_CONFLICT 拒绝且不计预算。只有用户明确说想放宽时，才调用 relax_job_search_condition，由用户在界面上确认，同意后本会话沿用放宽后的值。
             """;
 
     private final AgentModel model;
@@ -120,6 +121,7 @@ public class AgentLoop {
     private final LongSupplier clock;
     private final BrowserTaskRegistry browserTasks;
     private final ConversationStore conversations;
+    private final JobSearchProfile profile;
 
     public AgentLoop(
             AgentModel model,
@@ -145,6 +147,13 @@ public class AgentLoop {
     public AgentLoop(AgentModel model, AgentToolRegistry registry, ObjectMapper objectMapper,
                      AgentProperties properties, LongSupplier clock, BrowserTaskRegistry browserTasks,
                      ConversationStore conversations) {
+        this(model, registry, objectMapper, properties, clock, browserTasks, conversations, JobSearchProfile.UNKNOWN);
+    }
+
+    public AgentLoop(AgentModel model, AgentToolRegistry registry, ObjectMapper objectMapper,
+                     AgentProperties properties, LongSupplier clock, BrowserTaskRegistry browserTasks,
+                     ConversationStore conversations, JobSearchProfile profile) {
+        this.profile = java.util.Objects.requireNonNull(profile);
         this.model = model;
         this.registry = registry;
         this.objectMapper = objectMapper;
@@ -811,6 +820,16 @@ public class AgentLoop {
                 rejectBeforeExecution(call, sink, transcript, clock.getAsLong() - started,
                         "JOB_SEARCH_PREREQUISITES", message, message);
                 return null;
+            }
+            if (JobSearchWorkflow.TOOL.equals(call.name())) {
+                JobSearchContext base = persistSearchFilters ? searchContext(context) : JobSearchContext.empty();
+                var conflict = SearchConditionPolicy.conflict(base.patch(prepared.arguments()),
+                        profile.currentlyStudent(context.user().getId()));
+                if (conflict.isPresent()) {
+                    rejectBeforeExecution(call, sink, transcript, clock.getAsLong() - started,
+                            SearchConditionPolicy.CONFLICT, conflict.get(), conflict.get());
+                    return null;
+                }
             }
             if (persistSearchFilters) {
                 JobSearchContext previous = searchContext(context);
