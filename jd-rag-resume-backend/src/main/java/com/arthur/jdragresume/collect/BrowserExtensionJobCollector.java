@@ -1,6 +1,7 @@
 package com.arthur.jdragresume.collect;
 
 import com.arthur.jdragresume.exception.BusinessException;
+import com.arthur.jdragresume.exception.ToolNotStartedException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
 
@@ -255,8 +256,9 @@ public class BrowserExtensionJobCollector implements JobCollector {
         return CODE.matcher(code).matches() ? code : "UNKNOWN";
     }
 
+    /** Thrown before any browser task is issued, so the agent's job-search budget is not charged. */
     private static BusinessException invalidRequest(String message) {
-        return new BusinessException("INVALID_ARGUMENTS", message);
+        return new ToolNotStartedException("INVALID_ARGUMENTS", message);
     }
 
     /** The detail stays in the code path for debugging; the model only needs to know the report was dropped. */

@@ -9,6 +9,7 @@ import com.arthur.jdragresume.collect.JobCollector;
 import com.arthur.jdragresume.dto.job.JobCaptureRequest;
 import com.arthur.jdragresume.dto.job.ListingCaptureResult;
 import com.arthur.jdragresume.exception.BusinessException;
+import com.arthur.jdragresume.exception.ToolNotStartedException;
 import com.arthur.jdragresume.service.JobDescriptionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.BooleanNode;
@@ -96,7 +97,7 @@ public class CollectBossJobsTool implements DeferrableTool {
                 arguments.path("maxPages").asInt(1),
                 arguments.path("experience").asText("不限"));
         if (request.keyword().isBlank() && !BooleanNode.TRUE.equals(arguments.get("broadSearch"))) {
-            throw new BusinessException("BOSS_DIRECTION_REQUIRED", "请先根据简历确定方向并填写 keyword；仅用户明确要求不限方向时可传 broadSearch=true 泛搜");
+            throw new ToolNotStartedException("BOSS_DIRECTION_REQUIRED", "请先根据简历确定方向并填写 keyword；仅用户明确要求不限方向时可传 broadSearch=true 泛搜");
         }
         return request;
     }
@@ -108,6 +109,8 @@ public class CollectBossJobsTool implements DeferrableTool {
     private Summary save(CollectRequest request, CollectionResult result) {
         if (result.outcome() == CollectionResult.Outcome.FAILED
                 || result.outcome() == CollectionResult.Outcome.STOPPED && result.listings().isEmpty()) {
+            // The extension refused the parameters before opening BOSS, so the search budget is not spent.
+            if ("INVALID_COMMAND".equals(result.code())) throw new ToolNotStartedException(result.code(), result.message());
             throw new BusinessException(result.code(), result.message());
         }
         ListingCaptureResult saved = jobDescriptionService.captureListings(result.listings().stream()

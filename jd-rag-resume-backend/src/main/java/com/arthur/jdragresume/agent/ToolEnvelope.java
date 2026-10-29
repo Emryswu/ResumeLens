@@ -59,14 +59,31 @@ final class ToolEnvelope {
         return null;
     }
 
+    /** A tool that ran and failed. */
     static String error(String tool, String code, String message) {
+        return errorNode(tool, code, message).toString();
+    }
+
+    /** A call refused before it ran. JobSearchWorkflow charges nothing for it, so it may be retried. */
+    static String notExecuted(String tool, String code, String message) {
+        ObjectNode root = errorNode(tool, code, message);
+        root.put("executed", false);
+        return root.toString();
+    }
+
+    /** Every envelope counts as executed unless it says otherwise, so an unmarked error is never refunded. */
+    static boolean executed(JsonNode envelope) {
+        return envelope.path("executed").asBoolean(true);
+    }
+
+    private static ObjectNode errorNode(String tool, String code, String message) {
         ObjectNode root = JsonNodeFactory.instance.objectNode();
         root.put("tool", tool);
         root.put("ok", false);
         ObjectNode error = root.putObject("error");
         error.put("code", code);
         error.put("message", message);
-        return root.toString();
+        return root;
     }
 
     static JsonNode toTree(ObjectMapper objectMapper, Object data) {

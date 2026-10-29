@@ -5,6 +5,7 @@ import com.arthur.jdragresume.dto.job.JobCaptureResponse;
 import com.arthur.jdragresume.dto.job.JobDescriptionResponse;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
+import com.arthur.jdragresume.exception.ToolNotStartedException;
 import com.arthur.jdragresume.service.JobDescriptionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
@@ -74,7 +75,7 @@ public class VerifyBossJobTool implements DeferrableTool {
         } catch (ResourceNotFoundException ex) {
             // Distinct from NOT_FOUND during resume: a missing posting before opening
             // the browser must not charge an attempt or a daily-page estimate.
-            throw new BusinessException("BOSS_VERIFY_JOB_NOT_FOUND", ex.getMessage() + "（id 必须来自工具结果）");
+            throw new ToolNotStartedException("BOSS_VERIFY_JOB_NOT_FOUND", ex.getMessage() + "（id 必须来自工具结果）");
         }
     }
 
@@ -153,7 +154,7 @@ public class VerifyBossJobTool implements DeferrableTool {
 
     private static void requireBoss(JobDescriptionResponse job) {
         if (!"BOSS".equalsIgnoreCase(job.sourcePlatform())) {
-            throw new BusinessException("BOSS_DETAIL_UNSUPPORTED", "只能核实已采集的 BOSS 岗位");
+            throw new ToolNotStartedException("BOSS_DETAIL_UNSUPPORTED", "只能核实已采集的 BOSS 岗位");
         }
     }
 
@@ -193,7 +194,7 @@ public class VerifyBossJobTool implements DeferrableTool {
     }
 
     private static BusinessException invalidBossUrl() {
-        return new BusinessException("BOSS_DETAIL_URL_INVALID", "BOSS 职位详情链接不合法，未打开浏览器");
+        return new ToolNotStartedException("BOSS_DETAIL_URL_INVALID", "BOSS 职位详情链接不合法，未打开浏览器");
     }
 
     private static BusinessException invalidReport() {

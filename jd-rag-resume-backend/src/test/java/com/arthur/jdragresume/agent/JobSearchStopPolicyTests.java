@@ -7,6 +7,7 @@ import com.arthur.jdragresume.agent.tool.DeferrableTool;
 import com.arthur.jdragresume.agent.tool.ToolSchema;
 import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.exception.BusinessException;
+import com.arthur.jdragresume.exception.ToolNotStartedException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,8 @@ class JobSearchStopPolicyTests {
     void invalidCollectionParametersDoNotHaltTheSearch() throws Exception {
         for (String code : List.of("BOSS_DIRECTION_REQUIRED", "INVALID_ARGUMENTS", "INVALID_COMMAND",
                 "JOB_SEARCH_PREREQUISITES")) {
-            var result = error(code);
+            // AgentLoop and the collector refuse these before the browser opens, so they arrive marked as not executed.
+            var result = mapper.readTree(ToolEnvelope.notExecuted("collect_boss_jobs", code, "test"));
             assertNull(JobSearchStopPolicy.haltReason(result), code);
             var messages = new ArrayList<>(List.of(AgentMessage.user("找深圳实习")));
             messages.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of(
@@ -101,7 +103,7 @@ class JobSearchStopPolicyTests {
             }
             public Begin begin(JsonNode args, AgentToolContext context) {
                 if (args.path("keyword").asText("").isBlank()) {
-                    throw new BusinessException("BOSS_DIRECTION_REQUIRED",
+                    throw new ToolNotStartedException("BOSS_DIRECTION_REQUIRED",
                             "Specify keyword or explicitly enable broadSearch");
                 }
                 completed.incrementAndGet();

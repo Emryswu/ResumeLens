@@ -25,14 +25,6 @@ final class JobSearchWorkflow {
     /** Every tool that loads BOSS pages must be listed here so AgentLoop checks it against the budget. */
     static final Set<String> BOSS_TOOLS = Set.of(TOOL, VERIFY_TOOL);
     static final String BUDGET_ERROR = "JOB_SEARCH_BUDGET";
-    /** Validation rejected before browser navigation must not consume search attempts/pages. */
-    static final Set<String> COLLECTION_NOT_STARTED_CODES = Set.of(
-            BUDGET_ERROR, "JOB_SEARCH_PREREQUISITES", "JOB_SEARCH_REPEAT", "BOSS_DIRECTION_REQUIRED",
-            "INVALID_ARGUMENTS", "INVALID_COMMAND");
-    /** Failures before a verification browser task starts must not consume attempt/page estimates.
-     * Keep preflight codes distinct from errors that can also happen after a browser report. */
-    static final Set<String> VERIFICATION_NOT_STARTED_CODES = Set.of(
-            BUDGET_ERROR, "BOSS_VERIFY_JOB_NOT_FOUND", "BOSS_DETAIL_UNSUPPORTED", "BOSS_DETAIL_URL_INVALID");
     static final int MAX_SEARCHES = 3;
     static final int MAX_PAGES = 6;
     static final int MAX_VERIFICATIONS = 5;
@@ -159,7 +151,8 @@ final class JobSearchWorkflow {
             if (verifiedCandidate != null) {
                 boolean reserved = Boolean.TRUE.equals(estimatedDailyPageCharged.remove(message.toolCallId()));
                 JsonNode result = parse(mapper, message.content());
-                if (verificationDidNotStart(result)) {
+                // Only a call that never ran is refunded; which error it was does not matter.
+                if (!ToolEnvelope.executed(result)) {
                     attempted.remove(message.toolCallId());
                     if (reserved) dailyPagesLeft++;
                 } else if (result.path("ok").asBoolean(false)) {
@@ -180,9 +173,8 @@ final class JobSearchWorkflow {
             Attempt attempt = pending.remove(message.toolCallId());
             if (attempt == null) continue;
             JsonNode result = parse(mapper, message.content());
-            // A call this workflow refused never reached the browser and must not use up the budget.
-            if (!result.path("ok").asBoolean(false)
-                    && COLLECTION_NOT_STARTED_CODES.contains(result.path("error").path("code").asText())) {
+            // A call refused before it ran never reached the browser and must not use up the budget.
+            if (!ToolEnvelope.executed(result)) {
                 attempts.remove(attempt);
                 continue;
             }
@@ -212,11 +204,6 @@ final class JobSearchWorkflow {
         return new Snapshot(List.copyOf(attempts), requestedPages, pagesRead, jobIds.size(), dailyPagesLeft,
                 List.copyOf(new LinkedHashSet<>(attempted.values())), List.copyOf(verified), internship,
                 haltReason, Set.copyOf(qualified), Set.copyOf(unknown));
-    }
-
-    private static boolean verificationDidNotStart(JsonNode result) {
-        return !result.path("ok").asBoolean(false)
-                && VERIFICATION_NOT_STARTED_CODES.contains(result.path("error").path("code").asText());
     }
 
     private static boolean refusedByBudget(JsonNode result) {
