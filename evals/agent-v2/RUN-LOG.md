@@ -28,3 +28,4 @@
 | 2026-10-26T09:43:11.423624600Z | de758f52d1ed5ed80ebb71eb029ae18e78a5d359 | deepseek-flash | baseline | void | results/2026-10-26T09-43-11.423624600Z-baseline.json |
 | 2026-10-26T09:48:06.488007300Z | de758f52d1ed5ed80ebb71eb029ae18e78a5d359 | deepseek-flash | baseline | void | results/2026-10-26T09-48-06.488007300Z-baseline.json |
 | 2026-10-26T10:33:13.039737200Z | 4aa9eb58928a8dfeb83b6c1b5865d05151627988 | deepseek-flash | baseline | completed | results/2026-10-26T10-33-13.039737200Z-baseline.json |
+| 2026-10-29T12:02:50.669374400Z | cb029c18f1c9b1d2bc03dc165d2329d0aa202255 | deepseek-flash | structured | completed | results/2026-10-29T12-02-50.669374400Z-structured.json |
