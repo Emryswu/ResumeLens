@@ -237,6 +237,64 @@ class ConversationStoreTests {
     }
 
     @Test
+    void anInvalidStoredConditionIsRefusedBeforeExecutionAndTheCorrectedCallStillCollects() throws Exception {
+        long conversationId = store.create(1).conversation().id();
+        var policy = new TranscriptPolicy(new AgentProperties());
+        var mapper = ConversationStore.JSON;
+        var collected = new java.util.ArrayList<com.fasterxml.jackson.databind.JsonNode>();
+        com.arthur.jdragresume.agent.tool.DeferrableTool collector = new com.arthur.jdragresume.agent.tool.DeferrableTool() {
+            public String name() { return "collect_boss_jobs"; }
+            public String description() { return "collect"; }
+            public com.arthur.jdragresume.agent.tool.ToolSchema parameters() {
+                return com.arthur.jdragresume.agent.tool.ToolSchema.object()
+                        .string("keyword", "keyword", true, 50)
+                        .string("city", "city", true, 10)
+                        .string("jobType", "type", false, 10)
+                        .integer("maxPages", "pages", false, 1, 3);
+            }
+            public Begin begin(com.fasterxml.jackson.databind.JsonNode args,
+                               com.arthur.jdragresume.agent.tool.AgentToolContext context) {
+                collected.add(args);
+                return new Done(java.util.Map.of("status", "COMPLETED", "finishReason", "MAX_PAGES",
+                        "pagesRead", 1, "jobIds", java.util.List.of(11L), "dailyPagesLeft", 20));
+            }
+            public Object resume(com.fasterxml.jackson.databind.JsonNode args,
+                                 com.fasterxml.jackson.databind.JsonNode report,
+                                 com.arthur.jdragresume.agent.tool.AgentToolContext context) {
+                throw new AssertionError("collection finishes on the server");
+            }
+        };
+        // The schema accepts any short jobType; only the stored session conditions know "兼职" is not allowed.
+        AgentModel model = (system, messages, tools, timeout) -> {
+            long results = messages.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
+            if (results == 0) return AgentModel.Reply.call(AgentMessage.ToolCall.of("invalid", "collect_boss_jobs",
+                    "{\"keyword\":\"Java\",\"city\":\"深圳\",\"jobType\":\"兼职\"}"));
+            if (results == 1) return AgentModel.Reply.call(AgentMessage.ToolCall.of("corrected", "collect_boss_jobs",
+                    "{\"keyword\":\"Java\",\"city\":\"深圳\",\"jobType\":\"实习\"}"));
+            return AgentModel.Reply.answer("已采集");
+        };
+        var loop = new AgentLoop(model,
+                new com.arthur.jdragresume.agent.tool.AgentToolRegistry(java.util.List.of(collector)),
+                mapper, new AgentProperties(), System::currentTimeMillis, new BrowserTaskRegistry(store), store);
+        var run = store.accept(1, conversationId, "找深圳 Java 实习", null, null, 90000,
+                messages -> policy.normalize(messages, null));
+        store.updateSearchContext(run, old -> old.selectedResume(7).preferencesRead());
+
+        var outcome = runSearchTurn(loop, run);
+
+        var results = outcome.transcript().stream().filter(m -> AgentMessage.TOOL.equals(m.role())).toList();
+        var refused = mapper.readTree(results.get(0).content());
+        assertEquals("INVALID_ARGUMENTS", refused.path("error").path("code").asText());
+        assertFalse(ToolEnvelope.executed(refused), "the invalid jobType never reached the collector");
+        assertTrue(mapper.readTree(results.get(1).content()).path("ok").asBoolean(), results.get(1).content());
+        assertEquals(1, collected.size(), "the corrected call reached the collector");
+        assertEquals("在校生", collected.getFirst().path("experience").asText());
+        var progress = JobSearchWorkflow.inspect(outcome.transcript(), mapper);
+        assertEquals(1, progress.attempts().size(), "the refused call is not an attempt");
+        assertEquals(1, progress.requestedPages());
+    }
+
+    @Test
     void searchHistoryIsCommittedOnlyAfterSuccessfulSynchronousOrBrowserCollection() {
         for (boolean browser : java.util.List.of(false, true)) {
             for (String finish : java.util.List.of("LOGIN", "FIRST_PAGE_EMPTY", "NORMAL")) {
