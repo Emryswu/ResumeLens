@@ -17,3 +17,7 @@ baseline 正式运行后，查看了其失败 transcript（含 acceptance/v1 任
 | --- | --- | --- | --- | --- | --- |
 | 2026-10-25T14:26:08Z | 473de1e8307e5f95c02d0638ae4f520c19121ff2 | deepseek-flash | baseline | interrupted | 未生成结果文件。OTHER：唯一一次 Maven 调用后进程已退出，仅留下 target/classes 中的资源文件，无 .class、Surefire 报告或评测产物；原输出会话已失效，具体错误与退出码无法恢复。此时间为事后登记时间；业务基线 5fdaca01bf2c38a625b6bf98616a0c11bff6dde4；未修改代码、任务、快照或配置，未修复、未重跑；各任务无可验证 trial 成绩。 |
 | 2026-10-26T07:30:31.745006500Z | 44d74eaa14387a89df22c5cc4221420862180afd | deepseek-flash | baseline | completed | results/2026-10-26T07-30-31.745006500Z-baseline.json |
+
+## 接线修复记录
+
+- 2026-10-30，业务提交 `c4505218220d90a262cc4d8d3ef83053ef50faed`（分支 `feat/agent-verify-priority-freshness`），依协议「冻结后的仅接线例外」。原因：`VerifyBossJobTool`、`SubmitRecommendationsTool` 构造函数新增 `JdFreshness`（后者另需 `ConversationStore`），未带核实时间的 FULL 岗位按过期处理。只改 `AgentJobSearchEvalTests.java` 的接线：补构造参数，回放生成 FULL 岗位时映射当次核实时间。未修改任务、快照、检查条件或判定语义，未运行真实模型，不构成新的正式运行。

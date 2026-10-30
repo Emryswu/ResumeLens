@@ -646,7 +646,8 @@ class AgentJobSearchEvalTests {
                     row.path("title").asText(), row.path("companyName").asText(), row.path("location").asText(),
                     row.path("employmentType").asText(), "在校生", row.path("description").asText(),
                     row.path("requirements").asText(), "BOSS", row.path("sourceUrl").asText(),
-                    row.path("sourceJobId").asText(), null, null, depth, null, null);
+                    row.path("sourceJobId").asText(), null, null, depth,
+                    "FULL".equals(depth) ? java.time.LocalDateTime.now() : null, null, null);
         }
 
         AgentToolRegistry registry(ConversationStore store) {
@@ -735,7 +736,7 @@ class AgentJobSearchEvalTests {
                 }
             });
             tools.add(new DeferrableTool() {
-                final VerifyBossJobTool prototype = new VerifyBossJobTool(jobService, null);
+                final VerifyBossJobTool prototype = new VerifyBossJobTool(jobService, null, null);
                 public String name() { return "verify_boss_job"; }
                 public String description() { return prototype.description(); }
                 public ToolSchema parameters() { return prototype.parameters(); }
@@ -758,7 +759,7 @@ class AgentJobSearchEvalTests {
                     JobDescriptionResponse updated = new JobDescriptionResponse(id, 1L, old.title(),
                             old.companyName(), old.location(), "实习", "在校生",
                             full.path("description").asText(), full.path("requirements").asText(), "BOSS",
-                            old.sourceUrl(), old.sourceJobId(), null, null, "FULL", null, null);
+                            old.sourceUrl(), old.sourceJobId(), null, null, "FULL", java.time.LocalDateTime.now(), null, null);
                     jobs.put(id, updated);
                     return Map.of("jobId", id, "captureDepth", "FULL", "verificationStatus", "SAVED_FULL");
                 }
@@ -781,7 +782,8 @@ class AgentJobSearchEvalTests {
             when(resumes.findById(anyLong())).thenAnswer(inv -> new com.arthur.jdragresume.dto.resume.ResumeResponse(
                     inv.getArgument(0), 1L, "eval_user", profile.path("resume").path("title").asText(),
                     null, null, null, null, null, null, null, profile.path("resume").path("text").asText(), null, null));
-            tools.add(new SubmitRecommendationsTool(jobService, preferences, resumes));
+            tools.add(new SubmitRecommendationsTool(jobService, preferences, resumes,
+                    new JdFreshness(java.time.Clock.systemDefaultZone(), new AgentProperties()), store));
             return new AgentToolRegistry(tools);
         }
     }

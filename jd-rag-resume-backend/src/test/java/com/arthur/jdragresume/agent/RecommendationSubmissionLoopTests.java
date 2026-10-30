@@ -49,7 +49,7 @@ class RecommendationSubmissionLoopTests {
     private JobDescriptionResponse job(long id, String depth, String title, String description) {
         return new JobDescriptionResponse(id, 1L, title, "示例公司", "深圳", "实习", "在校生",
                 description, "熟悉 Redis", "BOSS", "https://www.zhipin.com/job_detail/abc.html", "abc",
-                null, null, depth, null, null);
+                null, null, depth, "FULL".equals(depth) ? java.time.LocalDateTime.now() : null, null, null);
     }
 
     private AgentTool fake(String name, Object result, boolean fail) {
@@ -75,7 +75,8 @@ class RecommendationSubmissionLoopTests {
             }
         };
         return new AgentLoop(model,
-                new AgentToolRegistry(List.of(read, new GetResumeTool(resumes), new SubmitRecommendationsTool(jobs, preferences, resumes),
+                new AgentToolRegistry(List.of(read, new GetResumeTool(resumes), new SubmitRecommendationsTool(jobs, preferences, resumes,
+                        new com.arthur.jdragresume.agent.JdFreshness(java.time.Clock.systemDefaultZone(), new com.arthur.jdragresume.agent.AgentProperties()), null),
                         fake("collect_boss_jobs", Map.of("pagesRead", 1, "jobIds", List.of(7, 8)), false),
                         fake("rank_jobs_for_resume", Map.of("items", List.of(7, 8)), false),
                         fake("list_resumes", Map.of("items", List.of("Java 版本", "AI 版本")), false))),
@@ -227,12 +228,12 @@ class RecommendationSubmissionLoopTests {
                 "示例公司", "深圳", "实习", "在校生",
                 "负责 Java 后端开发。实习至少 3 个月，每周 5 天到岗",
                 "学历要求本科及以上", "BOSS", "https://www.zhipin.com/job_detail/abc.html",
-                "abc", null, null, "FULL", null, null));
+                "abc", null, null, "FULL", java.time.LocalDateTime.now(), null, null));
         when(jobs.findById(9L)).thenReturn(new JobDescriptionResponse(9L, 1L, "Java 服务开发",
                 "示例公司", "深圳", "实习", "在校生",
                 "负责 Java 系统开发。实习至少 3 个月，每周 5 天到岗",
                 "硕士及以上", "BOSS", "https://www.zhipin.com/job_detail/def.html",
-                "def", null, null, "FULL", null, null));
+                "def", null, null, "FULL", java.time.LocalDateTime.now(), null, null));
         List<String> outputs = new ArrayList<>();
         var result = run((system, transcript, tools, timeout) ->
                 AgentModel.Reply.call(call("s", "submit_recommendations", proposal(

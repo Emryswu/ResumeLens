@@ -70,6 +70,8 @@ final class AgentEvalV2 {
     static final int DAILY_PAGES = 30;
     static final String GENERIC_LISTING = "generic-unrecorded";
     private static final long USER_ID = 1L;
+    /** Replays verify and check within one run, far inside the verification lifetime. */
+    private static final java.time.Clock EVAL_CLOCK = java.time.Clock.systemUTC();
     private static final Pattern SNAPSHOT_ID = Pattern.compile("[a-z0-9-]{1,80}");
 
     private AgentEvalV2() { }
@@ -377,7 +379,8 @@ final class AgentEvalV2 {
         private static JobDescriptionResponse job(long id, JobCaptureRequest source, String experience, String depth) {
             return new JobDescriptionResponse(id, USER_ID, source.title(), source.companyName(), source.location(),
                     source.employmentType(), experience, source.description(), source.requirements(),
-                    source.sourcePlatform(), source.sourceUrl(), source.sourceJobId(), null, null, depth, null, null);
+                    source.sourcePlatform(), source.sourceUrl(), source.sourceJobId(), null, null, depth,
+                    "FULL".equals(depth) ? LocalDateTime.now(EVAL_CLOCK) : null, null, null);
         }
 
         /** Builds the browser's final event for a handed-out task from the frozen snapshots. */
@@ -446,6 +449,7 @@ final class AgentEvalV2 {
         }
 
         AgentToolRegistry registry(ConversationStore store) {
+            JdFreshness freshness = new JdFreshness(EVAL_CLOCK, new AgentProperties());
             BrowserExtensionJobCollector extension = new BrowserExtensionJobCollector();
             // The real extension collector validates every replayed report; only the page budget is simulated.
             JobCollector collector = new JobCollector() {
@@ -505,12 +509,12 @@ final class AgentEvalV2 {
                     new SearchJobsTool(jobService, history),
                     new CollectBossJobsTool(collector, jobService, history),
                     rank,
-                    new VerifyBossJobTool(jobService, details),
+                    new VerifyBossJobTool(jobService, details, freshness),
                     new GetJobTool(jobService),
                     new CheckJobPreferencesTool(jobService, preferences),
                     new UpdateJobSearchContextTool(store),
                     new ListJobApplicationsTool(applications),
-                    new SubmitRecommendationsTool(jobService, preferences, resumes)));
+                    new SubmitRecommendationsTool(jobService, preferences, resumes, freshness, store)));
         }
     }
 

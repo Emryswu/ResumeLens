@@ -144,7 +144,8 @@ class JobDescriptionServiceListingTests {
                 return user;
             }
         };
-        return new JobDescriptionService(jobs, currentUser, users, SemanticEmbeddingTestSupport.service(), null, quota);
+        return new JobDescriptionService(jobs, currentUser, users, SemanticEmbeddingTestSupport.service(), null, quota,
+                java.time.Clock.systemDefaultZone());
     }
 
     private static JobCaptureRequest listing(String id, String description) {

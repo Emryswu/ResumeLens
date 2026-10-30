@@ -64,6 +64,8 @@ CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
 - 会跨暂停/续跑（确认卡片、浏览器任务）存在的运行状态，必须能从服务端 transcript 重建，禁止只存在 AgentLoop 的局部变量里。计划、游标、是否待重规划、已用重规划次数统一由 `PlanProgress.of` 从 transcript 推出；已用工具步数、模型调用次数、协议修正次数统一由 `TurnUsage.of` 推出。首次运行和续跑走同一个函数，不另写续跑分支，也不读客户端传来的计数；`AgentPlanResumeTests`、`AgentStepBudgetResumeTests` 用"暂停续跑 vs 不暂停"对照守着，新增这类状态时照此补对照用例。续跑请求不得往 transcript 写 user 消息（`TurnTranscript` 会直接拒绝），否则当前轮会被截断。
 - 搜索条件分层（高到低）：用户在确认卡片上同意的值 > 用户求职条件里的硬条件 > 会话已存条件 > 模型参数。模型可以收紧条件、填未设置的字段、换关键词，但不能放宽更高层的硬条件；规则集中在 `SearchConditionPolicy`，`collect_boss_jobs` 和 `update_job_search_context` 必须共用它。放宽只能走需要确认的 `relax_job_search_condition`，同意后才记入 `JobSearchContext.userConfirmed`；不得从用户消息文字或工具参数推断用户授权，`patch` 只能删除授权不能添加。放宽搜索筛选不改用户的在校状态，也不跳过推荐前的岗位资格检查。
 - 工具拒绝时给模型的"下一步"，在当前状态下必须真的走得通：被指去的工具要能接住同样的参数，不能互相推回去。补测试时从空会话开始走一遍这条路径（例：`SearchConditionLayeringTests` 首轮就要放宽的用例）。
+- 核实名额只给没有已知硬冲突的候选：现有数据（城市、学历/经验门槛、BOSS 列表标签等）已能判定 BLOCKED 的岗位，排序时排到最后、不进 `suggestedVerify`，模型仍要核实时在 `beginDeferred` 执行前按未执行拒绝（`VerifyPriority.CONFLICT`，不占核实名额、不扣每日页数、不计步），并给出确实能核实的下一个 jobId。UNKNOWN 不算冲突，照常核实。排序、核实、推荐验收的冲突判断统一走 `VerifyPriority.hardConflict`（含会话城市），不得自己读 `hardBlock()`；这类"未执行、改参数重试同一步"的拒绝码登记在 `TurnUsage.RETRY_SAME_STEP`，计步和计划进度共用。
+- JD 核实时效阈值只有一个来源：`app.agent.verified-jd-max-age-days`（`AgentProperties` 与 `application.properties` 同步，`AgentPropertiesDefaultsTests` 守着），判断只在 `JdFreshness` 里做，排序、核实预算（`VerifyBossJobTool.beforeBudget`）、推荐验收共用；业务代码取时间用注入的 `Clock`，不直接调 `now()`。`VerifyPriorityFreshnessTests` 会扫描源码，拦下在别处读 `fullVerifiedAt` 自行比较的写法。
 - 浏览器插件里每次打开 BOSS 页面都要先扣每日页数；连续打开详情页之间要有随机间隔，不能一口气秒开多个页面。
 - 跨进程比较日期必须使用同一时区（BOSS 每日额度统一为 `Asia/Shanghai`），后端是日期的唯一来源，插件和采集服务按该时区校验后端下发的 `budgetDate`。
 

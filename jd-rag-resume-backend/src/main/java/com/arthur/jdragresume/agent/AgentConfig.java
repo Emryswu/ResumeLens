@@ -39,10 +39,11 @@ public class AgentConfig {
             AgentProperties properties,
             BrowserTaskRegistry browserTaskRegistry,
             ConversationStore conversations,
-            JobSearchProfile jobSearchProfile
+            JobSearchProfile jobSearchProfile,
+            VerifyPriority verifyPriority
     ) {
         return new AgentLoop(agentModel, registry, objectMapper, properties, System::currentTimeMillis, browserTaskRegistry,
-                conversations, jobSearchProfile);
+                conversations, jobSearchProfile, verifyPriority);
     }
 
     /** Hard conditions come from what the user saved on the preferences page, looked up fresh for every check. */

@@ -206,6 +206,32 @@ final class JobSearchWorkflow {
                 haltReason, Set.copyOf(qualified), Set.copyOf(unknown));
     }
 
+    /**
+     * The jobs this turn would verify next, best first: the latest ranking's order (conflicts already last), then
+     * the remaining jobs of this turn's collections. Only successful results of the current turn count.
+     */
+    static List<Long> verifyCandidates(List<AgentMessage> transcript, ObjectMapper mapper) {
+        Set<Long> ranked = new LinkedHashSet<>();
+        Set<Long> collected = new LinkedHashSet<>();
+        for (AgentMessage message : transcript.subList(TurnUsage.turnStart(transcript), transcript.size())) {
+            if (!AgentMessage.TOOL.equals(message.role())) continue;
+            JsonNode result = parse(mapper, message.content());
+            if (!result.path("ok").asBoolean(false)) continue;
+            JsonNode data = result.path("untrusted_data");
+            if ("rank_jobs_for_resume".equals(result.path("tool").asText())) {
+                ranked.clear();
+                for (JsonNode match : data.path("matches")) {
+                    if (match.path("jobId").canConvertToLong()) ranked.add(match.path("jobId").asLong());
+                }
+            } else if (TOOL.equals(result.path("tool").asText())) {
+                for (JsonNode id : data.path("jobIds")) if (id.canConvertToLong()) collected.add(id.asLong());
+            }
+        }
+        List<Long> candidates = new ArrayList<>(ranked);
+        collected.stream().filter(id -> !ranked.contains(id)).forEach(candidates::add);
+        return candidates;
+    }
+
     private static boolean refusedByBudget(JsonNode result) {
         return BUDGET_ERROR.equals(result.path("error").path("code").asText());
     }

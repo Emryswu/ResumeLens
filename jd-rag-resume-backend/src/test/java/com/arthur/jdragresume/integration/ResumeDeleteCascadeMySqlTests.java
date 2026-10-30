@@ -179,7 +179,8 @@ class ResumeDeleteCascadeMySqlTests {
                         }),
                         com.arthur.jdragresume.service.SemanticEmbeddingTestSupport.service(),
                         pendingAwareAnalysisHistoryRepository(connection),
-                        200
+                        200,
+                        java.time.Clock.systemDefaultZone()
                 );
                 MockMvc mockMvc = MockMvcBuilders
                         .standaloneSetup(new JobDescriptionController(service, null))

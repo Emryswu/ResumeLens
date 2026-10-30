@@ -66,7 +66,8 @@ class JobDescriptionServiceCaptureTests {
                 userRepository,
                 SemanticEmbeddingTestSupport.service(),
                 null,
-                200
+                200,
+                java.time.Clock.systemDefaultZone()
         );
     }
 

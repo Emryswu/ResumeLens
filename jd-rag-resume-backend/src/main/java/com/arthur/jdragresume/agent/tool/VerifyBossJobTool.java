@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.agent.tool;
 
+import com.arthur.jdragresume.agent.JdFreshness;
 import com.arthur.jdragresume.dto.job.JobCaptureRequest;
 import com.arthur.jdragresume.dto.job.JobCaptureResponse;
 import com.arthur.jdragresume.dto.job.JobDescriptionResponse;
@@ -22,10 +23,13 @@ import java.util.Map;
 public class VerifyBossJobTool implements DeferrableTool {
     private final JobDescriptionService jobs;
     private final com.arthur.jdragresume.collect.RoutingJobCollector collectors;
+    private final JdFreshness freshness;
 
-    public VerifyBossJobTool(JobDescriptionService jobs, com.arthur.jdragresume.collect.RoutingJobCollector collectors) {
+    public VerifyBossJobTool(JobDescriptionService jobs, com.arthur.jdragresume.collect.RoutingJobCollector collectors,
+                             JdFreshness freshness) {
         this.jobs = jobs;
         this.collectors = collectors;
+        this.freshness = freshness;
     }
 
     @Override
@@ -38,7 +42,8 @@ public class VerifyBossJobTool implements DeferrableTool {
         return "把职位库中的一个 BOSS 列表摘要升级为已核实完整 JD：让用户的浏览器插件打开对应职位详情页，只读抓取正文并核对岗位身份。"
                 + "应先用 rank_jobs_for_resume 粗排，再对靠前、与简历方向相符的少数岗位调用。"
                 + "成功后调用 get_job 读取全文，核查学历、实习时长、每周到岗天数、技术栈、职责及硬性要求；未出现的条件要写未知。"
-                + "只读，不打招呼；失败就保留原有 LISTING 摘要，不能称为完整 JD。";
+                + "只读，不打招呼；失败就保留原有 LISTING 摘要，不能称为完整 JD。"
+                + "已核实的 JD 超过时效（verifiedAt 过久）需要重新核实，会正常占用核实名额。";
     }
 
     @Override
@@ -58,15 +63,27 @@ public class VerifyBossJobTool implements DeferrableTool {
     }
 
     /**
-     * Check the posting before charging a browser attempt. A persisted FULL JD is a
-     * read-only success, while invalid jobs never start a browser task.
+     * Check the posting before charging a browser attempt. A FULL JD that is still fresh is a
+     * read-only success; an expired one is read again like a listing and charged as a normal
+     * attempt. Invalid jobs never start a browser task.
      */
     @Override
     public Done beforeBudget(JsonNode arguments) {
         JobDescriptionResponse job = loadBeforeBrowser(arguments.get("jobId").asLong());
         requireBoss(job);
         requireBossUrl(job.sourceUrl(), job.sourceJobId());
-        return "FULL".equals(job.captureDepth()) ? alreadyFullResult(job) : null;
+        return freshness.of(job) == JdFreshness.Status.FRESH ? alreadyFullResult(job) : null;
+    }
+
+    /** Whether this tool would open the posting's detail page: a BOSS job with a valid detail URL. */
+    public static boolean canOpen(JobDescriptionResponse job) {
+        try {
+            requireBoss(job);
+            requireBossUrl(job.sourceUrl(), job.sourceJobId());
+            return true;
+        } catch (BusinessException ex) {
+            return false;
+        }
     }
 
     private JobDescriptionResponse loadBeforeBrowser(long jobId) {
@@ -82,6 +99,7 @@ public class VerifyBossJobTool implements DeferrableTool {
     private static Done alreadyFullResult(JobDescriptionResponse job) {
         return new Done(Map.of("jobId", job.id(), "captureDepth", "FULL",
                 "alreadyVerified", true, "verificationStatus", "ALREADY_FULL",
+                "verifiedAt", job.fullVerifiedAt().toString(),
                 "next", "调用 get_job 读取完整正文并核实硬性条件"));
     }
 
@@ -147,9 +165,14 @@ public class VerifyBossJobTool implements DeferrableTool {
         if (!"FULL".equals(captured.job().captureDepth()) || !existing.id().equals(captured.job().id())) {
             throw invalidReport();
         }
-        return Map.of("jobId", captured.job().id(), "captureDepth", "FULL", "verificationStatus", "SAVED_FULL",
-                "contentChanged", captured.contentChanged(),
-                "next", "调用 get_job 查看完整 JD，对照简历逐项核实门槛；未写明的条件保持未知");
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("jobId", captured.job().id());
+        result.put("captureDepth", "FULL");
+        result.put("verificationStatus", "SAVED_FULL");
+        result.put("verifiedAt", String.valueOf(captured.job().fullVerifiedAt()));
+        result.put("contentChanged", captured.contentChanged());
+        result.put("next", "调用 get_job 查看完整 JD，对照简历逐项核实门槛；未写明的条件保持未知");
+        return result;
     }
 
     private static void requireBoss(JobDescriptionResponse job) {

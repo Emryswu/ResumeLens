@@ -340,7 +340,8 @@ class JobSearchWorkflowTests {
                         "https://evil.example/job_detail/abc123.html", "abc123",
                         null, null, "LISTING", null, null));
         var collectors = org.mockito.Mockito.mock(com.arthur.jdragresume.collect.RoutingJobCollector.class);
-        var verifier = new com.arthur.jdragresume.agent.tool.VerifyBossJobTool(jobs, collectors);
+        var verifier = new com.arthur.jdragresume.agent.tool.VerifyBossJobTool(jobs, collectors,
+                new com.arthur.jdragresume.agent.JdFreshness(java.time.Clock.systemDefaultZone(), new com.arthur.jdragresume.agent.AgentProperties()));
         AgentModel model = (system, transcript, tools, timeout) -> {
             long results = transcript.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
             if (results == 0) return AgentModel.Reply.call(AgentMessage.ToolCall.of("resume", "get_resume", "{\"resumeId\":1}"));
@@ -395,13 +396,14 @@ class JobSearchWorkflowTests {
             return new com.arthur.jdragresume.dto.job.JobDescriptionResponse(id, 1L, "Java 实习", "示例科技", "深圳",
                     "实习", "在校生", "（BOSS 搜索列表摘要）", "本科", "BOSS",
                     "https://www.zhipin.com/job_detail/" + sourceId + ".html", sourceId,
-                    null, null, id == 17 ? "FULL" : "LISTING", null, null);
+                    null, null, id == 17 ? "FULL" : "LISTING", id == 17 ? java.time.LocalDateTime.now() : null, null, null);
         });
         var collectors = org.mockito.Mockito.mock(com.arthur.jdragresume.collect.RoutingJobCollector.class);
         org.mockito.Mockito.when(collectors.startAction(org.mockito.ArgumentMatchers.anyMap(),
                         org.mockito.ArgumentMatchers.nullable(com.arthur.jdragresume.collect.CollectionSession.class)))
                 .thenThrow(new com.arthur.jdragresume.exception.BusinessException("BOSS_DETAIL_UNAVAILABLE", "详情页读取失败"));
-        var verifier = new com.arthur.jdragresume.agent.tool.VerifyBossJobTool(jobs, collectors);
+        var verifier = new com.arthur.jdragresume.agent.tool.VerifyBossJobTool(jobs, collectors,
+                new com.arthur.jdragresume.agent.JdFreshness(java.time.Clock.systemDefaultZone(), new com.arthur.jdragresume.agent.AgentProperties()));
         AgentModel model = (system, transcript, tools, timeout) -> {
             long results = transcript.stream().filter(m -> AgentMessage.TOOL.equals(m.role())).count();
             if (results == 6) return AgentModel.Reply.answer("完整 JD 已核实");

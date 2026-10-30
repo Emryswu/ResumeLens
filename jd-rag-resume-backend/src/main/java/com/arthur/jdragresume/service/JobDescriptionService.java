@@ -24,6 +24,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -39,6 +40,7 @@ public class JobDescriptionService {
     private final SemanticEmbeddingService semanticEmbeddingService;
     private final AnalysisHistoryRepository analysisHistoryRepository;
     private final int maxJobDescriptionsPerUser;
+    private final Clock clock;
 
     public JobDescriptionService(
             JobDescriptionRepository jobDescriptionRepository,
@@ -46,7 +48,8 @@ public class JobDescriptionService {
             AppUserRepository appUserRepository,
             SemanticEmbeddingService semanticEmbeddingService,
             AnalysisHistoryRepository analysisHistoryRepository,
-            @Value("${app.job-description.max-per-user:200}") int maxJobDescriptionsPerUser
+            @Value("${app.job-description.max-per-user:200}") int maxJobDescriptionsPerUser,
+            Clock clock
     ) {
         this.jobDescriptionRepository = jobDescriptionRepository;
         this.currentUserService = currentUserService;
@@ -54,6 +57,7 @@ public class JobDescriptionService {
         this.semanticEmbeddingService = semanticEmbeddingService;
         this.analysisHistoryRepository = analysisHistoryRepository;
         this.maxJobDescriptionsPerUser = Math.max(1, maxJobDescriptionsPerUser);
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -170,6 +174,7 @@ public class JobDescriptionService {
             }
             // A detail-page capture is the full posting, also when it replaces a list summary.
             jobDescription.setCaptureDepth(CaptureDepth.FULL);
+            jobDescription.setFullVerifiedAt(LocalDateTime.now(clock));
             jobDescription.setSourceUrl(request.sourceUrl().trim());
             jobDescription.setLastSeenAt(now);
             JobDescription saved = jobDescriptionRepository.save(jobDescription);
@@ -185,6 +190,7 @@ public class JobDescriptionService {
         jobDescription.setSourceJobId(sourceJobId);
         jobDescription.setContentFingerprint(fingerprint);
         jobDescription.setLastSeenAt(now);
+        jobDescription.setFullVerifiedAt(LocalDateTime.now(clock));
         semanticEmbeddingService.refresh(jobDescription);
         JobDescription saved = jobDescriptionRepository.save(jobDescription);
         return new JobCaptureResponse(JobDescriptionResponse.from(saved), false, false);

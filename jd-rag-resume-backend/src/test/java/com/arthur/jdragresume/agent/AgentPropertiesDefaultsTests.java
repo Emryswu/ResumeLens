@@ -19,6 +19,7 @@ class AgentPropertiesDefaultsTests {
         assertEquals(defaults.getMaxSteps(), deployed(source, "app.agent.max-steps"));
         assertEquals(defaults.getMaxPlanningSteps(), deployed(source, "app.agent.max-planning-steps"));
         assertEquals(defaults.getMaxReplans(), deployed(source, "app.agent.max-replans"));
+        assertEquals(defaults.getVerifiedJdMaxAgeDays(), deployed(source, "app.agent.verified-jd-max-age-days"));
     }
 
     private static int deployed(String source, String key) {

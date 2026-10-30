@@ -224,7 +224,7 @@ class JobDescriptionMapperMySqlTests {
         var users = mock(CurrentUserService.class);
         when(users.getCurrentUser()).thenReturn(owner);
         var service = new JobDescriptionService(jobs, users, appUserRepository,
-                mock(SemanticEmbeddingService.class), null, 200);
+                mock(SemanticEmbeddingService.class), null, 200, java.time.Clock.systemDefaultZone());
         var history = new JobCollectionHistory(jdbcTemplate, users);
         var collector = mock(JobCollector.class);
         when(collector.platform()).thenReturn("BOSS");
