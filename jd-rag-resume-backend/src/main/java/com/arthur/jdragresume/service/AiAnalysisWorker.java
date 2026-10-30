@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.service;
 
+import com.arthur.jdragresume.common.LogSafe;
 import com.arthur.jdragresume.ai.AiClient;
 import com.arthur.jdragresume.dto.analysis.AiAnalysisResult;
 import com.arthur.jdragresume.dto.analysis.ReportCategory;
@@ -159,8 +160,8 @@ public class AiAnalysisWorker {
                     historyId, ex.failure());
             historyUpdateService.failIfPendingAndRefund(historyId, VALIDATION_FAILED_SUMMARY, ex.getCode());
         } catch (Throwable ex) {
-            // Log only the exception type; the user sees the generic summary.
-            log.error("Async AI analysis {} failed type={}", historyId, ex.getClass().getSimpleName());
+            // Type, code and our own failing line only (LogSafe): messages can carry resume text. The user sees the generic summary.
+            log.error("Async AI analysis {} failed {}", historyId, LogSafe.describe(ex));
             historyUpdateService.failIfPending(historyId, GENERIC_FAILED_SUMMARY);
         }
     }

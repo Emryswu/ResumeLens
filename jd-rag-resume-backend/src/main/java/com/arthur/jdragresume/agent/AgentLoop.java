@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.agent;
 
+import com.arthur.jdragresume.common.LogSafe;
 import com.arthur.jdragresume.agent.tool.AgentTool;
 import com.arthur.jdragresume.agent.tool.AgentToolContext;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
@@ -653,7 +654,7 @@ public class AgentLoop {
         } catch (AgentEventSink.ClientGoneException ex) {
             throw ex;
         } catch (RuntimeException ex) {
-            log.warn("agent closing answer failed type={}", ex.getClass().getSimpleName());
+            log.warn("agent closing answer failed {}", LogSafe.describe(ex));
         }
         if (recommendationAttempts(transcript) > 0) {
             return finishSubmittedRecommendations(sink, transcript, steps);
@@ -1279,7 +1280,7 @@ public class AgentLoop {
             if (ex instanceof ResourceNotFoundException) {
                 return new ToolFailure("NOT_FOUND", ex.getMessage() + "（id 必须来自工具结果）");
             }
-            log.warn("agent tool {} failed type={}", tool, ex.getClass().getSimpleName());
+            log.warn("agent tool {} failed {}", tool, LogSafe.describe(ex));
             return new ToolFailure("TOOL_FAILED", "工具执行失败");
         }
     }
