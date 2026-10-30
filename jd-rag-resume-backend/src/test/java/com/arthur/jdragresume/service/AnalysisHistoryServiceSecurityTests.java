@@ -182,7 +182,8 @@ class AnalysisHistoryServiceSecurityTests {
                     proxy(AppUserRepository.class, (ignored, method, args) -> null),
                     SemanticEmbeddingTestSupport.service(),
                     null,
-                    200
+                    200,
+                    java.time.Clock.systemDefaultZone()
             );
             this.jobDescription = jobDescription;
         }

@@ -22,7 +22,8 @@ class SubmitRecommendationsToolTests {
     private final JobDescriptionService jobs = mock(JobDescriptionService.class);
     private final JobSearchPreferencesService prefs = mock(JobSearchPreferencesService.class);
     private final AgentToolContext context = new AgentToolContext(new com.arthur.jdragresume.entity.AppUser());
-    private final SubmitRecommendationsTool tool = new SubmitRecommendationsTool(jobs, prefs, resumes);
+    private final SubmitRecommendationsTool tool = new SubmitRecommendationsTool(jobs, prefs, resumes,
+            new com.arthur.jdragresume.agent.JdFreshness(java.time.Clock.systemDefaultZone(), new com.arthur.jdragresume.agent.AgentProperties()), null);
 
     @BeforeEach
     void setUp() {
@@ -34,7 +35,7 @@ class SubmitRecommendationsToolTests {
     private JobDescriptionResponse job(long id, String depth, String description, String requirements) {
         return new JobDescriptionResponse(id, 1L, "Java 后端实习", "示例科技", "深圳", "实习", "在校生",
                 description, requirements, "BOSS", "https://www.zhipin.com/job_detail/abc.html", "abc",
-                null, null, depth, null, null);
+                null, null, depth, "FULL".equals(depth) ? java.time.LocalDateTime.now() : null, null, null);
     }
 
     private com.fasterxml.jackson.databind.JsonNode proposals(String... items) throws Exception {

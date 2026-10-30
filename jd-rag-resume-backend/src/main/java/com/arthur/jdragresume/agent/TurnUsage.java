@@ -25,7 +25,7 @@ import java.util.Set;
 record TurnUsage(int toolSteps, int modelCalls, int corrections, int correctionsSincePlan, boolean planAccepted) {
     /** Codes of results the loop wrote for calls it closed before counting a step for them. */
     static final Set<String> NOT_STEPPED = Set.of("AGENT_PLAN_INVALID", "AGENT_PLAN_MISMATCH", "AGENT_REPLAN_LIMIT",
-            "AGENT_STEP_LIMIT", "AGENT_PLAN_STEP_SKIPPED", ResumeEvidenceValidator.CODE);
+            "AGENT_STEP_LIMIT", "AGENT_PLAN_STEP_SKIPPED", ResumeEvidenceValidator.CODE, VerifyPriority.CONFLICT);
     /** Codes of a batch closed so the model can correct its plan protocol and try again. */
     static final Set<String> CORRECTION = Set.of("AGENT_PLAN_INVALID", "AGENT_PLAN_MISMATCH");
 

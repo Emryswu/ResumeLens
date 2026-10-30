@@ -67,7 +67,8 @@ class JobDescriptionServiceQuotaTests {
                 appUserRepository,
                 SemanticEmbeddingTestSupport.service(),
                 null,
-                MAX_PER_USER
+                MAX_PER_USER,
+                java.time.Clock.systemDefaultZone()
         );
     }
 
@@ -158,7 +159,8 @@ class JobDescriptionServiceQuotaTests {
                 appUserRepository,
                 SemanticEmbeddingTestSupport.service(),
                 analysisHistoryRepository,
-                MAX_PER_USER
+                MAX_PER_USER,
+                java.time.Clock.systemDefaultZone()
         );
 
         BusinessException exception = assertThrows(BusinessException.class, () -> deleteService.delete(4L));

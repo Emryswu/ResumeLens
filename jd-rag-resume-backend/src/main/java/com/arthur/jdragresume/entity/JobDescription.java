@@ -80,6 +80,10 @@ public class JobDescription extends AuditableEntity {
 
     private LocalDateTime lastSeenAt;
 
+    /** When the full JD was last read from the detail page; whether that is still fresh is JdFreshness's call. */
+    @Column(name = "full_verified_at")
+    private LocalDateTime fullVerifiedAt;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "capture_depth", nullable = false, length = 16)
     private CaptureDepth captureDepth = CaptureDepth.FULL;
@@ -214,6 +218,14 @@ public class JobDescription extends AuditableEntity {
 
     public void setLastSeenAt(LocalDateTime lastSeenAt) {
         this.lastSeenAt = lastSeenAt;
+    }
+
+    public LocalDateTime getFullVerifiedAt() {
+        return fullVerifiedAt;
+    }
+
+    public void setFullVerifiedAt(LocalDateTime fullVerifiedAt) {
+        this.fullVerifiedAt = fullVerifiedAt;
     }
 
     public CaptureDepth getCaptureDepth() {

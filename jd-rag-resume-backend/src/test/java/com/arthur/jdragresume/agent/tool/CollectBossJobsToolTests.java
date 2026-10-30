@@ -242,7 +242,7 @@ class CollectBossJobsToolTests {
         int quotaLeft = Integer.MAX_VALUE;
 
         RecordingJobs() {
-            super(null, null, null, null, null, 200);
+            super(null, null, null, null, null, 200, java.time.Clock.systemDefaultZone());
         }
 
         @Override

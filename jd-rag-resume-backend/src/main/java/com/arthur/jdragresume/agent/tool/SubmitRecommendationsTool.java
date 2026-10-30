@@ -1,5 +1,9 @@
 package com.arthur.jdragresume.agent.tool;
 
+import com.arthur.jdragresume.agent.ConversationStore;
+import com.arthur.jdragresume.agent.JdFreshness;
+import com.arthur.jdragresume.agent.JobSearchContext;
+import com.arthur.jdragresume.agent.VerifyPriority;
 import com.arthur.jdragresume.dto.job.JobDescriptionResponse;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
 import com.arthur.jdragresume.service.JobAvailabilityMatcher;
@@ -7,6 +11,7 @@ import com.arthur.jdragresume.service.JobDescriptionService;
 import com.arthur.jdragresume.service.ResumeService;
 import com.arthur.jdragresume.service.JobSearchPreferencesService;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -25,11 +30,17 @@ public class SubmitRecommendationsTool implements AgentTool {
     private final JobDescriptionService jobs;
     private final JobSearchPreferencesService preferences;
     private final ResumeService resumes;
+    private final JdFreshness freshness;
+    private final ConversationStore conversations;
 
-    public SubmitRecommendationsTool(JobDescriptionService jobs, JobSearchPreferencesService preferences, ResumeService resumes) {
+    @Autowired
+    public SubmitRecommendationsTool(JobDescriptionService jobs, JobSearchPreferencesService preferences, ResumeService resumes,
+                                     JdFreshness freshness, ConversationStore conversations) {
         this.jobs = jobs;
         this.preferences = preferences;
         this.resumes = resumes;
+        this.freshness = freshness;
+        this.conversations = conversations;
     }
 
     @Override public String name() { return "submit_recommendations"; }
@@ -40,7 +51,8 @@ public class SubmitRecommendationsTool implements AgentTool {
                 + "quote 必须逐字摘自 get_resume 的简历原文（仅忽略空白与全半角标点），去空白后 "
                 + ResumeEvidenceValidator.MIN_QUOTE_CHARS + "～" + ResumeEvidenceValidator.MAX_QUOTE_CHARS
                 + " 字符；supports 写对应的 JD 要求。引用被拒时调用 get_resume 重读同一简历，修正后重提被拒条目。"
-                + "服务端逐条检查完整 JD、实际证据和当前求职硬条件：通过的保留，不通过的附具体原因。"
+                + "服务端逐条检查完整 JD 是否仍在核实时效内、实际证据和当前求职硬条件：通过的保留，不通过的附具体原因；"
+                + "JD 核实已过期的按提示重新 verify_boss_job 后再重提。"
                 + "JD 未提及学历/经验或明确不限时计入合格并标注；优先条件不满足只提示。"
                 + "学历/毕业日期等用户资料缺失才保持 UNKNOWN，提示到求职条件页填写；最多修正一次。";
     }
@@ -103,6 +115,15 @@ public class SubmitRecommendationsTool implements AgentTool {
                 rejected.add(new Rejected(id, label, "尚无 FULL JD，请先核实"));
                 continue;
             }
+            if (freshness.expired(job)) {
+                // Re-verifying is pointless when the stored data already conflicts; verify_boss_job would refuse it.
+                String conflict = VerifyPriority.hardConflict(job, own, search(context));
+                rejected.add(new Rejected(id, label, conflict != null
+                        ? "与求职硬条件冲突：" + conflict + "（JD 核实已过期，无需重新核实）"
+                        : "JD 核实已过期（超过 " + freshness.maxAge().toDays() + " 天），下一步调用 verify_boss_job({\"jobId\":"
+                                + id + "}) 重新核实，再重提这条"));
+                continue;
+            }
             String original = normalize((job.description() == null ? "" : job.description()) + "\n"
                     + (job.requirements() == null ? "" : job.requirements()));
             String normalizedEvidence = normalize(evidence);
@@ -134,6 +155,11 @@ public class SubmitRecommendationsTool implements AgentTool {
                     check.jdNotes(), check.missingUserFields()));
         }
         return new Result(rejected.isEmpty(), List.copyOf(approved), List.copyOf(rejected));
+    }
+
+    private JobSearchContext search(AgentToolContext context) {
+        return conversations == null || context.run() == null
+                ? JobSearchContext.empty() : conversations.searchContext(context.run());
     }
 
     private static List<ResumeEvidence> resumeEvidence(JsonNode proposal) {

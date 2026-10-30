@@ -11,6 +11,9 @@ import java.util.regex.Pattern;
 public final class JobAvailabilityMatcher {
     private static final Pattern MONTHS = Pattern.compile(
             "(?:实习(?:时长|期|时间)?\\s*(?:至少|不少于|不低于|需|要求)\\s*|(?:至少|不少于|不低于|连续)\\s*实习\\s*)(\\d{1,2})\\s*(?:个)?月");
+    private static final java.util.Map<String, Integer> LISTING_DEGREES =
+            java.util.Map.of("大专", 1, "本科", 2, "硕士", 3, "博士", 4);
+    private static final Pattern LISTING_YEARS = Pattern.compile("(\\d{1,2})(?:-\\d{1,2}年|年以上)");
     private static final Pattern DAYS = Pattern.compile(
             "(?:每周|一周|周)\\s*(?:至少|不少于|不低于|需|须|可|能|到岗)?\\s*([1-7])\\s*(?:天|日)");
 
@@ -53,6 +56,12 @@ public final class JobAvailabilityMatcher {
                 extracted == null ? null : extracted.education(), "学历", false);
         Finding experience = qualification(own.workExperienceYears(), full,
                 extracted == null ? null : extracted.experience(), "经验", Boolean.TRUE.equals(own.currentlyStudent()));
+        if (!full) {
+            // A listing cannot confirm anything, but its structured BOSS tags can already rule a job out.
+            education = listingConflict(education, own.educationLevel(), listingDegree(requirements), "学历", false);
+            experience = listingConflict(experience, own.workExperienceYears(), listingYears(requirements), "经验",
+                    Boolean.TRUE.equals(own.currentlyStudent()));
+        }
         Finding graduation = graduation(own.expectedGraduationDate(), full,
                 extracted == null ? null : extracted.graduation());
         List<String> warnings = new ArrayList<>();
@@ -84,6 +93,45 @@ public final class JobAvailabilityMatcher {
         return new Comparison(months, days, start, district, education, experience, graduation,
                 List.copyOf(warnings), List.copyOf(notes), List.copyOf(missing),
                 blocked, conditionsMet, hasUnknown);
+    }
+
+    /** Keeps the listing's UNKNOWN unless the tag alone proves a conflict under the same rule as a FULL JD. */
+    private static Finding listingConflict(Finding unknown, Integer userValue,
+                                           JobRequirementExtractor.Requirement tag, String label,
+                                           boolean currentlyStudent) {
+        if (tag == null) return unknown;
+        Finding finding = qualification(userValue, true, tag, label, currentlyStudent);
+        return "BLOCKED".equals(finding.status())
+                ? new Finding("BLOCKED", finding.explanation() + "（来自 BOSS 列表标签，完整 JD 尚未核实）")
+                : unknown;
+    }
+
+    /** BOSS list tags hold the posting's minimum degree verbatim, e.g. {@code 本科}. */
+    private static JobRequirementExtractor.Requirement listingDegree(String tags) {
+        for (String tag : listingTags(tags)) {
+            Integer level = LISTING_DEGREES.get(tag);
+            if (level != null) return listingRequirement(level, tag);
+        }
+        return null;
+    }
+
+    /** BOSS experience tags: {@code 1-3年}, {@code 3-5年}, {@code 10年以上}; 经验不限、在校/应届、1年以内 set no minimum. */
+    private static JobRequirementExtractor.Requirement listingYears(String tags) {
+        for (String tag : listingTags(tags)) {
+            Matcher matcher = LISTING_YEARS.matcher(tag);
+            if (matcher.matches()) return listingRequirement(Integer.parseInt(matcher.group(1)), tag);
+        }
+        return null;
+    }
+
+    private static JobRequirementExtractor.Requirement listingRequirement(int minimum, String tag) {
+        return new JobRequirementExtractor.Requirement(JobRequirementExtractor.Mode.REQUIRED, minimum, null,
+                "BOSS 列表标签「" + tag + "」", null);
+    }
+
+    private static List<String> listingTags(String tags) {
+        if (tags == null || tags.isBlank()) return List.of();
+        return java.util.Arrays.stream(tags.split("、")).map(String::strip).toList();
     }
 
     private static boolean qualificationEligible(Finding value) {
@@ -160,7 +208,7 @@ public final class JobAvailabilityMatcher {
      * older ones as plain text such as {@code 深圳市龙岗区}. Compare without separators so
      * "深圳龙岗区", "龙岗区" and "龙岗" all match {@code 深圳·龙岗区·布吉}.
      */
-    static String compactPlace(String place) {
+    public static String compactPlace(String place) {
         return place.replaceAll("[\\s·・•,，/|-]", "").replace("市", "");
     }
 

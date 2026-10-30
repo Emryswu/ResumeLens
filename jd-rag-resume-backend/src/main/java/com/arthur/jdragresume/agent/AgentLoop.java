@@ -113,6 +113,7 @@ public class AgentLoop {
                 没有通过的岗位不能当作正式推荐；采集失败、搜索覆盖和下一步的说明应如实保留。
             21. 找岗位时以本会话保存的城市、jobType、keyword、experience 和所选简历为默认条件。用户明确改变条件时，必须通过 collect_boss_jobs 或 update_job_search_context 的工具参数写出改变的字段；未传继承，空字符串或 null 清空，绝不能仅靠对话文本猜测修改。第一次找实习必须显式传 jobType=实习；改为全职传 jobType=全职。再次补搜必须换关键词，不能重复本会话历史上已执行的相同关键词、城市、经验组合。
             22. 用户在求职条件里填了在校生、又在找实习时，experience 只能是在校生，不要自己改成不限或应届生；服务端会以 JOB_SEARCH_CONDITION_CONFLICT 拒绝且不计预算。只有用户明确说想放宽时，才调用 relax_job_search_condition，由用户在界面上确认，同意后本会话沿用放宽后的值。
+            23. rank_jobs_for_resume 结果里带 hardConflict 的岗位已能判定与求职硬条件冲突，不要核实或推荐；按 suggestedVerify 的顺序核实。jdStatus=EXPIRED 或验收提示“JD 核实已过期”时，重新调用 verify_boss_job 再读 JD，这会正常占用核实名额。
             """;
 
     private final AgentModel model;
@@ -123,6 +124,7 @@ public class AgentLoop {
     private final BrowserTaskRegistry browserTasks;
     private final ConversationStore conversations;
     private final JobSearchProfile profile;
+    private final VerifyPriority verifyPriority;
 
     public AgentLoop(
             AgentModel model,
@@ -154,6 +156,14 @@ public class AgentLoop {
     public AgentLoop(AgentModel model, AgentToolRegistry registry, ObjectMapper objectMapper,
                      AgentProperties properties, LongSupplier clock, BrowserTaskRegistry browserTasks,
                      ConversationStore conversations, JobSearchProfile profile) {
+        this(model, registry, objectMapper, properties, clock, browserTasks, conversations, profile, null);
+    }
+
+    /** {@code verifyPriority} may be null: then only the budget decides whether a job is verified. */
+    public AgentLoop(AgentModel model, AgentToolRegistry registry, ObjectMapper objectMapper,
+                     AgentProperties properties, LongSupplier clock, BrowserTaskRegistry browserTasks,
+                     ConversationStore conversations, JobSearchProfile profile, VerifyPriority verifyPriority) {
+        this.verifyPriority = verifyPriority;
         this.profile = java.util.Objects.requireNonNull(profile);
         this.model = model;
         this.registry = registry;
@@ -883,6 +893,19 @@ public class AgentLoop {
             // Keep #101 pre-budget behavior: existing FULL and invalid browser targets
             // finish or fail before verification attempt/page budget is charged.
             begin = tool.beforeBudget(prepared.arguments());
+            if (begin == null && JobSearchWorkflow.VERIFY_TOOL.equals(call.name()) && verifyPriority != null) {
+                // A known hard conflict never takes a verification slot; the refusal points at one that would run.
+                var progress = JobSearchWorkflow.inspect(transcript, objectMapper, call.id(), searchContext(context));
+                String conflict = verifyPriority.refusal(prepared.arguments().path("jobId").asLong(),
+                        context.user().getId(), searchContext(context),
+                        JobSearchWorkflow.verifyCandidates(transcript, objectMapper),
+                        id -> JobSearchWorkflow.refuse(progress, call.name(), objectMapper.createObjectNode().put("jobId", id)));
+                if (conflict != null) {
+                    rejectBeforeExecution(call, sink, transcript, clock.getAsLong() - started,
+                            VerifyPriority.CONFLICT, conflict, conflict);
+                    return null;
+                }
+            }
             if (begin == null && JobSearchWorkflow.governs(call.name())) {
                 String refused = JobSearchWorkflow.refuse(
                         JobSearchWorkflow.inspect(transcript, objectMapper, call.id(), searchContext(context)), call.name(), prepared.arguments());

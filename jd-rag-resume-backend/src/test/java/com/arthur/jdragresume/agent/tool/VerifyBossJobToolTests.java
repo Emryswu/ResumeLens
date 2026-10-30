@@ -21,6 +21,9 @@ class VerifyBossJobToolTests {
     private static final String URL = "https://www.zhipin.com/job_detail/abc123.html";
     private final ObjectMapper mapper = new ObjectMapper();
     private final JobDescriptionService jobs = mock(JobDescriptionService.class);
+    private final com.arthur.jdragresume.agent.MutableClock clock = new com.arthur.jdragresume.agent.MutableClock(java.time.Instant.parse("2026-10-30T02:00:00Z"));
+    private final com.arthur.jdragresume.agent.JdFreshness freshness =
+            new com.arthur.jdragresume.agent.JdFreshness(clock, java.time.Duration.ofDays(7));
     private final VerifyBossJobTool tool = new VerifyBossJobTool(jobs, new com.arthur.jdragresume.collect.RoutingJobCollector(null, null, null) {
         @Override public Action startAction(Map<String, Object> command, com.arthur.jdragresume.collect.CollectionSession session) {
             return new Action(command, null, null, 30);
@@ -28,7 +31,7 @@ class VerifyBossJobToolTests {
         @Override public Action completeAction(Map<String, Object> command, JsonNode report, com.arthur.jdragresume.collect.CollectionSession session) {
             return new Action(command, report, null, 30);
         }
-    });
+    }, freshness);
     private final AgentToolContext context = new AgentToolContext(new AppUser());
 
     private JobDescriptionResponse job(String depth) {
@@ -38,7 +41,8 @@ class VerifyBossJobToolTests {
     private JobDescriptionResponse job(String depth, String platform, String url) {
         return new JobDescriptionResponse(17L, 1L, "Java 实习", "示例科技", "深圳",
                 "实习", "在校生", "（BOSS 搜索列表摘要）", "本科",
-                platform, url, "abc123", null, null, depth, null, null);
+                platform, url, "abc123", null, null, depth,
+                "FULL".equals(depth) ? java.time.LocalDateTime.now(clock) : null, null, null);
     }
 
     private ObjectNode arguments() {
