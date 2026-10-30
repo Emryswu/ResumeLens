@@ -148,6 +148,40 @@ class AiAnalysisWorkerEvidenceGateTests {
         assertEquals(AnalysisStatus.COMPLETED, history.getStatus());
     }
 
+    @Test
+    void outboundCopyRedactsAllPromptFieldsWhilePersistedEvidenceAndInputsStayVerbatim() {
+        String contact = "13812345678 arthur@example.com";
+        AnalysisHistory history = pendingHistory();
+        history.getResume().setTitle("简历 " + contact);
+        history.getResume().setRawText("Java 项目 " + contact);
+        history.getJobDescription().setTitle("Java 岗位 " + contact);
+        history.getJobDescription().setCompanyName("公司 " + contact);
+        history.getJobDescription().setDescription("JD " + contact);
+        history.getJobDescription().setRequirements("要求 " + contact);
+        history.setResumeFingerprint(ContentFingerprints.resume(history.getResume()));
+        history.setJobFingerprint(ContentFingerprints.job(history.getJobDescription()));
+        var repository = historyRepository(history);
+        var client = new CountingAiClient("""
+                {"matchScore":80,"strengths":"Java 项目。[chunk-0]","summary":"ok"}
+                """);
+        var properties = new RagProperties();
+        String chunk = "Java Spring Boot 项目 " + contact;
+        var worker = new AiAnalysisWorker(client, new AnalysisResultParser(new ObjectMapper()), repository,
+                new AnalysisHistoryUpdateService(repository, AnalysisHistoryUpdateServiceTests.refundRepository(new ArrayList<>())),
+                new StubRagService(properties, List.of(new RetrievedChunk(0, chunk, .9, .9, true, "kept", "项目", List.of())),
+                        new HardSkillCoverage(List.of(), List.of(), List.of())), properties);
+
+        worker.process(history.getId());
+
+        assertEquals(AnalysisStatus.COMPLETED, history.getStatus());
+        assertFalse(client.lastUserPrompt().contains("13812345678"));
+        assertFalse(client.lastUserPrompt().contains("arthur@example.com"));
+        assertTrue(client.lastUserPrompt().contains("[手机号] [邮箱]"));
+        assertTrue(history.getRetrievedContext().contains(chunk));
+        assertEquals("Java 项目 " + contact, history.getResume().getRawText());
+        assertEquals("JD " + contact, history.getJobDescription().getDescription());
+    }
+
     private static AnalysisHistory pendingHistory() {
         AppUser user = new AppUser();
         user.setUsername("arthur");

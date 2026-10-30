@@ -44,6 +44,15 @@ class ResumeEvidenceValidatorTests {
     }
 
     @Test
+    void citationsMatchOnlyTheSameRedactedStoredTextTheModelCanSee() {
+        String stored = "项目联系方式：13812345678，邮箱 arthur@example.com，负责 Spring Boot 接口开发。";
+        assertNull(problem("项目联系方式：[手机号]，邮箱 [邮箱]，负责 Spring Boot 接口开发。", stored));
+        assertNotNull(problem(stored, stored));
+        assertNotNull(problem("项目联系方式：13812345678，邮箱 [邮箱]，负责 Spring Boot 接口开发。", stored));
+        assertNotNull(problem("项目联系方式：[手机号]，邮箱 arthur@example.com，负责 Spring Boot 接口开发。", stored));
+    }
+
+    @Test
     void missingEvidenceAndMissingSupportsAreRejected() {
         assertNotNull(ResumeEvidenceValidator.validate(json.createArrayNode(), "简历正文"));
         assertNotNull(ResumeEvidenceValidator.validate(json.missingNode(), "简历正文"));

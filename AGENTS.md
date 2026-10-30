@@ -56,6 +56,8 @@ CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
 
 ## Agent 工具
 
+- 凡是发给模型的内容都必须经过 `PromptRedactor`，不得在别处另写打码规则；只处理外发副本，存储、索引、证据链和展示保留原文。
+
 - 模型从用户数据里引用的原文，凡是展示给用户当事实的，必须经程序校验，不能只靠提示词要求。
 
 - 会打开 BOSS 页面的工具（采集、核实详情等）必须加进 `JobSearchWorkflow.BOSS_TOOLS`，统一走一个预算入口（每轮采集次数、页数、核实次数、插件每日页数）。类名请带 `Boss`，`JobSearchWorkflowTests.everyBossToolInTheRegistryIsGovernedByTheBudget` 会扫描并拦下漏登记的工具。

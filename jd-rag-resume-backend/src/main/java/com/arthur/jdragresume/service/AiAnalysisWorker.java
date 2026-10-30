@@ -100,8 +100,8 @@ public class AiAnalysisWorker {
             }
             Set<Integer> keptIds = kept.stream().map(RetrievedChunk::chunkIndex)
                     .collect(Collectors.toCollection(TreeSet::new));
-            String systemPrompt = systemPrompt();
-            String userPrompt = userPrompt(resume, jobDescription, evidenceForPrompt(kept, hardSkills));
+            String systemPrompt = PromptRedactor.redact(systemPrompt());
+            String userPrompt = PromptRedactor.redact(userPrompt(resume, jobDescription, evidenceForPrompt(kept, hardSkills)));
             // Ids, lengths and a digest only: enough to tell whether two runs sent the model the same input.
             log.info("AI analysis {} prompt keptChunks={} promptSha256={} promptChars={}", historyId, keptIds,
                     sha256Prefix(systemPrompt + "\n" + userPrompt), systemPrompt.length() + userPrompt.length());
@@ -160,7 +160,7 @@ public class AiAnalysisWorker {
             historyUpdateService.failIfPendingAndRefund(historyId, VALIDATION_FAILED_SUMMARY, ex.getCode());
         } catch (Throwable ex) {
             // Exception class and details stay in this log; the user only sees the generic summary.
-            log.error("Async AI analysis {} failed", historyId, ex);
+            log.error("Async AI analysis {} failed type={}", historyId, ex.getClass().getSimpleName());
             historyUpdateService.failIfPending(historyId, GENERIC_FAILED_SUMMARY);
         }
     }

@@ -139,7 +139,7 @@ public class AgentChatService {
         } catch (AgentEventSink.ClientGoneException ex) {
             log.info("agent run {} no longer owns its lease", run.runId());
         } catch (RuntimeException ex) {
-            log.error("agent run {} failed", run.runId(), ex);
+            log.error("agent run {} failed type={}", run.runId(), ex.getClass().getSimpleName());
             conversations.fail(run, "AGENT_INTERNAL_ERROR", "助手执行失败，可以继续提问");
         } finally {
             conversations.fail(run, "AGENT_INTERRUPTED", "助手执行已中断，可以继续提问");

@@ -1,6 +1,7 @@
 package com.arthur.jdragresume.ai;
 
 import com.arthur.jdragresume.exception.BusinessException;
+import com.arthur.jdragresume.service.PromptRedactor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -131,7 +132,8 @@ public class AiClient {
                     .timeout(requestTimeout)
                     .header("Authorization", "Bearer " + aiProperties.getApiKey())
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(
+                            PromptRedactor.redact(objectMapper.valueToTree(body)))))
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
