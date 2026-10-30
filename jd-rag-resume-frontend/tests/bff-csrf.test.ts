@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import * as route from "../app/api/backend/[...path]/route.ts";
 import { GET, POST } from "../app/api/backend/[...path]/route.ts";
 
 type Handler = typeof POST;
@@ -113,4 +115,14 @@ test("behind a reverse proxy TRUSTED_ORIGINS names the public origin instead of 
   const internal = await proxyThrough(POST, "POST", { origin: "http://127.0.0.1:3000" }, undefined, options);
   assert.equal(internal.response.status, 403);
   assert.equal(internal.forwarded.length, 0);
+});
+
+test("every method the proxy guards is also exported, so the page can send it", () => {
+  // 少导出一个方法时，浏览器发出的请求在 BFF 就被 405 挡掉，到不了后端。
+  const source = readFileSync(new URL("../app/api/backend/[...path]/route.ts", import.meta.url), "utf8");
+  const guarded = [...(source.match(/UNSAFE_METHODS = new Set\(\[([^\]]*)\]\)/)?.[1].matchAll(/"([A-Z]+)"/g) ?? [])].map((match) => match[1]);
+  assert.ok(guarded.includes("PATCH"), "the CSRF guard lists PATCH");
+  for (const method of ["GET", ...guarded]) {
+    assert.equal(typeof (route as Record<string, unknown>)[method], "function", `route.ts must export ${method}`);
+  }
 });

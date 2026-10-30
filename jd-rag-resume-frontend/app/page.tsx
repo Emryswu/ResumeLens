@@ -3,7 +3,7 @@
 import { ArrowUp, Brain, CircleAlert, FlaskConical, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Plus, Sparkles, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { AppShell } from "./components/AppShell";
 import { RetryButton } from "./components/StateBlock";
 import { ChoiceMenu } from "./components/ChoiceMenu";
@@ -28,6 +28,7 @@ import {
 } from "./agent-stream";
 import { runExtensionCollect } from "./extension-collect";
 import { COLLECTOR_OPTIONS, collectorStorageKey, readCollectorModes, type CollectorMode } from "./collector-mode";
+import { assistantInput, FULL_ACCESS } from "./full-access";
 import { analysisPollTimeoutMs, pollAnalysisUntilSettled } from "./analysis-poll";
 import { runtimeModeLabel } from "./runtime-mode";
 import { modelDisplayName, REASONING_OPTIONS } from "./agent-model-display";
@@ -148,6 +149,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     ? {} : readCollectorModes(window.localStorage.getItem(collectorStorageKey(user.id))));
   const conversationId = snapshot.detail?.conversation.id;
   const collectorMode = conversationId == null ? "auto" : collectorModes[conversationId] ?? "auto";
+  const fullAccess = snapshot.detail?.conversation.fullAccess === true;
   /** Null until known; zero shows the "prepare a resume first" card. */
   const [resumeCount, setResumeCount] = useState<number | null>(null);
   const [sampleRun, setSampleRun] = useState<SampleRun | null>(null);
@@ -222,16 +224,17 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   }, [state.turns, sampleRun, aiStatus]);
 
   const send = useCallback((body: ReturnType<typeof nextRequest>) => session.send(body, reasoningEffort, collectorMode), [session, reasoningEffort, collectorMode]);
-  const [browserRunning, setBrowserRunning] = useState<string | null>(null);
+  /** The task this page is running; {@code auto} when it started it without a click (完全访问). */
+  const [browserRunning, setBrowserRunning] = useState<{ taskId: string; auto: boolean } | null>(null);
 
-  async function continueBrowser() {
+  async function continueBrowser(auto = false) {
     const task = state.pendingBrowser;
     if (!task || state.busy || browserTaskRef.current === task.taskId) return;
     browserTaskRef.current = task.taskId;
     const controller = new AbortController();
     browserAbortRef.current = controller;
     const sessionId = getAuthSessionId();
-    setBrowserRunning(task.taskId);
+    setBrowserRunning({ taskId: task.taskId, auto });
     const outcome = await runExtensionCollect({ task, target: window, signal: controller.signal,
       onProgress: (progress) => {
         if (isAuthSessionCurrent(sessionId) && browserTaskRef.current === task.taskId) dispatchProgress({ type: "browser_progress", progress });
@@ -243,6 +246,17 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     const current = stateRef.current;
     if (!current.busy && current.pendingBrowser?.taskId === task.taskId) await send(nextRequest(current, { browser: outcome }));
   }
+
+  const startAutomatically = useEffectEvent((taskId: string) => {
+    session.consumeAutoStart(taskId);
+    void continueBrowser(true);
+  });
+
+  // Only a task this page just received with autoStart; restored tasks keep their 继续 button.
+  useEffect(() => {
+    const taskId = snapshot.autoStartTaskId;
+    if (taskId && !state.busy && state.pendingBrowser?.taskId === taskId) startAutomatically(taskId);
+  }, [snapshot.autoStartTaskId, state.busy, state.pendingBrowser]);
 
   /** Same sample as the workbench's 「保存示例并分析」: saves a resume and a job, then starts a full analysis. */
   async function trySample() {
@@ -294,7 +308,9 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     }
   }
 
-  const inputLocked = snapshot.loading || !!snapshot.error || state.busy || !!state.pending || !!state.pendingBrowser;
+  const input = assistantInput(state, { loading: snapshot.loading, error: !!snapshot.error,
+    autoRunningTaskId: browserRunning?.auto ? browserRunning.taskId : null });
+  const inputLocked = input.sendLocked;
   const canRetry = retryRequest(state) != null;
   const displayModel = modelDisplayName(aiStatus?.model);
   const effortLabel = REASONING_OPTIONS.find((option) => option.value === reasoningEffort)!.label;
@@ -387,7 +403,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
               pendingBrowser={index === state.turns.length - 1 ? state.pendingBrowser : null}
               onCancelBrowser={() => browserAbortRef.current?.abort()}
               onContinueBrowser={() => void continueBrowser()}
-              browserRunning={browserRunning === turn.browserTask?.taskId}
+              browserRunning={browserRunning != null && browserRunning.taskId === turn.browserTask?.taskId}
               analysis={turn.analysisId ? analyses[turn.analysisId] : undefined}
               onDecide={decide}
               onRetry={index === state.turns.length - 1 && canRetry ? retry : undefined}
@@ -411,23 +427,32 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
           <textarea
             rows={2}
             value={draft}
-            placeholder={state.pending ? "请先确认或拒绝上面的操作"
-                : state.pendingBrowser ? "请先继续或结束上面的浏览器采集任务"
-                  : "问点什么，例如：我的简历最适合哪个职位？（Enter 发送，Shift+Enter 换行）"}
-            disabled={inputLocked}
+            placeholder={input.placeholder}
+            disabled={input.draftLocked}
             maxLength={4000}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
           />
           <div className="assistant-input-actions">
-            <ChoiceMenu label={`采集方式：${COLLECTOR_OPTIONS.find((option) => option.value === collectorMode)!.label.replace("采集方式：", "")}`}
+            <ChoiceMenu label={`采集方式：${COLLECTOR_OPTIONS.find((option) => option.value === collectorMode)!.label.replace("采集方式：", "")}`
+              + (fullAccess ? `，${FULL_ACCESS.label}已开启` : "")}
               value={collectorMode} options={COLLECTOR_OPTIONS} disabled={inputLocked || conversationId == null}
               onChange={(mode) => {
                 const next = { ...collectorModes, [conversationId!]: mode };
                 window.localStorage.setItem(collectorStorageKey(user.id), JSON.stringify(next));
                 setCollectorModes(next);
-              }}>
+              }}
+              extra={<button type="button" className="choice-menu-switch" role="switch" aria-checked={fullAccess}
+                aria-labelledby="full-access-label" aria-describedby="full-access-description"
+                onClick={() => void session.setFullAccess(!fullAccess)}>
+                <span className="choice-menu-option-copy">
+                  <span id="full-access-label" className="choice-menu-option-label">{FULL_ACCESS.label}</span>
+                  <span id="full-access-description" className="choice-menu-option-description">{FULL_ACCESS.description}</span>
+                </span>
+                <span className="choice-menu-switch-track" aria-hidden="true"><span className="choice-menu-switch-thumb" /></span>
+              </button>}>
               <Plus size={17} aria-hidden="true" />
+              {fullAccess && <span className="full-access-badge">{FULL_ACCESS.label}</span>}
             </ChoiceMenu>
             <ChoiceMenu label={`模型与思考档位：${displayModel}，${effortLabel}`}
               value={reasoningEffort} options={REASONING_OPTIONS} disabled={inputLocked}

@@ -18,10 +18,15 @@ export type ConversationSnapshot = {
   chat: AgentChatState;
   loading: boolean;
   error: string;
+  /**
+   * A browser task this page received live, with autoStart, in a turn whose stream reached done. Restored or
+   * polled tasks never set it, so a reload or a second tab still waits for the user's click.
+   */
+  autoStartTaskId: string | null;
 };
 
 export const emptyConversationSnapshot: ConversationSnapshot = {
-  scope: "", detail: null, items: [], chat: initialAgentChatState, loading: true, error: "",
+  scope: "", detail: null, items: [], chat: initialAgentChatState, loading: true, error: "", autoStartTaskId: null,
 };
 
 /** Owned by the root provider. Only presentation caches live here; durable history lives on the server. */
@@ -80,7 +85,7 @@ export class ConversationSession {
     this.posting = false;
     clearTimeout(this.timer);
     const generation = ++this.generation;
-    this.update({ loading: true, error: "", detail: null, chat: initialAgentChatState });
+    this.update({ loading: true, error: "", detail: null, chat: initialAgentChatState, autoStartTaskId: null });
     try {
       const detail = await this.io.request<ConversationDetail>(`${CONVERSATIONS}/${id}`);
       if (this.owns(generation)) this.hydrate(detail);
@@ -92,7 +97,7 @@ export class ConversationSession {
     this.controller?.abort();
     this.posting = false;
     clearTimeout(this.timer);
-    this.update({ loading: true, error: "" });
+    this.update({ loading: true, error: "", autoStartTaskId: null });
     try {
       const detail = await this.io.request<ConversationDetail>(CONVERSATIONS, { method: "POST" });
       if (!this.owns(generation)) return;
@@ -116,6 +121,28 @@ export class ConversationSession {
         else await this.create();
       }
     } catch (error) { this.failed(generation, error); }
+  };
+
+  /** The switch lives on the server; the page shows what the server answered, never a local guess. */
+  setFullAccess = async (fullAccess: boolean) => {
+    const id = this.snapshot.detail?.conversation.id;
+    const generation = this.generation;
+    if (id == null) return;
+    try {
+      const header = await this.io.request<ConversationHeader>(`${CONVERSATIONS}/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fullAccess }),
+      });
+      const detail = this.snapshot.detail;
+      if (!this.owns(generation) || detail?.conversation.id !== id) return;
+      const conversation = { ...detail.conversation, fullAccess: header.fullAccess };
+      this.update({ detail: { ...detail, conversation },
+        items: this.snapshot.items.map((item) => item.id === id ? { ...item, fullAccess: header.fullAccess } : item) });
+    } catch (error) { this.failed(generation, error); }
+  };
+
+  /** The page calls this when it starts the task, so the same task is never started twice. */
+  consumeAutoStart = (taskId: string) => {
+    if (this.snapshot.autoStartTaskId === taskId) this.update({ autoStartTaskId: null });
   };
 
   private hydrate(detail: ConversationDetail) {
@@ -173,7 +200,9 @@ export class ConversationSession {
     this.controller = controller;
     this.posting = true;
     clearTimeout(this.timer);
-    this.update({ error: "", chat: { ...this.snapshot.chat, busy: true } });
+    this.update({ error: "", chat: { ...this.snapshot.chat, busy: true }, autoStartTaskId: null });
+    let liveAutoStart: string | null = null;
+    let pausedForBrowser = false;
     try {
       const stream = await this.io.stream("/api/agent/chat", { ...input, conversationId: detail.conversation.id, reasoningEffort,
         ...(collectorMode ? { collectorMode } : {}) }, controller.signal);
@@ -184,7 +213,10 @@ export class ConversationSession {
       else chat = agentChatReducer(chat, { type: "browser_report", outcome: input.browserResult.outcome });
       this.update({ chat });
       await readAgentStream(stream, (event: AgentEvent) => {
-        if (this.owns(generation)) this.update({ chat: agentChatReducer(this.snapshot.chat, { type: "event", event }) });
+        if (!this.owns(generation)) return;
+        if (event.type === "browser_task_required") liveAutoStart = event.data.autoStart ? event.data.taskId : null;
+        if (event.type === "done") pausedForBrowser = event.data.state === "AWAITING_BROWSER";
+        this.update({ chat: agentChatReducer(this.snapshot.chat, { type: "event", event }) });
       });
     } catch (error) {
       // A broken subscription says nothing about execution. Always reconcile before another input.
@@ -193,6 +225,9 @@ export class ConversationSession {
       if (this.owns(generation)) {
         this.posting = false;
         await this.refresh();
+        // Only after posting ends, so the task's report can be sent as soon as the browser finishes.
+        if (liveAutoStart && pausedForBrowser && this.owns(generation) && !this.snapshot.error
+            && this.snapshot.chat.pendingBrowser?.taskId === liveAutoStart) this.update({ autoStartTaskId: liveAutoStart });
       }
     }
   };

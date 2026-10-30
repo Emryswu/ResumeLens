@@ -9,19 +9,24 @@ export type ChoiceOption<T extends string> = {
   description: string;
 };
 
-/** A single-choice popup: keyboard focus follows the active option, selection stays controlled by the caller. */
-export function ChoiceMenu<T extends string>({ label, value, options, disabled, onChange, children }: {
+/**
+ * A single-choice popup: keyboard focus follows the active option, selection stays controlled by the caller.
+ * {@code extra} renders below the options for a related control (such as a switch); Tab moves into it.
+ */
+export function ChoiceMenu<T extends string>({ label, value, options, disabled, onChange, children, extra }: {
   label: string;
   value: T;
   options: readonly ChoiceOption<T>[];
   disabled?: boolean;
   onChange: (value: T) => void;
   children: ReactNode;
+  extra?: ReactNode;
 }) {
   const id = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const extraRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const expanded = open && !disabled;
@@ -69,7 +74,27 @@ export function ChoiceMenu<T extends string>({ label, value, options, disabled, 
       event.preventDefault();
       choose(options[activeIndex].value);
     } else if (event.key === "Tab") {
+      const next = event.shiftKey ? null : extraRef.current?.querySelector<HTMLElement>("button:not(:disabled)");
+      if (next) {
+        event.preventDefault();
+        next.focus();
+        return;
+      }
       // Let the browser advance from the trigger to the next (or previous) form control.
+      close();
+    }
+  }
+
+  /** Keys pressed inside {@code extra}; the control itself handles Enter and Space. */
+  function navigateExtra(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    } else if (event.key === "Tab" && event.shiftKey) {
+      event.preventDefault();
+      itemRefs.current[activeIndex]?.focus();
+    } else if (event.key === "Tab") {
       close();
     }
   }
@@ -90,20 +115,23 @@ export function ChoiceMenu<T extends string>({ label, value, options, disabled, 
         <ChevronDown size={14} className="choice-menu-chevron" aria-hidden="true" />
       </button>
       {expanded && (
-        <div id={id} className="choice-menu-listbox" role="listbox" aria-label={label} onKeyDown={navigate}>
-          {options.map((option, index) => (
-            <button key={option.value} type="button" className="choice-menu-option" role="option"
-              ref={(element) => { itemRefs.current[index] = element; }}
-              aria-selected={option.value === value} aria-labelledby={`${id}-${index}-label`}
-              aria-describedby={`${id}-${index}-description`} tabIndex={index === activeIndex ? 0 : -1}
-              onFocus={() => setActiveIndex(index)} onClick={() => choose(option.value)}>
-              <span className="choice-menu-option-copy">
-                <span id={`${id}-${index}-label`} className="choice-menu-option-label">{option.label}</span>
-                <span id={`${id}-${index}-description`} className="choice-menu-option-description">{option.description}</span>
-              </span>
-              {option.value === value && <Check size={17} strokeWidth={2.2} aria-hidden="true" />}
-            </button>
-          ))}
+        <div className="choice-menu-listbox">
+          <div id={id} role="listbox" aria-label={label} onKeyDown={navigate}>
+            {options.map((option, index) => (
+              <button key={option.value} type="button" className="choice-menu-option" role="option"
+                ref={(element) => { itemRefs.current[index] = element; }}
+                aria-selected={option.value === value} aria-labelledby={`${id}-${index}-label`}
+                aria-describedby={`${id}-${index}-description`} tabIndex={index === activeIndex ? 0 : -1}
+                onFocus={() => setActiveIndex(index)} onClick={() => choose(option.value)}>
+                <span className="choice-menu-option-copy">
+                  <span id={`${id}-${index}-label`} className="choice-menu-option-label">{option.label}</span>
+                  <span id={`${id}-${index}-description`} className="choice-menu-option-description">{option.description}</span>
+                </span>
+                {option.value === value && <Check size={17} strokeWidth={2.2} aria-hidden="true" />}
+              </button>
+            ))}
+          </div>
+          {extra && <div className="choice-menu-extra" ref={extraRef} onKeyDown={navigateExtra}>{extra}</div>}
         </div>
       )}
     </div>

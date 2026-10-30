@@ -11,6 +11,7 @@ import { ConversationSession } from "../app/conversation-session.ts";
 import * as wire from "../app/agent-stream.ts";
 import * as modelDisplay from "../app/agent-model-display.ts";
 import * as collectorModes from "../app/collector-mode.ts";
+import * as fullAccessModule from "../app/full-access.ts";
 
 const require = createRequire(import.meta.url);
 const TASK = {
@@ -24,7 +25,7 @@ const code = ts.transpileModule(source, {
 }).outputText;
 
 /** Mount the real page and reducer; replace network and extension I/O with controlled promises. */
-async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk = true, autoCollect = true } = {}) {
+async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk = true, autoCollect = true, fullAccess = false } = {}) {
   const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost:3000" });
   if (savedEffort != null) dom.window.localStorage.setItem("resumelens-agent-reasoning-effort", savedEffort);
   if (savedModes != null) dom.window.localStorage.setItem(collectorModes.collectorStorageKey(1), JSON.stringify(savedModes));
@@ -39,7 +40,9 @@ async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk 
   let finishCollection;
   const frame = (event, data) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
   let stored = wire.initialAgentChatState;
-  let header = { id: 1, title: "新对话", state: "READY", activeRun: null, eventSequence: 0 };
+  let header = { id: 1, title: "新对话", state: "READY", activeRun: null, eventSequence: 0, fullAccess };
+  // The server marks the task the way FullAccessPolicy would for this conversation.
+  const task = () => ({ ...TASK, autoStart: header.fullAccess });
   const detail = () => ({ conversation: header, turns: stored.turns, events: [] });
   const api = {
     ApiError: class ApiError extends Error {},
@@ -47,6 +50,11 @@ async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk 
       if (url === "/api/agent/conversations") {
         if (options?.method === "POST") { stored = wire.initialAgentChatState; header = { ...header, id: header.id + 1 }; return detail(); }
         return [header];
+      }
+      if (url.startsWith("/api/agent/conversations/") && options?.method === "PATCH") {
+        requests.push({ path: url, body: JSON.parse(options.body) });
+        header = { ...header, fullAccess: JSON.parse(options.body).fullAccess };
+        return header;
       }
       if (url.startsWith("/api/agent/conversations/")) return detail();
       return url.startsWith("/api/resumes") ? { totalElements: 1 } : { mockEnabled: true, model: "deepseek-flash" };
@@ -63,8 +71,8 @@ async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk 
         const transcript = [{ role: "user", content: body.question }, {
           role: "assistant", tool_calls: [{ id: TASK.toolCallId, type: "function", function: { name: TASK.tool, arguments: "{}" } }],
         }];
-        events = frame("browser_task_required", TASK);
-        stored = wire.agentChatReducer(stored, { type: "event", event: { type: "browser_task_required", data: TASK } });
+        events = frame("browser_task_required", task());
+        stored = wire.agentChatReducer(stored, { type: "event", event: { type: "browser_task_required", data: task() } });
         stored = wire.agentChatReducer(stored, { type: "event", event: { type: "done", data: { state: "AWAITING_BROWSER", steps: 1, transcript } } });
         header = { ...header, state: "AWAITING_BROWSER", eventSequence: 3 };
         if (!interrupted) events += frame("done", { state: "AWAITING_BROWSER", steps: 1, transcript });
@@ -109,6 +117,7 @@ async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk 
       if (id.endsWith("/conversation-client")) return { CONVERSATIONS: "/api/agent/conversations" };
       if (id.endsWith("/agent-model-display")) return modelDisplay;
       if (id.endsWith("/collector-mode")) return collectorModes;
+      if (id.endsWith("/full-access")) return fullAccessModule;
       if (id.endsWith("/components/ChoiceMenu")) return choiceExports;
       if (id.endsWith("/lib/api")) return api;
       if (id.endsWith("/extension-collect")) return {
@@ -158,7 +167,7 @@ async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk 
     await act(async () => { button.click(); });
   };
   if (autoAsk) await click("我最新那份简历");
-  if (autoAsk && autoCollect && !interrupted) await click("继续采集");
+  if (autoAsk && autoCollect && !interrupted && !fullAccess) await click("继续采集");
   const returnFromWorkspace = async () => {
     await unmount();
     session.clear();
@@ -317,4 +326,70 @@ test("leaving for the job library and returning preserves the question", async (
   assert.match(page.dom.window.document.body.textContent, /我最新那份简历最适合投哪几个职位/);
   await page.returnFromWorkspace();
   assert.ok(page.dom.window.document.querySelector(".assistant-question"), "the persisted turn must be restored after routing back");
+});
+
+test("with full access a live browser task starts without a click and the text box stays open", async (t) => {
+  const page = await mount(t, { fullAccess: true });
+  const doc = page.dom.window.document;
+  assert.equal(page.collections, 1, "nothing waited for 继续采集");
+  assert.ok([...doc.querySelectorAll("button")].some((button) => button.textContent === "取消采集"));
+  const textarea = doc.querySelector("textarea");
+  assert.equal(textarea.disabled, false);
+  assert.match(textarea.placeholder, /自动执行/);
+  assert.equal(doc.querySelector('button[aria-label="发送"]').disabled, true, "a question waits for the browser result");
+  await page.finish({ outcome: "completed", report: { type: "result" } });
+  assert.equal(page.requests.length, 2);
+  assert.equal(page.requests[1].body.browserResult.taskId, TASK.taskId);
+  assert.equal(page.collections, 1, "the task ran once");
+});
+
+test("without full access the browser task still waits for the click", async (t) => {
+  const page = await mount(t, { autoCollect: false });
+  assert.equal(page.collections, 0);
+  assert.equal(page.dom.window.document.querySelector("textarea").disabled, true);
+  await page.click("继续采集");
+  assert.equal(page.collections, 1);
+});
+
+test("a restored task with autoStart still waits for the click", async (t) => {
+  const page = await mount(t, { fullAccess: true, interrupted: true });
+  assert.equal(page.collections, 0, "the stream never reached done");
+  await page.returnFromWorkspace();
+  assert.equal(page.collections, 0, "coming back to the page does not start it");
+  await page.click("继续采集");
+  assert.equal(page.collections, 1);
+});
+
+test("the plus menu switches full access on the server next to the collector choice", async (t) => {
+  const page = await mount(t, { autoAsk: false });
+  const doc = page.dom.window.document;
+  await act(async () => { doc.querySelector('button[aria-label="采集方式：自动"]').click(); });
+  const toggle = doc.querySelector('[role="switch"]');
+  assert.ok(toggle, "the switch is in the same menu as the collector choice");
+  assert.equal(toggle.getAttribute("aria-checked"), "false");
+  await act(async () => { toggle.click(); });
+  assert.deepEqual(page.requests.at(-1), { path: "/api/agent/conversations/1", body: { fullAccess: true } });
+  assert.equal(doc.querySelector('[role="switch"]').getAttribute("aria-checked"), "true");
+  assert.ok(doc.querySelector('button[aria-label="采集方式：自动，完全访问已开启"]'));
+  await page.returnFromWorkspace();
+  assert.ok(doc.querySelector('button[aria-label="采集方式：自动，完全访问已开启"]'), "it comes back from the server");
+});
+
+test("Tab moves from the options into the switch and Escape closes the menu", async (t) => {
+  const page = await mount(t, { autoAsk: false });
+  const doc = page.dom.window.document;
+  const trigger = doc.querySelector('button[aria-label="采集方式：自动"]');
+  await act(async () => { trigger.click(); });
+  const key = async (value, shiftKey = false) => act(async () => {
+    doc.activeElement.dispatchEvent(new page.dom.window.KeyboardEvent("keydown", { key: value, shiftKey, bubbles: true, cancelable: true }));
+  });
+  await key("Tab");
+  assert.equal(doc.activeElement.getAttribute("role"), "switch");
+  await key("Tab", true);
+  assert.equal(doc.activeElement.getAttribute("role"), "option");
+  await key("Tab");
+  await key("Escape");
+  assert.equal(doc.querySelector('[role="listbox"]'), null);
+  assert.equal(doc.activeElement, trigger);
+  assert.equal(page.requests.length, 0);
 });
