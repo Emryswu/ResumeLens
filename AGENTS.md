@@ -61,6 +61,7 @@ CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
 - 模型从用户数据里引用的原文，凡是展示给用户当事实的，必须经程序校验，不能只靠提示词要求。
 
 - 会打开 BOSS 页面的工具（采集、核实详情等）必须加进 `JobSearchWorkflow.BOSS_TOOLS`，统一走一个预算入口（每轮采集次数、页数、核实次数、插件每日页数）。类名请带 `Boss`，`JobSearchWorkflowTests.everyBossToolInTheRegistryIsGovernedByTheBudget` 会扫描并拦下漏登记的工具。
+- 新增工具默认需要用户确认或点击才执行。「完全访问」只能跳过 `FullAccessPolicy.SKIPS_USER_START` 白名单里的操作，判断只在 `FullAccessPolicy` 里做。只有只读、并且已受 `JobSearchWorkflow.BOSS_TOOLS` 预算约束的浏览器操作才能加进白名单。`requiresConfirmation` 的工具（如 `relax_job_search_condition`，它的确认本身就是授权）不能加进去。有副作用的操作（打开沟通、发消息等）也不能加进去。完全访问只跳过点击，每日页数、单次页数上限和随机等待都照常生效。`FullAccessTests` 会扫描工具，拦下违反这些规则的白名单。
 - 职位的 `location` 由插件按 `城市·区·商圈` 拼接（见 `browser-extension/src/boss-api-extractor.js`），老数据可能是 `深圳市龙岗区` 这种纯文本。比对地点时去掉分隔符再比，测试要用真实格式的样本。
 - AgentLoop 里新增的拒绝码（工具还没执行就拒绝的情况）必须走统一出口 `rejectBeforeExecution`，不得直接返回 `ToolEnvelope.error`：只有带 `executed=false` 的结果才不计入找岗预算、允许重试。工具自己在打开浏览器前拒绝时抛 `ToolNotStartedException`。工具执行前的校验（前置条件、会话条件、重复搜索、预算等）必须放在 `beginDeferred` 里执行前那段 try 中，异常会自动按未执行处理；和 `tool.begin(...)` 同一个 try 的只能是工具本身的执行。`UnexecutedCallBudgetTests` 会扫描 AgentLoop 源码拦下绕过出口的写法。
 - 会跨暂停/续跑（确认卡片、浏览器任务）存在的运行状态，必须能从服务端 transcript 重建，禁止只存在 AgentLoop 的局部变量里。计划、游标、是否待重规划、已用重规划次数统一由 `PlanProgress.of` 从 transcript 推出；已用工具步数、模型调用次数、协议修正次数统一由 `TurnUsage.of` 推出。首次运行和续跑走同一个函数，不另写续跑分支，也不读客户端传来的计数；`AgentPlanResumeTests`、`AgentStepBudgetResumeTests` 用"暂停续跑 vs 不暂停"对照守着，新增这类状态时照此补对照用例。续跑请求不得往 transcript 写 user 消息（`TurnTranscript` 会直接拒绝），否则当前轮会被截断。

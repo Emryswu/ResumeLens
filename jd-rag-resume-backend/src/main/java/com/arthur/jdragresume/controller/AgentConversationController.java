@@ -3,6 +3,8 @@ package com.arthur.jdragresume.controller;
 import com.arthur.jdragresume.agent.ConversationStore;
 import com.arthur.jdragresume.common.ApiResponse;
 import com.arthur.jdragresume.security.CurrentUserService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +30,16 @@ public class AgentConversationController {
     @GetMapping("/{id}")
     public ApiResponse<ConversationStore.Detail> detail(@PathVariable long id, @RequestParam(defaultValue = "0") long after) {
         return ApiResponse.ok(store.detail(users.getCurrentUser().getId(), id, after));
+    }
+
+    /** Conversation settings the user changes from the page; today only 完全访问. */
+    @PatchMapping("/{id}")
+    public ApiResponse<ConversationStore.Header> update(@PathVariable long id, @Valid @RequestBody SettingsRequest request) {
+        return ApiResponse.ok(store.setFullAccess(users.getCurrentUser().getId(), id, request.fullAccess()));
+    }
+
+    /** {@code fullAccess} is boxed so a missing value is a 400, not a silent switch-off. */
+    public record SettingsRequest(@NotNull Boolean fullAccess) {
     }
 
     @DeleteMapping("/{id}")

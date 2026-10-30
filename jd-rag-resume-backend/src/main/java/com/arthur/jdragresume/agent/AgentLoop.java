@@ -47,7 +47,9 @@ import java.util.concurrent.atomic.AtomicReference;
  *       the turn with {@code browser_task_required}. The server records the task with a
  *       deadline; a follow-up request carrying the page's report for that task resumes the
  *       call. A late, cancelled, unknown or abandoned task becomes an error result the model
- *       reads and explains, and nothing from it is saved.</li>
+ *       reads and explains, and nothing from it is saved. The page waits for the user's click
+ *       before starting the task unless {@code autoStart} is set, which only
+ *       {@link FullAccessPolicy} decides; budget checks run before the task is issued either way.</li>
  * </ul>
  */
 public class AgentLoop {
@@ -949,8 +951,9 @@ public class AgentLoop {
                 call.arguments(), clock.getAsLong(), timeoutSeconds * 1000);
         Map<String, Object> command = new java.util.LinkedHashMap<>(inBrowser.command());
         if (context.run() != null) command.put("conversationId", Long.toString(context.run().conversationId()));
+        boolean fullAccess = context.run() != null && conversations != null && conversations.fullAccess(context.run());
         return new BrowserTaskEvent(call.id(), call.name(), task.taskId(), inBrowser.executor(), inBrowser.action(),
-                command, task.expiresAt(), timeoutSeconds);
+                command, task.expiresAt(), timeoutSeconds, FullAccessPolicy.autoStart(fullAccess, call.name()));
     }
 
     /**
@@ -1238,9 +1241,12 @@ public class AgentLoop {
     public record PendingConfirmation(String toolCallId, String tool, JsonNode arguments, Object preview) {
     }
 
-    /** What the page must run; {@code expiresAt} is epoch milliseconds on the server's clock. */
+    /**
+     * What the page must run; {@code expiresAt} is epoch milliseconds on the server's clock. {@code autoStart}
+     * lets the page that receives this event start the task without the user's click (完全访问).
+     */
     public record BrowserTaskEvent(String toolCallId, String tool, String taskId, String executor, String action,
-                                   Map<String, Object> command, long expiresAt, long timeoutSeconds) {
+                                   Map<String, Object> command, long expiresAt, long timeoutSeconds, boolean autoStart) {
     }
 
     public record DoneEvent(State state, int steps, List<AgentMessage> transcript, String summary,
