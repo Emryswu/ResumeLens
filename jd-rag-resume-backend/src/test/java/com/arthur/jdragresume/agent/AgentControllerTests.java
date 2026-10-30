@@ -97,6 +97,20 @@ class AgentControllerTests extends ConversationStoreTests {
         queued.getFirst().run();
     }
 
+    @Test void fullAccessIsSwitchedPerConversationByItsOwner() throws Exception {
+        long id = store.create(1).conversation().id();
+        long bob = store.create(2).conversation().id();
+        mvc.perform(patch("/api/agent/conversations/"+id).contentType(MediaType.APPLICATION_JSON).content("{\"fullAccess\":true}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("data.fullAccess").value(true));
+        mvc.perform(get("/api/agent/conversations/"+id)).andExpect(jsonPath("data.conversation.fullAccess").value(true));
+        mvc.perform(patch("/api/agent/conversations/"+id).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(patch("/api/agent/conversations/"+bob).contentType(MediaType.APPLICATION_JSON).content("{\"fullAccess\":true}"))
+                .andExpect(status().isNotFound());
+        assertFalse(store.detail(2, bob, 0).conversation().fullAccess());
+        assertTrue(store.detail(1, id, 0).conversation().fullAccess(), "an invalid request changes nothing");
+    }
+
     @Test void aliceCannotReadDeleteOrWriteBobsConversation() throws Exception {
         long bob = store.create(2).conversation().id();
         mvc.perform(get("/api/agent/conversations/"+bob)).andExpect(status().isNotFound());

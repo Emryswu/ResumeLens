@@ -187,6 +187,19 @@ public class ConversationStore {
         });
     }
 
+    /** The user's 完全访问 switch for this conversation; changing it while a turn runs affects the next browser task. */
+    public Header setFullAccess(long userId, long id, boolean fullAccess) {
+        return locked(userId, id, row -> {
+            jdbc.update("UPDATE agent_conversation SET full_access=? WHERE id=? AND user_id=?", fullAccess, id, userId);
+            return jdbc.queryForObject("SELECT * FROM agent_conversation WHERE id=?", (rs, n) -> header(rs), id);
+        });
+    }
+
+    /** Read when a browser task is issued, so the switch the user set in this conversation is the only source. */
+    public boolean fullAccess(Run run) {
+        return owned(run, Header::fullAccess);
+    }
+
     private JobSearchContext loadSearchContext(long id) {
         String value = jdbc.queryForObject("SELECT search_context FROM agent_conversation WHERE id=?",
                 String.class, id);
@@ -257,7 +270,8 @@ public class ConversationStore {
     private Header header(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new Header(rs.getLong("id"), rs.getString("title"), rs.getString("state"), rs.getString("current_turn"),
                 rs.getString("active_run"), rs.getObject("run_expires_at", Long.class), rs.getLong("event_sequence"),
-                rs.getTimestamp("created_at").toInstant().toString(), rs.getTimestamp("updated_at").toInstant().toString());
+                rs.getTimestamp("created_at").toInstant().toString(), rs.getTimestamp("updated_at").toInstant().toString(),
+                rs.getBoolean("full_access"));
     }
 
     static JsonNode read(String value) {
@@ -271,7 +285,7 @@ public class ConversationStore {
     }
 
     public record Header(long id, String title, String state, String currentTurn, String activeRun, Long runExpiresAt,
-                         long eventSequence, String createdAt, String updatedAt) {}
+                         long eventSequence, String createdAt, String updatedAt, boolean fullAccess) {}
     public record Event(long sequence, String turnId, String runId, String type, JsonNode data, String createdAt) {}
     public record Detail(Header conversation, JsonNode turns, List<Event> events) {}
 }

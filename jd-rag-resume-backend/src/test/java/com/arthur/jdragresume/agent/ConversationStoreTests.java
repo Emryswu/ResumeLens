@@ -26,7 +26,7 @@ class ConversationStoreTests {
     void setup() {
         var source = new DriverManagerDataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword());
         Flyway.configure().dataSource(source).target("14").load().migrate();
-        Flyway.configure().dataSource(source).target("19").load().migrate();
+        Flyway.configure().dataSource(source).target("22").load().migrate();
         jdbc = new JdbcTemplate(source);
         jdbc.update("DELETE FROM app_user");
         jdbc.update("INSERT INTO app_user(id,created_at,updated_at,display_name,email,password_hash,username) VALUES"
@@ -79,6 +79,24 @@ class ConversationStoreTests {
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM agent_conversation_message", Integer.class));
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM agent_conversation_event", Integer.class));
         assertEquals(bob, store.list(2).getFirst().id());
+    }
+
+    @Test
+    void fullAccessIsStoredOnTheConversationAndOnlyItsOwnerCanChangeIt() {
+        long alice = store.create(1).conversation().id();
+        assertFalse(store.detail(1, alice, 0).conversation().fullAccess(), "off until the user turns it on");
+        assertThrows(ResourceNotFoundException.class, () -> store.setFullAccess(2, alice, true));
+        assertFalse(store.list(1).getFirst().fullAccess());
+
+        assertTrue(store.setFullAccess(1, alice, true).fullAccess());
+        assertTrue(store.detail(1, alice, 0).conversation().fullAccess(), "a reload reads it back from the server");
+        var run = store.accept(1, alice, "找岗位", null, null, 90000,
+                messages -> new TranscriptPolicy(new AgentProperties()).normalize(messages, null));
+        assertTrue(store.fullAccess(run));
+
+        assertFalse(store.setFullAccess(1, alice, false).fullAccess());
+        assertFalse(store.fullAccess(run), "turning it off applies to the next browser task of a running turn");
+        assertFalse(store.create(1).conversation().fullAccess(), "a new conversation starts with it off");
     }
 
     @Test
