@@ -257,8 +257,8 @@ class AiClientTests {
         client.complete("system " + raw, "resume/JD " + raw);
         var messages = List.<Map<String, Object>>of(Map.of("role", "user", "content", raw),
                 Map.of("role", "assistant", "reasoning_content", raw, "tool_calls", List.of(
-                        Map.of("id", "c1", "function", Map.of("name", "lookup", "arguments", "{\"contact\":\"" + raw + "\"}")))),
-                Map.of("role", "tool", "tool_call_id", "c1", "content", "resume/chunk/BOSS JD " + raw));
+                        Map.of("id", "call_19987654321", "function", Map.of("name", "lookup", "arguments", "{\"contact\":\"" + raw + "\"}")))),
+                Map.of("role", "tool", "tool_call_id", "call_19987654321", "content", "resume/chunk/BOSS JD " + raw));
         client.chatWithTools(messages, List.of(Map.of("description", raw)), Duration.ofSeconds(5));
         assertEquals(2, received.size());
         for (String body : received) {
@@ -267,6 +267,9 @@ class AiClientTests {
             assertTrue(body.contains("[手机号] [邮箱]"));
         }
         assertEquals(raw, messages.getFirst().get("content"));
+        var agentMessages = objectMapper.readTree(received.getLast()).path("messages");
+        assertEquals("call_19987654321", agentMessages.path(1).path("tool_calls").path(0).path("id").asText());
+        assertEquals("call_19987654321", agentMessages.path(2).path("tool_call_id").asText());
     }
 
     @Test
