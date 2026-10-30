@@ -48,6 +48,25 @@ class SubmitRecommendationsToolTests {
     }
 
     @Test
+    void redactedResumeCitationPassesTheToolButUnseenContactOriginalIsRejected() throws Exception {
+        String raw = "负责 Spring Boot 接口开发，联系方式 13812345678 arthur@example.com";
+        String visible = "负责 Spring Boot 接口开发，联系方式 [手机号] [邮箱]";
+        when(resumes.findById(1L)).thenReturn(new ResumeResponse(1L, 1L, "owner", "Java 简历",
+                null, null, null, null, null, null, null, raw, null, null));
+        when(jobs.findById(8L)).thenReturn(job(8, "FULL", "参与 Java 后端 API 开发", ""));
+        var args = proposals(item(8, "参与 Java 后端 API 开发"));
+        var citation = (com.fasterxml.jackson.databind.node.ObjectNode) args.path("recommendations").get(0)
+                .path("resumeEvidence").get(0);
+        citation.put("quote", visible);
+        assertTrue(((SubmitRecommendationsTool.Result) tool.execute(args, context)).accepted());
+        citation.put("quote", raw);
+        var rejected = (SubmitRecommendationsTool.Result) tool.execute(args, context);
+        assertFalse(rejected.accepted());
+        assertTrue(rejected.rejected().getFirst().notExecuted());
+        assertEquals(raw, resumes.findById(1L).rawText());
+    }
+
+    @Test
     void previouslyVerifiedFullJobPassesWithoutTurnLocalVerifiedIdsAndUsesUnclippedOriginal() throws Exception {
         String lateEvidence = "参与 Java 后端 API 开发";
         when(jobs.findById(8L)).thenReturn(job(8, "FULL", "说明文字".repeat(1500) + lateEvidence,

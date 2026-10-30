@@ -1,8 +1,10 @@
 package com.arthur.jdragresume.ai;
 
 import com.arthur.jdragresume.exception.BusinessException;
+import com.arthur.jdragresume.service.PromptRedactor;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -131,7 +133,8 @@ public class AiClient {
                     .timeout(requestTimeout)
                     .header("Authorization", "Bearer " + aiProperties.getApiKey())
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
+                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(
+                            outboundBody(body))))
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
@@ -149,6 +152,23 @@ public class AiClient {
         } catch (Exception ex) {
             throw new BusinessException("AI_REQUEST_ERROR", "failed to call AI service");
         }
+    }
+
+    private JsonNode outboundBody(Map<String, Object> body) {
+        ObjectNode copy = objectMapper.valueToTree(body);
+        // Redact data, preserving protocol identifiers (model, roles, call ids, function names).
+        for (JsonNode value : copy.path("messages")) {
+            ObjectNode message = (ObjectNode) value;
+            for (String field : List.of("content", "reasoning_content")) {
+                if (message.has(field)) message.set(field, PromptRedactor.redact(message.get(field)));
+            }
+            for (JsonNode call : message.path("tool_calls")) {
+                ObjectNode function = (ObjectNode) call.get("function");
+                function.set("arguments", PromptRedactor.redact(function.get("arguments")));
+            }
+        }
+        if (copy.has("tools")) copy.set("tools", PromptRedactor.redact(copy.get("tools")));
+        return copy;
     }
 
     /** Per-request ceiling from configuration; the agent loop never waits longer than this per model call. */

@@ -1,6 +1,7 @@
 package com.arthur.jdragresume.agent.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.arthur.jdragresume.service.PromptRedactor;
 
 /** Exact citation checks against stored resume text; shared by the tool and its tests. */
 public final class ResumeEvidenceValidator {
@@ -13,7 +14,7 @@ public final class ResumeEvidenceValidator {
 
     public static String validate(JsonNode evidence, String storedText) {
         if (!evidence.isArray() || evidence.isEmpty()) return "缺少简历证据，至少提交 1 条 resumeEvidence";
-        String original = normalize(storedText);
+        String original = normalize(PromptRedactor.redact(storedText));
         for (int i = 0; i < evidence.size(); i++) {
             JsonNode item = evidence.get(i);
             String label = "第" + (i + 1) + "条简历引用";

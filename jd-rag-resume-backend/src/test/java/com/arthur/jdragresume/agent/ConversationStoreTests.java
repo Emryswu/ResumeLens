@@ -35,6 +35,38 @@ class ConversationStoreTests {
     }
 
     @Test
+    void modelReceivesRedactedCopiesButDatabaseTranscriptAndEventsKeepOriginals() throws Exception {
+        String raw = "13812345678 arthur@example.com";
+        var mapper = ConversationStore.JSON;
+        var properties = new AgentProperties();
+        var policy = new TranscriptPolicy(properties);
+        long id = store.create(1).conversation().id();
+        var run = store.accept(1, id, raw, null, null, 90000, messages -> policy.normalize(messages, null));
+        var messages = new java.util.ArrayList<>(run.input().messages());
+        messages.add(AgentMessage.assistant(null, java.util.List.of(AgentMessage.ToolCall.of("c1", "get_resume", "{\"resumeId\":1}"))));
+        messages.add(AgentMessage.tool("c1", "简历正文/BOSS JD：" + raw));
+        store.checkpoint(run, messages, raw);
+        store.emit(run, "step", java.util.Map.of("resultPreview", raw));
+        var client = org.mockito.Mockito.mock(com.arthur.jdragresume.ai.AiClient.class);
+        org.mockito.Mockito.when(client.chatWithTools(org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> {
+                    String request = mapper.writeValueAsString(inv.getArgument(0));
+                    assertFalse(request.contains("13812345678"));
+                    assertFalse(request.contains("arthur@example.com"));
+                    assertTrue(request.contains("[手机号] [邮箱]"));
+                    return mapper.readTree("{\"content\":\"ok\"}");
+                });
+        new OpenAiCompatibleAgentModel(client).next(raw, store.messages(id), java.util.List.of(), java.time.Duration.ofSeconds(5));
+        assertEquals(messages, store.messages(id));
+        assertEquals(raw, jdbc.queryForObject("SELECT summary FROM agent_conversation WHERE id=?", String.class, id));
+        assertTrue(store.detail(1, id, 0).events().stream().anyMatch(e -> e.type().equals("step")
+                && e.data().path("resultPreview").asText().equals(raw)));
+        org.mockito.Mockito.verify(client).chatWithTools(org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.anyList(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void ownershipAndCascadeApplyToConversationMessagesAndEvents() {
         long alice = store.create(1).conversation().id();
         long bob = store.create(2).conversation().id();

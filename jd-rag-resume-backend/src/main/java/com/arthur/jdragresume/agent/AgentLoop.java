@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.agent;
 
+import com.arthur.jdragresume.common.LogSafe;
 import com.arthur.jdragresume.agent.tool.AgentTool;
 import com.arthur.jdragresume.agent.tool.AgentToolContext;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
@@ -213,7 +214,7 @@ public class AgentLoop {
           @Override public void checkpoint(List<AgentMessage> messages, String value) { sink.checkpoint(messages, value); }
           @Override public void emit(String event, Object payload) {
             if ("step".equals(event) || "plan".equals(event)) {
-                log.info("agent execution user={} event={} result={}", context.user().getId(), event, payload);
+                log.info("agent execution user={} event={}", context.user().getId(), event);
                 if (options.includeTrace()) trace.add(new TraceEvent(event, payload));
             }
             if ("done".equals(event)) {
@@ -653,7 +654,7 @@ public class AgentLoop {
         } catch (AgentEventSink.ClientGoneException ex) {
             throw ex;
         } catch (RuntimeException ex) {
-            log.warn("agent closing answer failed", ex);
+            log.warn("agent closing answer failed {}", LogSafe.describe(ex));
         }
         if (recommendationAttempts(transcript) > 0) {
             return finishSubmittedRecommendations(sink, transcript, steps);
@@ -1279,7 +1280,7 @@ public class AgentLoop {
             if (ex instanceof ResourceNotFoundException) {
                 return new ToolFailure("NOT_FOUND", ex.getMessage() + "（id 必须来自工具结果）");
             }
-            log.warn("agent tool {} failed", tool, ex);
+            log.warn("agent tool {} failed {}", tool, LogSafe.describe(ex));
             return new ToolFailure("TOOL_FAILED", "工具执行失败");
         }
     }

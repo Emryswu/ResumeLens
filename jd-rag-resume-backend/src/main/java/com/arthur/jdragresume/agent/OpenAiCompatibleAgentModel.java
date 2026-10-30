@@ -3,6 +3,7 @@ package com.arthur.jdragresume.agent;
 import com.arthur.jdragresume.ai.AiClient;
 import com.arthur.jdragresume.ai.ReasoningEffort;
 import com.arthur.jdragresume.exception.BusinessException;
+import com.arthur.jdragresume.service.PromptRedactor;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.time.Duration;
@@ -35,15 +36,21 @@ public class OpenAiCompatibleAgentModel implements AgentModel {
     public Reply next(String systemPrompt, List<AgentMessage> transcript, List<ToolDefinition> tools, Duration timeout,
                       ReasoningEffort effort) {
         List<Map<String, Object>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "system", "content", systemPrompt));
-        transcript.forEach(message -> messages.add(message.toProviderMessage()));
+        messages.add(Map.of("role", "system", "content", PromptRedactor.redact(systemPrompt)));
+        transcript.forEach(message -> {
+            List<AgentMessage.ToolCall> calls = message.toolCalls() == null ? null : message.toolCalls().stream()
+                    .map(call -> new AgentMessage.ToolCall(call.id(), call.type(), new AgentMessage.ToolFunction(
+                            call.name(), PromptRedactor.redact(call.arguments())))).toList();
+            messages.add(new AgentMessage(message.role(), PromptRedactor.redact(message.content()), calls,
+                    message.toolCallId(), PromptRedactor.redact(message.reasoningContent())).toProviderMessage());
+        });
         List<Map<String, Object>> toolPayload = tools.stream()
                 .map(tool -> Map.<String, Object>of(
                         "type", "function",
                         "function", Map.of(
                                 "name", tool.name(),
-                                "description", tool.description(),
-                                "parameters", tool.parameters()
+                                "description", PromptRedactor.redact(tool.description()),
+                                "parameters", PromptRedactor.redact(tool.parameters())
                         )
                 ))
                 .toList();
