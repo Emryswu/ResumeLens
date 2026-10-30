@@ -159,7 +159,7 @@ public class AiAnalysisWorker {
                     historyId, ex.failure());
             historyUpdateService.failIfPendingAndRefund(historyId, VALIDATION_FAILED_SUMMARY, ex.getCode());
         } catch (Throwable ex) {
-            // Exception class and details stay in this log; the user only sees the generic summary.
+            // Log only the exception type; the user sees the generic summary.
             log.error("Async AI analysis {} failed type={}", historyId, ex.getClass().getSimpleName());
             historyUpdateService.failIfPending(historyId, GENERIC_FAILED_SUMMARY);
         }
