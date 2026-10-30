@@ -2,6 +2,7 @@ package com.arthur.jdragresume.agent;
 
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.arthur.jdragresume.agent.tool.ResumeEvidenceValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
@@ -18,7 +19,7 @@ record PlanProgress(AgentPlan plan, int cursor, boolean needsReplan, int replans
 
     /** Results the loop wrote without treating the call as a plan step; they never move the plan. */
     static final Set<String> NOT_A_STEP = Set.of("AGENT_PLAN_STEP_SKIPPED", "ONE_PENDING_ACTION_AT_A_TIME",
-            "ONE_CONFIRMATION_AT_A_TIME", "AGENT_STEP_LIMIT");
+            "ONE_CONFIRMATION_AT_A_TIME", "AGENT_STEP_LIMIT", ResumeEvidenceValidator.CODE);
 
     /**
      * Replays the turn since the last user message: the last accepted {@code submit_plan} sets the

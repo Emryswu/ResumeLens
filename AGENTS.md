@@ -14,6 +14,7 @@
 ## 命令
 
 CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
+汇报 CI 状态以 PR 页面全部检查为准，包括 CodeQL，不只看 `ci.yml`。
 
 **后端**（在 `jd-rag-resume-backend/` 下）
 
@@ -54,6 +55,8 @@ CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
 - review 发现问题时，不只修这一处，还要防止同类问题再出现。优先改代码结构，让错误写不出来；其次补测试或 CI 检查，让错误被自动发现。两者都拦不住时，才写进文档。
 
 ## Agent 工具
+
+- 模型从用户数据里引用的原文，凡是展示给用户当事实的，必须经程序校验，不能只靠提示词要求。
 
 - 会打开 BOSS 页面的工具（采集、核实详情等）必须加进 `JobSearchWorkflow.BOSS_TOOLS`，统一走一个预算入口（每轮采集次数、页数、核实次数、插件每日页数）。类名请带 `Boss`，`JobSearchWorkflowTests.everyBossToolInTheRegistryIsGovernedByTheBudget` 会扫描并拦下漏登记的工具。
 - 职位的 `location` 由插件按 `城市·区·商圈` 拼接（见 `browser-extension/src/boss-api-extractor.js`），老数据可能是 `深圳市龙岗区` 这种纯文本。比对地点时去掉分隔符再比，测试要用真实格式的样本。

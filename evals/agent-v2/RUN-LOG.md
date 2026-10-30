@@ -15,6 +15,8 @@
 
 - 2026-10-26，分支 `eval/v2-wiring-preferences`（#107 合入后、structured 运行前），由非结构化一方修复。原因：#107 把求职条件新增字段命名为 `educationLevel`、`currentlyStudent`、`expectedGraduationDate`，与 profile 中冻结的 `education`、`studentStatus`、`expectedGraduation` 不一致，原样反序列化时这三项被忽略。修复：`AgentEvalV2.preferencesView` 在反序列化前把 profile 字段映射到新字段名（学历按 专科/大专=1、本科=2、硕士/研究生=3、博士=4；在校状态含「在校/在读」为 true；年月取当月 1 日，业务代码只比较年份），无法识别的取值直接报错且不回显取值。文件范围：`AgentEvalV2.java`（接线）、`AgentJobSearchEvalV2Tests.java`（新增映射测试）、本文件。未修改任务、快照、profile、`AgentEvalV2Grading.java` 或判定语义，`ACCEPTANCE_DIGEST` 不变；未查看 acceptance profile 的取值，仅由测试断言其各字段映射成功。
 
+- 2026-10-30，业务提交 `83d007fc150e210baa4a5009abfdd0663f6c33b0`（分支 `feat/agent-recommendation-evidence`）。原因：推荐工具新增当前简历依赖与必须经程序校验的简历引用，旧构造调用无法编译，dev 参考解缺少新增入参。v2 接线仅在 `AgentEvalV2.java` 给 `SubmitRecommendationsTool` 注入已有的 `ResumeService`；按协议更新 `tasks/dev.json` 中 d01、d06、d07、d08、d09 的参考提交，增加当前 resumeId 与来自既有 dev 简历的 quote/supports，不改任务要求或检查项。记录文件为本文件。acceptance 任务、快照、profile、`AgentEvalV2Grading.java` 和冻结摘要均未改动。只运行本地离线测试，未调用真实模型、未新增正式运行或报数。
+
 ## 作废运行
 
 2026-10-26 的 baseline 运行（结果文件 results/2026-10-26T09-48-06.488007300Z-baseline.json，原状态 completed）作废：运行中途模型服务商余额耗尽，18 次 trial 以 AI_BALANCE_INSUFFICIENT 结束并被计为 OTHER（failureCategories.OTHER = 18，与该错误码的 trial 数一致）。作废依据仅为错误码计数，未查看分数或任务详情。#112 起服务商故障会直接中止运行并记为 interrupted。baseline 槽位按未使用处理。

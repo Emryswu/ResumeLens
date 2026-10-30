@@ -1,6 +1,8 @@
 package com.arthur.jdragresume.agent;
 
 import com.arthur.jdragresume.agent.tool.AgentTool;
+import com.arthur.jdragresume.agent.tool.GetResumeTool;
+import com.arthur.jdragresume.agent.tool.ResumeEvidenceValidator;
 import com.arthur.jdragresume.agent.tool.AgentToolContext;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.agent.tool.SubmitRecommendationsTool;
@@ -10,6 +12,8 @@ import com.arthur.jdragresume.dto.user.JobSearchPreferencesView;
 import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.service.JobDescriptionService;
+import com.arthur.jdragresume.service.ResumeService;
+import com.arthur.jdragresume.dto.resume.ResumeResponse;
 import com.arthur.jdragresume.service.JobSearchPreferencesService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,12 +31,15 @@ import static org.mockito.Mockito.*;
 class RecommendationSubmissionLoopTests {
     private final JobDescriptionService jobs = mock(JobDescriptionService.class);
     private final JobSearchPreferencesService preferences = mock(JobSearchPreferencesService.class);
+    private final ResumeService resumes = mock(ResumeService.class);
     private final ObjectMapper json = new ObjectMapper();
     private final AgentProperties properties = new AgentProperties();
     private final AgentToolContext context = new AgentToolContext(new AppUser());
 
     @BeforeEach
     void setUp() {
+        when(resumes.findById(1L)).thenReturn(new ResumeResponse(1L, 1L, "owner", "Java 简历",
+                null, null, null, null, null, null, null, "熟练使用 Spring Boot、MySQL 构建 REST API，负责服务端接口开发。", null, null));
         when(preferences.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5, null, null, false));
         when(jobs.findById(7L)).thenReturn(job(7, "FULL", "Java 后端实习",
                 "负责 Java 后端开发。实习至少 3 个月，每周 5 天到岗"));
@@ -68,7 +75,7 @@ class RecommendationSubmissionLoopTests {
             }
         };
         return new AgentLoop(model,
-                new AgentToolRegistry(List.of(read, new SubmitRecommendationsTool(jobs, preferences),
+                new AgentToolRegistry(List.of(read, new GetResumeTool(resumes), new SubmitRecommendationsTool(jobs, preferences, resumes),
                         fake("collect_boss_jobs", Map.of("pagesRead", 1, "jobIds", List.of(7, 8)), false),
                         fake("rank_jobs_for_resume", Map.of("items", List.of(7, 8)), false),
                         fake("list_resumes", Map.of("items", List.of("Java 版本", "AI 版本")), false))),
@@ -80,11 +87,11 @@ class RecommendationSubmissionLoopTests {
     }
 
     private String item(long id, String evidence) {
-        return "{\"jobId\":" + id + ",\"reason\":\"项目技术栈相符\",\"evidence\":\"" + evidence + "\"}";
+        return "{\"jobId\":" + id + ",\"reason\":\"项目技术栈相符\",\"evidence\":\"" + evidence + "\",\"resumeEvidence\":[{\"quote\":\"熟练使用 Spring Boot、MySQL 构建 REST API\",\"supports\":\"熟悉 Java 后端开发\"}]}";
     }
 
     private String proposal(String... items) {
-        return "{\"recommendations\":[" + String.join(",", items) + "]}";
+        return "{\"resumeId\":1,\"recommendations\":[" + String.join(",", items) + "]}";
     }
 
     private AgentLoop.Outcome run(String question, AgentModel model, List<String> messages) {
@@ -237,4 +244,117 @@ class RecommendationSubmissionLoopTests {
         assertEquals(1, answer.split(hint, -1).length - 1);
     }
 
+    @Test
+    void emptyConversationCanRepairQuoteWithoutSpendingTheRejectedStep() throws Exception {
+        properties.setMaxSteps(3);
+        AtomicInteger calls = new AtomicInteger();
+        String valid = proposal(item(7, "负责 Java 后端开发"));
+        String invalid = valid.replace("熟练使用 Spring Boot、MySQL 构建 REST API", "精通从未使用过的 Kubernetes 集群运维");
+        AgentModel model = (system, transcript, tools, timeout) -> {
+            int step = calls.getAndIncrement();
+            if (step == 0) return AgentModel.Reply.call(call("bad", "submit_recommendations", invalid));
+            if (step == 1) {
+                assertTrue(tools.stream().anyMatch(tool -> tool.name().equals("get_resume")));
+                JsonNode rejection;
+                try { rejection = json.readTree(transcript.getLast().content()); }
+                catch (Exception ex) { throw new AssertionError(ex); }
+                assertFalse(rejection.path("executed").asBoolean(true));
+                assertEquals(ResumeEvidenceValidator.CODE, rejection.path("error").path("code").asText());
+                assertTrue(rejection.path("error").path("message").asText().contains("get_resume({\"resumeId\":1})"));
+                return AgentModel.Reply.call(call("read", "get_resume", "{\"resumeId\":1}"));
+            }
+            assertTrue(tools.stream().anyMatch(tool -> tool.name().equals("submit_recommendations")));
+            return AgentModel.Reply.call(call("good", "submit_recommendations", valid));
+        };
+        List<String> outputs = new ArrayList<>();
+        var outcome = run(model, outputs);
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(3, calls.get());
+        assertEquals(2, TurnUsage.of(outcome.transcript(), json).toolSteps());
+        assertFalse(outputs.getLast().contains("步骤上限"));
+        assertTrue(outputs.getLast().contains("简历原文证据"));
+    }
+
+    @Test
+    void mixedSubmissionKeepsApprovedAndPinpointsSecondQuoteOfSecondItem() throws Exception {
+        when(jobs.findById(8L)).thenReturn(job(8, "FULL", "AI 应用实习", "负责大模型应用开发与 RAG 检索"));
+        var invalid = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(item(8, "负责大模型应用开发与 RAG 检索"));
+        ((com.fasterxml.jackson.databind.node.ArrayNode) invalid.get("resumeEvidence")).addObject()
+                .put("quote", "从未出现在简历中的高并发交易架构设计经验").put("supports", "大模型应用开发");
+        AtomicInteger calls = new AtomicInteger();
+        List<String> outputs = new ArrayList<>();
+        var outcome = run((system, transcript, tools, timeout) -> calls.getAndIncrement() == 0
+                ? AgentModel.Reply.call(call("mixed", "submit_recommendations", proposal(item(7, "负责 Java 后端开发"), invalid.toString())))
+                : AgentModel.Reply.answer("完成"), outputs);
+        JsonNode envelope = outcome.transcript().stream().filter(m -> "mixed".equals(m.toolCallId()))
+                .map(m -> { try { return json.readTree(m.content()); } catch (Exception e) { throw new AssertionError(e); } })
+                .findFirst().orElseThrow();
+        JsonNode data = envelope.path("untrusted_data");
+        assertEquals(7, data.path("recommendations").get(0).path("jobId").asInt());
+        JsonNode rejected = data.path("rejected").get(0);
+        assertEquals(8, rejected.path("jobId").asInt());
+        assertTrue(rejected.path("reason").asText().contains("第2条岗位（jobId=8）第2条简历引用"));
+        assertFalse(rejected.path("refusal").path("executed").asBoolean(true));
+        assertEquals(ResumeEvidenceValidator.CODE, rejected.path("refusal").path("error").path("code").asText());
+        verify(jobs, never()).findById(8L);
+        assertTrue(outputs.getLast().contains("Java 后端实习"));
+        assertFalse(outputs.getLast().contains("jobId="));
+    }
+
+    @Test
+    void evidenceRepairCanReadResumeAfterThePlanHasCompleted() {
+        properties.setMaxPlanningSteps(3);
+        AtomicInteger calls = new AtomicInteger();
+        String valid = proposal(item(7, "负责 Java 后端开发"));
+        String invalid = valid.replace("熟练使用 Spring Boot、MySQL 构建 REST API", "从未出现过的高并发支付平台开发经验");
+        List<String> outputs = new ArrayList<>();
+        var outcome = run((system, transcript, tools, timeout) -> switch (calls.getAndIncrement()) {
+            case 0 -> AgentModel.Reply.call(call("plan", "submit_plan",
+                    "{\"steps\":[{\"tool\":\"get_job\",\"purpose\":\"读取岗位\"}]}"));
+            case 1 -> AgentModel.Reply.call(call("job", "get_job", "{\"jobId\":7}"));
+            case 2 -> AgentModel.Reply.call(call("bad", "submit_recommendations", invalid));
+            case 3 -> {
+                assertTrue(tools.stream().anyMatch(tool -> tool.name().equals("get_resume")));
+                yield AgentModel.Reply.call(call("read", "get_resume", "{\"resumeId\":1}"));
+            }
+            default -> AgentModel.Reply.call(call("good", "submit_recommendations", valid));
+        }, outputs);
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(5, calls.get());
+        assertEquals(3, TurnUsage.of(outcome.transcript(), json).toolSteps());
+        assertEquals(0, TurnUsage.of(outcome.transcript(), json).corrections());
+        assertTrue(outputs.getLast().contains("简历原文证据"));
+    }
+
+    @Test
+    void submissionCannotSwitchAwayFromTheResumeAlreadyReadInTheConversation() {
+        AtomicInteger calls = new AtomicInteger();
+        List<String> outputs = new ArrayList<>();
+        var outcome = run((system, transcript, tools, timeout) -> switch (calls.getAndIncrement()) {
+            case 0 -> AgentModel.Reply.call(call("read", "get_resume", "{\"resumeId\":1}"));
+            case 1 -> AgentModel.Reply.call(call("wrong", "submit_recommendations",
+                    proposal(item(7, "负责 Java 后端开发")).replace("\"resumeId\":1", "\"resumeId\":2")));
+            default -> {
+                assertTrue(transcript.getLast().content().contains("get_resume"));
+                yield AgentModel.Reply.call(call("good", "submit_recommendations", proposal(item(7, "负责 Java 后端开发"))));
+            }
+        }, outputs);
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        verify(resumes, never()).findById(2L);
+        assertEquals(2, TurnUsage.of(outcome.transcript(), json).toolSteps());
+    }
+
+    @Test
+    void freeFormAnswerCannotPublishTheQuoteRejectedBeforeExecution() {
+        AtomicInteger calls = new AtomicInteger();
+        String invented = "从未出现过的高并发支付平台开发经验";
+        List<String> outputs = new ArrayList<>();
+        var outcome = run((system, transcript, tools, timeout) -> calls.getAndIncrement() == 0
+                ? AgentModel.Reply.call(call("bad", "submit_recommendations",
+                        proposal(item(7, "负责 Java 后端开发")).replace("熟练使用 Spring Boot、MySQL 构建 REST API", invented)))
+                : AgentModel.Reply.answer("推荐该岗位，因为简历原文写着：" + invented), outputs);
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertTrue(outputs.getLast().contains("没有通过"));
+        assertFalse(outputs.getLast().contains(invented));
+    }
 }

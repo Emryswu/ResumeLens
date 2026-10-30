@@ -510,7 +510,7 @@ final class AgentEvalV2 {
                     new CheckJobPreferencesTool(jobService, preferences),
                     new UpdateJobSearchContextTool(store),
                     new ListJobApplicationsTool(applications),
-                    new SubmitRecommendationsTool(jobService, preferences)));
+                    new SubmitRecommendationsTool(jobService, preferences, resumes)));
         }
     }
 
