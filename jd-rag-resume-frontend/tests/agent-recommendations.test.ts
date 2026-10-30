@@ -52,7 +52,7 @@ test("the rendered card escapes citations and shows the paired JD requirement", 
   assert.match(html, /简历原文/);
   assert.match(html, /编写接口测试/);
   assert.match(html, /&lt;script&gt;/);
-  assert.doesNotMatch(html, /<script>/);
+  assert.doesNotMatch(html, /<script/i);
   assert.equal(renderToStaticMarkup(createElement(exports.RecommendationCards,
     { turn: { steps: [step({ recommendations: [item] }, false)] } })), "");
 });

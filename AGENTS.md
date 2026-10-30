@@ -14,6 +14,7 @@
 ## 命令
 
 CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
+汇报 CI 状态以 PR 页面全部检查为准，包括 CodeQL，不只看 `ci.yml`。
 
 **后端**（在 `jd-rag-resume-backend/` 下）
 
