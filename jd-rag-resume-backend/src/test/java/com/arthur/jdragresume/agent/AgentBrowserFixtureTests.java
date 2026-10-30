@@ -57,6 +57,27 @@ class AgentBrowserFixtureTests extends ConversationStoreTests {
                 if (question.contains("慢一点")) {
                     try { Thread.sleep(1000); } catch (InterruptedException ex) { throw new RuntimeException(ex); }
                 }
+                if (question.contains("计划采集")) {
+                    // A plan around a browser step: after the report only the next step may be offered again.
+                    List<String> offered = definitions.stream().map(ToolDefinition::name).toList();
+                    boolean planned = transcript.stream().anyMatch(message -> message.hasToolCalls()
+                            && message.toolCalls().stream().anyMatch(call -> AgentPlan.TOOL.equals(call.name())));
+                    if (!planned) {
+                        return Reply.call(AgentMessage.ToolCall.of("plan", AgentPlan.TOOL, "{\"steps\":["
+                                + "{\"tool\":\"get_resume\",\"purpose\":\"读简历\"},"
+                                + "{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读求职条件\"},"
+                                + "{\"tool\":\"collect_boss_jobs\",\"purpose\":\"采集\"},"
+                                + "{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"排序\"}]}"));
+                    }
+                    if (offered.contains(AgentPlan.TOOL)) return Reply.answer("计划已丢失，可用工具：" + offered);
+                    if (offered.size() != 1) return Reply.answer("按计划完成");
+                    String arguments = switch (offered.getFirst()) {
+                        case "get_resume", "rank_jobs_for_resume" -> "{\"resumeId\":1}";
+                        case "collect_boss_jobs" -> "{\"keyword\":\"Java\",\"city\":\"深圳\"}";
+                        default -> "{}";
+                    };
+                    return Reply.call(AgentMessage.ToolCall.of(offered.getFirst(), offered.getFirst(), arguments));
+                }
                 if (question.contains("浏览器任务")) {
                     if (!transcript.stream().anyMatch(message -> AgentMessage.TOOL.equals(message.role())
                             && message.content().contains("\"tool\":\"get_resume\""))) {
