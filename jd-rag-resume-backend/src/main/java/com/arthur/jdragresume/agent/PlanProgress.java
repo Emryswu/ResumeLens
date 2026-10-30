@@ -26,14 +26,10 @@ record PlanProgress(AgentPlan plan, int cursor, boolean needsReplan, int replans
      * moves the cursor or, when it failed or came back empty, leaves the plan waiting for a replan.
      */
     static PlanProgress of(List<AgentMessage> transcript, ObjectMapper mapper, AgentToolRegistry registry) {
-        int start = 0;
-        for (int index = transcript.size() - 1; index >= 0; index--) {
-            if (AgentMessage.USER.equals(transcript.get(index).role())) { start = index + 1; break; }
-        }
         PlanProgress progress = NONE;
         List<AgentMessage.ToolCall> batch = List.of();
         boolean planBatch = false;
-        for (AgentMessage message : transcript.subList(start, transcript.size())) {
+        for (AgentMessage message : transcript.subList(TurnUsage.turnStart(transcript), transcript.size())) {
             if (message.hasToolCalls()) {
                 batch = message.toolCalls();
                 planBatch = progress.allows(batch);

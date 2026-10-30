@@ -356,7 +356,7 @@ sequenceDiagram
 
 ### Planning / Memory
 
-多步问题由模型先调用控制工具 `submit_plan`，提交 `{"steps":[{"tool":"list_resumes","purpose":"确定简历"},{"tool":"rank_jobs_for_resume","purpose":"比较职位"}]}`。服务端校验工具名，逐步只开放当前步骤的工具；参数在执行时从前序结果取得。简单查询可直接调用原有工具。每次请求最多执行 `AGENT_MAX_PLANNING_STEPS` 个工具步骤（默认 6，失败尝试也计数，批量调用不能绕过），超限返回错误原因、可继续使用的 transcript 和 `done.partialResults`。失败或空结果允许重规划剩余步骤，最多 `AGENT_MAX_REPLANS` 次（默认 2），重规划不重置工具步数。原有模型调用上限、90 秒总时限和写操作确认仍生效；规划请求的模型调用上限为工具步数上限 + 重规划上限 + 2。
+多步问题由模型先调用控制工具 `submit_plan`，提交 `{"steps":[{"tool":"list_resumes","purpose":"确定简历"},{"tool":"rank_jobs_for_resume","purpose":"比较职位"}]}`。服务端校验工具名，逐步只开放当前步骤的工具；参数在执行时从前序结果取得。简单查询可直接调用原有工具。每轮最多执行 `AGENT_MAX_PLANNING_STEPS` 个工具步骤（默认 12，一轮常规找岗约需 9 步；失败尝试也计数，批量调用不能绕过；确认卡片或浏览器任务暂停后续跑仍算同一轮，步数和模型调用次数从服务端 transcript 接着算），超限返回错误原因、可继续使用的 transcript 和 `done.partialResults`。失败或空结果允许重规划剩余步骤，最多 `AGENT_MAX_REPLANS` 次（默认 2），重规划不重置工具步数。原有模型调用上限、90 秒总时限和写操作确认仍生效；规划请求的模型调用上限为工具步数上限 + 重规划上限 + 2。
 
 每步执行和计划写入日志；请求加 `"includeTrace":true` 可接收 `plan` SSE 事件和 `done.trace`，原有 `step` 事件继续兼容。日志及 trace 包含用户查询与工具结果片段，按业务数据管理。
 
