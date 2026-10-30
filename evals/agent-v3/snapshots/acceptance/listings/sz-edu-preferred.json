@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Java 服务端开发实习",
+        "companyName": "前海数科",
+        "location": "深圳·南山区·前海",
+        "employmentType": "实习",
+        "salary": "260元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 服务端开发实习\n公司：前海数科\n地点：深圳·南山区·前海\n薪资：260元/天\n标签：在校/应届、4天/周、6个月、Java",
+        "requirements": "在校/应届、4天/周、6个月、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-23.html",
+        "sourceJobId": "v3a-sz-23",
+        "captureSource": "api",
+        "evalSimilarity": 0.9
+      },
+      {
+        "title": "后端开发实习（Java）",
+        "companyName": "宝安网络",
+        "location": "深圳·宝安区",
+        "employmentType": "实习",
+        "salary": "180元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：后端开发实习（Java）\n公司：宝安网络\n地点：深圳·宝安区\n薪资：180元/天\n标签：在校/应届、4天/周、Java",
+        "requirements": "在校/应届、4天/周、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-24.html",
+        "sourceJobId": "v3a-sz-24",
+        "captureSource": "api",
+        "evalSimilarity": 0.6
+      },
+      {
+        "title": "短视频剪辑实习",
+        "companyName": "某传媒",
+        "location": "深圳·福田区",
+        "employmentType": "实习",
+        "salary": "130元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：短视频剪辑实习\n公司：某传媒\n地点：深圳·福田区\n薪资：130元/天\n标签：在校/应届、剪辑",
+        "requirements": "在校/应届、剪辑",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-25.html",
+        "sourceJobId": "v3a-sz-25",
+        "captureSource": "api",
+        "evalSimilarity": 0.09
+      }
+    ]
+  }
+}

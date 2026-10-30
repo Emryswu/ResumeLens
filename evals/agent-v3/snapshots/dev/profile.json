@@ -1,0 +1,22 @@
+{
+  "resume": {
+    "resumeId": 21,
+    "title": "Go 后端开发实习简历",
+    "candidateName": "林知远",
+    "email": "zhiyuan.lin@example.com",
+    "updatedAt": "2026-10-20T10:00:00",
+    "rawText": "林知远\n电话：139-0000-1111\n邮箱：zhiyuan.lin@example.com\n教育背景：四川某工业大学 软件工程 本科（在读），预计 2027 年 7 月毕业\n求职意向：Go 后端开发实习（成都）\n专业技能：Go、Gin、gRPC、MySQL、Redis、Kafka、Docker、Linux、Prometheus\n项目经历：\n1. 校园二手交易平台后端（2026.02-2026.06）：使用 Go + Gin 开发商品与订单服务，Redis 缓存热门商品列表，接口 P99 延迟从 320ms 降到 85ms。\n2. 分布式日志采集小工具（2025.09-2025.12）：基于 Kafka 收集 3 台服务器日志，用 gRPC 暴露查询接口，Prometheus 监控写入速率。\n其他：没有全职工作经历，也没有企业实习经历；参加过学校开源社区，给 2 个 Go 开源项目提交过文档修正。"
+  },
+  "preferences": {
+    "configured": true,
+    "availableMonths": 6,
+    "daysPerWeek": 4,
+    "earliestStartDate": "2026-11-23",
+    "preferredDistrict": "高新区",
+    "districtRequired": false,
+    "educationLevel": 2,
+    "currentlyStudent": true,
+    "expectedGraduationDate": "2027-07-01",
+    "workExperienceYears": 0
+  }
+}

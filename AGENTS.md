@@ -87,3 +87,4 @@ CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
 ## 实验
 
 - 改动 `experiments/holdout` 相关内容之前，先读 `experiments/holdout/PROTOCOL.md`。每个 holdout 版本只有一次用于报数的正式运行；根据它的结果调过参数，这份 holdout 就不能再当最终测试集。
+- Agent 评测以 `evals/agent-v3/` 为当前版本，改动前先读它的 `PROTOCOL.md`。改业务代码的 PR 不得读取 `evals/agent-v3/` 的 acceptance 任务、快照和结果，也不得为了让评测通过去改 `ACCEPTANCE_DIGEST`；评测因接线编译失败时，只按协议改 `AgentEvalV3.java`。

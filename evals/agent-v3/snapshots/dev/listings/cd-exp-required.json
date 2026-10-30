@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Go 后端开发（核心交易组）",
+        "companyName": "星汉科技",
+        "location": "成都·高新区·软件园",
+        "employmentType": "实习",
+        "salary": "15-25K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Go 后端开发（核心交易组）\n公司：星汉科技\n地点：成都·高新区·软件园\n薪资：15-25K\n标签：4天/周、Go",
+        "requirements": "4天/周、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-26.html",
+        "sourceJobId": "v3d-cd-26",
+        "captureSource": "api",
+        "evalSimilarity": 0.9
+      },
+      {
+        "title": "Go 后端开发实习",
+        "companyName": "卧龙信息",
+        "location": "成都·高新区",
+        "employmentType": "实习",
+        "salary": "200元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Go 后端开发实习\n公司：卧龙信息\n地点：成都·高新区\n薪资：200元/天\n标签：在校/应届、4天/周、6个月、Go",
+        "requirements": "在校/应届、4天/周、6个月、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-27.html",
+        "sourceJobId": "v3d-cd-27",
+        "captureSource": "api",
+        "evalSimilarity": 0.78
+      },
+      {
+        "title": "行政助理实习",
+        "companyName": "某物业",
+        "location": "成都·成华区",
+        "employmentType": "实习",
+        "salary": "100元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：行政助理实习\n公司：某物业\n地点：成都·成华区\n薪资：100元/天\n标签：在校/应届、行政",
+        "requirements": "在校/应届、行政",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-28.html",
+        "sourceJobId": "v3d-cd-28",
+        "captureSource": "api",
+        "evalSimilarity": 0.12
+      }
+    ]
+  }
+}

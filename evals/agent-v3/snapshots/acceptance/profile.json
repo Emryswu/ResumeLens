@@ -1,0 +1,22 @@
+{
+  "resume": {
+    "resumeId": 31,
+    "title": "Java 后端开发实习简历",
+    "candidateName": "陈屿安",
+    "email": "yuan.chen@example.com",
+    "updatedAt": "2026-10-21T09:00:00",
+    "rawText": "陈屿安\n电话：137-0000-2222\n邮箱：yuan.chen@example.com\n教育背景：广东某理工学院 计算机科学与技术 本科（在读），预计 2027 年 6 月毕业\n求职意向：Java 后端开发实习（深圳）\n专业技能：Java、Spring Boot、MyBatis-Plus、MySQL、Redis、RabbitMQ、Docker、Nginx、Git\n项目经历：\n1. 社团活动报名系统（2026.03-2026.06）：基于 Spring Boot + MyBatis-Plus 开发报名与签到接口，用 Redis 分布式锁防止超额报名，压测下 500 并发零超卖。\n2. 课程设计·图书借阅平台（2025.10-2026.01）：使用 RabbitMQ 异步发送到期提醒，MySQL 建立联合索引后借阅记录查询从 1.2 秒降到 90 毫秒。\n其他：没有全职工作经历，也没有企业实习经历；获得过校级程序设计竞赛三等奖。"
+  },
+  "preferences": {
+    "configured": true,
+    "availableMonths": 6,
+    "daysPerWeek": 4,
+    "earliestStartDate": "2026-11-23",
+    "preferredDistrict": "南山区",
+    "districtRequired": false,
+    "educationLevel": 2,
+    "currentlyStudent": true,
+    "expectedGraduationDate": "2027-06-01",
+    "workExperienceYears": 0
+  }
+}

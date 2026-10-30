@@ -1,0 +1,982 @@
+{
+  "group": "dev",
+  "keywordSets": {
+    "go-backend": [
+      "Go 后端",
+      "Go",
+      "Golang",
+      "Go 开发",
+      "Go 后端开发",
+      "Golang 开发",
+      "Golang 后端",
+      "Go 语言",
+      "Go 语言开发",
+      "Go 工程师",
+      "Go 开发工程师",
+      "Golang 后端开发",
+      "Golang 工程师",
+      "后端开发",
+      "后端",
+      "后端工程师",
+      "后端开发工程师"
+    ],
+    "go-micro": [
+      "微服务",
+      "Go 微服务",
+      "gRPC",
+      "云原生",
+      "云原生后端",
+      "分布式",
+      "中间件"
+    ],
+    "server": [
+      "服务端开发",
+      "服务端",
+      "后台开发",
+      "服务器开发",
+      "服务端研发",
+      "Go 服务端",
+      "Go 服务端开发",
+      "Golang 服务端"
+    ]
+  },
+  "tasks": [
+    {
+      "id": "v3d01-prereq-evidence",
+      "turns": [
+        "帮我在成都找 Go 后端实习，有合适的直接推荐给我"
+      ],
+      "searches": [
+        {
+          "city": "成都",
+          "experience": "在校生",
+          "keywordSets": [
+            "go-backend",
+            "go-micro",
+            "server"
+          ],
+          "snapshot": "cd-go-main"
+        }
+      ],
+      "checks": [
+        {
+          "type": "prerequisites"
+        },
+        {
+          "type": "no_listing_as_full"
+        },
+        {
+          "type": "submit_accepted"
+        },
+        {
+          "type": "resume_evidence_on_point",
+          "job": "v3d-cd-01",
+          "keywords": [
+            "Redis",
+            "MySQL",
+            "缓存",
+            "P99"
+          ]
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "list_resumes",
+            "args": {}
+          },
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Go 后端",
+              "city": "成都",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3d-cd-01"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3d-cd-01"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3d-cd-01"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3d-cd-01",
+                  "reason": "你用 Redis 做过热点缓存并把接口延迟降下来，和岗位的缓存优化直接对应",
+                  "evidence": "使用 Redis 优化热点数据缓存",
+                  "resumeEvidence": [
+                    {
+                      "quote": "Redis 缓存热门商品列表，接口 P99 延迟从 320ms 降到 85ms",
+                      "supports": "使用 Redis 优化热点数据缓存"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3d02-inherit-two-turns",
+      "turns": [
+        "帮我找成都的 Go 后端实习",
+        "再换成微服务方向找找"
+      ],
+      "searches": [
+        {
+          "city": "成都",
+          "experience": "在校生",
+          "keywordSets": [
+            "go-backend"
+          ],
+          "snapshot": "cd-go-turn1"
+        },
+        {
+          "city": "成都",
+          "experience": "在校生",
+          "keywordSets": [
+            "go-micro",
+            "server"
+          ],
+          "snapshot": "cd-go-turn2"
+        }
+      ],
+      "checks": [
+        {
+          "type": "inherit_filters",
+          "city": "成都",
+          "experience": "在校生"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Go 后端",
+              "city": "成都",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          }
+        ],
+        [
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "微服务",
+              "maxPages": 1
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3d03-stop-login",
+      "turns": [
+        "去 BOSS 帮我搜一下成都的 Go 实习"
+      ],
+      "searches": [
+        {
+          "snapshot": "cd-login"
+        }
+      ],
+      "checks": [
+        {
+          "type": "stop_on_signal",
+          "signal": "BOSS_NOT_LOGGED_IN"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Go 后端",
+              "city": "成都",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3d04-stop-first-page",
+      "turns": [
+        "帮我找成都的 Golang 实习，多换几个关键词，尽量多搜一些"
+      ],
+      "searches": [
+        {
+          "snapshot": "cd-first-page-end"
+        }
+      ],
+      "checks": [
+        {
+          "type": "stop_on_signal",
+          "signal": "NO_MORE_RESULTS"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Golang",
+              "city": "成都",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3d05-replan-offtarget",
+      "turns": [
+        "按我简历的方向，帮我在成都找份实习"
+      ],
+      "searches": [
+        {
+          "city": "成都",
+          "experience": "在校生",
+          "attempt": 1,
+          "snapshot": "cd-offtarget"
+        },
+        {
+          "city": "成都",
+          "experience": "在校生",
+          "keywordSets": [
+            "go-backend",
+            "go-micro",
+            "server"
+          ],
+          "snapshot": "cd-replan-hit"
+        }
+      ],
+      "checks": [
+        {
+          "type": "prerequisites"
+        },
+        {
+          "type": "replan_offtarget"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Go",
+              "city": "成都",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "云原生",
+              "city": "成都",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3d06-education-required",
+      "turns": [
+        "成都有没有适合我的 Go 后端实习？帮我找几个能投的，正式推荐给我"
+      ],
+      "searches": [
+        {
+          "city": "成都",
+          "experience": "在校生",
+          "keywordSets": [
+            "go-backend",
+            "go-micro",
+            "server"
+          ],
+          "snapshot": "cd-edu-required"
+        }
+      ],
+      "checks": [
+        {
+          "type": "gate_excluded",
+          "rule": "education",
+          "job": "v3d-cd-20"
+        },
+        {
+          "type": "submit_accepted"
+        },
+        {
+          "type": "no_listing_as_full"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Go 后端",
+              "city": "成都",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3d-cd-20"
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3d-cd-21"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3d-cd-21"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3d-cd-21"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3d-cd-21",
+                  "reason": "你做过 Redis 缓存优化，岗位同样要求用 Redis 做缓存",
+                  "evidence": "使用 Redis 实现接口限流与缓存",
+                  "resumeEvidence": [
+                    {
+                      "quote": "Redis 缓存热门商品列表，接口 P99 延迟从 320ms 降到 85ms",
+                      "supports": "使用 Redis 实现接口限流与缓存"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3d07-education-preferred",
+      "turns": [
+        "帮我在成都找 Go 服务端方向的实习，靠谱的直接推荐"
+      ],
+      "searches": [
+        {
+          "city": "成都",
+          "experience": "在校生",
+          "keywordSets": [
+            "go-backend",
+            "go-micro",
+            "server"
+          ],
+          "snapshot": "cd-edu-preferred"
+        }
+      ],
+      "checks": [
+        {
+          "type": "preferred_accepted",
+          "rule": "education",
+          "job": "v3d-cd-23"
+        },
+        {
+          "type": "no_listing_as_full"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Go 服务端",
+              "city": "成都",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3d-cd-23"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3d-cd-23"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3d-cd-23"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3d-cd-23",
+                  "reason": "本科即满足学历要求，硕士只是优先；你做过 Redis 缓存与接口优化",
+                  "evidence": "使用 MySQL 与 Redis 优化查询性能",
+                  "resumeEvidence": [
+                    {
+                      "quote": "Redis 缓存热门商品列表，接口 P99 延迟从 320ms 降到 85ms",
+                      "supports": "使用 MySQL 与 Redis 优化查询性能"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3d08-experience-required",
+      "turns": [
+        "我想在成都找 Go 后端方向的实习，在校生能做的就行，帮我找几个推荐"
+      ],
+      "searches": [
+        {
+          "city": "成都",
+          "experience": "在校生",
+          "keywordSets": [
+            "go-backend",
+            "go-micro",
+            "server"
+          ],
+          "snapshot": "cd-exp-required"
+        }
+      ],
+      "checks": [
+        {
+          "type": "gate_excluded",
+          "rule": "experience",
+          "job": "v3d-cd-26"
+        },
+        {
+          "type": "submit_accepted"
+        },
+        {
+          "type": "no_listing_as_full"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Go 后端",
+              "city": "成都",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3d-cd-26"
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3d-cd-27"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3d-cd-27"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3d-cd-27"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3d-cd-27",
+                  "reason": "面向在校生，你做过 Redis 热点缓存，和岗位职责一致",
+                  "evidence": "使用 Redis 缓存热点运单",
+                  "resumeEvidence": [
+                    {
+                      "quote": "Redis 缓存热门商品列表，接口 P99 延迟从 320ms 降到 85ms",
+                      "supports": "使用 Redis 缓存热点运单"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3d09-experience-preferred",
+      "turns": [
+        "成都的 Go 后端实习有哪些？帮我找找，合适的正式推荐给我"
+      ],
+      "searches": [
+        {
+          "city": "成都",
+          "experience": "在校生",
+          "keywordSets": [
+            "go-backend",
+            "go-micro",
+            "server"
+          ],
+          "snapshot": "cd-exp-preferred"
+        }
+      ],
+      "checks": [
+        {
+          "type": "preferred_accepted",
+          "rule": "experience",
+          "job": "v3d-cd-29"
+        },
+        {
+          "type": "no_listing_as_full"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Go 后端",
+              "city": "成都",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3d-cd-29"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3d-cd-29"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3d-cd-29"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3d-cd-29",
+                  "reason": "企业实习经历只是优先项；你用 Go 开发过订单服务，熟悉 MySQL",
+                  "evidence": "熟悉 Go 与 MySQL，理解事务与索引",
+                  "resumeEvidence": [
+                    {
+                      "quote": "使用 Go + Gin 开发商品与订单服务",
+                      "supports": "熟悉 Go 与 MySQL，理解事务与索引"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3d10-conflict-skipped",
+      "turns": [
+        "帮我在成都找 Go 后端实习，挑最合适的推荐给我"
+      ],
+      "searches": [
+        {
+          "city": "成都",
+          "experience": "在校生",
+          "keywordSets": [
+            "go-backend",
+            "go-micro",
+            "server"
+          ],
+          "snapshot": "cd-conflict"
+        }
+      ],
+      "checks": [
+        {
+          "type": "conflict_skipped",
+          "rule": "listing_tag",
+          "job": "v3d-cd-32"
+        },
+        {
+          "type": "conflict_skipped",
+          "rule": "city",
+          "job": "v3d-cd-33"
+        },
+        {
+          "type": "submit_accepted"
+        },
+        {
+          "type": "resume_evidence_on_point",
+          "job": "v3d-cd-34",
+          "keywords": [
+            "Kafka",
+            "gRPC",
+            "消息",
+            "日志"
+          ]
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Go 后端",
+              "city": "成都",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3d-cd-34"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3d-cd-34"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3d-cd-34"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3d-cd-34",
+                  "reason": "你用 Kafka 和 gRPC 做过日志采集，和推送服务的技术栈一致",
+                  "evidence": "使用 Kafka 处理异步消息",
+                  "resumeEvidence": [
+                    {
+                      "quote": "基于 Kafka 收集 3 台服务器日志，用 gRPC 暴露查询接口",
+                      "supports": "使用 Kafka 处理异步消息"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3d11-stale-reverify",
+      "turns": [
+        "我之前在职位库里存过几个成都的 Go 岗位，不用再去 BOSS 搜了，帮我从库里挑出合适的都推荐给我"
+      ],
+      "searches": [],
+      "preload": [
+        "v3d-cd-36",
+        "v3d-cd-37",
+        "v3d-cd-38"
+      ],
+      "checks": [
+        {
+          "type": "stale_reverified",
+          "expect": "accept",
+          "job": "v3d-cd-36"
+        },
+        {
+          "type": "stale_reverified",
+          "expect": "exclude",
+          "job": "v3d-cd-37"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3d-cd-36"
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3d-cd-37"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3d-cd-36"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3d-cd-36"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3d-cd-36",
+                  "reason": "你做过 Redis 缓存优化，岗位的库存预扣同样基于 Redis",
+                  "evidence": "使用 Redis 实现库存预扣与缓存",
+                  "resumeEvidence": [
+                    {
+                      "quote": "Redis 缓存热门商品列表，接口 P99 延迟从 320ms 降到 85ms",
+                      "supports": "使用 Redis 实现库存预扣与缓存"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

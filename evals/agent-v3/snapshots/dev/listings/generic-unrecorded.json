@@ -1,0 +1,54 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "unrecordedCondition": true,
+    "jobs": [
+      {
+        "title": "门店导购（兼职）",
+        "companyName": "某连锁零售",
+        "location": "成都·锦江区",
+        "employmentType": "实习",
+        "salary": "20元/时",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：门店导购（兼职）\n公司：某连锁零售\n地点：成都·锦江区\n薪资：20元/时\n标签：经验不限、兼职",
+        "requirements": "经验不限、兼职",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-90.html",
+        "sourceJobId": "v3d-cd-90",
+        "captureSource": "api",
+        "evalSimilarity": 0.04
+      },
+      {
+        "title": "外卖配送员",
+        "companyName": "某配送站",
+        "location": "成都·武侯区",
+        "employmentType": "实习",
+        "salary": "6000-8000元/月",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：外卖配送员\n公司：某配送站\n地点：成都·武侯区\n薪资：6000-8000元/月\n标签：经验不限",
+        "requirements": "经验不限",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-91.html",
+        "sourceJobId": "v3d-cd-91",
+        "captureSource": "api",
+        "evalSimilarity": 0.02
+      },
+      {
+        "title": "酒店前台",
+        "companyName": "某酒店",
+        "location": "成都·青羊区",
+        "employmentType": "实习",
+        "salary": "4000元/月",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：酒店前台\n公司：某酒店\n地点：成都·青羊区\n薪资：4000元/月\n标签：经验不限",
+        "requirements": "经验不限",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-92.html",
+        "sourceJobId": "v3d-cd-92",
+        "captureSource": "api",
+        "evalSimilarity": 0.03
+      }
+    ]
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "NO_MORE_RESULTS",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Java 实习（金融科技）",
+        "companyName": "福田金科",
+        "location": "深圳·福田区·CBD",
+        "employmentType": "实习",
+        "salary": "260元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 实习（金融科技）\n公司：福田金科\n地点：深圳·福田区·CBD\n薪资：260元/天\n标签：在校/应届、5天/周、Java",
+        "requirements": "在校/应届、5天/周、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-12.html",
+        "sourceJobId": "v3a-sz-12",
+        "captureSource": "api",
+        "evalSimilarity": 0.67
+      },
+      {
+        "title": "后台开发实习",
+        "companyName": "罗湖网络",
+        "location": "深圳·罗湖区",
+        "employmentType": "实习",
+        "salary": "180元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：后台开发实习\n公司：罗湖网络\n地点：深圳·罗湖区\n薪资：180元/天\n标签：在校/应届、后台",
+        "requirements": "在校/应届、后台",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-13.html",
+        "sourceJobId": "v3a-sz-13",
+        "captureSource": "api",
+        "evalSimilarity": 0.57
+      }
+    ]
+  }
+}

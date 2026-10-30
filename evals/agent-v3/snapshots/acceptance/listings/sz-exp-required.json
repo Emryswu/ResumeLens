@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Java 后端开发（支付核心组）",
+        "companyName": "鹏城支付",
+        "location": "深圳·福田区·车公庙",
+        "employmentType": "实习",
+        "salary": "20-30K",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 后端开发（支付核心组）\n公司：鹏城支付\n地点：深圳·福田区·车公庙\n薪资：20-30K\n标签：4天/周、Java",
+        "requirements": "4天/周、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-26.html",
+        "sourceJobId": "v3a-sz-26",
+        "captureSource": "api",
+        "evalSimilarity": 0.9
+      },
+      {
+        "title": "Java 后端开发实习",
+        "companyName": "大沙河网络",
+        "location": "深圳·南山区",
+        "employmentType": "实习",
+        "salary": "220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 后端开发实习\n公司：大沙河网络\n地点：深圳·南山区\n薪资：220元/天\n标签：在校/应届、4天/周、6个月、Java",
+        "requirements": "在校/应届、4天/周、6个月、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-27.html",
+        "sourceJobId": "v3a-sz-27",
+        "captureSource": "api",
+        "evalSimilarity": 0.77
+      },
+      {
+        "title": "前台接待实习",
+        "companyName": "某写字楼",
+        "location": "深圳·福田区",
+        "employmentType": "实习",
+        "salary": "110元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：前台接待实习\n公司：某写字楼\n地点：深圳·福田区\n薪资：110元/天\n标签：在校/应届、行政",
+        "requirements": "在校/应届、行政",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-28.html",
+        "sourceJobId": "v3a-sz-28",
+        "captureSource": "api",
+        "evalSimilarity": 0.1
+      }
+    ]
+  }
+}

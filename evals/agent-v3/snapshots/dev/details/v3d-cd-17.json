@@ -1,0 +1,8 @@
+{
+  "title": "云原生后端开发实习",
+  "companyName": "岷山云",
+  "location": "成都·高新区·天府五街",
+  "employmentType": "实习",
+  "description": "岗位职责：\n1. 参与云原生平台的 Go 后端开发，负责资源调度接口；\n2. 编写 Kubernetes Operator 的部分控制逻辑；\n3. 使用 Prometheus 采集服务指标并配置告警。\n实习安排：实习期至少 6 个月，每周至少 4 天到岗，工作地点在成都高新区天府五街。",
+  "requirements": "1. 本科及以上学历，计算机、软件工程相关专业在读；\n2. 熟悉 Go 语言，用过 Gin、Echo 等任一 Web 框架；\n3. 了解 MySQL 索引与 Redis 常用数据结构；\n4. 有完整的后端项目经历者优先。"
+}

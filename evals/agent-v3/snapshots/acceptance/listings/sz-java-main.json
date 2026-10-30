@@ -1,0 +1,81 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Java 后端开发实习生",
+        "companyName": "鹏程科技",
+        "location": "深圳·南山区·科技园",
+        "employmentType": "实习",
+        "salary": "220-280元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 后端开发实习生\n公司：鹏程科技\n地点：深圳·南山区·科技园\n薪资：220-280元/天\n标签：在校/应届、4天/周、6个月、Java",
+        "requirements": "在校/应届、4天/周、6个月、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-01.html",
+        "sourceJobId": "v3a-sz-01",
+        "captureSource": "api",
+        "evalSimilarity": 0.88
+      },
+      {
+        "title": "Java 开发实习（电商）",
+        "companyName": "湾区优选",
+        "location": "深圳·南山区·后海",
+        "employmentType": "实习",
+        "salary": "240元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 开发实习（电商）\n公司：湾区优选\n地点：深圳·南山区·后海\n薪资：240元/天\n标签：在校/应届、4天/周、6个月、Java",
+        "requirements": "在校/应届、4天/周、6个月、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-02.html",
+        "sourceJobId": "v3a-sz-02",
+        "captureSource": "api",
+        "evalSimilarity": 0.81
+      },
+      {
+        "title": "C++ 开发实习",
+        "companyName": "前海芯算",
+        "location": "深圳·南山区·前海",
+        "employmentType": "实习",
+        "salary": "260元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：C++ 开发实习\n公司：前海芯算\n地点：深圳·南山区·前海\n薪资：260元/天\n标签：在校/应届、5天/周、C++",
+        "requirements": "在校/应届、5天/周、C++",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-03.html",
+        "sourceJobId": "v3a-sz-03",
+        "captureSource": "api",
+        "evalSimilarity": 0.53
+      },
+      {
+        "title": "UI 设计实习",
+        "companyName": "大鹏设计",
+        "location": "深圳·福田区",
+        "employmentType": "实习",
+        "salary": "150元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：UI 设计实习\n公司：大鹏设计\n地点：深圳·福田区\n薪资：150元/天\n标签：在校/应届、设计",
+        "requirements": "在校/应届、设计",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-04.html",
+        "sourceJobId": "v3a-sz-04",
+        "captureSource": "api",
+        "evalSimilarity": 0.18
+      },
+      {
+        "title": "IT 支持实习",
+        "companyName": "某制造",
+        "location": "深圳·宝安区",
+        "employmentType": "实习",
+        "salary": "150元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：IT 支持实习\n公司：某制造\n地点：深圳·宝安区\n薪资：150元/天\n标签：在校/应届、运维",
+        "requirements": "在校/应届、运维",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-05.html",
+        "sourceJobId": "v3a-sz-05",
+        "captureSource": "api",
+        "evalSimilarity": 0.39
+      }
+    ]
+  }
+}

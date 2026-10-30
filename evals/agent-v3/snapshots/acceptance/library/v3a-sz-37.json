@@ -1,0 +1,13 @@
+{
+  "title": "Java 消息中间件开发实习",
+  "companyName": "蛇口数据",
+  "location": "深圳·南山区·蛇口",
+  "employmentType": "实习",
+  "description": "岗位职责：\n1. 参与内部消息中间件的 Java 开发与维护；\n2. 基于 RabbitMQ 实现消息重试与死信处理；\n3. 编写压测脚本并分析性能瓶颈。\n实习安排：实习期至少 6 个月，每周至少 4 天到岗，工作地点在深圳南山区蛇口。",
+  "requirements": "1. 本科及以上学历，计算机、软件工程相关专业在读；\n2. 熟悉 Java，用过 Spring Boot；\n3. 了解 MySQL 索引与 Redis 常用数据结构；\n4. 有完整的后端项目经历者优先。",
+  "sourcePlatform": "BOSS",
+  "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-37.html",
+  "sourceJobId": "v3a-sz-37",
+  "verifiedDaysAgo": 20,
+  "evalSimilarity": 0.84
+}

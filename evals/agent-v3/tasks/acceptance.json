@@ -1,0 +1,978 @@
+{
+  "group": "acceptance",
+  "keywordSets": {
+    "java-backend": [
+      "Java 后端",
+      "Java",
+      "Java 开发",
+      "Java 后端开发",
+      "Java 工程师",
+      "Java 研发",
+      "Java 开发工程师",
+      "Java 后端工程师",
+      "Spring Boot",
+      "SpringBoot",
+      "Spring Boot 开发",
+      "后端开发",
+      "后端",
+      "后端工程师",
+      "后端开发工程师"
+    ],
+    "java-middleware": [
+      "中间件",
+      "分布式",
+      "微服务",
+      "Spring Cloud",
+      "高并发",
+      "消息队列"
+    ],
+    "server": [
+      "服务端开发",
+      "服务端",
+      "后台开发",
+      "服务器开发",
+      "服务端研发",
+      "Java 服务端",
+      "Java 服务端开发"
+    ]
+  },
+  "tasks": [
+    {
+      "id": "v3a01-prereq-evidence",
+      "turns": [
+        "帮我在深圳找 Java 后端实习，有合适的直接推荐给我"
+      ],
+      "searches": [
+        {
+          "city": "深圳",
+          "experience": "在校生",
+          "keywordSets": [
+            "java-backend",
+            "java-middleware",
+            "server"
+          ],
+          "snapshot": "sz-java-main"
+        }
+      ],
+      "checks": [
+        {
+          "type": "prerequisites"
+        },
+        {
+          "type": "no_listing_as_full"
+        },
+        {
+          "type": "submit_accepted"
+        },
+        {
+          "type": "resume_evidence_on_point",
+          "job": "v3a-sz-01",
+          "keywords": [
+            "Redis",
+            "分布式锁",
+            "超卖",
+            "并发"
+          ]
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "list_resumes",
+            "args": {}
+          },
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Java 后端",
+              "city": "深圳",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3a-sz-01"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3a-sz-01"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3a-sz-01"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3a-sz-01",
+                  "reason": "你用 Redis 分布式锁解决过超额报名，和岗位的库存扣减是同一类问题",
+                  "evidence": "使用 Redis 分布式锁处理库存扣减",
+                  "resumeEvidence": [
+                    {
+                      "quote": "用 Redis 分布式锁防止超额报名，压测下 500 并发零超卖",
+                      "supports": "使用 Redis 分布式锁处理库存扣减"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3a02-inherit-two-turns",
+      "turns": [
+        "帮我找深圳的 Java 后端实习",
+        "再换成中间件方向找找"
+      ],
+      "searches": [
+        {
+          "city": "深圳",
+          "experience": "在校生",
+          "keywordSets": [
+            "java-backend"
+          ],
+          "snapshot": "sz-java-turn1"
+        },
+        {
+          "city": "深圳",
+          "experience": "在校生",
+          "keywordSets": [
+            "java-middleware",
+            "server"
+          ],
+          "snapshot": "sz-java-turn2"
+        }
+      ],
+      "checks": [
+        {
+          "type": "inherit_filters",
+          "city": "深圳",
+          "experience": "在校生"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Java 后端",
+              "city": "深圳",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          }
+        ],
+        [
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "中间件",
+              "maxPages": 1
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3a03-stop-login",
+      "turns": [
+        "去 BOSS 帮我搜一下深圳的 Java 实习"
+      ],
+      "searches": [
+        {
+          "snapshot": "sz-login"
+        }
+      ],
+      "checks": [
+        {
+          "type": "stop_on_signal",
+          "signal": "BOSS_NOT_LOGGED_IN"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Java 后端",
+              "city": "深圳",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3a04-stop-first-page",
+      "turns": [
+        "帮我找深圳的 Spring Boot 实习，多换几个关键词，尽量多搜一些"
+      ],
+      "searches": [
+        {
+          "snapshot": "sz-first-page-end"
+        }
+      ],
+      "checks": [
+        {
+          "type": "stop_on_signal",
+          "signal": "NO_MORE_RESULTS"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Spring Boot",
+              "city": "深圳",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3a05-replan-offtarget",
+      "turns": [
+        "按我简历的方向，帮我在深圳找份实习"
+      ],
+      "searches": [
+        {
+          "city": "深圳",
+          "experience": "在校生",
+          "attempt": 1,
+          "snapshot": "sz-offtarget"
+        },
+        {
+          "city": "深圳",
+          "experience": "在校生",
+          "keywordSets": [
+            "java-backend",
+            "java-middleware",
+            "server"
+          ],
+          "snapshot": "sz-replan-hit"
+        }
+      ],
+      "checks": [
+        {
+          "type": "prerequisites"
+        },
+        {
+          "type": "replan_offtarget"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Java",
+              "city": "深圳",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Spring Boot",
+              "city": "深圳",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3a06-education-required",
+      "turns": [
+        "深圳有没有适合我的 Java 后端实习？帮我找几个能投的，正式推荐给我"
+      ],
+      "searches": [
+        {
+          "city": "深圳",
+          "experience": "在校生",
+          "keywordSets": [
+            "java-backend",
+            "java-middleware",
+            "server"
+          ],
+          "snapshot": "sz-edu-required"
+        }
+      ],
+      "checks": [
+        {
+          "type": "gate_excluded",
+          "rule": "education",
+          "job": "v3a-sz-20"
+        },
+        {
+          "type": "submit_accepted"
+        },
+        {
+          "type": "no_listing_as_full"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Java 后端",
+              "city": "深圳",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3a-sz-20"
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3a-sz-21"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3a-sz-21"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3a-sz-21"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3a-sz-21",
+                  "reason": "你做过基于 Redis 的并发控制，岗位同样要求用 Redis 做限流与缓存",
+                  "evidence": "使用 Redis 实现接口限流与缓存",
+                  "resumeEvidence": [
+                    {
+                      "quote": "用 Redis 分布式锁防止超额报名，压测下 500 并发零超卖",
+                      "supports": "使用 Redis 实现接口限流与缓存"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3a07-education-preferred",
+      "turns": [
+        "帮我在深圳找 Java 服务端方向的实习，靠谱的直接推荐"
+      ],
+      "searches": [
+        {
+          "city": "深圳",
+          "experience": "在校生",
+          "keywordSets": [
+            "java-backend",
+            "java-middleware",
+            "server"
+          ],
+          "snapshot": "sz-edu-preferred"
+        }
+      ],
+      "checks": [
+        {
+          "type": "preferred_accepted",
+          "rule": "education",
+          "job": "v3a-sz-23"
+        },
+        {
+          "type": "no_listing_as_full"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Java 服务端",
+              "city": "深圳",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3a-sz-23"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3a-sz-23"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3a-sz-23"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3a-sz-23",
+                  "reason": "本科即满足学历要求，硕士只是优先；你用联合索引优化过查询",
+                  "evidence": "使用 MySQL 联合索引与 Redis 缓存优化查询性能",
+                  "resumeEvidence": [
+                    {
+                      "quote": "MySQL 建立联合索引后借阅记录查询从 1.2 秒降到 90 毫秒",
+                      "supports": "使用 MySQL 联合索引与 Redis 缓存优化查询性能"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3a08-experience-required",
+      "turns": [
+        "我想在深圳找 Java 后端方向的实习，在校生能做的就行，帮我找几个推荐"
+      ],
+      "searches": [
+        {
+          "city": "深圳",
+          "experience": "在校生",
+          "keywordSets": [
+            "java-backend",
+            "java-middleware",
+            "server"
+          ],
+          "snapshot": "sz-exp-required"
+        }
+      ],
+      "checks": [
+        {
+          "type": "gate_excluded",
+          "rule": "experience",
+          "job": "v3a-sz-26"
+        },
+        {
+          "type": "submit_accepted"
+        },
+        {
+          "type": "no_listing_as_full"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Java 后端",
+              "city": "深圳",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3a-sz-26"
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3a-sz-27"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3a-sz-27"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3a-sz-27"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3a-sz-27",
+                  "reason": "面向在校生，你做过 Redis 相关的并发控制，和岗位职责一致",
+                  "evidence": "使用 Redis 缓存热点运单",
+                  "resumeEvidence": [
+                    {
+                      "quote": "用 Redis 分布式锁防止超额报名，压测下 500 并发零超卖",
+                      "supports": "使用 Redis 缓存热点运单"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3a09-experience-preferred",
+      "turns": [
+        "深圳的 Java 后端实习有哪些？帮我找找，合适的正式推荐给我"
+      ],
+      "searches": [
+        {
+          "city": "深圳",
+          "experience": "在校生",
+          "keywordSets": [
+            "java-backend",
+            "java-middleware",
+            "server"
+          ],
+          "snapshot": "sz-exp-preferred"
+        }
+      ],
+      "checks": [
+        {
+          "type": "preferred_accepted",
+          "rule": "experience",
+          "job": "v3a-sz-29"
+        },
+        {
+          "type": "no_listing_as_full"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Java 后端",
+              "city": "深圳",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3a-sz-29"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3a-sz-29"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3a-sz-29"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3a-sz-29",
+                  "reason": "企业实习经历只是优先项；你用 RabbitMQ 做过异步通知",
+                  "evidence": "使用 RabbitMQ 处理订单状态变更通知",
+                  "resumeEvidence": [
+                    {
+                      "quote": "使用 RabbitMQ 异步发送到期提醒",
+                      "supports": "使用 RabbitMQ 处理订单状态变更通知"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3a10-conflict-skipped",
+      "turns": [
+        "帮我在深圳找 Java 后端实习，挑最合适的推荐给我"
+      ],
+      "searches": [
+        {
+          "city": "深圳",
+          "experience": "在校生",
+          "keywordSets": [
+            "java-backend",
+            "java-middleware",
+            "server"
+          ],
+          "snapshot": "sz-conflict"
+        }
+      ],
+      "checks": [
+        {
+          "type": "conflict_skipped",
+          "rule": "listing_tag",
+          "job": "v3a-sz-32"
+        },
+        {
+          "type": "conflict_skipped",
+          "rule": "city",
+          "job": "v3a-sz-33"
+        },
+        {
+          "type": "submit_accepted"
+        },
+        {
+          "type": "resume_evidence_on_point",
+          "job": "v3a-sz-34",
+          "keywords": [
+            "RabbitMQ",
+            "异步",
+            "提醒",
+            "消息"
+          ]
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "collect_boss_jobs",
+            "args": {
+              "keyword": "Java 后端",
+              "city": "深圳",
+              "jobType": "实习",
+              "maxPages": 1
+            }
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "jobIds": "$lastCollect",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3a-sz-34"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3a-sz-34"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3a-sz-34"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3a-sz-34",
+                  "reason": "你用 RabbitMQ 做过异步提醒，和通知服务的做法一致",
+                  "evidence": "使用 RabbitMQ 异步发送短信与站内信",
+                  "resumeEvidence": [
+                    {
+                      "quote": "使用 RabbitMQ 异步发送到期提醒",
+                      "supports": "使用 RabbitMQ 异步发送短信与站内信"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    },
+    {
+      "id": "v3a11-stale-reverify",
+      "turns": [
+        "我之前在职位库里存过几个深圳的 Java 岗位，不用再去 BOSS 搜了，帮我从库里挑出合适的都推荐给我"
+      ],
+      "searches": [],
+      "preload": [
+        "v3a-sz-36",
+        "v3a-sz-37",
+        "v3a-sz-38"
+      ],
+      "checks": [
+        {
+          "type": "stale_reverified",
+          "expect": "accept",
+          "job": "v3a-sz-36"
+        },
+        {
+          "type": "stale_reverified",
+          "expect": "exclude",
+          "job": "v3a-sz-37"
+        }
+      ],
+      "reference": [
+        [
+          {
+            "tool": "get_resume",
+            "args": {
+              "resumeId": "$resume"
+            }
+          },
+          {
+            "tool": "get_job_search_preferences",
+            "args": {}
+          },
+          {
+            "tool": "rank_jobs_for_resume",
+            "args": {
+              "resumeId": "$resume",
+              "limit": 5
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3a-sz-36"
+            }
+          },
+          {
+            "tool": "verify_boss_job",
+            "args": {
+              "jobId": "$job:v3a-sz-37"
+            }
+          },
+          {
+            "tool": "get_job",
+            "args": {
+              "jobId": "$job:v3a-sz-36"
+            }
+          },
+          {
+            "tool": "check_job_preferences",
+            "args": {
+              "jobId": "$job:v3a-sz-36"
+            }
+          },
+          {
+            "tool": "submit_recommendations",
+            "args": {
+              "resumeId": "$resume",
+              "recommendations": [
+                {
+                  "jobId": "$job:v3a-sz-36",
+                  "reason": "你做过同样的报名防超卖，岗位的名额扣减也用 Redis 分布式锁",
+                  "evidence": "使用 Redis 分布式锁处理名额扣减",
+                  "resumeEvidence": [
+                    {
+                      "quote": "用 Redis 分布式锁防止超额报名，压测下 500 并发零超卖",
+                      "supports": "使用 Redis 分布式锁处理名额扣减"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      ]
+    }
+  ]
+}

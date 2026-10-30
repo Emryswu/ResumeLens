@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "微服务开发实习生",
+        "companyName": "云栈科技",
+        "location": "成都·高新区·软件园",
+        "employmentType": "实习",
+        "salary": "220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：微服务开发实习生\n公司：云栈科技\n地点：成都·高新区·软件园\n薪资：220元/天\n标签：在校/应届、4天/周、微服务",
+        "requirements": "在校/应届、4天/周、微服务",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-09.html",
+        "sourceJobId": "v3d-cd-09",
+        "captureSource": "api",
+        "evalSimilarity": 0.83
+      },
+      {
+        "title": "gRPC 服务开发实习",
+        "companyName": "锦官信息",
+        "location": "成都·成华区",
+        "employmentType": "实习",
+        "salary": "200元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：gRPC 服务开发实习\n公司：锦官信息\n地点：成都·成华区\n薪资：200元/天\n标签：在校/应届、4天/周、gRPC",
+        "requirements": "在校/应届、4天/周、gRPC",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-10.html",
+        "sourceJobId": "v3d-cd-10",
+        "captureSource": "api",
+        "evalSimilarity": 0.76
+      },
+      {
+        "title": "数据标注实习",
+        "companyName": "某数据服务",
+        "location": "成都·双流区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：数据标注实习\n公司：某数据服务\n地点：成都·双流区\n薪资：120元/天\n标签：经验不限、标注",
+        "requirements": "经验不限、标注",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-11.html",
+        "sourceJobId": "v3d-cd-11",
+        "captureSource": "api",
+        "evalSimilarity": 0.12
+      }
+    ]
+  }
+}

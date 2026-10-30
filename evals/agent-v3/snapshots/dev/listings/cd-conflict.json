@@ -1,0 +1,67 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Go 后端研发实习",
+        "companyName": "银杏智能",
+        "location": "成都·高新区·天府四街",
+        "employmentType": "实习",
+        "salary": "300元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Go 后端研发实习\n公司：银杏智能\n地点：成都·高新区·天府四街\n薪资：300元/天\n标签：硕士、4天/周、6个月、Go",
+        "requirements": "硕士、4天/周、6个月、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-32.html",
+        "sourceJobId": "v3d-cd-32",
+        "captureSource": "api",
+        "evalSimilarity": 0.93
+      },
+      {
+        "title": "Go 开发实习生",
+        "companyName": "渝新科技",
+        "location": "重庆·渝北区·照母山",
+        "employmentType": "实习",
+        "salary": "220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Go 开发实习生\n公司：渝新科技\n地点：重庆·渝北区·照母山\n薪资：220元/天\n标签：在校/应届、4天/周、6个月、Go",
+        "requirements": "在校/应届、4天/周、6个月、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-33.html",
+        "sourceJobId": "v3d-cd-33",
+        "captureSource": "api",
+        "evalSimilarity": 0.9
+      },
+      {
+        "title": "消息推送服务开发实习",
+        "companyName": "锦江云",
+        "location": "成都·高新区·大源",
+        "employmentType": "实习",
+        "salary": "200元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：消息推送服务开发实习\n公司：锦江云\n地点：成都·高新区·大源\n薪资：200元/天\n标签：在校/应届、4天/周、6个月、Go",
+        "requirements": "在校/应届、4天/周、6个月、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-34.html",
+        "sourceJobId": "v3d-cd-34",
+        "captureSource": "api",
+        "evalSimilarity": 0.8
+      },
+      {
+        "title": "仓储管理实习",
+        "companyName": "某物流",
+        "location": "成都·双流区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：仓储管理实习\n公司：某物流\n地点：成都·双流区\n薪资：120元/天\n标签：经验不限、仓储",
+        "requirements": "经验不限、仓储",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-35.html",
+        "sourceJobId": "v3d-cd-35",
+        "captureSource": "api",
+        "evalSimilarity": 0.15
+      }
+    ]
+  }
+}

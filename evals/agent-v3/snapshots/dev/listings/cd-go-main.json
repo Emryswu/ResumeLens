@@ -1,0 +1,81 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Go 后端开发实习生",
+        "companyName": "蓉川科技",
+        "location": "成都·高新区·天府软件园",
+        "employmentType": "实习",
+        "salary": "200-260元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Go 后端开发实习生\n公司：蓉川科技\n地点：成都·高新区·天府软件园\n薪资：200-260元/天\n标签：在校/应届、4天/周、6个月、Go",
+        "requirements": "在校/应届、4天/周、6个月、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-01.html",
+        "sourceJobId": "v3d-cd-01",
+        "captureSource": "api",
+        "evalSimilarity": 0.88
+      },
+      {
+        "title": "Golang 微服务开发实习",
+        "companyName": "锦云数据",
+        "location": "成都·高新区·新川",
+        "employmentType": "实习",
+        "salary": "220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Golang 微服务开发实习\n公司：锦云数据\n地点：成都·高新区·新川\n薪资：220元/天\n标签：在校/应届、4天/周、6个月、Golang",
+        "requirements": "在校/应届、4天/周、6个月、Golang",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-02.html",
+        "sourceJobId": "v3d-cd-02",
+        "captureSource": "api",
+        "evalSimilarity": 0.82
+      },
+      {
+        "title": "Java 后端开发实习",
+        "companyName": "西岭软件",
+        "location": "成都·武侯区",
+        "employmentType": "实习",
+        "salary": "180元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 后端开发实习\n公司：西岭软件\n地点：成都·武侯区\n薪资：180元/天\n标签：在校/应届、5天/周、Java",
+        "requirements": "在校/应届、5天/周、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-03.html",
+        "sourceJobId": "v3d-cd-03",
+        "captureSource": "api",
+        "evalSimilarity": 0.55
+      },
+      {
+        "title": "前端开发实习生",
+        "companyName": "青瓦互动",
+        "location": "成都·锦江区",
+        "employmentType": "实习",
+        "salary": "150元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：前端开发实习生\n公司：青瓦互动\n地点：成都·锦江区\n薪资：150元/天\n标签：在校/应届、React",
+        "requirements": "在校/应届、React",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-04.html",
+        "sourceJobId": "v3d-cd-04",
+        "captureSource": "api",
+        "evalSimilarity": 0.21
+      },
+      {
+        "title": "运维开发实习",
+        "companyName": "蜀道云",
+        "location": "成都·天府新区",
+        "employmentType": "实习",
+        "salary": "160元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：运维开发实习\n公司：蜀道云\n地点：成都·天府新区\n薪资：160元/天\n标签：在校/应届、Linux",
+        "requirements": "在校/应届、Linux",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-05.html",
+        "sourceJobId": "v3d-cd-05",
+        "captureSource": "api",
+        "evalSimilarity": 0.42
+      }
+    ]
+  }
+}

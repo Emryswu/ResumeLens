@@ -1,0 +1,67 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Java 后端研发实习",
+        "companyName": "红树林智能",
+        "location": "深圳·南山区·深圳湾",
+        "employmentType": "实习",
+        "salary": "320元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 后端研发实习\n公司：红树林智能\n地点：深圳·南山区·深圳湾\n薪资：320元/天\n标签：硕士、4天/周、6个月、Java",
+        "requirements": "硕士、4天/周、6个月、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-32.html",
+        "sourceJobId": "v3a-sz-32",
+        "captureSource": "api",
+        "evalSimilarity": 0.93
+      },
+      {
+        "title": "Java 开发实习生",
+        "companyName": "莞城科技",
+        "location": "东莞·南城区",
+        "employmentType": "实习",
+        "salary": "200元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 开发实习生\n公司：莞城科技\n地点：东莞·南城区\n薪资：200元/天\n标签：在校/应届、4天/周、6个月、Java",
+        "requirements": "在校/应届、4天/周、6个月、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-33.html",
+        "sourceJobId": "v3a-sz-33",
+        "captureSource": "api",
+        "evalSimilarity": 0.9
+      },
+      {
+        "title": "消息通知服务开发实习",
+        "companyName": "梅沙云",
+        "location": "深圳·南山区·科技园",
+        "employmentType": "实习",
+        "salary": "220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：消息通知服务开发实习\n公司：梅沙云\n地点：深圳·南山区·科技园\n薪资：220元/天\n标签：在校/应届、4天/周、6个月、Java",
+        "requirements": "在校/应届、4天/周、6个月、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-34.html",
+        "sourceJobId": "v3a-sz-34",
+        "captureSource": "api",
+        "evalSimilarity": 0.8
+      },
+      {
+        "title": "仓库理货实习",
+        "companyName": "某物流",
+        "location": "深圳·宝安区",
+        "employmentType": "实习",
+        "salary": "130元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：仓库理货实习\n公司：某物流\n地点：深圳·宝安区\n薪资：130元/天\n标签：经验不限、仓储",
+        "requirements": "经验不限、仓储",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-35.html",
+        "sourceJobId": "v3a-sz-35",
+        "captureSource": "api",
+        "evalSimilarity": 0.14
+      }
+    ]
+  }
+}

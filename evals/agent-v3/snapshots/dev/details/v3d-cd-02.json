@@ -1,0 +1,8 @@
+{
+  "title": "Golang 微服务开发实习",
+  "companyName": "锦云数据",
+  "location": "成都·高新区·新川",
+  "employmentType": "实习",
+  "description": "岗位职责：\n1. 参与数据中台微服务的 Go 开发，基于 gRPC 实现服务间调用；\n2. 接入 Kafka 消费链路，处理埋点数据清洗；\n3. 维护 Prometheus 监控告警规则。\n实习安排：实习期至少 6 个月，每周至少 4 天到岗，工作地点在成都高新区新川。",
+  "requirements": "1. 本科及以上学历，计算机相关专业在读；\n2. 熟悉 Go，了解 gRPC 或 Protobuf；\n3. 了解 Kafka 等消息队列的基本概念。"
+}

@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "少儿编程讲师（Go 语言方向）",
+        "companyName": "启智教育",
+        "location": "成都·金牛区",
+        "employmentType": "实习",
+        "salary": "4000-6000元/月",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：少儿编程讲师（Go 语言方向）\n公司：启智教育\n地点：成都·金牛区\n薪资：4000-6000元/月\n标签：经验不限、教育培训",
+        "requirements": "经验不限、教育培训",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-14.html",
+        "sourceJobId": "v3d-cd-14",
+        "captureSource": "api",
+        "evalSimilarity": 0.18
+      },
+      {
+        "title": "围棋陪练老师",
+        "companyName": "黑白棋院",
+        "location": "成都·武侯区",
+        "employmentType": "实习",
+        "salary": "80元/时",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：围棋陪练老师\n公司：黑白棋院\n地点：成都·武侯区\n薪资：80元/时\n标签：经验不限、兼职",
+        "requirements": "经验不限、兼职",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-15.html",
+        "sourceJobId": "v3d-cd-15",
+        "captureSource": "api",
+        "evalSimilarity": 0.05
+      },
+      {
+        "title": "跨境物流单证专员",
+        "companyName": "蓉欧供应链",
+        "location": "成都·青白江区",
+        "employmentType": "实习",
+        "salary": "150元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：跨境物流单证专员\n公司：蓉欧供应链\n地点：成都·青白江区\n薪资：150元/天\n标签：在校/应届、物流",
+        "requirements": "在校/应届、物流",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-16.html",
+        "sourceJobId": "v3d-cd-16",
+        "captureSource": "api",
+        "evalSimilarity": 0.08
+      }
+    ]
+  }
+}
