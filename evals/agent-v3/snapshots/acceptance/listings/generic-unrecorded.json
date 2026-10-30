@@ -1,0 +1,54 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "unrecordedCondition": true,
+    "jobs": [
+      {
+        "title": "奶茶店店员（兼职）",
+        "companyName": "某茶饮",
+        "location": "深圳·福田区",
+        "employmentType": "实习",
+        "salary": "22元/时",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：奶茶店店员（兼职）\n公司：某茶饮\n地点：深圳·福田区\n薪资：22元/时\n标签：经验不限、兼职",
+        "requirements": "经验不限、兼职",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-90.html",
+        "sourceJobId": "v3a-sz-90",
+        "captureSource": "api",
+        "evalSimilarity": 0.03
+      },
+      {
+        "title": "快递分拣员",
+        "companyName": "某快递",
+        "location": "深圳·龙岗区",
+        "employmentType": "实习",
+        "salary": "6000-7000元/月",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：快递分拣员\n公司：某快递\n地点：深圳·龙岗区\n薪资：6000-7000元/月\n标签：经验不限",
+        "requirements": "经验不限",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-91.html",
+        "sourceJobId": "v3a-sz-91",
+        "captureSource": "api",
+        "evalSimilarity": 0.02
+      },
+      {
+        "title": "商场导购",
+        "companyName": "某商场",
+        "location": "深圳·罗湖区",
+        "employmentType": "实习",
+        "salary": "5000元/月",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：商场导购\n公司：某商场\n地点：深圳·罗湖区\n薪资：5000元/月\n标签：经验不限",
+        "requirements": "经验不限",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-92.html",
+        "sourceJobId": "v3a-sz-92",
+        "captureSource": "api",
+        "evalSimilarity": 0.04
+      }
+    ]
+  }
+}

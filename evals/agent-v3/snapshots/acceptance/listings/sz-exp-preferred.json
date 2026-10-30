@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Java 后端实习生（订单组）",
+        "companyName": "湾区到家",
+        "location": "深圳·南山区·科技园",
+        "employmentType": "实习",
+        "salary": "260元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 后端实习生（订单组）\n公司：湾区到家\n地点：深圳·南山区·科技园\n薪资：260元/天\n标签：在校/应届、4天/周、6个月、Java",
+        "requirements": "在校/应届、4天/周、6个月、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-29.html",
+        "sourceJobId": "v3a-sz-29",
+        "captureSource": "api",
+        "evalSimilarity": 0.89
+      },
+      {
+        "title": "Java 开发实习",
+        "companyName": "光明科技",
+        "location": "深圳·光明区",
+        "employmentType": "实习",
+        "salary": "170元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 开发实习\n公司：光明科技\n地点：深圳·光明区\n薪资：170元/天\n标签：在校/应届、4天/周、Java",
+        "requirements": "在校/应届、4天/周、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-30.html",
+        "sourceJobId": "v3a-sz-30",
+        "captureSource": "api",
+        "evalSimilarity": 0.61
+      },
+      {
+        "title": "门店销售实习",
+        "companyName": "某手机品牌",
+        "location": "深圳·罗湖区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：门店销售实习\n公司：某手机品牌\n地点：深圳·罗湖区\n薪资：120元/天\n标签：经验不限、销售",
+        "requirements": "经验不限、销售",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-31.html",
+        "sourceJobId": "v3a-sz-31",
+        "captureSource": "api",
+        "evalSimilarity": 0.08
+      }
+    ]
+  }
+}

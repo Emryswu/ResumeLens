@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Go 服务端开发实习",
+        "companyName": "青城数据",
+        "location": "成都·高新区",
+        "employmentType": "实习",
+        "salary": "240元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Go 服务端开发实习\n公司：青城数据\n地点：成都·高新区\n薪资：240元/天\n标签：在校/应届、4天/周、6个月、Go",
+        "requirements": "在校/应届、4天/周、6个月、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-23.html",
+        "sourceJobId": "v3d-cd-23",
+        "captureSource": "api",
+        "evalSimilarity": 0.9
+      },
+      {
+        "title": "后端开发实习（Go）",
+        "companyName": "文殊网络",
+        "location": "成都·金牛区",
+        "employmentType": "实习",
+        "salary": "180元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：后端开发实习（Go）\n公司：文殊网络\n地点：成都·金牛区\n薪资：180元/天\n标签：在校/应届、4天/周、Go",
+        "requirements": "在校/应届、4天/周、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-24.html",
+        "sourceJobId": "v3d-cd-24",
+        "captureSource": "api",
+        "evalSimilarity": 0.61
+      },
+      {
+        "title": "新媒体运营实习",
+        "companyName": "某文创",
+        "location": "成都·锦江区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：新媒体运营实习\n公司：某文创\n地点：成都·锦江区\n薪资：120元/天\n标签：在校/应届、运营",
+        "requirements": "在校/应届、运营",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-25.html",
+        "sourceJobId": "v3d-cd-25",
+        "captureSource": "api",
+        "evalSimilarity": 0.1
+      }
+    ]
+  }
+}

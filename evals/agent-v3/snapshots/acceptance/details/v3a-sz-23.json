@@ -1,0 +1,8 @@
+{
+  "title": "Java 服务端开发实习",
+  "companyName": "前海数科",
+  "location": "深圳·南山区·前海",
+  "employmentType": "实习",
+  "description": "岗位职责：\n1. 参与数据报表平台的 Java 服务端开发，负责查询接口；\n2. 使用 MySQL 联合索引与 Redis 缓存优化查询性能；\n3. 编写单元测试与接口文档。\n实习安排：实习期至少 6 个月，每周至少 4 天到岗，工作地点在深圳南山区前海。",
+  "requirements": "1. 本科及以上学历，计算机、软件工程相关专业；硕士学历优先；\n2. 熟悉 Java 与 Spring Boot；\n3. 了解 MySQL 索引优化。"
+}

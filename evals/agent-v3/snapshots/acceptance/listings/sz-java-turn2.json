@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Java 中间件开发实习",
+        "companyName": "蛇口云",
+        "location": "深圳·南山区·蛇口",
+        "employmentType": "实习",
+        "salary": "260元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 中间件开发实习\n公司：蛇口云\n地点：深圳·南山区·蛇口\n薪资：260元/天\n标签：在校/应届、4天/周、中间件",
+        "requirements": "在校/应届、4天/周、中间件",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-09.html",
+        "sourceJobId": "v3a-sz-09",
+        "captureSource": "api",
+        "evalSimilarity": 0.82
+      },
+      {
+        "title": "分布式存储开发实习",
+        "companyName": "深湾数据",
+        "location": "深圳·南山区·深圳湾",
+        "employmentType": "实习",
+        "salary": "240元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：分布式存储开发实习\n公司：深湾数据\n地点：深圳·南山区·深圳湾\n薪资：240元/天\n标签：在校/应届、4天/周、分布式",
+        "requirements": "在校/应届、4天/周、分布式",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-10.html",
+        "sourceJobId": "v3a-sz-10",
+        "captureSource": "api",
+        "evalSimilarity": 0.75
+      },
+      {
+        "title": "电话客服实习",
+        "companyName": "某呼叫中心",
+        "location": "深圳·龙岗区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：电话客服实习\n公司：某呼叫中心\n地点：深圳·龙岗区\n薪资：120元/天\n标签：经验不限、客服",
+        "requirements": "经验不限、客服",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-11.html",
+        "sourceJobId": "v3a-sz-11",
+        "captureSource": "api",
+        "evalSimilarity": 0.11
+      }
+    ]
+  }
+}

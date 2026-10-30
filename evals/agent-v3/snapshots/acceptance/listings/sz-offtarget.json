@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "咖啡店咖啡师（JAVA 咖啡馆）",
+        "companyName": "爪哇咖啡",
+        "location": "深圳·福田区",
+        "employmentType": "实习",
+        "salary": "25元/时",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：咖啡店咖啡师（JAVA 咖啡馆）\n公司：爪哇咖啡\n地点：深圳·福田区\n薪资：25元/时\n标签：经验不限、兼职",
+        "requirements": "经验不限、兼职",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-14.html",
+        "sourceJobId": "v3a-sz-14",
+        "captureSource": "api",
+        "evalSimilarity": 0.06
+      },
+      {
+        "title": "印尼语翻译（爪哇岛项目）",
+        "companyName": "南洋贸易",
+        "location": "深圳·罗湖区",
+        "employmentType": "实习",
+        "salary": "6000-8000元/月",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：印尼语翻译（爪哇岛项目）\n公司：南洋贸易\n地点：深圳·罗湖区\n薪资：6000-8000元/月\n标签：经验不限、翻译",
+        "requirements": "经验不限、翻译",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-15.html",
+        "sourceJobId": "v3a-sz-15",
+        "captureSource": "api",
+        "evalSimilarity": 0.07
+      },
+      {
+        "title": "Java 编程讲师（少儿）",
+        "companyName": "童程教育",
+        "location": "深圳·宝安区",
+        "employmentType": "实习",
+        "salary": "5000-7000元/月",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 编程讲师（少儿）\n公司：童程教育\n地点：深圳·宝安区\n薪资：5000-7000元/月\n标签：经验不限、教育培训",
+        "requirements": "经验不限、教育培训",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-16.html",
+        "sourceJobId": "v3a-sz-16",
+        "captureSource": "api",
+        "evalSimilarity": 0.19
+      }
+    ]
+  }
+}

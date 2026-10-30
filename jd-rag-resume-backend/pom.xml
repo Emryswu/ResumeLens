@@ -128,7 +128,7 @@
 
 	<build>
 		<plugins>
-			<!-- Evaluation-only sources stay in evals/agent and evals/agent-v2 and compile only during tests. -->
+			<!-- Evaluation-only sources stay in evals/agent, evals/agent-v2 and evals/agent-v3 and compile only during tests. -->
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>build-helper-maven-plugin</artifactId>
@@ -142,6 +142,7 @@
 							<sources>
 								<source>${project.basedir}/../evals/agent/java</source>
 								<source>${project.basedir}/../evals/agent-v2/java</source>
+								<source>${project.basedir}/../evals/agent-v3/java</source>
 							</sources>
 						</configuration>
 					</execution>

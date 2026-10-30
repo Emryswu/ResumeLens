@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "云原生后端开发实习",
+        "companyName": "岷山云",
+        "location": "成都·高新区·天府五街",
+        "employmentType": "实习",
+        "salary": "240元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：云原生后端开发实习\n公司：岷山云\n地点：成都·高新区·天府五街\n薪资：240元/天\n标签：在校/应届、4天/周、6个月、Go",
+        "requirements": "在校/应届、4天/周、6个月、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-17.html",
+        "sourceJobId": "v3d-cd-17",
+        "captureSource": "api",
+        "evalSimilarity": 0.86
+      },
+      {
+        "title": "服务端开发实习生（Go）",
+        "companyName": "东坡网络",
+        "location": "成都·高新区",
+        "employmentType": "实习",
+        "salary": "200元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：服务端开发实习生（Go）\n公司：东坡网络\n地点：成都·高新区\n薪资：200元/天\n标签：在校/应届、4天/周、Go",
+        "requirements": "在校/应届、4天/周、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-18.html",
+        "sourceJobId": "v3d-cd-18",
+        "captureSource": "api",
+        "evalSimilarity": 0.74
+      },
+      {
+        "title": "IT 运维实习",
+        "companyName": "某医院信息科",
+        "location": "成都·武侯区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：IT 运维实习\n公司：某医院信息科\n地点：成都·武侯区\n薪资：120元/天\n标签：在校/应届、运维",
+        "requirements": "在校/应届、运维",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-19.html",
+        "sourceJobId": "v3d-cd-19",
+        "captureSource": "api",
+        "evalSimilarity": 0.31
+      }
+    ]
+  }
+}

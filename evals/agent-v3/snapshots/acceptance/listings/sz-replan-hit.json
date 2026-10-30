@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Spring Boot 后端开发实习",
+        "companyName": "西丽科技",
+        "location": "深圳·南山区·西丽",
+        "employmentType": "实习",
+        "salary": "240元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Spring Boot 后端开发实习\n公司：西丽科技\n地点：深圳·南山区·西丽\n薪资：240元/天\n标签：在校/应届、4天/周、6个月、Java",
+        "requirements": "在校/应届、4天/周、6个月、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-17.html",
+        "sourceJobId": "v3a-sz-17",
+        "captureSource": "api",
+        "evalSimilarity": 0.86
+      },
+      {
+        "title": "服务端开发实习生（Java）",
+        "companyName": "坂田网络",
+        "location": "深圳·龙岗区·坂田",
+        "employmentType": "实习",
+        "salary": "200元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：服务端开发实习生（Java）\n公司：坂田网络\n地点：深圳·龙岗区·坂田\n薪资：200元/天\n标签：在校/应届、4天/周、Java",
+        "requirements": "在校/应届、4天/周、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-18.html",
+        "sourceJobId": "v3a-sz-18",
+        "captureSource": "api",
+        "evalSimilarity": 0.73
+      },
+      {
+        "title": "网络运维实习",
+        "companyName": "某银行分行",
+        "location": "深圳·福田区",
+        "employmentType": "实习",
+        "salary": "150元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：网络运维实习\n公司：某银行分行\n地点：深圳·福田区\n薪资：150元/天\n标签：在校/应届、运维",
+        "requirements": "在校/应届、运维",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-19.html",
+        "sourceJobId": "v3a-sz-19",
+        "captureSource": "api",
+        "evalSimilarity": 0.3
+      }
+    ]
+  }
+}

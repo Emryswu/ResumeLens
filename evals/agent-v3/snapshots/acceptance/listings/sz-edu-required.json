@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Java 基础平台研发实习",
+        "companyName": "南山研究院",
+        "location": "深圳·南山区·科技园",
+        "employmentType": "实习",
+        "salary": "320元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 基础平台研发实习\n公司：南山研究院\n地点：深圳·南山区·科技园\n薪资：320元/天\n标签：在校/应届、4天/周、6个月、Java",
+        "requirements": "在校/应届、4天/周、6个月、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-20.html",
+        "sourceJobId": "v3a-sz-20",
+        "captureSource": "api",
+        "evalSimilarity": 0.91
+      },
+      {
+        "title": "Java 后端实习生",
+        "companyName": "沙河科技",
+        "location": "深圳·南山区·沙河",
+        "employmentType": "实习",
+        "salary": "220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 后端实习生\n公司：沙河科技\n地点：深圳·南山区·沙河\n薪资：220元/天\n标签：在校/应届、4天/周、6个月、Java",
+        "requirements": "在校/应届、4天/周、6个月、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-21.html",
+        "sourceJobId": "v3a-sz-21",
+        "captureSource": "api",
+        "evalSimilarity": 0.79
+      },
+      {
+        "title": "跨境电商运营实习",
+        "companyName": "某跨境",
+        "location": "深圳·龙华区",
+        "employmentType": "实习",
+        "salary": "150元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：跨境电商运营实习\n公司：某跨境\n地点：深圳·龙华区\n薪资：150元/天\n标签：在校/应届、运营",
+        "requirements": "在校/应届、运营",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-22.html",
+        "sourceJobId": "v3a-sz-22",
+        "captureSource": "api",
+        "evalSimilarity": 0.13
+      }
+    ]
+  }
+}

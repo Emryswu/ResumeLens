@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Go 开发实习生",
+        "companyName": "竹溪网络",
+        "location": "成都·高新区·大源",
+        "employmentType": "实习",
+        "salary": "200元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Go 开发实习生\n公司：竹溪网络\n地点：成都·高新区·大源\n薪资：200元/天\n标签：在校/应届、4天/周、Go",
+        "requirements": "在校/应届、4天/周、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-06.html",
+        "sourceJobId": "v3d-cd-06",
+        "captureSource": "api",
+        "evalSimilarity": 0.84
+      },
+      {
+        "title": "后端开发实习（Go/Python）",
+        "companyName": "浣花科技",
+        "location": "成都·青羊区",
+        "employmentType": "实习",
+        "salary": "180元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：后端开发实习（Go/Python）\n公司：浣花科技\n地点：成都·青羊区\n薪资：180元/天\n标签：在校/应届、4天/周",
+        "requirements": "在校/应届、4天/周",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-07.html",
+        "sourceJobId": "v3d-cd-07",
+        "captureSource": "api",
+        "evalSimilarity": 0.71
+      },
+      {
+        "title": "测试开发实习",
+        "companyName": "天府数智",
+        "location": "成都·高新区",
+        "employmentType": "实习",
+        "salary": "150元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：测试开发实习\n公司：天府数智\n地点：成都·高新区\n薪资：150元/天\n标签：在校/应届、测试",
+        "requirements": "在校/应届、测试",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-08.html",
+        "sourceJobId": "v3d-cd-08",
+        "captureSource": "api",
+        "evalSimilarity": 0.33
+      }
+    ]
+  }
+}

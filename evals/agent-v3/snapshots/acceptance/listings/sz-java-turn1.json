@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Java 开发实习生",
+        "companyName": "粤海网络",
+        "location": "深圳·南山区·粤海街道",
+        "employmentType": "实习",
+        "salary": "220元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Java 开发实习生\n公司：粤海网络\n地点：深圳·南山区·粤海街道\n薪资：220元/天\n标签：在校/应届、4天/周、Java",
+        "requirements": "在校/应届、4天/周、Java",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-06.html",
+        "sourceJobId": "v3a-sz-06",
+        "captureSource": "api",
+        "evalSimilarity": 0.85
+      },
+      {
+        "title": "后端开发实习（Java/Go）",
+        "companyName": "华强数科",
+        "location": "深圳·福田区·华强北",
+        "employmentType": "实习",
+        "salary": "200元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：后端开发实习（Java/Go）\n公司：华强数科\n地点：深圳·福田区·华强北\n薪资：200元/天\n标签：在校/应届、4天/周",
+        "requirements": "在校/应届、4天/周",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-07.html",
+        "sourceJobId": "v3a-sz-07",
+        "captureSource": "api",
+        "evalSimilarity": 0.7
+      },
+      {
+        "title": "测试实习生",
+        "companyName": "梅林软件",
+        "location": "深圳·福田区",
+        "employmentType": "实习",
+        "salary": "160元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：测试实习生\n公司：梅林软件\n地点：深圳·福田区\n薪资：160元/天\n标签：在校/应届、测试",
+        "requirements": "在校/应届、测试",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3a-sz-08.html",
+        "sourceJobId": "v3a-sz-08",
+        "captureSource": "api",
+        "evalSimilarity": 0.34
+      }
+    ]
+  }
+}

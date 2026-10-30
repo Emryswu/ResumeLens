@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Go 基础架构研发实习",
+        "companyName": "玄鸟研究院",
+        "location": "成都·高新区·天府三街",
+        "employmentType": "实习",
+        "salary": "300元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Go 基础架构研发实习\n公司：玄鸟研究院\n地点：成都·高新区·天府三街\n薪资：300元/天\n标签：在校/应届、4天/周、6个月、Go",
+        "requirements": "在校/应届、4天/周、6个月、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-20.html",
+        "sourceJobId": "v3d-cd-20",
+        "captureSource": "api",
+        "evalSimilarity": 0.91
+      },
+      {
+        "title": "Go 后端实习生",
+        "companyName": "锦里科技",
+        "location": "成都·高新区·软件园",
+        "employmentType": "实习",
+        "salary": "200元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Go 后端实习生\n公司：锦里科技\n地点：成都·高新区·软件园\n薪资：200元/天\n标签：在校/应届、4天/周、6个月、Go",
+        "requirements": "在校/应届、4天/周、6个月、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-21.html",
+        "sourceJobId": "v3d-cd-21",
+        "captureSource": "api",
+        "evalSimilarity": 0.8
+      },
+      {
+        "title": "电商客服实习",
+        "companyName": "某电商",
+        "location": "成都·新都区",
+        "employmentType": "实习",
+        "salary": "120元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：电商客服实习\n公司：某电商\n地点：成都·新都区\n薪资：120元/天\n标签：经验不限、客服",
+        "requirements": "经验不限、客服",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-22.html",
+        "sourceJobId": "v3d-cd-22",
+        "captureSource": "api",
+        "evalSimilarity": 0.14
+      }
+    ]
+  }
+}

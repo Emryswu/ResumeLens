@@ -1,0 +1,53 @@
+{
+  "type": "result",
+  "task": {
+    "status": "completed",
+    "finishReason": "MAX_PAGES",
+    "pagesRead": 1,
+    "skippedWithoutId": 0,
+    "jobs": [
+      {
+        "title": "Go 后端实习生（支付组）",
+        "companyName": "天府金服",
+        "location": "成都·高新区·金融城",
+        "employmentType": "实习",
+        "salary": "260元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Go 后端实习生（支付组）\n公司：天府金服\n地点：成都·高新区·金融城\n薪资：260元/天\n标签：在校/应届、4天/周、6个月、Go",
+        "requirements": "在校/应届、4天/周、6个月、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-29.html",
+        "sourceJobId": "v3d-cd-29",
+        "captureSource": "api",
+        "evalSimilarity": 0.89
+      },
+      {
+        "title": "Go 开发实习",
+        "companyName": "都江网络",
+        "location": "成都·郫都区",
+        "employmentType": "实习",
+        "salary": "160元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：Go 开发实习\n公司：都江网络\n地点：成都·郫都区\n薪资：160元/天\n标签：在校/应届、4天/周、Go",
+        "requirements": "在校/应届、4天/周、Go",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-30.html",
+        "sourceJobId": "v3d-cd-30",
+        "captureSource": "api",
+        "evalSimilarity": 0.62
+      },
+      {
+        "title": "销售助理实习",
+        "companyName": "某家居",
+        "location": "成都·金牛区",
+        "employmentType": "实习",
+        "salary": "100元/天",
+        "description": "（BOSS 搜索列表摘要，未读取完整职位描述）\n职位：销售助理实习\n公司：某家居\n地点：成都·金牛区\n薪资：100元/天\n标签：经验不限、销售",
+        "requirements": "经验不限、销售",
+        "sourcePlatform": "BOSS",
+        "sourceUrl": "https://www.zhipin.com/job_detail/v3d-cd-31.html",
+        "sourceJobId": "v3d-cd-31",
+        "captureSource": "api",
+        "evalSimilarity": 0.09
+      }
+    ]
+  }
+}
