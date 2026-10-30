@@ -222,10 +222,6 @@ public class AgentLoop {
         TurnTranscript transcript = new TurnTranscript(input.messages(), sink, summary);
         long deadline = acceptedAtMs + properties.getTurnTimeoutSeconds() * 1000;
         int steps = 0;
-        int replans = 0;
-        AgentPlan plan = null;
-        int cursor = 0;
-        boolean needsReplan = false;
         int corrections = 0;
         boolean summaryReady = false;
         try {
@@ -248,7 +244,8 @@ public class AgentLoop {
                 if (approval.approved()) transcript.usedSteps++;
                 resolvePending(input.pending(), approval.approved(), transcript, context, sink, deadline, cancelled);
             }
-            int modelBudget = properties.getMaxSteps();
+            // A resumed request continues the plan the turn accepted before it paused.
+            int modelBudget = progress(transcript).plan() == null ? properties.getMaxSteps() : planModelBudget();
             while (steps < modelBudget) {
                 if (cancelled.getAsBoolean()) {
                     return new Outcome(State.CANCELLED, transcript, steps);
@@ -265,6 +262,12 @@ public class AgentLoop {
                 }
                 List<AgentModel.ToolDefinition> tools = new ArrayList<>();
                 String instruction = system + currentSearch.summary();
+                // Read-only views of the transcript: the next result changes the plan state by being recorded.
+                final PlanProgress planned = progress(transcript);
+                final AgentPlan plan = planned.plan();
+                final int cursor = planned.cursor();
+                final boolean needsReplan = planned.needsReplan();
+                final int replans = planned.replans();
                 boolean relevanceReplan = false;
                 boolean jobSearch = JobSearchWorkflow.applies(transcript, currentSearch);
                 boolean repairingRecommendations = jobSearch && recommendationAttempts(transcript) == 1;
@@ -325,7 +328,7 @@ public class AgentLoop {
                     if (recommendationAttempts(transcript) > 0) {
                         return finishSubmittedRecommendations(sink, transcript, steps);
                     }
-                    if (plan != null && !needsReplan && cursor < plan.steps().size()) {
+                    if (planned.unfinished()) {
                         return fail(sink, transcript, steps, State.FAILED, "AGENT_PLAN_INCOMPLETE",
                                 "模型未完成计划中的步骤，保留已获得的结果");
                     }
@@ -357,9 +360,7 @@ public class AgentLoop {
                         return fail(sink, transcript, steps, State.REPLAN_LIMIT, "AGENT_REPLAN_LIMIT", "已达到重规划上限，保留已获得的结果");
                     }
                     try {
-                        AgentPlan nextPlan = AgentPlan.parse(call.arguments(), objectMapper, registry);
-                        if (plan != null) replans++;
-                        plan = nextPlan;
+                        AgentPlan.parse(call.arguments(), objectMapper, registry);
                     } catch (BusinessException ex) {
                         if (corrections < MAX_PROTOCOL_CORRECTIONS) {
                             corrections++;
@@ -370,21 +371,20 @@ public class AgentLoop {
                         closeCalls(reply, transcript, ex.getCode(), ex.getMessage());
                         throw ex;
                     }
-                    cursor = 0;
-                    needsReplan = false;
-                    // Plan submissions have a separate bounded budget; execution model calls still have a ceiling.
-                    modelBudget = properties.getMaxPlanningSteps() + 2 + properties.getMaxReplans();
+                    modelBudget = planModelBudget();
                     transcript.add(AgentMessage.tool(call.id(), "{\"ok\":true,\"planAccepted\":true}"));
-                    sink.emit("plan", new PlanEvent(plan, replans));
+                    PlanProgress accepted = progress(transcript);
+                    sink.emit("plan", new PlanEvent(accepted.plan(), accepted.replans()));
                     continue;
                 }
-                boolean recommendationOverride = jobSearch && reply.toolCalls().size() == 1
+                // The plan's next steps always run as plan steps; only a call off the plan can be a recommendation override.
+                boolean planBatch = planned.allows(reply.toolCalls());
+                boolean recommendationOverride = !planBatch && jobSearch && reply.toolCalls().size() == 1
                         && (SubmitRecommendationsTool.TOOL.equals(reply.toolCalls().getFirst().name())
                         || repairingRecommendations && ("get_job".equals(reply.toolCalls().getFirst().name())
                                 || "verify_boss_job".equals(reply.toolCalls().getFirst().name())
                                 || "check_job_preferences".equals(reply.toolCalls().getFirst().name())));
-                if (plan != null && !recommendationOverride
-                        && (needsReplan || !followsPlan(reply.toolCalls(), plan, cursor))) {
+                if (plan != null && !planBatch && !recommendationOverride) {
                     String code = needsReplan && replans >= properties.getMaxReplans() ? "AGENT_REPLAN_LIMIT" : "AGENT_PLAN_MISMATCH";
                     if ("AGENT_PLAN_MISMATCH".equals(code) && corrections < MAX_PROTOCOL_CORRECTIONS) {
                         corrections++;
@@ -410,7 +410,7 @@ public class AgentLoop {
                         return finishAtLimit(sink, transcript, steps, system, deadline, cancelled, options, context);
                     }
                     // A batch of consecutive plan steps runs only while each earlier step finished with data.
-                    if (plan != null && position > 0 && (needsReplan || gate != null || browserGate != null)) {
+                    if (planBatch && position > 0 && (progress(transcript).needsReplan() || gate != null || browserGate != null)) {
                         for (int index = position; index < calls.size(); index++) {
                             var skipped = calls.get(index);
                             transcript.add(AgentMessage.tool(skipped.id(), rejectBeforeExecution(skipped.name(), "AGENT_PLAN_STEP_SKIPPED",
@@ -428,11 +428,6 @@ public class AgentLoop {
                     }
                     if (tool instanceof DeferrableTool deferrable) {
                         browserGate = beginDeferred(call, deferrable, context, sink, transcript, deadline, cancelled);
-                        if (plan != null && browserGate == null && !recommendationOverride) {
-                            JsonNode result = readEnvelope(transcript.getLast().content());
-                            needsReplan = !result.path("ok").asBoolean() || emptyData(result.path("untrusted_data"));
-                            if (!needsReplan) cursor++;
-                        }
                         continue;
                     }
                     if (tool != null && tool.requiresConfirmation()) {
@@ -442,7 +437,6 @@ public class AgentLoop {
                             continue;
                         }
                         gate = prepareConfirmation(call, tool, context, sink, transcript);
-                        if (plan != null && gate == null) needsReplan = true;
                         continue;
                     }
                     execute(call, tool, context, sink, transcript, deadline, cancelled);
@@ -454,11 +448,6 @@ public class AgentLoop {
                                 || transcript.remainingSteps() == 0) {
                             return finishSubmittedRecommendations(sink, transcript, steps);
                         }
-                    }
-                    if (plan != null && !recommendationOverride) {
-                        JsonNode result = readEnvelope(transcript.getLast().content());
-                        needsReplan = !result.path("ok").asBoolean() || emptyData(result.path("untrusted_data"));
-                        if (!needsReplan) cursor++;
                     }
                 }
                 if (gate != null) {
@@ -687,24 +676,14 @@ public class AgentLoop {
         }
     }
 
-    private static boolean emptyData(JsonNode data) {
-        if (data.isNull() || data.isMissingNode() || data.isArray() && data.isEmpty()
-                || data.isTextual() && data.asText().isBlank() || data.isObject() && data.isEmpty()) return true;
-        if (data.isObject()) {
-            List<JsonNode> arrays = new ArrayList<>();
-            data.forEach(value -> { if (value.isArray()) arrays.add(value); });
-            return !arrays.isEmpty() && arrays.stream().allMatch(JsonNode::isEmpty);
-        }
-        return false;
+    /** The only source of plan state, for first and resumed requests alike. */
+    private PlanProgress progress(List<AgentMessage> transcript) {
+        return PlanProgress.of(transcript, objectMapper, registry);
     }
 
-    /** The calls must be the next plan steps, in plan order; a single call is the common case. */
-    static boolean followsPlan(List<AgentMessage.ToolCall> calls, AgentPlan plan, int cursor) {
-        if (calls.isEmpty() || cursor + calls.size() > plan.steps().size()) return false;
-        for (int index = 0; index < calls.size(); index++) {
-            if (!calls.get(index).name().equals(plan.steps().get(cursor + index).tool())) return false;
-        }
-        return true;
+    /** Plan submissions have a separate bounded budget; execution model calls still have a ceiling. */
+    private int planModelBudget() {
+        return properties.getMaxPlanningSteps() + 2 + properties.getMaxReplans();
     }
 
     private String planCorrection(AgentPlan plan, int cursor, boolean needsReplan) {

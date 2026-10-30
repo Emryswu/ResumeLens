@@ -74,6 +74,20 @@ test("pending confirmation and browser collection survive reload without automat
   await expect(page.locator(".assistant-answer")).toHaveText("采集已结束");
 });
 
+test("a planned browser collection resumes at the plan's next step after reload", async ({ page, context }) => {
+  await session(context);
+  await newChat(page);
+  await ask(page, "计划采集深圳 Java 岗位");
+  await expect(page.getByRole("button", { name: "继续采集" })).toBeVisible();
+  await page.reload();
+  // Open this conversation explicitly: on a fresh database the reload may land on another, empty one.
+  await page.getByRole("navigation", { name: "历史会话" }).getByRole("button", { name: "计划采集深圳 Java 岗位", exact: true }).click();
+  await page.getByRole("button", { name: "继续采集" }).click();
+  // The server rebuilds the accepted plan from its transcript: the model is offered only the ranking step next.
+  await expect(page.locator(".assistant-answer")).toContainText("按计划完成");
+  await expect(page.locator(".assistant-answer")).not.toContainText("计划已丢失");
+});
+
 test("history switches between conversations and another account cannot see them", async ({ page, context, browser }) => {
   const switchAccount = await session(context);
   await newChat(page);
