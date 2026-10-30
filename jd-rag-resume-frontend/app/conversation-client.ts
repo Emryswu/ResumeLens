@@ -7,6 +7,8 @@ export type ConversationHeader = {
   activeRun: string | null;
   eventSequence: number;
   updatedAt: string;
+  /** 完全访问, held by the server for this conversation. */
+  fullAccess?: boolean;
 };
 
 export type ConversationEvent = {

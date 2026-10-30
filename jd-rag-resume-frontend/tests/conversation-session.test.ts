@@ -141,3 +141,87 @@ test("creating another conversation refreshes the previous conversation title fr
   await client.create();
   assert.equal(client.getSnapshot().items.find((item) => item.id === 1)?.title, "第一段的实际标题");
 });
+
+const autoTask = (autoStart: boolean) => ({ toolCallId: "browser", tool: "collect_boss_jobs", taskId: "task", executor: "browser-extension",
+  action: "collectBossJobs", command: {}, expiresAt: Date.now() + 10000, timeoutSeconds: 180, autoStart });
+
+/** A conversation whose next turn streams these frames and then reads back as {@code after}. */
+function liveTurn(frames: string, after: () => ConversationDetail) {
+  let saved = detail(1, "COMPLETED");
+  const client = new ConversationSession({ request: async <T>(path: string) =>
+    (path.endsWith("conversations") ? [saved.conversation] : saved) as T,
+  stream: async () => { saved = after(); return new Response(frames).body!; }, current: () => true });
+  return client;
+}
+
+function awaitingBrowser(task: ReturnType<typeof autoTask>) {
+  const saved = detail(1, "AWAITING_BROWSER");
+  saved.turns[0].browserTask = task;
+  return saved;
+}
+
+test("only a task received live with autoStart, in a stream that reached done, may start without a click", async (t) => {
+  const task = autoTask(true);
+  const frames = `event:browser_task_required\ndata:${JSON.stringify(task)}\n\nevent:done\ndata:{"state":"AWAITING_BROWSER","steps":1,"transcript":[]}\n\n`;
+  const client = liveTurn(frames, () => awaitingBrowser(task));
+  t.after(client.clear);
+  await client.open(1, 1);
+  assert.equal(client.getSnapshot().autoStartTaskId, null);
+  await client.send({ question: "找岗位" }, "high");
+  assert.equal(client.getSnapshot().autoStartTaskId, "task");
+  client.consumeAutoStart("task");
+  assert.equal(client.getSnapshot().autoStartTaskId, null, "a started task is never started again");
+  await client.refresh();
+  assert.equal(client.getSnapshot().autoStartTaskId, null, "polling the same task does not re-arm it");
+});
+
+test("a task without autoStart, an interrupted stream or a restored task keep waiting for the click", async (t) => {
+  const manual = autoTask(false);
+  const off = liveTurn(`event:browser_task_required\ndata:${JSON.stringify(manual)}\n\nevent:done\ndata:{"state":"AWAITING_BROWSER","steps":1,"transcript":[]}\n\n`,
+    () => awaitingBrowser(manual));
+  t.after(off.clear);
+  await off.open(1, 1);
+  await off.send({ question: "找岗位" }, "high");
+  assert.ok(off.getSnapshot().chat.pendingBrowser);
+  assert.equal(off.getSnapshot().autoStartTaskId, null);
+
+  const task = autoTask(true);
+  const cut = liveTurn(`event:browser_task_required\ndata:${JSON.stringify(task)}\n\n`, () => awaitingBrowser(task));
+  t.after(cut.clear);
+  await cut.open(1, 1);
+  await cut.send({ question: "找岗位" }, "high");
+  assert.ok(cut.getSnapshot().chat.pendingBrowser);
+  assert.equal(cut.getSnapshot().autoStartTaskId, null, "without done the page cannot tell the turn really paused");
+
+  const saved = awaitingBrowser(task);
+  const restored = new ConversationSession({ request: async <T>(path: string) =>
+    (path.endsWith("conversations") ? [saved.conversation] : saved) as T,
+  stream: async () => { throw new Error("unused"); }, current: () => true });
+  t.after(restored.clear);
+  await restored.open(1, 1);
+  assert.equal(restored.getSnapshot().chat.pendingBrowser?.autoStart, true);
+  assert.equal(restored.getSnapshot().autoStartTaskId, null, "a reload or a second tab never starts it on its own");
+});
+
+test("full access is switched on the server and the page shows the server's answer", async (t) => {
+  const saved = detail(1);
+  const calls: { path: string; options?: RequestInit }[] = [];
+  const client = new ConversationSession({ request: async <T>(path: string, options?: RequestInit) => {
+    calls.push({ path, options });
+    if (options?.method === "PATCH") {
+      saved.conversation.fullAccess = JSON.parse(String(options.body)).fullAccess;
+      return { ...saved.conversation } as T;
+    }
+    return structuredClone(path.endsWith("conversations") ? [saved.conversation] : saved) as T;
+  }, stream: async () => { throw new Error("unused"); }, current: () => true });
+  t.after(client.clear);
+  await client.open(1, 1);
+  await client.setFullAccess(true);
+  const patch = calls.find((call) => call.options?.method === "PATCH")!;
+  assert.equal(patch.path, "/api/agent/conversations/1");
+  assert.deepEqual(JSON.parse(String(patch.options!.body)), { fullAccess: true });
+  assert.equal(client.getSnapshot().detail?.conversation.fullAccess, true);
+  assert.equal(client.getSnapshot().items[0].fullAccess, true);
+  await client.select(1);
+  assert.equal(client.getSnapshot().detail?.conversation.fullAccess, true, "reading the conversation again keeps it");
+});

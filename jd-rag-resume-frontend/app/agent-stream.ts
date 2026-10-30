@@ -64,6 +64,8 @@ export type AgentBrowserTask = {
   command: Record<string, unknown>;
   expiresAt: number;
   timeoutSeconds: number;
+  /** Set by the server (完全访问): the page that receives this live may start the task without the user's click. */
+  autoStart?: boolean;
 };
 
 /** How a browser task ended on the page; only "completed" carries the executor's final event. */
