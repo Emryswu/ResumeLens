@@ -132,6 +132,8 @@ class AgentLoopTests {
 
     @Test
     void endlesslyCallingScriptedAgentModelMustFinishWithTextAndRemainingBudget() {
+        properties.setMaxSteps(6);
+        properties.setMaxPlanningSteps(6);
         AtomicInteger calls = new AtomicInteger();
         ScriptedAgentModel model = new ScriptedAgentModel(objectMapper) {
             @Override

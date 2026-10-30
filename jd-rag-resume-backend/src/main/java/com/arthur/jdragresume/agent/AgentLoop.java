@@ -221,8 +221,6 @@ public class AgentLoop {
                                 long acceptedAtMs, TurnOptions options, AtomicReference<String> summary) {
         TurnTranscript transcript = new TurnTranscript(input.messages(), sink, summary);
         long deadline = acceptedAtMs + properties.getTurnTimeoutSeconds() * 1000;
-        int steps = 0;
-        int corrections = 0;
         boolean summaryReady = false;
         try {
             // An approval may have expired or been cancelled while waiting in the executor queue.
@@ -238,15 +236,15 @@ public class AgentLoop {
                     + objectMapper.valueToTree(Map.of("summary", Objects.requireNonNullElse(summary.get(), ""),
                     "memories", options.memories()));
             if (input.pending() != null && options.browserReport() != null) {
-                transcript.usedSteps++;
                 resolveBrowserTask(input.pending(), options.browserReport(), transcript, context, sink, deadline, cancelled);
             } else if (input.pending() != null) {
-                if (approval.approved()) transcript.usedSteps++;
                 resolvePending(input.pending(), approval.approved(), transcript, context, sink, deadline, cancelled);
             }
-            // A resumed request continues the plan the turn accepted before it paused.
-            int modelBudget = progress(transcript).plan() == null ? properties.getMaxSteps() : planModelBudget();
-            while (steps < modelBudget) {
+            // Budgets are spent per turn: a resumed request continues the counts recorded before it paused.
+            while (true) {
+                final TurnUsage used = usage(transcript);
+                if (used.modelCalls() >= modelBudget(used)) break;
+                int steps = used.modelCalls();
                 if (cancelled.getAsBoolean()) {
                     return new Outcome(State.CANCELLED, transcript, steps);
                 }
@@ -345,9 +343,7 @@ public class AgentLoop {
                 if (reply.toolCalls().stream().anyMatch(call -> AgentPlan.TOOL.equals(call.name()))) {
                     if (reply.toolCalls().size() != 1 || (plan != null && !needsReplan && !relevanceReplan)) {
                         String reason = "计划必须单独提交，且仅在失败、空结果或求职排序全不对口后重规划";
-                        if (corrections < MAX_PROTOCOL_CORRECTIONS) {
-                            corrections++;
-                            modelBudget++;
+                        if (used.corrections() < MAX_PROTOCOL_CORRECTIONS) {
                             closeCalls(reply, transcript, "AGENT_PLAN_INVALID", reason + "。本次调用均未执行，请修正后重试");
                             continue;
                         }
@@ -362,16 +358,13 @@ public class AgentLoop {
                     try {
                         AgentPlan.parse(call.arguments(), objectMapper, registry);
                     } catch (BusinessException ex) {
-                        if (corrections < MAX_PROTOCOL_CORRECTIONS) {
-                            corrections++;
-                            modelBudget++;
+                        if (used.corrections() < MAX_PROTOCOL_CORRECTIONS) {
                             closeCalls(reply, transcript, ex.getCode(), ex.getMessage() + "。计划未采纳，请修正后重新提交");
                             continue;
                         }
                         closeCalls(reply, transcript, ex.getCode(), ex.getMessage());
                         throw ex;
                     }
-                    modelBudget = planModelBudget();
                     transcript.add(AgentMessage.tool(call.id(), "{\"ok\":true,\"planAccepted\":true}"));
                     PlanProgress accepted = progress(transcript);
                     sink.emit("plan", new PlanEvent(accepted.plan(), accepted.replans()));
@@ -386,9 +379,7 @@ public class AgentLoop {
                                 || "check_job_preferences".equals(reply.toolCalls().getFirst().name())));
                 if (plan != null && !planBatch && !recommendationOverride) {
                     String code = needsReplan && replans >= properties.getMaxReplans() ? "AGENT_REPLAN_LIMIT" : "AGENT_PLAN_MISMATCH";
-                    if ("AGENT_PLAN_MISMATCH".equals(code) && corrections < MAX_PROTOCOL_CORRECTIONS) {
-                        corrections++;
-                        modelBudget++;
+                    if ("AGENT_PLAN_MISMATCH".equals(code) && used.corrections() < MAX_PROTOCOL_CORRECTIONS) {
                         closeCalls(reply, transcript, code, planCorrection(plan, cursor, needsReplan));
                         continue;
                     }
@@ -418,7 +409,6 @@ public class AgentLoop {
                         }
                         break;
                     }
-                    transcript.usedSteps++;
                     AgentTool tool = registry.find(call.name()).orElse(null);
                     boolean pauses = tool != null && (tool.requiresConfirmation() || tool instanceof DeferrableTool);
                     if (pauses && browserGate != null || tool instanceof DeferrableTool && gate != null) {
@@ -459,14 +449,14 @@ public class AgentLoop {
                     return done(sink, State.AWAITING_BROWSER, transcript, steps);
                 }
             }
-            return finishAtLimit(sink, transcript, steps, system, deadline, cancelled, options, context);
+            return finishAtLimit(sink, transcript, usage(transcript).modelCalls(), system, deadline, cancelled, options, context);
         } catch (AgentEventSink.ClientGoneException ex) {
-            return new Outcome(State.CANCELLED, transcript, steps);
+            return new Outcome(State.CANCELLED, transcript, usage(transcript).modelCalls());
         } catch (BusinessException ex) {
             if (!summaryReady) transcript.addAll(0, input.older());
             // The turn deadline also applies to approval and individual tool execution.
             State state = "AGENT_TIMEOUT".equals(ex.getCode()) ? State.TIMED_OUT : State.FAILED;
-            return fail(sink, transcript, steps, state, ex.getCode(), ex.getMessage());
+            return fail(sink, transcript, usage(transcript).modelCalls(), state, ex.getCode(), ex.getMessage());
         }
     }
 
@@ -637,9 +627,8 @@ public class AgentLoop {
                 .filter(item -> AgentMessage.TOOL.equals(item.role())).toList();
     }
 
-    /** Turn-local accounting also covers plan/error/approval/browser results through the same append path. */
+    /** Stamps each tool result with the turn's remaining steps, counted from the transcript itself. */
     private final class TurnTranscript extends ArrayList<AgentMessage> {
-        private int usedSteps;
         private final AgentEventSink sink;
         private final AtomicReference<String> summary;
 
@@ -648,16 +637,19 @@ public class AgentLoop {
             this.sink = sink;
             this.summary = summary;
         }
-        int remainingSteps() { return Math.max(0, properties.getMaxPlanningSteps() - usedSteps); }
+        int remainingSteps() { return Math.max(0, properties.getMaxPlanningSteps() - usage(this).toolSteps()); }
 
         @Override
         public boolean add(AgentMessage message) {
+            // The turn's question arrives with the request; a resumed request must not start a new turn.
+            if (AgentMessage.USER.equals(message.role())) throw new IllegalStateException("a turn never writes user messages");
+            boolean added = super.add(message);
             if (AgentMessage.TOOL.equals(message.role())) {
+                // Counted after appending, so a result shows the step it took itself.
                 var envelope = (com.fasterxml.jackson.databind.node.ObjectNode) readEnvelope(message.content());
                 envelope.put("remainingSteps", remainingSteps());
-                message = message.withContent(envelope.toString());
+                set(size() - 1, message.withContent(envelope.toString()));
             }
-            boolean added = super.add(message);
             sink.checkpoint(List.copyOf(this), summary.get());
             return added;
         }
@@ -681,9 +673,18 @@ public class AgentLoop {
         return PlanProgress.of(transcript, objectMapper, registry);
     }
 
-    /** Plan submissions have a separate bounded budget; execution model calls still have a ceiling. */
-    private int planModelBudget() {
-        return properties.getMaxPlanningSteps() + 2 + properties.getMaxReplans();
+    /** The only source of the turn's spent budgets, for first and resumed requests alike. */
+    private TurnUsage usage(List<AgentMessage> transcript) {
+        return TurnUsage.of(transcript, objectMapper);
+    }
+
+    /**
+     * Plan submissions have a separate bounded budget; execution model calls still have a ceiling.
+     * Each protocol correction since the last accepted plan buys back the call it used.
+     */
+    private int modelBudget(TurnUsage used) {
+        return (used.planAccepted() ? properties.getMaxPlanningSteps() + 2 + properties.getMaxReplans()
+                : properties.getMaxSteps()) + used.correctionsSincePlan();
     }
 
     private String planCorrection(AgentPlan plan, int cursor, boolean needsReplan) {

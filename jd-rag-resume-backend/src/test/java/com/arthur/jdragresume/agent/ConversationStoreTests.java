@@ -90,6 +90,26 @@ class ConversationStoreTests {
     }
 
     @Test
+    void answeringAConfirmationContinuesTheTurnWithoutAddingAUserMessage() {
+        // Plan state and spent budgets replay from the last user message; a decision must not start a new turn.
+        var policy = new TranscriptPolicy(new AgentProperties());
+        for (boolean approved : new boolean[] {true, false}) {
+            long id = store.create(1).conversation().id();
+            var run = store.accept(1, id, "帮我做完整分析", null, null, 90000, messages -> policy.normalize(messages, null));
+            store.checkpoint(run, java.util.List.of(AgentMessage.user("帮我做完整分析"), AgentMessage.assistant(null,
+                    java.util.List.of(AgentMessage.ToolCall.of("write", "start_analysis", "{}")))), null);
+            store.emit(run, "done", java.util.Map.of("state", "AWAITING_CONFIRMATION", "steps", 1));
+
+            var approval = new TranscriptPolicy.Approval("write", approved);
+            var resumed = store.accept(1, id, null, approval, null, 90000, messages -> policy.normalize(messages, approval));
+            assertEquals(run.turnId(), resumed.turnId());
+            assertEquals("write", resumed.input().pending().id());
+            assertEquals(1, resumed.input().messages().stream().filter(message -> AgentMessage.USER.equals(message.role())).count());
+            assertEquals(1, store.messages(id).stream().filter(message -> AgentMessage.USER.equals(message.role())).count());
+        }
+    }
+
+    @Test
     void searchConditionsAreDurableAndScopedToUserAndConversation() {
         long a = store.create(1).conversation().id();
         long b = store.create(1).conversation().id();

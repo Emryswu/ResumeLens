@@ -167,6 +167,7 @@ class AgentPlanningTests {
 
     @Test
     void oversizedPlanStopsAfterSixExecutionsAndReturnsPartialDataAndReason() {
+        properties.setMaxPlanningSteps(6);
         AtomicInteger calls = new AtomicInteger();
         var outcome = run((system, transcript, tools, timeout) -> tools.isEmpty() ? AgentModel.Reply.answer("已查到公司甲，6 个工具步骤已用完，其他方向尚未核实")
                 : calls.incrementAndGet() == 1 ? plan(8) : call("lookup"), true);

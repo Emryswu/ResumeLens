@@ -10,7 +10,7 @@ import jakarta.validation.constraints.Min;
 @Validated
 public class AgentProperties {
     /** Regular model calls per turn; one additional read-only call closes a turn at the limit. */
-    private int maxSteps = 6;
+    private int maxSteps = 12;
     /** Wall-clock budget for one turn. Checked between steps: a running tool is not interrupted. */
     private long turnTimeoutSeconds = 90;
     /** Upper bound for a single model call; the effective timeout is min(this, remaining turn budget). */
@@ -29,7 +29,7 @@ public class AgentProperties {
     private int maxTurnsPerWindow = 20;
     private long windowMinutes = 10;
     @Min(1)
-    private int maxPlanningSteps = 6;
+    private int maxPlanningSteps = 12;
     @Min(0)
     private int maxReplans = 2;
     @Min(1)
