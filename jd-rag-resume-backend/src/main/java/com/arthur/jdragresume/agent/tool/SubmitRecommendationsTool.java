@@ -115,13 +115,16 @@ public class SubmitRecommendationsTool implements AgentTool {
                 rejected.add(new Rejected(id, label, "尚无 FULL JD，请先核实"));
                 continue;
             }
+            // The same conflict rule as ranking and verify_boss_job, for fresh and expired JDs alike. It comes first,
+            // so an expired job that already conflicts is never sent back to a verification that would be refused.
+            String conflict = VerifyPriority.hardConflict(job, own, search(context));
+            if (conflict != null) {
+                rejected.add(new Rejected(id, label, "与求职硬条件冲突：" + conflict));
+                continue;
+            }
             if (freshness.expired(job)) {
-                // Re-verifying is pointless when the stored data already conflicts; verify_boss_job would refuse it.
-                String conflict = VerifyPriority.hardConflict(job, own, search(context));
-                rejected.add(new Rejected(id, label, conflict != null
-                        ? "与求职硬条件冲突：" + conflict + "（JD 核实已过期，无需重新核实）"
-                        : "JD 核实已过期（超过 " + freshness.maxAge().toDays() + " 天），下一步调用 verify_boss_job({\"jobId\":"
-                                + id + "}) 重新核实，再重提这条"));
+                rejected.add(new Rejected(id, label, "JD 核实已过期（超过 " + freshness.maxAge().toDays()
+                        + " 天），下一步调用 verify_boss_job({\"jobId\":" + id + "}) 重新核实，再重提这条"));
                 continue;
             }
             String original = normalize((job.description() == null ? "" : job.description()) + "\n"
@@ -135,12 +138,9 @@ public class SubmitRecommendationsTool implements AgentTool {
                 rejected.add(new Rejected(id, label, "引用片段不在已入库的 JD 原文中"));
                 continue;
             }
+            // Hard blocks were refused above through VerifyPriority; this only lists what stays unknown.
             var check = JobAvailabilityMatcher.compare(own, job.captureDepth(),
                     job.description(), job.requirements(), job.location());
-            if (check.hardBlock()) {
-                rejected.add(new Rejected(id, label, "与已填写的求职硬条件冲突"));
-                continue;
-            }
             List<String> unknown = new ArrayList<>();
             if ("UNKNOWN".equals(check.duration().status())) unknown.add("实习时长");
             if ("UNKNOWN".equals(check.attendance().status())) unknown.add("每周到岗天数");

@@ -23,9 +23,16 @@ import java.util.Set;
  * @param planAccepted         whether this turn has accepted a plan
  */
 record TurnUsage(int toolSteps, int modelCalls, int corrections, int correctionsSincePlan, boolean planAccepted) {
+    /**
+     * Refusals the model answers by retrying the same step with other arguments: they take no tool step and do not
+     * move the plan. Both {@link #NOT_STEPPED} and {@link PlanProgress#NOT_A_STEP} include this set, so a new
+     * code of this kind is added here once and cannot be counted by one and missed by the other.
+     */
+    static final Set<String> RETRY_SAME_STEP = Set.of("AGENT_STEP_LIMIT", "AGENT_PLAN_STEP_SKIPPED",
+            ResumeEvidenceValidator.CODE, VerifyPriority.CONFLICT);
     /** Codes of results the loop wrote for calls it closed before counting a step for them. */
-    static final Set<String> NOT_STEPPED = Set.of("AGENT_PLAN_INVALID", "AGENT_PLAN_MISMATCH", "AGENT_REPLAN_LIMIT",
-            "AGENT_STEP_LIMIT", "AGENT_PLAN_STEP_SKIPPED", ResumeEvidenceValidator.CODE, VerifyPriority.CONFLICT);
+    static final Set<String> NOT_STEPPED = union(RETRY_SAME_STEP,
+            Set.of("AGENT_PLAN_INVALID", "AGENT_PLAN_MISMATCH", "AGENT_REPLAN_LIMIT"));
     /** Codes of a batch closed so the model can correct its plan protocol and try again. */
     static final Set<String> CORRECTION = Set.of("AGENT_PLAN_INVALID", "AGENT_PLAN_MISMATCH");
 
@@ -78,6 +85,12 @@ record TurnUsage(int toolSteps, int modelCalls, int corrections, int corrections
         }
         toolSteps += waiting(open, unreached);
         return new TurnUsage(toolSteps, modelCalls, corrections, correctionsSincePlan, planAccepted);
+    }
+
+    static Set<String> union(Set<String> first, Set<String> second) {
+        Set<String> all = new HashSet<>(first);
+        all.addAll(second);
+        return Set.copyOf(all);
     }
 
     private static int waiting(Set<String> open, Set<String> unreached) {

@@ -157,6 +157,53 @@ class VerifyPriorityFreshnessTests {
         assertEquals(List.of(3L), collectors.started);
     }
 
+    /** The refusal is not a plan step: the plan stays on verify_boss_job, so the named job runs as planned. */
+    @Test
+    void underAnAcceptedPlanTheNamedCandidateIsStillTheCurrentStep() throws Exception {
+        listing(1, "在校/应届、本科、Java");
+        listing(3, "在校/应届、Java");
+        AgentModel model = (system, transcript, tools, timeout) -> {
+            List<JsonNode> results = results(transcript);
+            if (results.isEmpty()) return call("plan", AgentPlan.TOOL, "{\"steps\":["
+                    + "{\"tool\":\"rank_jobs_for_resume\",\"purpose\":\"排序\"},"
+                    + "{\"tool\":\"verify_boss_job\",\"purpose\":\"核实最靠前的候选\"}]}");
+            if (results.size() == 1) return call("rank", "rank_jobs_for_resume", "{}");
+            if (results.size() == 2) return call("v1", "verify_boss_job", "{\"jobId\":1}");
+            String refusal = results.get(2).path("error").path("message").asText();
+            return call("v2", "verify_boss_job", "{\"jobId\":" + pointedJob(refusal) + "}");
+        };
+        List<AgentLoop.BrowserTaskEvent> browser = new ArrayList<>();
+        var outcome = run(model, List.of(fake("rank_jobs_for_resume",
+                Map.of("matches", List.of(Map.of("jobId", 1), Map.of("jobId", 3))))), browser);
+
+        assertEquals(VerifyPriority.CONFLICT, results(outcome.transcript()).get(2).path("error").path("code").asText());
+        var progress = PlanProgress.of(outcome.transcript(), mapper, new AgentToolRegistry(List.of(
+                fake("rank_jobs_for_resume", Map.of()), new VerifyBossJobTool(jobs, collectors, freshness))));
+        assertFalse(progress.needsReplan(), "a refusal before execution must not ask for a replan");
+        assertEquals(AgentLoop.State.AWAITING_BROWSER, outcome.state(),
+                "the named job runs as the plan's verify step, not AGENT_PLAN_MISMATCH");
+        assertEquals(List.of(3L), collectors.started);
+    }
+
+    /** A FULL JD inside its lifetime is still checked against the session city before it is recommended. */
+    @Test
+    void theGateRefusesAFreshJobOutsideTheSessionCity() throws Exception {
+        library.put(7L, verifiedJob(LocalDateTime.now(clock)));
+        ConversationStore store = mock(ConversationStore.class);
+        when(store.searchContext(any())).thenReturn(
+                JobSearchContext.empty().patch(mapper.createObjectNode().put("city", "深圳")));
+        var run = new ConversationStore.Run(1L, 1L, "turn", "run", null, null, 0L);
+        var inSession = new AgentToolContext(user(1L), run);
+        JsonNode result = mapper.valueToTree(new SubmitRecommendationsTool(jobs, preferences, resumes, freshness, store)
+                .execute(mapper.readTree("{\"resumeId\":1,\"recommendations\":[{\"jobId\":7,\"reason\":\"技术栈相符\","
+                        + "\"evidence\":\"" + EVIDENCE + "\",\"resumeEvidence\":[{\"quote\":\"" + QUOTE
+                        + "\",\"supports\":\"Java 后端\"}]}]}"), inSession));
+        assertFalse(result.path("accepted").asBoolean(), result.toString());
+        String reason = result.path("rejected").get(0).path("reason").asText();
+        assertTrue(reason.contains("硬条件冲突") && reason.contains("深圳"), reason);
+        assertFalse(reason.contains("verify_boss_job"), reason);
+    }
+
     @Test
     void withNoVerifiableCandidateLeftTheRefusalNamesNoJob() throws Exception {
         listing(1, "在校/应届、本科、Java");
@@ -280,6 +327,18 @@ class VerifyPriorityFreshnessTests {
         assertEquals(List.of("JdFreshness.java", "JobDescription.java", "JobDescriptionResponse.java",
                         "VerifyBossJobTool.java"),
                 readers.stream().sorted().toList());
+    }
+
+    /** Ranking, verification and the gate decide conflicts through one rule; a private hardBlock() check would miss the city. */
+    @Test
+    void onlyVerifyPriorityTurnsFindingsIntoAHardConflict() throws Exception {
+        List<String> readers = new ArrayList<>();
+        try (var files = Files.walk(Path.of("src/main/java"))) {
+            for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
+                if (Files.readString(file).contains(".hardBlock()")) readers.add(file.getFileName().toString());
+            }
+        }
+        assertEquals(List.of(), readers, "use VerifyPriority.hardConflict instead of reading hardBlock()");
     }
 
     @Test
