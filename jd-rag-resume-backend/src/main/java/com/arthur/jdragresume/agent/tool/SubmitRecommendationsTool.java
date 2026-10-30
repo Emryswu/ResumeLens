@@ -4,6 +4,7 @@ import com.arthur.jdragresume.dto.job.JobDescriptionResponse;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
 import com.arthur.jdragresume.service.JobAvailabilityMatcher;
 import com.arthur.jdragresume.service.JobDescriptionService;
+import com.arthur.jdragresume.service.ResumeService;
 import com.arthur.jdragresume.service.JobSearchPreferencesService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
@@ -23,31 +24,42 @@ public class SubmitRecommendationsTool implements AgentTool {
 
     private final JobDescriptionService jobs;
     private final JobSearchPreferencesService preferences;
+    private final ResumeService resumes;
 
-    public SubmitRecommendationsTool(JobDescriptionService jobs, JobSearchPreferencesService preferences) {
+    public SubmitRecommendationsTool(JobDescriptionService jobs, JobSearchPreferencesService preferences, ResumeService resumes) {
         this.jobs = jobs;
         this.preferences = preferences;
+        this.resumes = resumes;
     }
 
     @Override public String name() { return "submit_recommendations"; }
 
     @Override public String description() {
-        return "正式推荐岗位前必须调用此工具提交 recommendations 数组，每项包含 jobId、reason、evidence。"
+        return "正式推荐岗位前必须调用此工具提交 recommendations 数组，传当前简历 resumeId，每项包含 jobId、reason、evidence 和至少 1 条 resumeEvidence：{quote, supports}。"
                 + "evidence 至少 8 个字符，来自 FULL JD 正文或任职要求（允许空白格式不同），不能只引用职位标题。"
+                + "quote 必须逐字摘自 get_resume 的简历原文（仅忽略空白与全半角标点），去空白后 "
+                + ResumeEvidenceValidator.MIN_QUOTE_CHARS + "～" + ResumeEvidenceValidator.MAX_QUOTE_CHARS
+                + " 字符；supports 写对应的 JD 要求。引用被拒时调用 get_resume 重读同一简历，修正后重提被拒条目。"
                 + "服务端逐条检查完整 JD、实际证据和当前求职硬条件：通过的保留，不通过的附具体原因。"
                 + "JD 未提及学历/经验或明确不限时计入合格并标注；优先条件不满足只提示。"
                 + "学历/毕业日期等用户资料缺失才保持 UNKNOWN，提示到求职条件页填写；最多修正一次。";
     }
 
     @Override public ToolSchema parameters() {
-        return ToolSchema.object().objectArray("recommendations", "准备正式推荐的岗位和 JD 证据",
+        return ToolSchema.object().integer("resumeId", "当前选定简历 id，来自 get_resume", true, 1, Long.MAX_VALUE).objectArray("recommendations", "准备正式推荐的岗位和 JD 证据",
                 true, 5, ToolSchema.object()
                         .integer("jobId", "入库岗位 id", true, 1, Long.MAX_VALUE)
                         .string("reason", "为什么推荐该岗位（中文）", true, 240)
-                        .string("evidence", "从 FULL JD 原文逐字复制的证据片段", true, 300));
+                        .string("evidence", "从 FULL JD 原文逐字复制的证据片段", true, 300)
+                        .objectArray("resumeEvidence", "至少 1 条简历原文及对应 JD 要求", false, 3, ToolSchema.object()
+                                .string("quote", "简历原文片段，长度按归一化后检查", true, 1000)
+                                .string("supports", "这条引用对应的 JD 要求", true, 300)));
     }
 
     @Override public Object execute(JsonNode arguments, AgentToolContext context) {
+        long resumeId = arguments.get("resumeId").asLong();
+        // ResumeService checks ownership and supplies the full stored text, not the get_resume preview.
+        String storedText = resumes.findById(resumeId).rawText();
         var own = preferences.forUser(context.user().getId());
         List<Submitted> approved = new ArrayList<>();
         List<Rejected> rejected = new ArrayList<>();
@@ -61,6 +73,13 @@ public class SubmitRecommendationsTool implements AgentTool {
             String label = "第" + position + "条岗位";
             if (!seen.add(id)) {
                 rejected.add(new Rejected(id, label, "重复提交"));
+                continue;
+            }
+            String citationProblem = ResumeEvidenceValidator.validate(proposal.path("resumeEvidence"), storedText);
+            if (citationProblem != null) {
+                rejected.add(new Rejected(id, label, label + "（jobId=" + id + "）" + citationProblem
+                        + "；下一步调用 get_resume({\"resumeId\":" + resumeId
+                        + "}) 重读原文，再仅重提被拒推荐。", true));
                 continue;
             }
             if (reason.isEmpty()) {
@@ -111,10 +130,18 @@ public class SubmitRecommendationsTool implements AgentTool {
             if ("UNKNOWN".equals(check.startDate().status())) unknown.add("最早到岗日期需与 HR 确认");
             if (!own.configured()) unknown.add("用户尚未配置求职条件");
             approved.add(new Submitted(id, job.title(), job.companyName(), job.location(),
-                    reason, evidence, List.copyOf(unknown), check.preferredWarnings(),
+                    reason, evidence, resumeId, resumeEvidence(proposal), List.copyOf(unknown), check.preferredWarnings(),
                     check.jdNotes(), check.missingUserFields()));
         }
         return new Result(rejected.isEmpty(), List.copyOf(approved), List.copyOf(rejected));
+    }
+
+    private static List<ResumeEvidence> resumeEvidence(JsonNode proposal) {
+        List<ResumeEvidence> evidence = new ArrayList<>();
+        for (JsonNode item : proposal.get("resumeEvidence")) {
+            evidence.add(new ResumeEvidence(item.get("quote").asText(), item.get("supports").asText()));
+        }
+        return List.copyOf(evidence);
     }
 
     private static String normalize(String value) {
@@ -123,19 +150,23 @@ public class SubmitRecommendationsTool implements AgentTool {
 
     @Override public int resultMaxChars(int configuredLimit) {
         // Five valid proposals can exceed the default 4k response ceiling; the loop finishes immediately on acceptance.
-        return Math.max(configuredLimit, 12_000);
+        return Math.max(configuredLimit, 30_000);
     }
 
     @Override public Object stepFacts(Object result) {
         Result r = (Result) result;
         return java.util.Map.of("accepted", r.accepted(),
-                "recommended", r.recommendations().size(), "rejected", r.rejected().size());
+                "recommended", r.recommendations().size(), "rejected", r.rejected().size(),
+                "recommendations", r.recommendations());
     }
 
     public record Submitted(long jobId, String title, String company, String location,
-                            String reason, String evidence, List<String> unknownConditions,
+                            String reason, String evidence, long resumeId, List<ResumeEvidence> resumeEvidence, List<String> unknownConditions,
                             List<String> preferredWarnings, List<String> jdNotes,
                             List<String> missingUserFields) { }
-    public record Rejected(long jobId, String title, String reason) { }
+    public record ResumeEvidence(String quote, String supports) { }
+    public record Rejected(long jobId, String title, String reason, boolean notExecuted) {
+        public Rejected(long jobId, String title, String reason) { this(jobId, title, reason, false); }
+    }
     public record Result(boolean accepted, List<Submitted> recommendations, List<Rejected> rejected) { }
 }

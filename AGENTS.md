@@ -55,6 +55,8 @@ CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
 
 ## Agent 工具
 
+- 模型从用户数据里引用的原文，凡是展示给用户当事实的，必须经程序校验，不能只靠提示词要求。
+
 - 会打开 BOSS 页面的工具（采集、核实详情等）必须加进 `JobSearchWorkflow.BOSS_TOOLS`，统一走一个预算入口（每轮采集次数、页数、核实次数、插件每日页数）。类名请带 `Boss`，`JobSearchWorkflowTests.everyBossToolInTheRegistryIsGovernedByTheBudget` 会扫描并拦下漏登记的工具。
 - 职位的 `location` 由插件按 `城市·区·商圈` 拼接（见 `browser-extension/src/boss-api-extractor.js`），老数据可能是 `深圳市龙岗区` 这种纯文本。比对地点时去掉分隔符再比，测试要用真实格式的样本。
 - AgentLoop 里新增的拒绝码（工具还没执行就拒绝的情况）必须走统一出口 `rejectBeforeExecution`，不得直接返回 `ToolEnvelope.error`：只有带 `executed=false` 的结果才不计入找岗预算、允许重试。工具自己在打开浏览器前拒绝时抛 `ToolNotStartedException`。工具执行前的校验（前置条件、会话条件、重复搜索、预算等）必须放在 `beginDeferred` 里执行前那段 try 中，异常会自动按未执行处理；和 `tool.begin(...)` 同一个 try 的只能是工具本身的执行。`UnexecutedCallBudgetTests` 会扫描 AgentLoop 源码拦下绕过出口的写法。

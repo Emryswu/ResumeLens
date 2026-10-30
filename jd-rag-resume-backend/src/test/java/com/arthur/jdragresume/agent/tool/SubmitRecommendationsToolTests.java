@@ -4,6 +4,8 @@ import com.arthur.jdragresume.dto.job.JobDescriptionResponse;
 import com.arthur.jdragresume.dto.user.JobSearchPreferencesView;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
 import com.arthur.jdragresume.service.JobDescriptionService;
+import com.arthur.jdragresume.service.ResumeService;
+import com.arthur.jdragresume.dto.resume.ResumeResponse;
 import com.arthur.jdragresume.service.JobSearchPreferencesService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,14 +17,17 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class SubmitRecommendationsToolTests {
+    private final ResumeService resumes = mock(ResumeService.class);
     private final ObjectMapper json = new ObjectMapper();
     private final JobDescriptionService jobs = mock(JobDescriptionService.class);
     private final JobSearchPreferencesService prefs = mock(JobSearchPreferencesService.class);
     private final AgentToolContext context = new AgentToolContext(new com.arthur.jdragresume.entity.AppUser());
-    private final SubmitRecommendationsTool tool = new SubmitRecommendationsTool(jobs, prefs);
+    private final SubmitRecommendationsTool tool = new SubmitRecommendationsTool(jobs, prefs, resumes);
 
     @BeforeEach
     void setUp() {
+        when(resumes.findById(1L)).thenReturn(new ResumeResponse(1L, 1L, "owner", "Java 简历",
+                null, null, null, null, null, null, null, "熟练使用 Spring Boot、MySQL 构建 REST API，负责服务端接口开发。", null, null));
         when(prefs.forUser(null)).thenReturn(new JobSearchPreferencesView(true, 6, 5, null, null, false));
     }
 
@@ -33,11 +38,12 @@ class SubmitRecommendationsToolTests {
     }
 
     private com.fasterxml.jackson.databind.JsonNode proposals(String... items) throws Exception {
-        return json.readTree("{\"recommendations\":[" + String.join(",", items) + "]}");
+        return json.readTree("{\"resumeId\":1,\"recommendations\":[" + String.join(",", items) + "]}");
     }
 
     private String item(long id, String evidence) throws Exception {
-        return json.writeValueAsString(java.util.Map.of("jobId", id, "reason", "有 Java 后端技术栈", "evidence", evidence));
+        return json.writeValueAsString(java.util.Map.of("jobId", id, "reason", "有 Java 后端技术栈", "evidence", evidence, "resumeEvidence", List.of(java.util.Map.of(
+                "quote", "熟练使用 Spring Boot、MySQL 构建 REST API", "supports", "熟悉 Java 后端开发"))));
     }
 
     @Test
@@ -191,4 +197,47 @@ class SubmitRecommendationsToolTests {
         assertEquals(56L, result.rejected().getFirst().jobId());
     }
 
+    @Test
+    void storedResumeIsAuthoritativeIncludingTextBeyondGetResumePreview() throws Exception {
+        String quote = "熟练使用 Spring Boot、MySQL 构建 REST API";
+        when(resumes.findById(1L)).thenReturn(new ResumeResponse(1L, 1L, "owner", "Java 简历",
+                null, null, null, null, null, null, null, "前文".repeat(3000) + quote, null, null));
+        when(jobs.findById(7L)).thenReturn(job(7, "FULL", "负责 Java 后端开发", ""));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(proposals(item(7, "负责 Java 后端开发")), context);
+        assertTrue(result.accepted());
+        assertEquals(quote, result.recommendations().getFirst().resumeEvidence().getFirst().quote());
+        verify(resumes).findById(1L);
+    }
+
+    @Test
+    void invalidOrMissingResumeEvidenceNeverReachesJobAcceptance() throws Exception {
+        for (String quote : List.of("从未在简历中出现过的集群架构设计能力", "Java",
+                "经".repeat(ResumeEvidenceValidator.MAX_QUOTE_CHARS + 1))) {
+            var args = proposals(item(7, "负责 Java 后端开发"));
+            ((com.fasterxml.jackson.databind.node.ObjectNode) args.path("recommendations").get(0)
+                    .path("resumeEvidence").get(0)).put("quote", quote);
+            var result = (SubmitRecommendationsTool.Result) tool.execute(args, context);
+            assertFalse(result.accepted());
+            assertTrue(result.rejected().getFirst().notExecuted());
+            assertTrue(result.rejected().getFirst().reason().contains("get_resume"));
+        }
+        var missing = proposals(item(7, "负责 Java 后端开发"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) missing.path("recommendations").get(0)).remove("resumeEvidence");
+        var result = (SubmitRecommendationsTool.Result) tool.execute(missing, context);
+        assertTrue(result.rejected().getFirst().notExecuted());
+        assertTrue(result.rejected().getFirst().reason().contains("至少提交 1 条"));
+        verifyNoInteractions(jobs);
+    }
+
+    @Test
+    void citationFormattingDifferencesPassThroughTheRealTool() throws Exception {
+        when(resumes.findById(1L)).thenReturn(new ResumeResponse(1L, 1L, "owner", "Java 简历",
+                null, null, null, null, null, null, null, "熟练使用 Spring Boot，MySQL：\n负责接口设计。", null, null));
+        when(jobs.findById(7L)).thenReturn(job(7, "FULL", "负责 Java 后端开发", ""));
+        var args = proposals(item(7, "负责 Java 后端开发"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) args.path("recommendations").get(0)
+                .path("resumeEvidence").get(0)).put("quote", "熟练使用Spring\nBoot, MySQL: 负责接口设计.");
+        var result = (SubmitRecommendationsTool.Result) tool.execute(args, context);
+        assertTrue(result.accepted());
+    }
 }

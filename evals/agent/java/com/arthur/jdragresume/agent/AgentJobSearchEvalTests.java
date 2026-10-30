@@ -777,7 +777,11 @@ class AgentJobSearchEvalTests {
                     return store.updateSearchContext(ctx.run(), current -> current.patch(args));
                 }
             });
-            tools.add(new SubmitRecommendationsTool(jobService, preferences));
+            var resumes = mock(com.arthur.jdragresume.service.ResumeService.class);
+            when(resumes.findById(anyLong())).thenAnswer(inv -> new com.arthur.jdragresume.dto.resume.ResumeResponse(
+                    inv.getArgument(0), 1L, "eval_user", profile.path("resume").path("title").asText(),
+                    null, null, null, null, null, null, null, profile.path("resume").path("text").asText(), null, null));
+            tools.add(new SubmitRecommendationsTool(jobService, preferences, resumes));
             return new AgentToolRegistry(tools);
         }
     }

@@ -8,6 +8,7 @@ import { AppShell } from "./components/AppShell";
 import { RetryButton } from "./components/StateBlock";
 import { ChoiceMenu } from "./components/ChoiceMenu";
 import { AgentMarkdown } from "./components/assistant/AgentMarkdown";
+import { RecommendationCards } from "./components/assistant/RecommendationCards";
 import { AnalysisCard } from "./components/assistant/AnalysisCard";
 import { BrowserTaskCard, CompletedCollectionCards, RunningCollectorCards } from "./components/assistant/BrowserTaskCard";
 import { ConfirmationCard } from "./components/assistant/ConfirmationCard";
@@ -506,6 +507,7 @@ function TurnView({
         />
       )}
 
+      <RecommendationCards turn={turn} />
       {turn.analysisId && <AnalysisCard analysisId={turn.analysisId} analysis={analysis} />}
 
       {turn.answer && (

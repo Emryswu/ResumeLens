@@ -24,9 +24,9 @@
         {"tool": "verify_boss_job", "args": {"jobId": "$job:d2-hz-rag-01"}},
         {"tool": "get_job", "args": {"jobId": "$job:d2-hz-rag-01"}},
         {"tool": "check_job_preferences", "args": {"jobId": "$job:d2-hz-rag-01"}},
-        {"tool": "submit_recommendations", "args": {"recommendations": [
+        {"tool": "submit_recommendations", "args": {"resumeId": "$resume", "recommendations": [
           {"jobId": "$job:d2-hz-rag-01", "reason": "你做过 FastAPI + LangChain 的 RAG 问答服务，与岗位的检索链路开发直接对应",
-            "evidence": "参与企业知识库问答产品的 RAG 检索链路开发"}
+            "evidence": "参与企业知识库问答产品的 RAG 检索链路开发", "resumeEvidence": [{"quote": "基于 FastAPI + LangChain 搭建 RAG 问答服务", "supports": "参与企业知识库问答产品的 RAG 检索链路开发"}]}
         ]}}
       ]]
     },
@@ -117,9 +117,9 @@
         {"tool": "verify_boss_job", "args": {"jobId": "$job:d2-hz-rag-18"}},
         {"tool": "get_job", "args": {"jobId": "$job:d2-hz-rag-18"}},
         {"tool": "check_job_preferences", "args": {"jobId": "$job:d2-hz-rag-18"}},
-        {"tool": "submit_recommendations", "args": {"recommendations": [
+        {"tool": "submit_recommendations", "args": {"resumeId": "$resume", "recommendations": [
           {"jobId": "$job:d2-hz-rag-18", "reason": "岗位要求本科在读并熟悉 Python 与 RAG 流程，你的问答助手项目可以直接对应",
-            "evidence": "了解向量数据库与 RAG 的基本流程"}
+            "evidence": "了解向量数据库与 RAG 的基本流程", "resumeEvidence": [{"quote": "专业技能：Python、FastAPI、LangChain、RAG 检索增强生成、向量数据库 Milvus、Prompt 设计、Docker、MySQL", "supports": "了解向量数据库与 RAG 的基本流程"}]}
         ]}}
       ]]
     },
@@ -142,9 +142,9 @@
         {"tool": "verify_boss_job", "args": {"jobId": "$job:d2-hz-edupref-20"}},
         {"tool": "get_job", "args": {"jobId": "$job:d2-hz-edupref-20"}},
         {"tool": "check_job_preferences", "args": {"jobId": "$job:d2-hz-edupref-20"}},
-        {"tool": "submit_recommendations", "args": {"recommendations": [
+        {"tool": "submit_recommendations", "args": {"resumeId": "$resume", "recommendations": [
           {"jobId": "$job:d2-hz-edupref-20", "reason": "本科即满足学历要求，硕士只是优先；你的 RAG 项目做过重排和引用准确率评估",
-            "evidence": "搭建检索效果评测流程，持续跟踪命中率与引用准确率"}
+            "evidence": "搭建检索效果评测流程，持续跟踪命中率与引用准确率", "resumeEvidence": [{"quote": "引入重排后答案引用准确率从 71% 提升到 86%", "supports": "搭建检索效果评测流程，持续跟踪命中率与引用准确率"}]}
         ]}}
       ]]
     },
@@ -170,9 +170,9 @@
         {"tool": "verify_boss_job", "args": {"jobId": "$job:d2-hz-agent-24"}},
         {"tool": "get_job", "args": {"jobId": "$job:d2-hz-agent-24"}},
         {"tool": "check_job_preferences", "args": {"jobId": "$job:d2-hz-agent-24"}},
-        {"tool": "submit_recommendations", "args": {"recommendations": [
+        {"tool": "submit_recommendations", "args": {"resumeId": "$resume", "recommendations": [
           {"jobId": "$job:d2-hz-agent-24", "reason": "面向在读学生，工具调用与结构化输出和你的作业批改 Agent 项目一致",
-            "evidence": "参与 AI 简历助手的工具调用模块开发"}
+            "evidence": "参与 AI 简历助手的工具调用模块开发", "resumeEvidence": [{"quote": "用 function calling 编排 4 个工具，自动读取作业、运行测试并生成评语", "supports": "参与 AI 简历助手的工具调用模块开发"}]}
         ]}}
       ]]
     },
@@ -195,9 +195,9 @@
         {"tool": "verify_boss_job", "args": {"jobId": "$job:d2-hz-exppref-26"}},
         {"tool": "get_job", "args": {"jobId": "$job:d2-hz-exppref-26"}},
         {"tool": "check_job_preferences", "args": {"jobId": "$job:d2-hz-exppref-26"}},
-        {"tool": "submit_recommendations", "args": {"recommendations": [
+        {"tool": "submit_recommendations", "args": {"resumeId": "$resume", "recommendations": [
           {"jobId": "$job:d2-hz-exppref-26", "reason": "企业实习经历只是优先项，不是门槛；你的 Prompt 与工具编排项目与岗位职责对应",
-            "evidence": "设计 Prompt 与少样本示例，配合评测数据迭代效果"}
+            "evidence": "设计 Prompt 与少样本示例，配合评测数据迭代效果", "resumeEvidence": [{"quote": "用 function calling 编排 4 个工具，自动读取作业、运行测试并生成评语", "supports": "设计 Prompt 与少样本示例，配合评测数据迭代效果"}]}
         ]}}
       ]]
     }

@@ -6,6 +6,7 @@ import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.agent.tool.DeferrableTool;
 import com.arthur.jdragresume.agent.tool.ToolText;
 import com.arthur.jdragresume.agent.tool.SubmitRecommendationsTool;
+import com.arthur.jdragresume.agent.tool.ResumeEvidenceValidator;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.ai.ReasoningEffort;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
@@ -106,7 +107,7 @@ public class AgentLoop {
                 核实次数受服务端预算限制，只核实少量排名靠前的候选岗位；不要自动发消息给 HR。
             19. 找岗位采集前必须 get_resume 读取真实简历正文、get_job_search_preferences 读取用户自行填写的条件；具体岗位的条件检查由后续推荐流程负责。
                 BLOCKED 表示显式条件冲突，UNKNOWN 表示信息不足；地区偏好默认仅影响排序，districtRequired=true 才是硬限制。LISTING 摘要不能宣称已经核实硬条件。
-            20. 找岗位的正式推荐必须最后调用 submit_recommendations，以 jobId、推荐理由和逐字 JD 证据提交，不能用文字回答绕过。
+            20. 找岗位的正式推荐必须最后调用 submit_recommendations，以当前 resumeId、jobId、推荐理由、逐字 JD 证据和 resumeEvidence（quote 简历原文、supports 对应 JD 要求）提交，不能用文字回答绕过。
                 它会检查以前轮次保存的 FULL JD 并重新核对当前硬条件；成功条目直接保留，失败条目返回 rejected 和具体原因。
                 首次有失败时只重提 rejected 的条目一次，第二次后即收尾；通过验收的作为正式推荐，其余标为“待核实”并说明原因。
                 没有通过的岗位不能当作正式推荐；采集失败、搜索覆盖和下一步的说明应如实保留。
@@ -268,7 +269,8 @@ public class AgentLoop {
                 final int replans = planned.replans();
                 boolean relevanceReplan = false;
                 boolean jobSearch = JobSearchWorkflow.applies(transcript, currentSearch);
-                boolean repairingRecommendations = jobSearch && recommendationAttempts(transcript) == 1;
+                boolean repairingResumeEvidence = resumeEvidenceRejected(transcript);
+                boolean repairingRecommendations = recommendationAttempts(transcript) == 1 || repairingResumeEvidence;
                 if (jobSearch) {
                     var progress = JobSearchWorkflow.inspect(transcript, objectMapper, currentSearch);
                     instruction += "\n" + JobSearchStopPolicy.guidance() + JobSearchWorkflow.guidance(progress);
@@ -278,11 +280,13 @@ public class AgentLoop {
                 if (repairingRecommendations) {
                     tools.addAll(registry.definitions().stream().filter(tool ->
                             SubmitRecommendationsTool.TOOL.equals(tool.name())
+                                    || "get_resume".equals(tool.name())
                                     || "get_job".equals(tool.name())
                                     || "verify_boss_job".equals(tool.name())
                                     || "check_job_preferences".equals(tool.name())).toList());
-                    instruction += "\n上次提交中通过的岗位已保留，只需重提 rejected 中的岗位；这是唯一一次修正机会。"
-                            + "可读 JD、核实并检查条件；再次提交后服务端会合并已通过和待核实岗位并完成本轮。";
+                    instruction += "\n上次提交中通过的岗位已保留，只需重提 rejected 中的岗位。"
+                            + "引用被拒时先按提示调用 get_resume 重读原文；也可读 JD、核实并检查条件。"
+                            + "已执行的提交最多修正一次，引用校验的未执行拒绝不消耗提交次数。";
                 } else if (plan == null) {
                     tools.addAll(registry.definitions());
                     tools.add(AgentPlan.definition(objectMapper));
@@ -312,7 +316,8 @@ public class AgentLoop {
                         }
                     }
                 }
-                if (jobSearch && JobSearchWorkflow.inspect(transcript, objectMapper, currentSearch).reachedTarget()) {
+                if (jobSearch && !repairingRecommendations
+                        && JobSearchWorkflow.inspect(transcript, objectMapper, currentSearch).reachedTarget()) {
                     tools.clear();
                     tools.addAll(registry.definitions().stream().filter(tool ->
                             SubmitRecommendationsTool.TOOL.equals(tool.name())).toList());
@@ -323,7 +328,7 @@ public class AgentLoop {
                 steps++;
                 requireActive(deadline, cancelled);
                 if (!reply.hasToolCalls()) {
-                    if (recommendationAttempts(transcript) > 0) {
+                    if (recommendationAttempts(transcript) > 0 || repairingResumeEvidence) {
                         return finishSubmittedRecommendations(sink, transcript, steps);
                     }
                     if (planned.unfinished()) {
@@ -372,9 +377,10 @@ public class AgentLoop {
                 }
                 // The plan's next steps always run as plan steps; only a call off the plan can be a recommendation override.
                 boolean planBatch = planned.allows(reply.toolCalls());
-                boolean recommendationOverride = !planBatch && jobSearch && reply.toolCalls().size() == 1
+                boolean recommendationOverride = !planBatch && (jobSearch || repairingRecommendations) && reply.toolCalls().size() == 1
                         && (SubmitRecommendationsTool.TOOL.equals(reply.toolCalls().getFirst().name())
-                        || repairingRecommendations && ("get_job".equals(reply.toolCalls().getFirst().name())
+                        || repairingRecommendations && ("get_resume".equals(reply.toolCalls().getFirst().name())
+                                || "get_job".equals(reply.toolCalls().getFirst().name())
                                 || "verify_boss_job".equals(reply.toolCalls().getFirst().name())
                                 || "check_job_preferences".equals(reply.toolCalls().getFirst().name())));
                 if (plan != null && !planBatch && !recommendationOverride) {
@@ -499,6 +505,10 @@ public class AgentLoop {
                         .append(item.path("location").asText())
                         .append("\n推荐理由：").append(item.path("reason").asText())
                         .append("\nJD 原文证据：「").append(item.path("evidence").asText()).append("」");
+                for (JsonNode citation : item.path("resumeEvidence")) {
+                    answer.append("\n简历原文证据：「").append(citation.path("quote").asText()).append("」")
+                            .append("\n对应 JD 要求：").append(citation.path("supports").asText());
+                }
                 for (String field : new String[] {"jdNotes", "preferredWarnings"}) {
                     JsonNode details = item.path(field);
                     if (details.isArray() && !details.isEmpty()) {
@@ -528,7 +538,8 @@ public class AgentLoop {
             answer.append("\n待核实岗位：");
             for (JsonNode item : pending.values()) {
                 answer.append("\n").append(item.path("title").asText("未确认岗位"))
-                        .append("：").append(item.path("reason").asText("尚未通过验收"));
+                        .append("：").append(item.path("reason").asText("尚未通过验收")
+                                .replaceAll("（jobId=\\d+）", ""));
             }
         }
         String message = answer.toString();
@@ -540,9 +551,41 @@ public class AgentLoop {
     private int recommendationAttempts(List<AgentMessage> transcript) {
         int count = 0;
         for (AgentMessage message : currentResults(transcript)) {
-            if (SubmitRecommendationsTool.TOOL.equals(readEnvelope(message.content()).path("tool").asText())) count++;
+            JsonNode result = readEnvelope(message.content());
+            if (SubmitRecommendationsTool.TOOL.equals(result.path("tool").asText())
+                    && ToolEnvelope.executed(result)) count++;
         }
         return count;
+    }
+
+    /** Rebuilt from transcript, so a paused/reloaded turn keeps the same repair path. */
+    private boolean resumeEvidenceRejected(List<AgentMessage> transcript) {
+        for (AgentMessage message : currentResults(transcript).reversed()) {
+            JsonNode result = readEnvelope(message.content());
+            if (!SubmitRecommendationsTool.TOOL.equals(result.path("tool").asText())) continue;
+            if (ResumeEvidenceValidator.CODE.equals(result.path("error").path("code").asText())) return true;
+            for (JsonNode item : result.path("untrusted_data").path("rejected")) {
+                if (item.path("notExecuted").asBoolean(false)) return true;
+            }
+            return false;
+        }
+        return false;
+    }
+
+    private Long selectedResume(List<AgentMessage> transcript, AgentToolContext context) {
+        Long selected = searchContext(context).resumeId();
+        if (selected != null) return selected;
+        // Without a persisted context, use the latest successful read from the server-held transcript.
+        for (AgentMessage message : transcript.reversed()) {
+            if (!AgentMessage.TOOL.equals(message.role())) continue;
+            JsonNode result = readEnvelope(message.content());
+            JsonNode data = result.path("untrusted_data");
+            if ("get_resume".equals(result.path("tool").asText()) && result.path("ok").asBoolean(false)
+                    && data.path("resumeId").isIntegralNumber() && data.hasNonNull("text")) {
+                return data.path("resumeId").asLong();
+            }
+        }
+        return selected;
     }
 
     /** Preserve the model's explanation, with a visible status only after actual search results. */
@@ -948,6 +991,23 @@ public class AgentLoop {
     private void recordResult(AgentTool tool, AgentMessage.ToolCall call, Object result, AgentToolContext context,
             AgentEventSink sink, List<AgentMessage> transcript, long started) {
         JsonNode data = ToolEnvelope.toTree(objectMapper, result);
+        if (result instanceof SubmitRecommendationsTool.Result submission) {
+            List<String> refusals = new ArrayList<>();
+            for (JsonNode item : data.path("rejected")) {
+                if (!item.path("notExecuted").asBoolean(false)) continue;
+                String reason = item.path("reason").asText();
+                refusals.add(reason);
+                ((com.fasterxml.jackson.databind.node.ObjectNode) item).set("refusal",
+                        readEnvelope(rejectBeforeExecution(call.name(), ResumeEvidenceValidator.CODE, reason)));
+            }
+            if (!refusals.isEmpty() && submission.recommendations().isEmpty()
+                    && refusals.size() == submission.rejected().size()) {
+                String message = String.join("\n", refusals);
+                rejectBeforeExecution(call, sink, transcript, clock.getAsLong() - started,
+                        ResumeEvidenceValidator.CODE, message, message);
+                return;
+            }
+        }
         String dataJson = data.toString();
         String content = ToolEnvelope.ok(call.name(), data, dataJson, tool.resultMaxChars(properties.getToolResultMaxChars()));
         record(call, sink, transcript, clock.getAsLong() - started, content, true, null, dataJson, tool.stepFacts(result));
@@ -1006,6 +1066,15 @@ public class AgentLoop {
         if (prepared.error() != null) {
             record(call, sink, transcript, 0, prepared.error(), false, prepared.errorCode(), prepared.errorMessage());
             return;
+        }
+        if (tool instanceof SubmitRecommendationsTool) {
+            Long selected = selectedResume(transcript, context);
+            if (selected != null && selected != prepared.arguments().path("resumeId").asLong()) {
+                String message = "提交的 resumeId 与当前简历不一致；下一步调用 get_resume({\"resumeId\":"
+                        + selected + "}) 重读当前简历原文，再使用该 resumeId 和引用重新提交。";
+                rejectBeforeExecution(call, sink, transcript, 0, ResumeEvidenceValidator.CODE, message, message);
+                return;
+            }
         }
         // Cancellation or expiry can occur while arguments are being prepared, including on the approval path.
         requireActive(deadline, cancelled);
