@@ -90,6 +90,23 @@ class AgentStepBudgetResumeTests {
     }
 
     @Test
+    void aPausedCallReservesItsStepSoAPlainCallInTheSameBatchCannotTakeTheLastOne() {
+        properties.setMaxPlanningSteps(2);
+        properties.setMaxSteps(12);
+        for (Pause kind : List.of(Pause.BROWSER, Pause.APPROVE)) {
+            String tool = kind == Pause.BROWSER ? "fetch_page" : "write_note";
+            Run straight = drive(new Model(tool, true), Pause.NONE);
+            Run paused = drive(new Model(tool, true), kind);
+
+            // One step left when the model sends [pausing call, lookup]: the pausing call takes it, lookup is refused.
+            assertEquals(List.of("lookup", tool), paused.executed(), kind + ": the paused call runs once, the plain call never");
+            assertEquals("AGENT_STEP_LIMIT", resultOf(paused, "call-1b").path("error").path("code").asText(), kind.name());
+            assertEquals(1, paused.resumes(), kind + ": the turn still pauses for the call that holds the last step");
+            assertSameBudget(straight, paused);
+        }
+    }
+
+    @Test
     void anApprovedConfirmationInsideAPlanContinuesLikeAStepThatNeverPaused() {
         List<List<String>> plans = List.of(List.of("lookup"), List.of("write_note", "lookup"));
         Run straight = drive(new Model(plans), Pause.NONE);
@@ -178,7 +195,7 @@ class AgentStepBudgetResumeTests {
             sink = next;
             transcripts.add(outcome.transcript());
         }
-        return new Run(model.seen, outcome, resumes, executed.size(), transcripts);
+        return new Run(model.seen, outcome, resumes, List.copyOf(executed), transcripts);
     }
 
     private AgentLoop loop(AgentModel model) {
@@ -240,10 +257,13 @@ class AgentStepBudgetResumeTests {
     private final class Model implements AgentModel {
         private final String tool;
         private final List<List<String>> plans;
+        private final boolean batch;
         private final List<Seen> seen = new ArrayList<>();
 
-        Model(String tool) { this.tool = tool; this.plans = null; }
-        Model(List<List<String>> plans) { this.tool = null; this.plans = plans; }
+        Model(String tool) { this(tool, false); }
+        /** With {@code batch}: one lookup, then {@code tool} and another lookup sent together in one reply. */
+        Model(String tool, boolean batch) { this.tool = tool; this.plans = null; this.batch = batch; }
+        Model(List<List<String>> plans) { this.tool = null; this.plans = plans; this.batch = false; }
 
         @Override
         public Reply next(String system, List<AgentMessage> transcript, List<ToolDefinition> definitions, Duration timeout) {
@@ -251,6 +271,12 @@ class AgentStepBudgetResumeTests {
             List<AgentMessage> turn = transcript.subList(lastUser(transcript) + 1, transcript.size());
             seen.add(new Seen(tools, remaining(turn), find(system, "当前计划步骤 (\\d+)"), find(system, "剩余重规划次数：(\\d+)")));
             long calls = turn.stream().filter(AgentMessage::hasToolCalls).count();
+            if (batch) {
+                if (tools.isEmpty() || calls > 1) return Reply.answer("已处理到上限");
+                return calls == 0 ? Reply.call(AgentMessage.ToolCall.of("call-0", "lookup", "{}"))
+                        : Reply.call(AgentMessage.ToolCall.of("call-1a", tool, "{\"id\":1}"),
+                                AgentMessage.ToolCall.of("call-1b", "lookup", "{}"));
+            }
             if (plans == null) {
                 return tools.contains(tool)
                         ? Reply.call(AgentMessage.ToolCall.of("call-" + calls, tool, "{\"id\":" + (calls + 1) + "}"))
@@ -315,7 +341,13 @@ class AgentStepBudgetResumeTests {
     private record Seen(List<String> tools, String remaining, String step, String replansLeft) {
     }
 
-    private record Run(List<Seen> seen, AgentLoop.Outcome outcome, int resumes, int executions,
+    private JsonNode resultOf(Run run, String callId) {
+        return json(run.outcome().transcript().stream().filter(message -> callId.equals(message.toolCallId()))
+                .reduce((first, second) -> second).orElseThrow().content());
+    }
+
+    private record Run(List<Seen> seen, AgentLoop.Outcome outcome, int resumes, List<String> executed,
                        List<List<AgentMessage>> transcripts) {
+        int executions() { return executed.size(); }
     }
 }

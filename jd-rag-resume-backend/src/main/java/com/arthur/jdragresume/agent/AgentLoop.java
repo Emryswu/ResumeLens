@@ -398,7 +398,11 @@ public class AgentLoop {
                             var omitted = calls.get(index);
                             transcript.add(AgentMessage.tool(omitted.id(), rejectBeforeExecution(omitted.name(), "AGENT_STEP_LIMIT", "执行步数已达上限，未执行")));
                         }
-                        return finishAtLimit(sink, transcript, steps, system, deadline, cancelled, options, context);
+                        // A call already waiting holds its step, so the turn still pauses for it.
+                        if (gate == null && browserGate == null) {
+                            return finishAtLimit(sink, transcript, steps, system, deadline, cancelled, options, context);
+                        }
+                        break;
                     }
                     // A batch of consecutive plan steps runs only while each earlier step finished with data.
                     if (planBatch && position > 0 && (progress(transcript).needsReplan() || gate != null || browserGate != null)) {
@@ -409,6 +413,8 @@ public class AgentLoop {
                         }
                         break;
                     }
+                    // From here the call holds a step, even while it waits for the browser or a confirmation.
+                    transcript.reach(call.id());
                     AgentTool tool = registry.find(call.name()).orElse(null);
                     boolean pauses = tool != null && (tool.requiresConfirmation() || tool instanceof DeferrableTool);
                     if (pauses && browserGate != null || tool instanceof DeferrableTool && gate != null) {
@@ -629,6 +635,8 @@ public class AgentLoop {
 
     /** Stamps each tool result with the turn's remaining steps, counted from the transcript itself. */
     private final class TurnTranscript extends ArrayList<AgentMessage> {
+        /** Calls of the batch being run that the loop has not come to yet; never meaningful across requests. */
+        private final java.util.Set<String> unreached = new java.util.HashSet<>();
         private final AgentEventSink sink;
         private final AtomicReference<String> summary;
 
@@ -639,10 +647,16 @@ public class AgentLoop {
         }
         int remainingSteps() { return Math.max(0, properties.getMaxPlanningSteps() - usage(this).toolSteps()); }
 
+        void reach(String callId) { unreached.remove(callId); }
+
         @Override
         public boolean add(AgentMessage message) {
             // The turn's question arrives with the request; a resumed request must not start a new turn.
             if (AgentMessage.USER.equals(message.role())) throw new IllegalStateException("a turn never writes user messages");
+            if (message.hasToolCalls()) {
+                unreached.clear();
+                message.toolCalls().forEach(call -> unreached.add(call.id()));
+            }
             boolean added = super.add(message);
             if (AgentMessage.TOOL.equals(message.role())) {
                 // Counted after appending, so a result shows the step it took itself.
@@ -674,8 +688,8 @@ public class AgentLoop {
     }
 
     /** The only source of the turn's spent budgets, for first and resumed requests alike. */
-    private TurnUsage usage(List<AgentMessage> transcript) {
-        return TurnUsage.of(transcript, objectMapper);
+    private TurnUsage usage(TurnTranscript transcript) {
+        return TurnUsage.of(transcript, objectMapper, transcript.unreached);
     }
 
     /**
