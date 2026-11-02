@@ -44,6 +44,17 @@ class AnalysisHistoryResponseSnapshotTests {
     }
 
     @Test
+    void listRowsLeaveOutTheSnapshotButKeepTheReportTitleAndChangeFlag() {
+        history.getJobDescription().setTitle("Python 后端");
+
+        AnalysisHistoryResponse row = AnalysisHistoryResponse.listItem(history);
+
+        assertNull(row.jobSnapshot());
+        assertEquals("Java 后端", row.jobTitle());
+        assertTrue(row.jobInputChanged());
+    }
+
+    @Test
     void oldReportWithoutSnapshotExplicitlyMarksChangedJob() {
         history.setJobSnapshot(null);
         history.getJobDescription().setRequirements("Python");
