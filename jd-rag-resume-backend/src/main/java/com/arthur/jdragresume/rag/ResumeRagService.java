@@ -294,11 +294,11 @@ public class ResumeRagService {
     }
 
     public HardSkillCoverage assessHardSkills(JobDescription jobDescription, List<RetrievedChunk> keptChunks) {
-        String jdText = String.join("\n",
+        List<String> jdFields = List.of(
                 nullToEmpty(jobDescription.getTitle()),
                 nullToEmpty(jobDescription.getDescription()),
                 nullToEmpty(jobDescription.getRequirements())
-        ).toLowerCase(Locale.ROOT);
+        );
         String evidence = keptChunks.stream()
                 .filter(RetrievedChunk::kept)
                 .map(RetrievedChunk::content)
@@ -309,35 +309,21 @@ public class ResumeRagService {
         List<String> required = new ArrayList<>();
         List<String> matched = new ArrayList<>();
         List<String> missing = new ArrayList<>();
-        HARD_SKILL_ALIASES.forEach((canonical, aliases) -> {
-            if (containsAlias(jdText, aliases)) {
-                required.add(canonical);
-                if (containsAlias(evidence, aliases)) {
-                    matched.add(canonical);
-                } else {
-                    missing.add(canonical);
-                }
+        HardSkillRequirements requirements = HardSkillRequirements.parse(jdFields, HARD_SKILL_ALIASES);
+        for (List<String> group : requirements.required()) {
+            String label = HardSkillRequirements.label(group);
+            required.add(label);
+            if (group.stream().anyMatch(skill -> containsAlias(evidence, HARD_SKILL_ALIASES.get(skill)))) {
+                matched.add(label);
+            } else {
+                missing.add(label);
             }
-        });
-        return new HardSkillCoverage(required, matched, missing);
+        }
+        return new HardSkillCoverage(required, matched, missing, requirements.preferred());
     }
 
     private static boolean containsAlias(String text, List<String> aliases) {
-        return aliases.stream().anyMatch(alias -> {
-            String normalized = alias.toLowerCase(Locale.ROOT);
-            if (normalized.chars().allMatch(ch -> ch < 128)) {
-                // ASCII aliases only need ASCII boundaries. Using \p{L} here would treat an
-                // adjacent CJK character as a word character, so "熟悉Java开发" and
-                // "Java后端工程师" — the usual spacing in Chinese resumes and JDs — would
-                // never match, silently dropping required skills and depressing the score.
-                Pattern boundary = Pattern.compile(
-                        "(?<![A-Za-z0-9])" + Pattern.quote(normalized) + "(?![A-Za-z0-9])",
-                        Pattern.CASE_INSENSITIVE
-                );
-                return boundary.matcher(text).find();
-            }
-            return text.contains(normalized);
-        });
+        return HardSkillRequirements.containsAlias(text, aliases);
     }
 
     private static Map<String, List<String>> hardSkillAliases() {
