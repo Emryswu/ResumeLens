@@ -130,6 +130,7 @@ class AnalysisSubmitGuardTests {
         assertEquals(ContentFingerprints.resume(resume), saved.getResumeFingerprint());
         assertEquals(ContentFingerprints.job(job), saved.getJobFingerprint());
         assertEquals("Java", JobSnapshot.read(saved.getJobSnapshot()).requirements());
+        assertEquals(job.getTitle(), saved.getJobTitleSnapshot());
     }
 
     @Test

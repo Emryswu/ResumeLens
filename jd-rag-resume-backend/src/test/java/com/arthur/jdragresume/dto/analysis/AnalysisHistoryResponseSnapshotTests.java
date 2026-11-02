@@ -31,6 +31,19 @@ class AnalysisHistoryResponseSnapshotTests {
     }
 
     @Test
+    void everyFingerprintedFieldIsInTheSnapshotSoAChangeNoticeIsExplainable() {
+        // Only the employment type changes: the notice fires and the snapshot still shows what it was.
+        history.getJobDescription().setEmploymentType("全职");
+
+        AnalysisHistoryResponse response = AnalysisHistoryResponse.from(history);
+
+        assertTrue(response.jobInputChanged());
+        assertEquals("实习", response.jobSnapshot().employmentType());
+        assertEquals(ContentFingerprints.job(history.getJobDescription()),
+                JobSnapshot.from(history.getJobDescription()).fingerprint());
+    }
+
+    @Test
     void oldReportWithoutSnapshotExplicitlyMarksChangedJob() {
         history.setJobSnapshot(null);
         history.getJobDescription().setRequirements("Python");
@@ -71,12 +84,13 @@ class AnalysisHistoryResponseSnapshotTests {
         job.setCompanyName("旧公司");
         job.setDescription("服务开发");
         job.setRequirements("Java, Spring Boot");
+        job.setEmploymentType("实习");
         AnalysisHistory history = new AnalysisHistory();
         history.setUser(user);
         history.setResume(resume);
         history.setJobDescription(job);
         history.setJobFingerprint(ContentFingerprints.job(job));
-        history.setJobSnapshot(JobSnapshot.write(job));
+        history.captureJobSnapshot(job);
         return history;
     }
 }

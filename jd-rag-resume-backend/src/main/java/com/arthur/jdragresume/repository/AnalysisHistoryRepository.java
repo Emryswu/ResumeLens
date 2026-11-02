@@ -116,7 +116,7 @@ public interface AnalysisHistoryRepository extends JpaRepository<AnalysisHistory
             where history.user.id = :userId
               and (
                 lower(history.resume.title) like lower(concat('%', :keyword, '%'))
-                or lower(history.jobDescription.title) like lower(concat('%', :keyword, '%'))
+                or lower(coalesce(history.jobTitleSnapshot, history.jobDescription.title)) like lower(concat('%', :keyword, '%'))
               )
             """)
     Page<AnalysisHistory> searchByUserId(

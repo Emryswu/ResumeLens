@@ -51,7 +51,7 @@ export type JobDraft = {
   requirements?: string;
 };
 
-export type JobSnapshot = Pick<Job, "title" | "companyName" | "location" | "description" | "requirements">;
+export type JobSnapshot = Pick<Job, "title" | "companyName" | "location" | "employmentType" | "description" | "requirements">;
 
 export type Analysis = {
   id: number;

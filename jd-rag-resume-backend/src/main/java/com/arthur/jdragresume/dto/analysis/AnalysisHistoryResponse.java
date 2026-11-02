@@ -60,7 +60,7 @@ public record AnalysisHistoryResponse(
                 history.getResume().getId(),
                 history.getResume().getTitle(),
                 history.getJobDescription().getId(),
-                snapshot == null ? history.getJobDescription().getTitle() : snapshot.title(),
+                history.jobTitleForDisplay(),
                 history.getMatchScore(),
                 history.getStatus(),
                 history.getSummary(),

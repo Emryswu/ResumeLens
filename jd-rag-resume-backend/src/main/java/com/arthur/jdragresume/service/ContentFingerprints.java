@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.service;
 
+import com.arthur.jdragresume.dto.analysis.JobSnapshot;
 import com.arthur.jdragresume.entity.AnalysisHistory;
 import com.arthur.jdragresume.entity.JobDescription;
 import com.arthur.jdragresume.entity.Resume;
@@ -22,14 +23,8 @@ public final class ContentFingerprints {
     }
 
     public static String job(JobDescription job) {
-        return job(
-                job.getTitle(),
-                job.getCompanyName(),
-                job.getLocation(),
-                job.getEmploymentType(),
-                job.getDescription(),
-                job.getRequirements()
-        );
+        // Delegate through the snapshot so a new fingerprint field cannot be left out of report snapshots.
+        return JobSnapshot.from(job).fingerprint();
     }
 
     public static String job(
