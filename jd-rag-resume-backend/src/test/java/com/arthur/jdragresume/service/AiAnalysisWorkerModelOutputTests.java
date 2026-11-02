@@ -84,6 +84,47 @@ class AiAnalysisWorkerModelOutputTests {
     }
 
     @Test
+    void scoreOnlyReplyFailsAndRefundsInsteadOfCreatingAHighScoreReport() {
+        run(() -> "{\"matchScore\":99}");
+
+        assertEquals(AnalysisStatus.FAILED, history.getStatus());
+        assertEquals("分析结果校验未通过，请稍后重试", history.getSummary());
+        assertEquals("AI_RESPONSE_PARSE_FAILED", refunds.getFirst().getReason());
+    }
+
+    @Test
+    void wrongFindingAndSummaryTypesFailAndRefund() {
+        run(() -> """
+                {"matchScore":99,"strengths":{},"missingSkills":[],"summary":"看起来很好。"}
+                """);
+
+        assertEquals(AnalysisStatus.FAILED, history.getStatus());
+        assertEquals("AI_RESPONSE_PARSE_FAILED", refunds.getFirst().getReason());
+    }
+
+    @Test
+    void missingSummaryFailsEvenWithValidFindings() {
+        run(() -> """
+                {"matchScore":99,"strengths":[],"missingSkills":[]}
+                """);
+
+        assertEquals(AnalysisStatus.FAILED, history.getStatus());
+        assertEquals("AI_RESPONSE_PARSE_FAILED", refunds.getFirst().getReason());
+    }
+
+    @Test
+    void explicitlyEmptyFindingsAreDifferentFromMissingFields() {
+        run(() -> """
+                {"matchScore":68,"strengths":[],"missingSkills":[],"summary":"目前没有可列出的具体优势或缺口。"}
+                """);
+
+        assertEquals(AnalysisStatus.COMPLETED, history.getStatus());
+        assertEquals("", history.getStrengths());
+        assertEquals("目前没有可列出的具体优势或缺口。", history.getSummary());
+        assertTrue(refunds.isEmpty());
+    }
+
+    @Test
     void responseThatIsNotAnalysisJsonIsAlsoRefunded() {
         run(() -> "抱歉，我无法完成这个请求。");
 

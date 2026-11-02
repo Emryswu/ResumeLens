@@ -7,6 +7,7 @@ import { apiRequest, getAuthSessionId, isAuthSessionCurrent, visibleApiErrorMess
 import { asList, downloadTextFile, evidenceChunks, parseRagMeta } from "../report-export";
 import { coverRequirements, coverageSummary } from "../requirement-coverage";
 import { findingsFrom } from "../report-items";
+import { jobContentForReport } from "../report-job";
 import { resumeFormFrom } from "../resume-upload";
 import { ErrorState, LoadingState } from "./StateBlock";
 import { EvidenceDrawer } from "./report/EvidenceDrawer";
@@ -46,13 +47,16 @@ export function MatchReport({ analysis, job, saved, disabled, onBookmark, onExpo
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
-  const currentJob = job?.id === analysis.jobDescriptionId ? job : reportJob;
+  const currentJob = job?.id === analysis.jobDescriptionId
+    ? job : reportJob?.id === analysis.jobDescriptionId ? reportJob : null;
+  const reportContent = jobContentForReport(analysis, currentJob);
+  const staleLegacyJob = !analysis.jobSnapshot && analysis.jobInputChanged;
   const evidence = evidenceChunks(analysis.retrievedContext);
   const strengths = findingsFrom(analysis.strengthItems, asList(analysis.strengths));
   const gaps = findingsFrom(analysis.gapItems, asList(analysis.missingSkills));
   const suggestions = asList(analysis.improvementSuggestions);
   const questions = asList(analysis.interviewQuestions);
-  const coverage = coverRequirements(currentJob?.requirements || "", evidence);
+  const coverage = coverRequirements(reportContent?.requirements || "", evidence);
   const coverageCounts = coverageSummary(coverage);
   const meta = parseRagMeta(analysis.retrievedContext);
 
@@ -73,13 +77,13 @@ export function MatchReport({ analysis, job, saved, disabled, onBookmark, onExpo
   }, [analysis.resumeId, resumeRetry]);
 
   useEffect(() => {
-    if (job?.id === analysis.jobDescriptionId) return;
+    if (analysis.jobSnapshot || analysis.jobInputChanged || job?.id === analysis.jobDescriptionId) return;
     let active = true;
     void apiRequest<Job>(`/api/job-descriptions/${analysis.jobDescriptionId}`).then((item) => {
       if (active) { setReportJob(item); setJobError(""); }
     }).catch(() => { if (active) setJobError("无法读取岗位原文，岗位可能已删除。"); });
     return () => { active = false; };
-  }, [analysis.jobDescriptionId, job?.id, jobRetry]);
+  }, [analysis.jobDescriptionId, analysis.jobSnapshot, analysis.jobInputChanged, job?.id, jobRetry]);
 
   async function saveCopy() {
     if (!original || !draft.trim() || saving) return;
@@ -101,7 +105,7 @@ export function MatchReport({ analysis, job, saved, disabled, onBookmark, onExpo
 
   return <>
     <ReportHeader reportId={analysis.id} score={score} resumeTitle={analysis.resumeTitle} jobTitle={analysis.jobTitle}
-      company={currentJob?.companyName} location={currentJob?.location} summary={analysis.summary} saved={saved} onBookmark={onBookmark} />
+      company={reportContent?.companyName} location={reportContent?.location} summary={analysis.summary} saved={saved} onBookmark={onBookmark} />
     <div className="review-tabs" role="tablist" aria-label="报告内容">{([
       ["evidence", "匹配依据"], ["edit", "修改简历"], ["jd", "岗位要求"],
     ] as const).map(([value, label], index, all) => <button key={value} id={`review-tab-${value}`} type="button" role="tab" aria-selected={tab === value} aria-controls="review-panel" onClick={() => setTab(value)} onKeyDown={(event) => {
@@ -113,6 +117,8 @@ export function MatchReport({ analysis, job, saved, disabled, onBookmark, onExpo
     }}>{label}</button>)}</div>
     <div className="review-body" id="review-panel" role="tabpanel" aria-labelledby={`review-tab-${tab}`}>
       {tab === "evidence" && <>
+        {staleLegacyJob && <p className="review-caveat warning" role="status">这份旧报告没有保存分析时的岗位原文，且岗位内容已变更；下面的匹配结论只对应旧版本，无法恢复当时的要求与覆盖情况。</p>}
+        {analysis.jobSnapshot && analysis.jobInputChanged && <p className="review-caveat">岗位内容后来发生了变化，以下匹配依据仍对应分析时保存的版本。</p>}
         <section className="finding-section">
           <h3><Gem size={18} aria-hidden="true" />你的经历与岗位要求</h3>
           <p className="review-caveat">每一条都引用了你简历中的片段；点「片段」查看相关原文。</p>
@@ -143,7 +149,9 @@ export function MatchReport({ analysis, job, saved, disabled, onBookmark, onExpo
         <div className="form-actions"><button type="button" className="primary" disabled={disabled || saving || !original || !draft.trim() || draft === original.rawText} onClick={() => void saveCopy()}>{saving ? "保存中…" : "另存为新简历"}</button><button type="button" className="ghost" disabled={!draft.trim()} onClick={() => downloadTextFile(`resume-${analysis.resumeId}-draft.txt`, draft, "text/plain;charset=utf-8")}>下载草稿</button></div>
         {questions.length > 0 && <details className="review-evidence interview-questions"><summary><h3>面试准备问题</h3><ChevronDown size={18} aria-hidden="true" /></summary><ol>{questions.map((text, index) => <li key={index}>{text}</li>)}</ol></details>}
       </>}
-      {tab === "jd" && <>{currentJob ? <><h3>岗位职责</h3><p className="source-text">{currentJob.description || "未提供岗位职责"}</p><h3>任职要求</h3><p className="source-text">{currentJob.requirements || "未提供任职要求"}</p></>
+      {tab === "jd" && <>{staleLegacyJob
+        ? <p className="review-caveat warning" role="status">该报告生成于岗位更新之前，旧版岗位原文未保存，无法还原当时的岗位要求。请重新分析。</p>
+        : reportContent ? <>{analysis.jobSnapshot && <p className="review-caveat">以下是分析时使用的岗位内容。</p>}<h3>岗位职责</h3><p className="source-text">{reportContent.description || "未提供岗位职责"}</p><h3>任职要求</h3><p className="source-text">{reportContent.requirements || "未提供任职要求"}</p></>
         : jobError ? <ErrorState compact text={jobError} onRetry={() => { setJobError(""); setJobRetry(value => value + 1); }} />
         : <LoadingState compact text="正在读取岗位要求…" />}</>}
     </div>

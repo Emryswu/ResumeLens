@@ -51,12 +51,18 @@ export type JobDraft = {
   requirements?: string;
 };
 
+export type JobSnapshot = Pick<Job, "title" | "companyName" | "location" | "description" | "requirements">;
+
 export type Analysis = {
   id: number;
   resumeId: number;
   resumeTitle: string;
   jobDescriptionId: number;
   jobTitle: string;
+  /** JD text frozen at submission. Null for an older report whose original JD cannot be recovered. */
+  jobSnapshot?: JobSnapshot | null;
+  /** Current JD fingerprint differs from the recorded analysis input (also true for unknown older inputs). */
+  jobInputChanged?: boolean;
   matchScore: number | null;
   status: "PENDING" | "COMPLETED" | "FAILED";
   summary?: string;

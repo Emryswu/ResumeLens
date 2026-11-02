@@ -40,6 +40,11 @@ public class AnalysisHistory extends AuditableEntity {
     @Column(length = 64)
     private String jobFingerprint;
 
+    /** Immutable JD text used for this analysis; null for reports created before V23. */
+    @Lob
+    @Column(name = "job_snapshot", columnDefinition = "LONGTEXT")
+    private String jobSnapshot;
+
     @Column(precision = 5, scale = 2)
     private BigDecimal matchScore;
 
@@ -135,6 +140,14 @@ public class AnalysisHistory extends AuditableEntity {
 
     public void setJobFingerprint(String jobFingerprint) {
         this.jobFingerprint = jobFingerprint;
+    }
+
+    public String getJobSnapshot() {
+        return jobSnapshot;
+    }
+
+    public void setJobSnapshot(String jobSnapshot) {
+        this.jobSnapshot = jobSnapshot;
     }
 
     public BigDecimal getMatchScore() {

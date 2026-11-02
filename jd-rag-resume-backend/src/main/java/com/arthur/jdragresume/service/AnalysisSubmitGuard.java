@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.service;
 
+import com.arthur.jdragresume.dto.analysis.JobSnapshot;
 import com.arthur.jdragresume.entity.AnalysisHistory;
 import com.arthur.jdragresume.entity.AnalysisStatus;
 import com.arthur.jdragresume.entity.AnalysisSubmissionLog;
@@ -128,6 +129,7 @@ public class AnalysisSubmitGuard {
         history.setJobDescription(jobDescription);
         history.setResumeFingerprint(resumeFingerprint);
         history.setJobFingerprint(jobFingerprint);
+        history.setJobSnapshot(JobSnapshot.write(jobDescription));
         history.setStatus(AnalysisStatus.PENDING);
         history.setSummary("AI analysis is pending");
         return new Admission(analysisHistoryRepository.save(history), false);

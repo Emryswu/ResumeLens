@@ -221,7 +221,7 @@ class AiAnalysisServiceParsingTests {
                 {"matchScore": 80, "strengths": [
                   {"title": "A", "detail": "有证据的一条。", "chunks": [0]},
                   {"title": "B", "detail": "没有引用的一条。", "chunks": []}
-                ], "summary": "s"}
+                ], "missingSkills": [], "summary": "s"}
                 """, Set.of(0));
 
         assertEquals(List.of("A"), parsed.result().strengthItems().stream().map(ReportItem::title).toList());
@@ -233,7 +233,7 @@ class AiAnalysisServiceParsingTests {
         AnalysisResultParser.CitationRejectedException exception = assertThrows(
                 AnalysisResultParser.CitationRejectedException.class,
                 () -> parser.parseWithAudit("""
-                        {"matchScore": 80, "strengths": [{"title": "Java", "detail": "d", "chunks": [0, "x"]}]}
+                        {"matchScore": 80, "strengths": [{"title": "Java", "detail": "d", "chunks": [0, "x"]}], "missingSkills": [], "summary": "s"}
                         """, Set.of(0)));
 
         assertEquals(1, exception.audit().malformed());
@@ -242,7 +242,7 @@ class AiAnalysisServiceParsingTests {
     @Test
     void movesCitationTokensWrittenIntoTheTextIntoChunks() {
         AnalysisResultParser.ParsedAnalysis parsed = parser.parseWithAudit("""
-                {"matchScore": 80, "strengths": [{"title": "Java", "detail": "你做过 Java 服务 [chunk-1]", "chunks": [0]}]}
+                {"matchScore": 80, "strengths": [{"title": "Java", "detail": "你做过 Java 服务 [chunk-1]", "chunks": [0]}], "missingSkills": [], "summary": "s"}
                 """, Set.of(0, 1));
 
         ReportItem item = parsed.result().strengthItems().getFirst();
@@ -258,7 +258,7 @@ class AiAnalysisServiceParsingTests {
                  "missingSkills": [
                    {"title": "部署", "detail": "你没写过上线流程。", "chunks": [], "category": "ENGINEERING"},
                    {"title": "测试", "detail": "测试经验较少。", "chunks": [0, 9], "category": "UNKNOWN"}
-                 ]}
+                 ], "summary": "s"}
                 """, Set.of(0));
 
         List<ReportItem> gaps = parsed.result().gapItems();
