@@ -45,7 +45,7 @@ public class AnalysisHistoryService {
         var pageRequest = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return PageResponse.from(analysisHistoryRepository
                 .searchByUserId(user.getId(), normalizeKeyword(keyword), pageRequest)
-                .map(AnalysisHistoryResponse::from));
+                .map(AnalysisHistoryResponse::listItem));
     }
 
     @Transactional(readOnly = true)

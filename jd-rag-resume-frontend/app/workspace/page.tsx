@@ -14,6 +14,7 @@ import { ResumeCard } from "../components/ResumeCard";
 import { RESUME_ACCEPT, relativeDay, resumeFileProblem, resumeStats } from "../resume-list";
 import { HistoryRow } from "../components/HistoryRow";
 import { TIME_RANGES, filterHistory, historyStats, type TimeRange } from "../history-view";
+import { createHistoryOpener } from "../history-open";
 import { EMPTY_PASTE_JOB, pasteJobPayload, workbenchAction, type JobSource, type PasteJobForm } from "../workbench";
 import { reportPanelState, type LoadState } from "../view-states";
 import { bookmarkKey, parseBookmarks } from "../workspace-bookmarks";
@@ -1073,6 +1074,25 @@ export default function Home() {
   const hasMoreHistory = history.length < effectiveHistoryTotal;
 
 
+  // List rows carry no JD snapshot; opening one renders the detail fetched by id (see history-open.ts).
+  const [openHistory] = useState(() => createHistoryOpener<Analysis>());
+  function openHistoryReport(id: number) {
+    const session = getAuthSessionId();
+    return openHistory(id, {
+      fetchById: (reportId) => apiRequest<Analysis>(`/api/analysis-histories/${reportId}`),
+      isSessionCurrent: () => isAuthSessionCurrent(session),
+      show: (report) => {
+        activeAnalysisRun.current = null;
+        chooseResume(report.resumeId);
+        chooseJob(report.jobDescriptionId);
+        setAnalysis(report);
+        setMatchMode("report");
+        navigate("match");
+      },
+      fail: (reason) => reportRequestError(reason, "读取报告失败"),
+    });
+  }
+
   function navigate(next: HashView) {
     setPageView(next);
     window.history.replaceState(null, "", hashForView(next));
@@ -1513,7 +1533,7 @@ export default function Home() {
                   resume={resumes.find((resume) => resume.id === item.resumeId)}
                   job={jobs.find((job) => job.id === item.jobDescriptionId)}
                   saved={savedJobs.includes(item.jobDescriptionId)}
-                  onOpen={() => { activeAnalysisRun.current = null; chooseResume(item.resumeId); chooseJob(item.jobDescriptionId); setAnalysis(item); setMatchMode("report"); navigate("match"); }} />
+                  onOpen={() => void openHistoryReport(item.id)} />
               ))}
             </div>
             {hasMoreHistory && !workspaceLoading && (

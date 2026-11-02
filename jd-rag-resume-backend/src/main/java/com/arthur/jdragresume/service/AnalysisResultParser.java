@@ -69,6 +69,14 @@ public class AnalysisResultParser {
             throw new ResponseParseException(ParseFailure.NOT_AN_OBJECT);
         }
         BigDecimal score = parseScore(root.path("matchScore"));
+        requireFindings(root, "strengths");
+        requireFindings(root, "missingSkills");
+        JsonNode summary = root.path("summary");
+        if (!summary.isTextual() || summary.asText().isBlank()) {
+            throw new ResponseParseException(summary.isMissingNode() ? ParseFailure.MISSING_FIELDS : ParseFailure.INVALID_FIELDS);
+        }
+        requireOptionalTextOrStringArray(root, "improvementSuggestions");
+        requireOptionalTextOrStringArray(root, "interviewQuestions");
         Set<Integer> allowed = keptChunkIndexes == null ? Set.of() : Set.copyOf(keptChunkIndexes);
 
         List<ReportItem> acceptedItems = new ArrayList<>();
@@ -157,6 +165,53 @@ public class AnalysisResultParser {
 
         String legacyLine() {
             return originalText != null ? originalText : toItem(chunks).legacyLine();
+        }
+    }
+
+    /** An explicit [] is valid; omitting a required finding field is not. Legacy text remains supported. */
+    private static void requireFindings(JsonNode root, String field) {
+        JsonNode node = root.path(field);
+        if (node.isMissingNode()) {
+            throw new ResponseParseException(ParseFailure.MISSING_FIELDS);
+        }
+        if (node.isTextual()) {
+            return;
+        }
+        if (!node.isArray()) {
+            throw new ResponseParseException(ParseFailure.INVALID_FIELDS);
+        }
+        for (JsonNode item : node) {
+            if (item.isTextual()) {
+                continue;
+            }
+            if (!item.isObject()) {
+                throw new ResponseParseException(ParseFailure.INVALID_FIELDS);
+            }
+            for (String key : List.of("title", "detail", "category")) {
+                JsonNode value = item.path(key);
+                if (!value.isMissingNode() && !value.isTextual()) {
+                    throw new ResponseParseException(ParseFailure.INVALID_FIELDS);
+                }
+            }
+            JsonNode chunks = item.path("chunks");
+            if (!chunks.isMissingNode() && !chunks.isArray() && !chunks.isTextual() && !chunks.isIntegralNumber()) {
+                throw new ResponseParseException(ParseFailure.INVALID_FIELDS);
+            }
+        }
+    }
+
+    private static void requireOptionalTextOrStringArray(JsonNode root, String field) {
+        JsonNode node = root.path(field);
+        if (node.isMissingNode() || node.isTextual()) {
+            return;
+        }
+        if (!node.isArray()) {
+            throw new ResponseParseException(ParseFailure.INVALID_FIELDS);
+        }
+        for (JsonNode item : node) {
+            if (!item.isTextual()) {
+                throw new ResponseParseException(ParseFailure.INVALID_FIELDS);
+            }
         }
     }
 
@@ -346,6 +401,8 @@ public class AnalysisResultParser {
         MALFORMED_JSON,
         /** Valid JSON, but an array, string or number instead of the analysis object. */
         NOT_AN_OBJECT,
+        MISSING_FIELDS,
+        INVALID_FIELDS,
         MISSING_SCORE,
         /** matchScore present but not a number, e.g. "96分" or "高". */
         INVALID_SCORE

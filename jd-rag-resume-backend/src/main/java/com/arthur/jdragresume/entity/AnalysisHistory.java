@@ -40,6 +40,15 @@ public class AnalysisHistory extends AuditableEntity {
     @Column(length = 64)
     private String jobFingerprint;
 
+    /** Immutable JD text used for this analysis; null for reports created before V23. */
+    @Lob
+    @Column(name = "job_snapshot", columnDefinition = "LONGTEXT")
+    private String jobSnapshot;
+
+    /** Title from {@link #jobSnapshot}, kept as a column for history search. */
+    @Column(name = "job_title_snapshot", length = 160)
+    private String jobTitleSnapshot;
+
     @Column(precision = 5, scale = 2)
     private BigDecimal matchScore;
 
@@ -135,6 +144,29 @@ public class AnalysisHistory extends AuditableEntity {
 
     public void setJobFingerprint(String jobFingerprint) {
         this.jobFingerprint = jobFingerprint;
+    }
+
+    public String getJobSnapshot() {
+        return jobSnapshot;
+    }
+
+    public void setJobSnapshot(String jobSnapshot) {
+        this.jobSnapshot = jobSnapshot;
+    }
+
+    /** Freeze the JD used by this analysis; the snapshot and its searchable title are always written together. */
+    public void captureJobSnapshot(JobDescription job) {
+        this.jobSnapshot = com.arthur.jdragresume.dto.analysis.JobSnapshot.write(job);
+        this.jobTitleSnapshot = job.getTitle();
+    }
+
+    public String getJobTitleSnapshot() {
+        return jobTitleSnapshot;
+    }
+
+    /** The title shown for this report; history search uses the same coalesce rule. */
+    public String jobTitleForDisplay() {
+        return jobTitleSnapshot != null ? jobTitleSnapshot : jobDescription.getTitle();
     }
 
     public BigDecimal getMatchScore() {

@@ -45,6 +45,8 @@ class AnalysisHistoryServiceSecurityTests {
                         repositoryState.latestArguments = args.clone();
                         yield repositoryState.latest;
                     }
+                    case "searchByUserId" -> new org.springframework.data.domain.PageImpl<>(
+                            repositoryState.page, (org.springframework.data.domain.Pageable) args[2], repositoryState.page.size());
                     case "toString" -> "AnalysisHistoryRepositoryTestDouble";
                     default -> throw new UnsupportedOperationException(
                             "Unexpected repository call: " + method.getName()
@@ -115,6 +117,24 @@ class AnalysisHistoryServiceSecurityTests {
         assertEquals(ContentFingerprints.job(jobDescription), repositoryState.latestOneArguments[4]);
     }
 
+    @Test
+    void historyListRowsDoNotCarryTheJdSnapshot() {
+        AnalysisHistory history = new AnalysisHistory();
+        ReflectionTestUtils.setField(history, "id", 13L);
+        history.setUser(user);
+        history.setResume(resume);
+        history.setJobDescription(jobDescription);
+        history.setJobFingerprint(ContentFingerprints.job(jobDescription));
+        history.captureJobSnapshot(jobDescription);
+        repositoryState.page = List.of(history);
+
+        var row = analysisHistoryService.findAll(0, 20, "").content().getFirst();
+
+        assertEquals(13L, row.id());
+        assertEquals(null, row.jobSnapshot());
+        assertEquals("Java backend engineer", row.jobTitle());
+    }
+
     @SuppressWarnings("unchecked")
     private static <T> T proxy(Class<T> type, java.lang.reflect.InvocationHandler handler) {
         return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[]{type}, handler);
@@ -125,6 +145,7 @@ class AnalysisHistoryServiceSecurityTests {
         private Object[] latestOneArguments;
         private List<AnalysisHistorySummaryResponse> latest = List.of();
         private Object[] latestArguments;
+        private List<AnalysisHistory> page = List.of();
     }
 
     private static final class FixedCurrentUserService extends CurrentUserService {

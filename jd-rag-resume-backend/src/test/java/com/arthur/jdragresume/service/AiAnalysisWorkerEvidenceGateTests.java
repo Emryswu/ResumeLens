@@ -49,7 +49,7 @@ class AiAnalysisWorkerEvidenceGateTests {
         var repository = historyRepository(history);
         // Hold the model score constant: this test pins the server's adjustment, not model judgment.
         var client = new CountingAiClient("""
-                {"matchScore":96,"strengths":"项目证据。[chunk-0]","summary":"项目经验分析"}
+                {"matchScore":96,"strengths":"项目证据。[chunk-0]","missingSkills":[],"summary":"项目经验分析"}
                 """);
         var properties = new RagProperties();
         var evidence = new RetrievedChunk(0, evidenceText, .9, .9, true, "kept", "项目", List.of());
@@ -87,7 +87,7 @@ class AiAnalysisWorkerEvidenceGateTests {
         history.setJobFingerprint(ContentFingerprints.job(history.getJobDescription()));
         var repository = historyRepository(history);
         var client = new CountingAiClient("""
-                {"matchScore":96,"strengths":"项目证据。[chunk-0]","summary":"符合要求"}
+                {"matchScore":96,"strengths":"项目证据。[chunk-0]","missingSkills":[],"summary":"符合要求"}
                 """);
         var properties = new RagProperties();
         var evidence = new RetrievedChunk(0, skill + " 项目", .9, .9, true, "kept", "项目", List.of());
@@ -210,7 +210,7 @@ class AiAnalysisWorkerEvidenceGateTests {
         AnalysisHistory history = pendingHistory();
         AnalysisHistoryRepository repository = historyRepository(history);
         CountingAiClient aiClient = new CountingAiClient("""
-                {"matchScore": 80, "strengths": "具备 Java 项目证据。[chunk-3]", "summary": "ok"}
+                {"matchScore": 80, "strengths": "具备 Java 项目证据。[chunk-3]", "missingSkills": [], "summary": "ok"}
                 """);
         RagProperties ragProperties = new RagProperties();
         RetrievedChunk evidence = new RetrievedChunk(3, "Java Spring Boot 项目", 0.82, 0.80, true, "kept", "项目",
@@ -248,7 +248,7 @@ class AiAnalysisWorkerEvidenceGateTests {
         history.setJobFingerprint(ContentFingerprints.job(history.getJobDescription()));
         var repository = historyRepository(history);
         var client = new CountingAiClient("""
-                {"matchScore":80,"strengths":"Java 项目。[chunk-0]","summary":"ok"}
+                {"matchScore":80,"strengths":"Java 项目。[chunk-0]","missingSkills":[],"summary":"ok"}
                 """);
         var properties = new RagProperties();
         String chunk = "Java Spring Boot 项目 " + contact;

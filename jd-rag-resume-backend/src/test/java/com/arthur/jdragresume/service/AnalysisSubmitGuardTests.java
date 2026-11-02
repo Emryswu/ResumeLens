@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.service;
 
+import com.arthur.jdragresume.dto.analysis.JobSnapshot;
 import com.arthur.jdragresume.entity.AnalysisHistory;
 import com.arthur.jdragresume.entity.AnalysisStatus;
 import com.arthur.jdragresume.entity.AnalysisSubmissionLog;
@@ -128,6 +129,21 @@ class AnalysisSubmitGuardTests {
         assertEquals(9L, saved.getId());
         assertEquals(ContentFingerprints.resume(resume), saved.getResumeFingerprint());
         assertEquals(ContentFingerprints.job(job), saved.getJobFingerprint());
+        assertEquals("Java", JobSnapshot.read(saved.getJobSnapshot()).requirements());
+        assertEquals(job.getTitle(), saved.getJobTitleSnapshot());
+    }
+
+    @Test
+    void submittedJobSnapshotDoesNotChangeWhenJobIsEdited() {
+        AnalysisHistory saved = guard.admit(user, resume.getId(), job.getId()).history();
+        String snapshot = saved.getJobSnapshot();
+
+        job.setRequirements("Python only");
+        job.setTitle("New job title");
+
+        assertEquals(snapshot, saved.getJobSnapshot());
+        assertEquals("Java", JobSnapshot.read(snapshot).requirements());
+        assertEquals("job", JobSnapshot.read(snapshot).title());
     }
 
     @Test

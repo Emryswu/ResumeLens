@@ -128,6 +128,7 @@ public class AnalysisSubmitGuard {
         history.setJobDescription(jobDescription);
         history.setResumeFingerprint(resumeFingerprint);
         history.setJobFingerprint(jobFingerprint);
+        history.captureJobSnapshot(jobDescription);
         history.setStatus(AnalysisStatus.PENDING);
         history.setSummary("AI analysis is pending");
         return new Admission(analysisHistoryRepository.save(history), false);
