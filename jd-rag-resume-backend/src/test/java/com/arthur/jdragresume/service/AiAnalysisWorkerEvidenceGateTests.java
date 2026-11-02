@@ -16,6 +16,8 @@ import com.arthur.jdragresume.rag.RetrievedChunk;
 import com.arthur.jdragresume.repository.AnalysisHistoryRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Proxy;
@@ -30,6 +32,90 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AiAnalysisWorkerEvidenceGateTests {
+
+    @ParameterizedTest
+    @CsvSource({
+            "Java 项目, 96.00, 100.00",
+            "Java Kafka 项目, 96.00, 100.00",
+            "MySQL 项目, 50.00, 50.00",
+            "MySQL Kafka 项目, 50.00, 50.00"
+    })
+    void preferredEvidenceAddsNoFixedBonusAndCannotBypassAMandatoryCap(
+            String evidenceText, String expectedScore, String expectedCap
+    ) {
+        AnalysisHistory history = pendingHistory();
+        history.getJobDescription().setRequirements("任职要求：熟悉 Java，有 Kafka 经验者优先");
+        history.setJobFingerprint(ContentFingerprints.job(history.getJobDescription()));
+        var repository = historyRepository(history);
+        // Hold the model score constant: this test pins the server's adjustment, not model judgment.
+        var client = new CountingAiClient("""
+                {"matchScore":96,"strengths":"项目证据。[chunk-0]","summary":"项目经验分析"}
+                """);
+        var properties = new RagProperties();
+        var evidence = new RetrievedChunk(0, evidenceText, .9, .9, true, "kept", "项目", List.of());
+        var rag = new ResumeRagService(null, null, null, properties, new ObjectMapper(), null, null) {
+            @Override
+            public List<RetrievedChunk> retrieve(AppUser user, Resume resume, JobDescription job) {
+                return List.of(evidence);
+            }
+        };
+        var worker = new AiAnalysisWorker(client, new AnalysisResultParser(new ObjectMapper()), repository,
+                new AnalysisHistoryUpdateService(repository, AnalysisHistoryUpdateServiceTests.refundRepository(new ArrayList<>())),
+                rag, properties);
+
+        worker.process(history.getId());
+
+        assertEquals(AnalysisStatus.COMPLETED, history.getStatus());
+        assertEquals(new BigDecimal(expectedScore), history.getMatchScore());
+        List<String> ruleGaps = ReportItems.read(history.getGapItems()).stream()
+                .filter(item -> item.source() == ReportItem.Source.RULE).map(ReportItem::title).toList();
+        assertEquals(expectedCap.equals("50.00") ? List.of("Java") : List.of(), ruleGaps);
+        assertTrue(client.lastUserPrompt().contains("required: Java\n"));
+        assertTrue(client.lastUserPrompt().contains("preferred (bonus only): Kafka"));
+        assertTrue(client.lastUserPrompt().contains("serverScoreCap: " + expectedCap));
+        assertTrue(client.lastUserPrompt().contains(evidenceText));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "熟悉 Java，了解 Redis、Kafka 者优先, Java",
+            "Java 或 Python 任意一种, Python"
+    })
+    void persistsUncappedScoresWithoutRuleGapsWhenMandatoryRequirementsAreSatisfied(String requirements, String skill) {
+        AnalysisHistory history = pendingHistory();
+        history.getJobDescription().setRequirements(requirements);
+        history.setJobFingerprint(ContentFingerprints.job(history.getJobDescription()));
+        var repository = historyRepository(history);
+        var client = new CountingAiClient("""
+                {"matchScore":96,"strengths":"项目证据。[chunk-0]","summary":"符合要求"}
+                """);
+        var properties = new RagProperties();
+        var evidence = new RetrievedChunk(0, skill + " 项目", .9, .9, true, "kept", "项目", List.of());
+        var rag = new ResumeRagService(null, null, null, properties, new ObjectMapper(), null, null) {
+            @Override
+            public List<RetrievedChunk> retrieve(AppUser user, Resume resume, JobDescription job) {
+                return List.of(evidence);
+            }
+        };
+        var worker = new AiAnalysisWorker(client, new AnalysisResultParser(new ObjectMapper()), repository,
+                new AnalysisHistoryUpdateService(repository, AnalysisHistoryUpdateServiceTests.refundRepository(new ArrayList<>())),
+                rag, properties);
+
+        worker.process(history.getId());
+
+        assertEquals(AnalysisStatus.COMPLETED, history.getStatus());
+        assertEquals(new BigDecimal("96.00"), history.getMatchScore());
+        assertFalse(history.getMissingSkills().contains("规则校验缺失"));
+        assertTrue(ReportItems.read(history.getGapItems()).stream().noneMatch(item -> item.source() == ReportItem.Source.RULE));
+        assertTrue(client.lastUserPrompt().contains("missing: (none detected)"));
+        assertTrue(client.lastUserPrompt().contains("serverScoreCap: 100.00"));
+        if (skill.equals("Java")) {
+            assertTrue(client.lastUserPrompt().contains("required: Java\n"));
+            assertTrue(client.lastUserPrompt().contains("preferred (bonus only): Redis, Kafka"));
+        } else {
+            assertTrue(client.lastUserPrompt().contains("matched: Java / Python（任选其一）"));
+        }
+    }
 
     @Test
     void completesWithZeroScoreWithoutCallingLlmWhenNoEvidencePassesThreshold() {
