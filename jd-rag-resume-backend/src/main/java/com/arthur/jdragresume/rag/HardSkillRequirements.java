@@ -20,18 +20,25 @@ record HardSkillRequirements(List<List<String>> required, List<String> preferred
     private static final Pattern ANY_ONE = Pattern.compile(
             "任意|任一|任选|至少(?:掌握|熟悉|精通|了解|具备)?一(?:种|项|门|个)|[二三四]选一|\\b(?:one|any)\\s+of\\b",
             Pattern.CASE_INSENSITIVE);
+    // A slash alone usually lists skills in Chinese JDs ("MySQL/Redis"), so it only means "or"
+    // together with an explicit any-one marker, where ENUMERATION applies.
     private static final Pattern OR = Pattern.compile(
-            "\\s*(?:语言)?\\s*(?:或(?:者|是)?|or|/|／)\\s*", Pattern.CASE_INSENSITIVE);
+            "\\s*(?:语言)?\\s*(?:或(?:者|是)?|or)\\s*", Pattern.CASE_INSENSITIVE);
     private static final Pattern ENUMERATION = Pattern.compile(
             "\\s*(?:[,、/／]|和|与|及|或(?:者|是)?|and|or)\\s*", Pattern.CASE_INSENSITIVE);
     private static final Pattern CLAUSE_SEPARATOR = Pattern.compile(
-            "[，;；。!?！？]+|\\.(?=\\s|$)|(?<=required),|(?<=preferred),|,(?=\\s*(?:must\\b|required\\b|熟悉|掌握|了解|必须))",
+            "[，;；。!?！？]+|\\.(?=\\s|$)|(?<=required),|(?<=preferred),|,(?=\\s*(?:must\\b|required\\b))"
+                    // A half-width comma touching Chinese text is a clause break, as in "熟悉Java,有Kafka经验者优先".
+                    + "|(?<=\\p{IsHan})\\s{0,3},|,(?=\\s*\\p{IsHan})",
             Pattern.CASE_INSENSITIVE);
     private static final Pattern PREFERRED_HEADING = Pattern.compile(
             "^\\s*(?:加分项|优先技能|优先条件|优先项|nice\\s+to\\s+have|bonus|preferred(?:\\s+skills)?)(?:\\s*[:：]|\\s*$)",
             Pattern.CASE_INSENSITIVE);
-    private static final Pattern REQUIRED_HEADING = Pattern.compile(
-            "^\\s*(?:任职要求|岗位要求|必备技能|必须|requirements|required(?:\\s+skills)?)(?:\\s*[:：]|\\s*$)",
+    /** Any other section heading ends a bonus section; listing only "requirements" let 岗位职责 inherit bonus status. */
+    private static final Pattern SECTION_HEADING = Pattern.compile(
+            "^\\s*(?:任职要求|任职资格|岗位要求|职位要求|必备技能|必须|岗位职责|工作职责|职位描述|岗位描述|工作内容"
+                    + "|requirements|required(?:\\s+skills)?|qualifications|responsibilities|job\\s+description)"
+                    + "(?:\\s*[:：]|\\s*$)",
             Pattern.CASE_INSENSITIVE);
 
     static HardSkillRequirements parse(List<String> fields, Map<String, List<String>> aliases) {
@@ -43,7 +50,7 @@ record HardSkillRequirements(List<List<String>> required, List<String> preferred
             boolean preferredSection = false;
             for (String line : field.split("\\R")) {
                 if (PREFERRED_HEADING.matcher(line).find()) preferredSection = true;
-                if (REQUIRED_HEADING.matcher(line).find()) preferredSection = false;
+                if (SECTION_HEADING.matcher(line).find()) preferredSection = false;
                 // Chinese commas separate clauses; ASCII commas may enumerate skills within a clause.
                 for (String clause : CLAUSE_SEPARATOR.split(line)) {
                     List<Mention> mentions = mentions(clause, aliases);

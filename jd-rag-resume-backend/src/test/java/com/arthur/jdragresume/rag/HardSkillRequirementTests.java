@@ -14,7 +14,10 @@ class HardSkillRequirementTests {
     @ValueSource(strings = {
             "任职要求：熟悉 Java。有 Kafka 经验者优先。熟悉 MySQL",
             "任职要求：熟悉 Java，有 Kafka 经验者优先，熟悉 MySQL",
-            "任职要求：\n熟悉 Java\n有 Kafka 经验者优先\n熟悉 MySQL"
+            "任职要求：\n熟悉 Java\n有 Kafka 经验者优先\n熟悉 MySQL",
+            // Half-width commas are common in pasted Chinese JDs and must still separate clauses.
+            "任职要求：熟悉 Java,有 Kafka 经验者优先,熟悉 MySQL",
+            "任职要求：熟悉Java,有Kafka经验者优先,熟悉MySQL"
     })
     void inlinePreferenceAppliesOnlyToItsClauseWithinMandatoryRequirements(String requirements) {
         HardSkillCoverage coverage = assess(requirements, "Java 项目");
@@ -72,6 +75,38 @@ class HardSkillRequirementTests {
         assertEquals(coverage.required(), coverage.matched());
         assertEquals(List.of(), coverage.missing());
         assertEquals("100.00", coverage.scoreCap().toPlainString());
+    }
+
+    @Test
+    void halfWidthCommaDoesNotTurnAMandatorySkillIntoABonus() {
+        HardSkillCoverage coverage = assess("熟悉Java,有Kafka经验者优先", "Kafka");
+
+        assertEquals(List.of("Java"), coverage.missing());
+        assertEquals(List.of("Kafka"), coverage.preferred());
+        assertEquals("50.00", coverage.scoreCap().toPlainString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"熟悉 MySQL/Redis", "熟悉 Spring Boot/MySQL/Redis 等", "熟悉 MySQL／Redis"})
+    void slashWithoutAnAnyOneMarkerListsSeparateRequirements(String requirements) {
+        HardSkillCoverage coverage = assess(requirements, "MySQL");
+
+        assertEquals(List.of("MySQL"), coverage.matched());
+        assertEquals(List.of("Redis"), coverage.missing().subList(coverage.missing().size() - 1, coverage.missing().size()));
+        coverage.required().forEach(label -> assertEquals(-1, label.indexOf("任选其一"), label));
+    }
+
+    @Test
+    void anyNonPreferredSectionHeadingEndsABonusSection() {
+        HardSkillCoverage coverage = assess("加分项：\nRedis\n岗位职责：\n使用 Java 开发后端服务", "Redis");
+
+        assertEquals(List.of("Java"), coverage.missing());
+        assertEquals(List.of("Redis"), coverage.preferred());
+    }
+
+    @Test
+    void nullPreferredListIsTreatedAsEmpty() {
+        assertEquals(List.of(), new HardSkillCoverage(List.of(), List.of(), List.of(), null).preferred());
     }
 
     @Test

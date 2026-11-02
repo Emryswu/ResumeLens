@@ -18,7 +18,7 @@ public record HardSkillCoverage(
         required = required == null ? List.of() : List.copyOf(required);
         matched = matched == null ? List.of() : List.copyOf(matched);
         missing = missing == null ? List.of() : List.copyOf(missing);
-        preferred = List.copyOf(preferred);
+        preferred = preferred == null ? List.of() : List.copyOf(preferred);
     }
 
     public boolean hasRules() {
