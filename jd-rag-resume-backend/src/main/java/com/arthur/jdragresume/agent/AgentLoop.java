@@ -260,7 +260,7 @@ public class AgentLoop {
                 if (used.modelCalls() >= modelBudget(used)) break;
                 int steps = used.modelCalls();
                 if (cancelled.getAsBoolean()) {
-                    return new Outcome(State.CANCELLED, transcript, steps);
+                    return cancelled(transcript, steps);
                 }
                 long remainingMs = deadline - clock.getAsLong();
                 if (remainingMs <= 0) {
@@ -476,7 +476,7 @@ public class AgentLoop {
             }
             return finishAtLimit(sink, transcript, usage(transcript).modelCalls(), system, deadline, cancelled, options, context);
         } catch (AgentEventSink.ClientGoneException ex) {
-            return new Outcome(State.CANCELLED, transcript, usage(transcript).modelCalls());
+            return cancelled(transcript, usage(transcript).modelCalls());
         } catch (BusinessException ex) {
             if (!summaryReady) transcript.addAll(0, input.older());
             // The turn deadline also applies to approval and individual tool execution.
@@ -487,6 +487,7 @@ public class AgentLoop {
 
     /** Merge per-item decisions across the initial submission and at most one correction. */
     private Outcome finishSubmittedRecommendations(AgentEventSink sink, List<AgentMessage> transcript, int steps) {
+        closeOutstanding(transcript, "AGENT_RECOMMENDATIONS_FINISHED");
         Map<Long, JsonNode> passed = new LinkedHashMap<>();
         Map<Long, JsonNode> pending = new LinkedHashMap<>();
         for (AgentMessage message : currentResults(transcript)) {
@@ -797,6 +798,8 @@ public class AgentLoop {
      */
     private void recordFailure(AgentMessage.ToolCall call, AgentEventSink sink, List<AgentMessage> transcript,
                                long latencyMs, RuntimeException ex) {
+        // A failed event/checkpoint delivery is not a second result for a tool that already finished.
+        if (ex instanceof AgentEventSink.ClientGoneException disconnected) throw disconnected;
         ToolFailure failure = ToolFailure.of(ex, call.name());
         if (ex instanceof ToolNotStartedException) {
             rejectBeforeExecution(call, sink, transcript, latencyMs, failure.code(), failure.message(), failure.message());
@@ -1198,20 +1201,46 @@ public class AgentLoop {
     }
 
     private static void closeOutstanding(List<AgentMessage> transcript, String code) {
+        outstandingCalls(transcript).values().forEach(call -> transcript.add(AgentMessage.tool(call.id(),
+                rejectBeforeExecution(call.name(), code, "本轮停止，未执行此操作"))));
+    }
+
+    /** A new message may only follow a fully paired tool round; ids may repeat in later rounds. */
+    private static Map<String, AgentMessage.ToolCall> outstandingCalls(List<AgentMessage> transcript) {
         Map<String, AgentMessage.ToolCall> open = new LinkedHashMap<>();
         for (AgentMessage item : transcript) {
-            if (item.hasToolCalls()) item.toolCalls().forEach(call -> open.put(call.id(), call));
-            if (AgentMessage.TOOL.equals(item.role())) open.remove(item.toolCallId());
+            if (AgentMessage.TOOL.equals(item.role())) {
+                if (open.remove(item.toolCallId()) == null) {
+                    throw new IllegalStateException("tool result has no outstanding call");
+                }
+            } else {
+                if (!open.isEmpty()) throw new IllegalStateException("message follows unanswered tool calls");
+                if (item.hasToolCalls()) {
+                    for (AgentMessage.ToolCall call : item.toolCalls()) {
+                        if (open.putIfAbsent(call.id(), call) != null) {
+                            throw new IllegalStateException("duplicate tool call id in a batch");
+                        }
+                    }
+                }
+            }
         }
-        open.values().forEach(call -> transcript.add(AgentMessage.tool(call.id(), rejectBeforeExecution(call.name(), code, "本轮停止，未执行此操作"))));
+        return open;
+    }
+
+    private static Outcome cancelled(List<AgentMessage> transcript, int steps) {
+        // The sink may have lost its run lease. Close the returned snapshot without checkpointing through it.
+        List<AgentMessage> closed = new ArrayList<>(transcript);
+        closeOutstanding(closed, "AGENT_CANCELLED");
+        return new Outcome(State.CANCELLED, closed, steps);
     }
 
     private Outcome done(AgentEventSink sink, State state, List<AgentMessage> transcript, int steps) {
+        Outcome outcome = new Outcome(state, transcript, steps);
         List<AgentMessage> partial = state == State.COMPLETED || state == State.AWAITING_CONFIRMATION
                 || state == State.AWAITING_BROWSER ? List.of()
                 : currentResults(transcript);
         sink.emit("done", new DoneEvent(state, steps, List.copyOf(transcript), null, null, partial));
-        return new Outcome(state, transcript, steps);
+        return outcome;
     }
 
     public enum State {
@@ -1219,6 +1248,13 @@ public class AgentLoop {
     }
 
     public record Outcome(State state, List<AgentMessage> transcript, int steps) {
+        public Outcome {
+            int pending = outstandingCalls(transcript).size();
+            boolean paused = state == State.AWAITING_CONFIRMATION || state == State.AWAITING_BROWSER;
+            if (pending != (paused ? 1 : 0)) {
+                throw new IllegalStateException("outcome must close tool calls except the single paused action");
+            }
+        }
     }
 
     public record StepEvent(

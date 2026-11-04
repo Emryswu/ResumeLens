@@ -90,6 +90,23 @@ class AgentBrowserTaskTests {
     }
 
     @Test
+    void failedSendAfterBrowserResultDoesNotWriteASecondResult() {
+        Paused paused = pause();
+        RecordingSink sink = new RecordingSink();
+        sink.onEmit = name -> {
+            if ("step".equals(name)) throw new AgentEventSink.ClientGoneException(null);
+        };
+        var outcome = resume(new ScriptedModel(transcript -> AgentModel.Reply.answer("完成")),
+                paused, report(paused, "completed"), sink);
+
+        assertEquals(AgentLoop.State.CANCELLED, outcome.state());
+        assertEquals(1, outcome.transcript().stream().filter(message -> "c1".equals(message.toolCallId())).count());
+        List<AgentMessage> next = new ArrayList<>(outcome.transcript());
+        next.add(AgentMessage.user("继续"));
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> policy().normalize(next, null));
+    }
+
+    @Test
     void aReportAfterTheDeadlineIsRefusedAndTheModelIsToldItExpired() {
         Paused paused = pause();
         ScriptedModel model = new ScriptedModel(transcript -> AgentModel.Reply.answer("采集超时了"));
