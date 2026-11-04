@@ -13,6 +13,8 @@ import com.arthur.jdragresume.collect.JobCollectionHistory;
 
 @Component
 public class SearchJobsTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return false; }
+
     private static final int PAGE_SIZE = 10;
 
     private final JobDescriptionService jobDescriptionService;

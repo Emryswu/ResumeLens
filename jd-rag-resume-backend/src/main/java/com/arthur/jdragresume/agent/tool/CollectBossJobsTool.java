@@ -26,6 +26,8 @@ import java.util.Map;
  */
 @Component
 public class CollectBossJobsTool implements DeferrableTool {
+    @Override public boolean emptyResultIsValid() { return false; }
+
     static final String PLATFORM = "BOSS";
 
     private final JobCollector collector;

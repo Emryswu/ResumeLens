@@ -22,6 +22,8 @@ import java.util.Map;
 
 @Component
 public class RankJobsForResumeTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return false; }
+
     /** Candidates fetched before conflicts are moved back, so a conflicting job never displaces one that fits. */
     private static final int CANDIDATE_POOL = 200;
     private static final int SUGGESTED_VERIFICATIONS = 3;

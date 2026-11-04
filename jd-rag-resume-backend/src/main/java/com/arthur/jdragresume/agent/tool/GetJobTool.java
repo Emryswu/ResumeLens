@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class GetJobTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return true; }
+
     /**
      * Each verified posting is read into the model context; the hard-condition excerpts already come
      * separately in {@code evidence}, so the body only needs enough for context, not the whole page.

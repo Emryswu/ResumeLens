@@ -21,6 +21,8 @@ import java.util.Map;
  */
 @Component
 public class VerifyBossJobTool implements DeferrableTool {
+    @Override public boolean emptyResultIsValid() { return false; }
+
     private final JobDescriptionService jobs;
     private final com.arthur.jdragresume.collect.RoutingJobCollector collectors;
     private final JdFreshness freshness;

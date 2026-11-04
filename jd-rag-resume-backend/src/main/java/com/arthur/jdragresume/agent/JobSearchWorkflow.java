@@ -90,6 +90,7 @@ final class JobSearchWorkflow {
             }
         }
         Map<String, Attempt> pending = new LinkedHashMap<>();
+        Set<String> pendingBossCalls = new LinkedHashSet<>();
         Map<String, Long> pendingVerifications = new LinkedHashMap<>();
         Map<String, Long> pendingChecks = new LinkedHashMap<>();
         Map<Long, Check> checks = new LinkedHashMap<>();
@@ -106,6 +107,7 @@ final class JobSearchWorkflow {
             if (message.hasToolCalls()) {
                 for (AgentMessage.ToolCall call : message.toolCalls()) {
                     if (call.id().equals(excludeCallId)) continue;
+                    if (governs(call.name())) pendingBossCalls.add(call.id());
                     if ("check_job_preferences".equals(call.name())) {
                         pendingChecks.put(call.id(), parse(mapper, call.arguments()).path("jobId").asLong(-1));
                         continue;
@@ -133,9 +135,13 @@ final class JobSearchWorkflow {
                 }
             }
             if (!AgentMessage.TOOL.equals(message.role())) continue;
+            JsonNode result = parse(mapper, message.content());
+            if (pendingBossCalls.remove(message.toolCallId())) {
+                String blocked = JobSearchStopPolicy.haltReason(result);
+                if (blocked != null && haltReason == null) haltReason = blocked;
+            }
             Long checkedJob = pendingChecks.remove(message.toolCallId());
             if (checkedJob != null) {
-                JsonNode result = parse(mapper, message.content());
                 JsonNode data = result.path("untrusted_data");
                 if (result.path("ok").asBoolean(false) && "FULL".equals(data.path("captureDepth").asText())
                         && data.path("jobId").asLong(-1) == checkedJob) {
@@ -150,7 +156,6 @@ final class JobSearchWorkflow {
             Long verifiedCandidate = pendingVerifications.remove(message.toolCallId());
             if (verifiedCandidate != null) {
                 boolean reserved = Boolean.TRUE.equals(estimatedDailyPageCharged.remove(message.toolCallId()));
-                JsonNode result = parse(mapper, message.content());
                 // Only a call that never ran is refunded; which error it was does not matter.
                 if (!ToolEnvelope.executed(result)) {
                     attempted.remove(message.toolCallId());
@@ -172,14 +177,11 @@ final class JobSearchWorkflow {
             }
             Attempt attempt = pending.remove(message.toolCallId());
             if (attempt == null) continue;
-            JsonNode result = parse(mapper, message.content());
             // A call refused before it ran never reached the browser and must not use up the budget.
             if (!ToolEnvelope.executed(result)) {
                 attempts.remove(attempt);
                 continue;
             }
-            String blocked = JobSearchStopPolicy.haltReason(result);
-            if (blocked != null) haltReason = blocked;
             if (!result.path("ok").asBoolean(false)) continue;
             JsonNode data = result.path("untrusted_data");
             pagesRead += Math.max(0, data.path("pagesRead").asInt(0));
@@ -310,7 +312,7 @@ final class JobSearchWorkflow {
         if (progress.reachedTarget()) {
             info.append("合格推荐候选已达到本次目标，现在提前收尾，不再调用采集或核实工具。");
         } else if (progress.haltReason() != null) {
-            info.append(progress.haltReason()).append("。仍可根据已保存结果说明情况，但不得再次采集。");
+            info.append(progress.haltReason()).append("。仍可根据已保存结果说明情况，但不得再次采集或核实。");
         } else if (canContinue) {
             info.append("仍可在预算内决定是否补搜，每次优先 maxPages=1。");
         } else {

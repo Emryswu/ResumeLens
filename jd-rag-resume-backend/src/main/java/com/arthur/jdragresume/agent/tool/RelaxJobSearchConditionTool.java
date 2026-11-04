@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class RelaxJobSearchConditionTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return false; }
+
     public static final String TOOL = "relax_job_search_condition";
 
     private final ConversationStore conversations;

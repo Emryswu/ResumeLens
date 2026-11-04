@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 /** Explicit conversation-scoped filter changes without opening a BOSS page. */
 @Component
 public class UpdateJobSearchContextTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return false; }
+
     private final ConversationStore conversations;
     private final JobSearchProfile profile;
 

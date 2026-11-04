@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 /** Profile is user-controlled; absence means unknown, never an inferred restriction. */
 @Component
 public class GetJobSearchPreferencesTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return true; }
+
     private final JobSearchPreferencesService preferences;
 
     public GetJobSearchPreferencesTool(JobSearchPreferencesService preferences) {

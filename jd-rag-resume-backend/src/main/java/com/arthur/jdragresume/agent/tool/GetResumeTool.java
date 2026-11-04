@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class GetResumeTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return true; }
+
     static final int TEXT_LIMIT = 5000;
     private final ResumeService resumes;
 

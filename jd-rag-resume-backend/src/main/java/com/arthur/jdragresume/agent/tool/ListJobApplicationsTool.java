@@ -8,6 +8,8 @@ import java.util.Map;
 
 @Component
 public class ListJobApplicationsTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return true; }
+
     private final JobApplicationService applications;
 
     public ListJobApplicationsTool(JobApplicationService applications) {

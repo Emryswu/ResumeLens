@@ -18,6 +18,8 @@ import java.util.List;
  */
 @Component
 public class SearchResumeEvidenceTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return false; }
+
     private static final int CHUNK_LIMIT = 600;
 
     private final ResumeService resumeService;

@@ -25,6 +25,8 @@ import java.util.Set;
  */
 @Component
 public class SubmitRecommendationsTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return false; }
+
     public static final String TOOL = "submit_recommendations";
 
     private final JobDescriptionService jobs;
