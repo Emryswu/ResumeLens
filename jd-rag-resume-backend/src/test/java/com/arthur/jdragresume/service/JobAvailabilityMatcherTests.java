@@ -1,9 +1,12 @@
 package com.arthur.jdragresume.service;
 
+import com.arthur.jdragresume.agent.tool.CheckJobPreferencesTool;
 import com.arthur.jdragresume.dto.user.JobSearchPreferencesView;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -55,15 +58,17 @@ class JobAvailabilityMatcherTests {
                 "至少实习3个月；每周5天。", "", "深圳市龙岗区");
         assertFalse(compared.hardBlock());
         assertFalse(compared.jdConditionsMet());
-        assertEquals("NOT_SET", compared.duration().status());
-    }
-
-    @Test void vagueOrPreferredConditionsAreUnknown() {
-        var compared = JobAvailabilityMatcher.compare(profile(2, 2, false), "FULL",
-                "实习三个月优先；每周5天优先；其他面议", "", "");
         assertEquals("UNKNOWN", compared.duration().status());
         assertEquals("UNKNOWN", compared.attendance().status());
+    }
+
+    @Test void unparsedMentionStaysUnknownWhileAParsedPreferenceDoesNot() {
+        var compared = JobAvailabilityMatcher.compare(profile(2, 2, false), "FULL",
+                "实习三个月优先；每周5天优先；其他面议", "", "");
+        assertEquals("UNKNOWN", compared.duration().status(), "a Chinese numeral without a parsed digit stays unknown");
+        assertEquals("PREFERRED", compared.attendance().status());
         assertFalse(compared.hardBlock());
+        assertFalse(compared.jdConditionsMet());
     }
 
     /** Real extension format is 城市·区·商圈 (boss-api-extractor.js); the UI hint suggests "深圳龙岗区". */
@@ -271,6 +276,198 @@ class JobAvailabilityMatcherTests {
             assertFalse(result.hasUnknown());
             assertEquals(years == null, result.missingUserFields().contains("经验"));
         }
+    }
+
+    private JobSearchPreferencesView person(Integer months, Integer days, Integer education,
+                                            Integer years, Boolean student) {
+        return new JobSearchPreferencesView(true, months, days, null, null, false,
+                education, null, years, student);
+    }
+
+    /** Ordinary full-time postings omit internship length; a non-student must still qualify. */
+    @Test void fullTimeApplicantMeetsOrdinaryJdThatOmitsInternshipDuration() {
+        var result = JobAvailabilityMatcher.compare(person(null, null, 2, 3, false), "FULL",
+                "负责 Java 后端服务开发，参与系统设计与编码。", "本科及以上；3年以上工作经验",
+                "深圳·南山区·科技园");
+        assertEquals("NOT_APPLICABLE", result.duration().status());
+        assertEquals("NOT_APPLICABLE", result.attendance().status());
+        assertEquals("MEETS", result.education().status());
+        assertEquals("MEETS", result.experience().status());
+        assertFalse(result.hardBlock());
+        assertFalse(result.hasUnknown());
+        assertTrue(result.jdConditionsMet());
+    }
+
+    /** A student who filled internship terms still qualifies when the JD never states them. */
+    @Test void studentWithFilledInternshipTermsMeetsJdThatDoesNotMentionThem() {
+        var result = JobAvailabilityMatcher.compare(person(6, 4, 2, 0, true), "FULL",
+                "参与业务系统开发，完成需求迭代。", "本科及以上", "深圳");
+        assertEquals("NOT_MENTIONED", result.duration().status());
+        assertEquals("NOT_MENTIONED", result.attendance().status());
+        assertFalse(result.hardBlock());
+        assertFalse(result.hasUnknown());
+        assertTrue(result.jdConditionsMet());
+    }
+
+    /** "实习 6 个月以上优先" is a preference, not a hard gate. */
+    @Test void preferredInternshipMonthsDoNotBlockAStudent() {
+        var filled = JobAvailabilityMatcher.compare(person(3, 5, 2, 0, true), "FULL",
+                "实习 6 个月以上优先。参与 Java 后端开发。", "本科及以上；每周5天", "深圳");
+        assertEquals("PREFERRED", filled.duration().status());
+        assertEquals("MEETS", filled.attendance().status());
+        assertFalse(filled.hardBlock());
+        assertFalse(filled.hasUnknown());
+        assertTrue(filled.jdConditionsMet());
+        assertTrue(filled.duration().explanation().contains("6") && filled.duration().explanation().contains("3"),
+                filled.duration().explanation());
+        assertTrue(filled.preferredWarnings().contains(filled.duration().explanation()));
+
+        var missing = JobAvailabilityMatcher.compare(person(null, 5, 2, 0, true), "FULL",
+                "实习 6 个月以上优先。参与 Java 后端开发。", "本科及以上；每周5天", "深圳");
+        assertEquals("PREFERRED", missing.duration().status());
+        assertTrue(missing.jdConditionsMet());
+        assertFalse(missing.duration().explanation().contains("你可提供"), missing.duration().explanation());
+        assertTrue(missing.duration().explanation().contains("6"), missing.duration().explanation());
+    }
+
+    /** "每周 4 天优先" is a preference, not a hard gate. */
+    @Test void preferredWeeklyDaysDoNotBlockAStudent() {
+        var result = JobAvailabilityMatcher.compare(person(6, 2, 2, 0, true), "FULL",
+                "每周 4 天优先。参与 Java 后端开发。", "本科及以上；实习至少3个月", "深圳");
+        assertEquals("PREFERRED", result.attendance().status());
+        assertEquals("MEETS", result.duration().status());
+        assertFalse(result.hardBlock());
+        assertFalse(result.hasUnknown());
+        assertTrue(result.jdConditionsMet());
+        assertTrue(result.attendance().explanation().contains("4") && result.attendance().explanation().contains("2"),
+                result.attendance().explanation());
+    }
+
+    /** A hard minimum still blocks when the same JD also states a higher preference. */
+    @Test void hardMonthMinimumStillBlocksBesideAPreferredClause() {
+        var result = JobAvailabilityMatcher.compare(person(2, 5, 2, 0, true), "FULL",
+                "至少实习 3 个月，6 个月以上优先。", "本科及以上；每周5天", "深圳");
+        assertEquals("BLOCKED", result.duration().status());
+        assertTrue(result.hardBlock());
+        assertFalse(result.jdConditionsMet());
+    }
+
+    /** An explicit weekly-attendance conflict still blocks; silence is not the same as a match. */
+    @Test void studentAskingForFourDaysDoesNotMeetAnExplicitFiveDayRequirement() {
+        var result = JobAvailabilityMatcher.compare(person(6, 4, 2, 0, true), "FULL",
+                "实习至少3个月；每周至少5天。", "本科及以上", "深圳");
+        assertEquals("MEETS", result.duration().status());
+        assertEquals("BLOCKED", result.attendance().status());
+        assertTrue(result.hardBlock());
+        assertFalse(result.jdConditionsMet());
+    }
+
+    /**
+     * Education, experience, internship months and days per week share one satisfaction rule,
+     * the same one {@link CheckJobPreferencesTool} describes: an unset field is not a limit,
+     * JD silence or an explicit unlimited clause counts as met, and only an explicit conflict
+     * (or an unresolvable UNKNOWN) keeps {@code jdConditionsMet} false.
+     */
+    @Test void educationExperienceMonthsAndDaysShareTheToolDescriptionRule() {
+        record Sample(String dimension, String status, boolean counts,
+                      JobSearchPreferencesView own, String description, String requirements) { }
+        // Other dimensions are held in a state the old and new rules both accept, so a miss is this dimension.
+        String internship = "实习至少3个月；每周5天。";
+        List<Sample> samples = List.of(
+                new Sample("education", "MEETS", true, person(6, 5, 2, 1, true),
+                        internship, "本科及以上；1年以上工作经验"),
+                new Sample("education", "PREFERRED", true, person(6, 5, 2, 1, true),
+                        internship, "硕士优先；1年以上工作经验"),
+                new Sample("education", "NOT_MENTIONED", true, person(6, 5, 2, 1, true),
+                        internship, "1年以上工作经验"),
+                new Sample("education", "UNRESTRICTED", true, person(6, 5, 2, 1, true),
+                        internship, "学历不限；1年以上工作经验"),
+                new Sample("education", "UNKNOWN", false, person(6, 5, null, 1, true),
+                        internship, "本科及以上；1年以上工作经验"),
+                new Sample("education", "BLOCKED", false, person(6, 5, 2, 1, true),
+                        internship, "硕士及以上；1年以上工作经验"),
+                new Sample("experience", "MEETS", true, person(6, 5, 2, 2, true),
+                        internship, "本科及以上；1-3年工作经验"),
+                new Sample("experience", "PREFERRED", true, person(6, 5, 2, 4, true),
+                        internship, "本科及以上；3年以内工作经验优先"),
+                new Sample("experience", "NOT_MENTIONED", true, person(6, 5, 2, 1, true),
+                        internship, "本科及以上"),
+                new Sample("experience", "UNRESTRICTED", true, person(6, 5, 2, null, true),
+                        internship, "本科及以上；工作经验不限"),
+                new Sample("experience", "UNKNOWN", false, person(6, 5, 2, null, true),
+                        internship, "本科及以上；1年以上工作经验"),
+                new Sample("experience", "BLOCKED", false, person(6, 5, 2, 0, true),
+                        internship, "本科及以上；3年以上工作经验"),
+                new Sample("months", "MEETS", true, person(6, 5, 2, 1, true),
+                        "实习至少3个月；每周5天。", "本科及以上；1年以上工作经验"),
+                new Sample("months", "NOT_MENTIONED", true, person(6, 5, 2, 1, true),
+                        "每周5天。", "本科及以上；1年以上工作经验"),
+                new Sample("months", "NOT_SET", true, person(null, 5, 2, 1, true),
+                        "每周5天。", "本科及以上；1年以上工作经验"),
+                new Sample("months", "UNKNOWN", false, person(null, 5, 2, 1, true),
+                        "实习至少6个月；每周5天。", "本科及以上；1年以上工作经验"),
+                new Sample("months", "BLOCKED", false, person(3, 5, 2, 1, true),
+                        "实习至少6个月；每周5天。", "本科及以上；1年以上工作经验"),
+                new Sample("months", "PREFERRED", true, person(3, 5, 2, 1, true),
+                        "实习 6 个月以上优先；每周5天。", "本科及以上；1年以上工作经验"),
+                new Sample("months", "NOT_APPLICABLE", true, person(3, 4, 2, 3, false),
+                        "实习至少6个月；每周至少5天。", "本科及以上；3年以上工作经验"),
+                new Sample("days", "MEETS", true, person(6, 5, 2, 1, true),
+                        "实习至少3个月；每周5天。", "本科及以上；1年以上工作经验"),
+                new Sample("days", "NOT_MENTIONED", true, person(6, 4, 2, 1, true),
+                        "实习至少3个月。", "本科及以上；1年以上工作经验"),
+                new Sample("days", "NOT_SET", true, person(6, null, 2, 1, true),
+                        "实习至少3个月。", "本科及以上；1年以上工作经验"),
+                new Sample("days", "UNKNOWN", false, person(6, null, 2, 1, true),
+                        "实习至少3个月；每周至少5天。", "本科及以上；1年以上工作经验"),
+                new Sample("days", "BLOCKED", false, person(6, 4, 2, 1, true),
+                        "实习至少3个月；每周至少5天。", "本科及以上；1年以上工作经验"),
+                new Sample("days", "PREFERRED", true, person(6, 2, 2, 1, true),
+                        "实习至少3个月；每周 4 天优先。", "本科及以上；1年以上工作经验"),
+                new Sample("days", "NOT_APPLICABLE", true, person(3, 4, 2, 3, false),
+                        "实习至少6个月；每周至少5天。", "本科及以上；3年以上工作经验")
+        );
+        var rule = java.util.Map.of(
+                "MEETS", true, "PREFERRED", true, "NOT_MENTIONED", true, "UNRESTRICTED", true,
+                "NOT_SET", true, "NOT_APPLICABLE", true, "UNKNOWN", false, "BLOCKED", false);
+        List<String> failures = new ArrayList<>();
+        for (String dimension : List.of("education", "experience", "months", "days")) {
+            for (var entry : rule.entrySet()) {
+                boolean decided = JobAvailabilityMatcher.countsTowardJdConditions(entry.getKey());
+                if (decided != entry.getValue()) {
+                    failures.add(dimension + " " + entry.getKey() + " decided " + decided
+                            + " but the tool description expects " + entry.getValue());
+                }
+            }
+        }
+        for (Sample sample : samples) {
+            var result = JobAvailabilityMatcher.compare(sample.own(), "FULL",
+                    sample.description(), sample.requirements(), "深圳");
+            var finding = switch (sample.dimension()) {
+                case "education" -> result.education();
+                case "experience" -> result.experience();
+                case "months" -> result.duration();
+                case "days" -> result.attendance();
+                default -> throw new IllegalStateException(sample.dimension());
+            };
+            if (!sample.status().equals(finding.status())) {
+                failures.add(sample.dimension() + " expected status " + sample.status()
+                        + " but was " + finding.status() + " (" + finding.explanation() + ")");
+            }
+            if (result.jdConditionsMet() != sample.counts()) {
+                failures.add(sample.dimension() + " " + sample.status()
+                        + " jdConditionsMet=" + result.jdConditionsMet() + " expected " + sample.counts());
+            } else if (sample.counts() != rule.get(sample.status())) {
+                failures.add(sample.dimension() + " " + sample.status()
+                        + " disagrees with the shared rule");
+            }
+        }
+        assertTrue(failures.isEmpty(), String.join("\n", failures));
+        String description = new CheckJobPreferencesTool(null, null).description();
+        assertTrue(description.contains("用户没设该项不构成限制"), description);
+        assertTrue(description.contains("JD 未提及或明确不限计入合格"), description);
+        assertTrue(description.contains("不把 UNKNOWN 计入已确认符合"), description);
+        assertTrue(description.contains("非在校用户不检查实习月数和每周天数"), description);
     }
 
 }

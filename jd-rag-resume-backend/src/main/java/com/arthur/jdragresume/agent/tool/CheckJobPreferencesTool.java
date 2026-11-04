@@ -25,7 +25,10 @@ public class CheckJobPreferencesTool implements AgentTool {
         return "把用户自己填写的学历、毕业时间、工作经验、在校状态和实习到岗条件与 FULL JD 对照。"
                 + "BLOCKED 是明确冲突，UNKNOWN 表示缺少可靠信息，LOWER_PRIORITY 只是地理偏好不合。"
                 + "列表摘要不能当作核实完成；模型不得把 UNKNOWN 当 MEETS，也不得把偏好当硬性淘汰条件。"
-                + "JD 未提及或明确不限的学历、经验计入合格；有要求但资料未填或规则无法解析才 UNKNOWN。jdConditionsMet 不把 UNKNOWN 计入已确认符合，到岗日期仍需向 HR 确认。";
+                + "学历、经验、实习月数和每周天数同一口径：用户没设该项不构成限制；JD 未提及或明确不限计入合格；"
+                + "有要求但资料未填或规则无法解析才 UNKNOWN。jdConditionsMet 不把 UNKNOWN 计入已确认符合。"
+                + "非在校用户不检查实习月数和每周天数。只有 JD 明确写出且与已填条件冲突才算不满足。"
+                + "到岗日期仍需向 HR 确认。";
     }
     @Override public ToolSchema parameters() {
         return ToolSchema.object().integer("jobId", "当前用户的职位 id", true, 1, Long.MAX_VALUE);
