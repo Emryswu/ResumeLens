@@ -137,3 +137,44 @@ test("real SSE projected by the frontend exactly matches GET turns", async ({ re
   const restored = await request.get(`/api/backend/api/agent/conversations/${data.conversation.id}`, { headers });
   expect(chat.turns).toEqual((await restored.json()).data.turns);
 });
+
+test("capture workspace native-select vs ChoiceMenu visual comparison", async ({ page, context }) => {
+  await session(context);
+  await newChat(page);
+  await page.getByRole("link", { name: "职位库", exact: true }).first().click();
+  await expect(page.getByRole("button", { name: "职位排序" })).toBeVisible();
+
+  // Recreate the previous native controls on a separate page without mutating the app under test.
+  const before = await context.newPage();
+  await before.goto(page.url());
+  await expect(before.getByRole("button", { name: "职位排序" })).toBeVisible();
+  await before.evaluate(() => {
+    for (const menu of document.querySelectorAll<HTMLElement>(".library-toolbar .choice-menu")) {
+      const trigger = menu.querySelector<HTMLButtonElement>(".choice-menu-trigger");
+      if (!trigger) continue;
+      const select = document.createElement("select");
+      select.setAttribute("aria-label", trigger.getAttribute("aria-label") ?? "");
+      select.append(new Option(trigger.textContent?.trim() ?? ""));
+      menu.replaceWith(select);
+    }
+    const style = document.createElement("style");
+    style.textContent = `
+      .filter-field select { height: 40px; min-width: 230px; padding-right: 30px; color: #24583f; background: #eef5ef; border: 1px solid transparent; border-radius: 8px; font-weight: 500; }
+      .filter-topn select { height: 36px; }
+      .library-resume-copy select { height: 30px; padding: 0 24px 0 0; border: 0; box-shadow: none; background: transparent; color: #183b2d; font-size: 15px; font-weight: 600; }
+    `;
+    document.head.append(style);
+  });
+  const beforeBox = await before.locator(".library-toolbar").boundingBox();
+  if (!beforeBox) throw new Error("workspace toolbar is missing");
+  await before.screenshot({ path: "output/playwright/pr132-before.png",
+    clip: { x: beforeBox.x, y: beforeBox.y, width: beforeBox.width, height: 320 } });
+  await before.close();
+
+  await page.getByRole("button", { name: "职位排序" }).click();
+  await expect(page.getByRole("listbox", { name: "职位排序" })).toBeVisible();
+  const afterBox = await page.locator(".library-toolbar").boundingBox();
+  if (!afterBox) throw new Error("workspace toolbar is missing");
+  await page.screenshot({ path: "output/playwright/pr132-after.png",
+    clip: { x: afterBox.x, y: afterBox.y, width: afterBox.width, height: 320 } });
+});
