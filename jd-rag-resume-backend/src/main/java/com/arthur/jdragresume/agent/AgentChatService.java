@@ -11,6 +11,7 @@ import com.arthur.jdragresume.security.CurrentUserService;
 import com.arthur.jdragresume.security.SlidingWindowRateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.core.task.TaskRejectedException;
@@ -37,7 +38,26 @@ public class AgentChatService {
     private final AgentToolRegistry toolRegistry;
     private final BrowserTaskRegistry browserTasks;
     private final ConversationStore conversations;
+    private final AgentMetrics metrics;
 
+    /** Without a registry the meters stay in memory; tests that build the service by hand use this. */
+    public AgentChatService(
+            CurrentUserService currentUserService,
+            TranscriptPolicy transcriptPolicy,
+            AgentLoop agentLoop,
+            SlidingWindowRateLimiter rateLimiter,
+            TaskExecutor agentTaskExecutor,
+            AgentProperties properties,
+            AgentMemoryService memoryService,
+            AgentToolRegistry toolRegistry,
+            BrowserTaskRegistry browserTasks,
+            ConversationStore conversations
+    ) {
+        this(currentUserService, transcriptPolicy, agentLoop, rateLimiter, agentTaskExecutor, properties, memoryService,
+                toolRegistry, browserTasks, conversations, AgentMetrics.none());
+    }
+
+    @Autowired
     public AgentChatService(
             CurrentUserService currentUserService,
             TranscriptPolicy transcriptPolicy,
@@ -48,8 +68,10 @@ public class AgentChatService {
             AgentMemoryService memoryService,
             AgentToolRegistry toolRegistry,
             BrowserTaskRegistry browserTasks,
-            ConversationStore conversations
+            ConversationStore conversations,
+            AgentMetrics metrics
     ) {
+        this.metrics = metrics;
         this.currentUserService = currentUserService;
         this.transcriptPolicy = transcriptPolicy;
         this.agentLoop = agentLoop;
@@ -112,7 +134,8 @@ public class AgentChatService {
     private void runTurn(SseEmitter emitter, AtomicBoolean disconnected, ConversationStore.Run run,
                          TranscriptPolicy.Approval approval, TranscriptPolicy.BrowserReport browserReport,
                          AgentToolContext context, boolean includeTrace, ReasoningEffort reasoningEffort) {
-        AgentEventSink sink = new AgentEventSink() {
+        // Metered outside the durable sink: the raw DoneEvent is observed before it is reduced for storage.
+        AgentEventSink sink = metrics.sink(new AgentEventSink() {
             @Override public void checkpoint(List<AgentMessage> messages, String summary) {
                 conversations.checkpoint(run, messages, summary);
             }
@@ -127,7 +150,7 @@ public class AgentChatService {
                 var saved = conversations.emit(run, event, payload);
                 send(emitter, disconnected, saved);
             }
-        };
+        });
         try {
             // The accepted input is an event too, so live and restored turns have identical inputs.
             var events = conversations.detail(run.userId(), run.conversationId(), 0).events();

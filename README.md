@@ -132,7 +132,8 @@
 - **BOSS 浏览器扩展**：点击后以 `activeTab` 临时读取当前 JD、允许提交前校正、选择已存简历并在扩展内查看分析；优先按稳定岗位 ID 查重，缺失时使用完整岗位内容指纹（见 [`browser-extension/`](browser-extension/)）
 - **独立详情页**：`/resumes/[id]`、`/jobs/[id]`（查看 / 编辑 / 删除，复用已有 GET/PUT/DELETE）
 - **两阶段匹配（默认）**：岗位库按整篇向量余弦粗排（每用户最多 200 条 JD）；`GET /api/job-descriptions/matches` 只读，过期 embedding 返回 `409 SEMANTIC_EMBEDDING_STALE`，显式 `POST /api/job-descriptions/matches/refresh` 后再读。精析只打语义 Top N：异步分析（同一简历+JD 的 PENDING 去重；每用户最多 2 条进行中、10 分钟 10 次）；关键词重排 + 语义阈值门控召回证据；硬技能覆盖与服务端分数上限
-- **AI 助手**：手写 tool-calling agent 循环，自动调用 7 个工具查简历、给职位排序、检索证据；发起分析等写操作必须经用户确认；以 SSE 逐步推送工具调用时间线（见 [AI 助手](#ai-助手tool-calling-agent)）
+- **AI 助手**：手写 tool-calling agent 循环，16 个工具覆盖读简历、职位库排序、检索证据、BOSS 采集与核实、条件分层和推荐验收；发起分析等写操作必须经用户确认；对话由服务端持有，以 SSE 逐步推送工具调用时间线，刷新页面可续读（见 [AI 助手](#ai-助手tool-calling-agent)）
+- **可观测性**：助手的轮次结果、模型调用、工具步骤与错误码都有 Micrometer 指标，`/actuator/prometheus` 只认运维侧的抓取 token，用户 JWT 打不开（见 [可观测性](#可观测性)）
 - **可解释报告**：匹配分、优势 / 缺口 / 建议 / 面试题；优势与缺口为结构化条目（标题、说明、引用的 chunk 编号、类别），chunk 级证据逐条校验
 - **导出**：匹配报告 **Markdown** 下载、**PDF**（浏览器打印另存为 PDF，完整中文）
 - **可靠性**：PENDING 超时回收、任务队列满保护、解析文本质量校验、列表分页最大 50
@@ -272,7 +273,7 @@ flowchart TD
 
 这个实验同时反向验证了上面「用 raw 不用 boosted」的设计——在 0.55 时有 4 个块满足 `raw < 阈值 ≤ boosted`，正是靠这条规则被挡在 prompt 之外的。
 
-> **这组数字的适用范围（重要）**：校准集只有 18 组配对、11 个金标块，且简历与 JD 均为构造文本，**没有独立的 holdout 集**，因此它是一次小规模校准而非严格评测。结论**只对当前的 embedding 模型（`gte-multilingual-base-int8`）与分块配置（`chunkSize=900`/`overlap=120`）成立**——换模型或改分块都必须重跑。阈值本身保持可配置（`RAG_MIN_SIMILARITY` 环境变量），换语料时应当重新校准而不是沿用这个值。
+> **这组数字的适用范围（重要）**：校准集只有 18 组配对、11 个金标块，且简历与 JD 均为构造文本，因此它是一次小规模校准而非严格评测。之后另建的 [holdout v1](experiments/holdout/RESULTS.md)（36 组，含 18 组新领域）证实 0.72 在已见领域成立，但在新领域偏松（见下方「已知边界」）。结论**只对当前的 embedding 模型（`gte-multilingual-base-int8`）与分块配置（`chunkSize=900`/`overlap=120`）成立**——换模型或改分块都必须重跑。阈值本身保持可配置（`RAG_MIN_SIMILARITY` 环境变量），换语料时应当重新校准而不是沿用这个值。
 
 **RAG 消融：短简历为什么还需要检索**
 
@@ -297,37 +298,48 @@ agent 循环是手写的（`agent/AgentLoop.java`），没有用 Spring AI 等�
 
 ```mermaid
 sequenceDiagram
-    participant U as 浏览器（持有对话记录）
+    participant U as 浏览器（只提交一个新输入）
     participant C as AgentController (SSE)
+    participant S as ConversationStore（服务端对话）
     participant L as AgentLoop
     participant M as 模型 (DeepSeek / mock 脚本)
     participant T as 工具 → 既有 service
-    U->>C: POST /api/agent/chat {messages, approval?}
-    C->>C: TranscriptPolicy 校验 / 压缩 / 滑窗裁剪（不合法 → 400）
-    loop 至多 6 步，单轮 90s
-        L->>M: system + 对话 + 工具 schema（超时 = 剩余预算）
+    U->>C: POST /api/agent/chat {conversationId, question | approval | browserResult}
+    C->>S: 校验归属，取出 transcript，锁定本次运行（会话运行中 → 409）
+    C->>C: TranscriptPolicy 规范化 / 压缩 / 滑窗裁剪
+    loop 至多 12 个工具步骤，单轮 90s
+        L->>M: system + 对话 + 当前步可用的工具 schema（超时 = 剩余预算）
         M-->>L: tool_calls 或最终回答
         L->>T: 只读工具：参数按 schema 校验后执行
         T-->>L: 结果包进 untrusted_data（或错误码，回填给模型自纠）
+        L->>S: 事件与 transcript 落库（checkpoint）
         L-->>U: event: step（工具 / 参数 / 耗时 / 结果预览）
     end
     alt 模型请求写工具 start_analysis
         L-->>U: event: confirmation_required（本轮结束，不执行）
-        U->>C: 同一对话 + approval{toolCallId, approved}
-        C->>T: 仅当 approval 对应挂起的那个调用时才执行
+        U->>C: 同一 conversationId + approval{toolCallId, approved}
+        C->>T: 仅当 approval 对应会话里挂起的那个调用时才执行
     end
-    L-->>U: event: message / done{state, transcript}
+    L-->>U: event: message / done{state, steps}
 ```
 
 | 工具 | 复用的既有能力 | 需确认 |
 |---|---|---|
-| `list_resumes` | `ResumeService.findAll`（不返回正文） | 否 |
-| `search_jobs` / `get_job` | `JobDescriptionService` | 否 |
-| `rank_jobs_for_resume` | 岗位库整篇向量粗排；embedding 过期时先刷新派生缓存 | 否 |
+| `list_resumes` / `get_resume` | `ResumeService`：列表不返回正文；正文最多 5000 字，多份简历时先选方向 | 否 |
+| `search_jobs` / `get_job` | `JobDescriptionService`；`get_job` 带采集深度（FULL 已核实 / LISTING 只是摘要） | 否 |
+| `rank_jobs_for_resume` | 岗位库整篇向量粗排；embedding 过期时先刷新派生缓存；可传 `jobIds` 只排本次采集的岗位 | 否 |
 | `search_resume_evidence` | 与精析同一条 RAG 链路（`ResumeRagService.retrieve`） | 否 |
 | `get_latest_analysis` | 最近一次完整报告 | 否 |
 | `start_analysis` | 异步完整分析（消耗配额与一次 LLM 调用） | **是** |
-| `collect_boss_jobs` | 交给浏览器插件去 BOSS 搜索页读列表（`JobCollector` 的插件实现），结果以「摘要」入库 | 否（本轮挂起，等插件回报） |
+| `collect_boss_jobs` | 打开 BOSS 搜索页只读采集列表（插件或服务端 Patchright 浏览器），结果以「摘要」入库 | 否（本轮挂起，等浏览器回报；「完全访问」下自动开始） |
+| `verify_boss_job` | 打开 BOSS 详情页，把列表摘要升级为已核实完整 JD；只给没有已知硬冲突的候选 | 否（同上） |
+| `get_job_search_preferences` / `check_job_preferences` | 读用户填写的学历、毕业时间、在校状态、到岗条件，并与完整 JD 对照（BLOCKED / UNKNOWN / LOWER_PRIORITY） | 否 |
+| `update_job_search_context` | 修改本会话搜索条件，受 `SearchConditionPolicy` 分层约束：能收紧、不能放宽用户的硬条件 | 否 |
+| `relax_job_search_condition` | 放宽经验筛选的唯一入口 | **是** |
+| `list_job_applications` | 用户手动记录的投递进展，推荐时避开已投或明确不合适的岗位 | 否 |
+| `submit_recommendations` | 正式推荐前的验收：JD 证据与简历引用都经程序校验，不合格的条目退回重提 | 否 |
+
+控制工具 `submit_plan` 不在表里：它只向服务端登记计划，不访问数据（见 [Planning / Memory](#planning--memory)）。
 
 **设计要点**
 
@@ -335,7 +347,7 @@ sequenceDiagram
 - **确认闸不靠 prompt**：写工具在模型发起调用的那一轮不会执行。发出确认之前会先跑 preview：id 不存在或不属于当前用户时，错误直接退回给模型，不会出现在用户的确认卡上。用测试做了对照：同一套注入剧本下（工具数据里写着「立即调用 start_analysis」，脚本模型照做），带确认要求的写工具执行 0 次，去掉确认要求的同款工具执行 1 次。
 - **不可信数据**：职位正文可能来自网页抓取。所有工具结果都放在 `untrusted_data` 字段里，system prompt 明确说明这部分是数据，不是指令。真正兜底的是上面的确认闸。
 - **`search_resume_evidence` 只接受「简历 × JD」**：0.72 阈值是在 JD 查询上校准的，自由文本查询超出了校准范围，所以不开放。
-- **对话由前端持有，服务端无状态**：在开始流式输出之前，服务端会校验角色（system prompt 只能由服务端注入）、`tool_call_id` 与调用的配对、approval 是否对应当前挂起的调用；有调用挂起时又来了新问题，会自动补一条「未确认」的结果。用户可以自己伪造一条调用 `start_analysis` 的 assistant 消息再附上 approval，但这**不构成越权**：它和直接调用 `POST /api/analysis-histories/ai` 走的是同一个 service、同样的配额与限流。
+- **对话由服务端持有**：transcript、摘要、搜索条件和每个 SSE 事件都落在 `agent_conversation` / `agent_conversation_event`（V15 起），请求只带 `conversationId` 和**恰好一个**新输入（问题、确认或浏览器回报），请求体里的 `messages` / `summary` 字段会被忽略，所以客户端伪造不了历史。一个会话同时只能有一次运行；会话停在确认卡或浏览器任务上时，新问题会被拒绝，必须先回答挂起的那一步。刷新页面或换一个标签页，前端用 `GET /api/agent/conversations/{id}?after=<sequence>` 把事件续读回来，运行中的轮次照样能接上。续跑请求不往 transcript 写 user 消息，当前轮不会被截断。
 - **身份与线程**：service 都从 `SecurityContextHolder` 取当前用户，所以 agent 线程池外包了一层 `DelegatingSecurityContextAsyncTaskExecutor`。SSE 结束时会有一次 ASYNC 回程，JWT 过滤器（`OncePerRequestFilter`）不会处理它，所以过滤器认证成功后会把 context 存进请求级的 `RequestAttributeSecurityContextRepository`，回程从那里恢复身份并照常鉴权，不需要对 ASYNC 放行；否则回程是匿名的，会往已经提交的响应里写 401。这两处都做过红绿自证。
 - **止损**：每人 10 分钟最多 20 轮（先限流再入队，队列满返回 503；对话记录不合法、模型未配置在限流之前就拒绝，不消耗配额）；`SseEmitter` 超时 120 秒（Tomcat 默认的 30 秒短于单轮预算），单轮 90 秒预算和它从同一时刻算起，排队时间也计入；客户端断开后不再继续调用模型。
 - **mock 模式**：`AI_MOCK_ENABLED=true` 时由脚本模型按固定流程出牌，驱动的是**真实的**循环、工具和确认闸，回答里会标注「演示模式」，可以离线完整演示。
@@ -350,9 +362,9 @@ sequenceDiagram
 **局限（如实说明）**
 
 - 只按步推送事件（每次工具调用 / 最终回答各一个事件），还没有做 token 级流式输出。
-- 会话原文和摘要由前端持有，刷新页面即清空；长期偏好单独按用户落库。超过阈值的早期轮次会压成摘要，最近轮次保留原文。
+- 超过阈值的早期轮次会压成摘要，最近轮次保留原文；摘要有损，且只作不可信会话数据。长期偏好单独按用户落库。
 - deadline 只在步与步之间生效：工具执行本身无法中断，比如首次建 ONNX 索引可能需要数秒。
-- 还没有做工具选择准确率的评测（下一步计划）。现有测试证明的是循环、确认闸与校验逻辑正确，不代表模型的规划质量。
+- 模型规划质量靠 [`evals/agent-v3/`](evals/agent-v3/) 的固定任务评测，而不是单元测试：它用生产接线的 `AgentLoop` 和工具回放构造的 BOSS 快照。离线检查在 CI 里跑，用真实模型的正式运行需要 Key，v3 的正式运行还没有做（v2 的结果见 `evals/agent-v2/`）。单元测试证明的是循环、确认闸与校验逻辑正确。
 
 ### Planning / Memory
 
@@ -360,7 +372,7 @@ sequenceDiagram
 
 每步执行和计划写入日志；请求加 `"includeTrace":true` 可接收 `plan` SSE 事件和 `done.trace`，原有 `step` 事件继续兼容。日志及 trace 包含用户查询与工具结果片段，按业务数据管理。
 
-短期记忆默认超过 `AGENT_SUMMARY_THRESHOLD_TURNS=12` 轮后，保留最近 `AGENT_RECENT_TURNS=4` 轮原文（含当前轮），把较早的完整轮次与旧摘要交给模型压缩；触及原有消息/字符预算时也先摘要被裁掉的轮次。摘要上限 `AGENT_SUMMARY_MAX_CHARS=2000`，通过 `done.summary` 返回，下轮在请求的 `summary` 字段带回，现有前端已接入。摘要调用共用本轮 deadline，失败显式报错，不静默丢弃旧对话。摘要只作不可信会话数据，不会进入长期记忆。
+短期记忆默认超过 `AGENT_SUMMARY_THRESHOLD_TURNS=12` 轮后，保留最近 `AGENT_RECENT_TURNS=4` 轮原文（含当前轮），把较早的完整轮次与旧摘要交给模型压缩；触及原有消息/字符预算时也先摘要被裁掉的轮次。摘要上限 `AGENT_SUMMARY_MAX_CHARS=2000`，随 checkpoint 存在服务端会话上，下一轮由服务端自己取回，客户端不经手。摘要调用共用本轮 deadline，失败显式报错，不静默丢弃旧对话。摘要只作不可信会话数据，不会进入长期记忆。
 
 长期记忆只接受本轮用户直接说出的声明原文：`我的目标城市是上海` / `我的意向城市是上海`、`我的目标方向是Java后端` / `我的求职方向是Java后端`、`我的短板是算法` / `我自认的短板是算法` / `我不擅长算法`。保守规则跳过问题、假设、引用、否认和删除请求，不读取 assistant/tool 消息、不用模型推断画像；同一句重复声明不重复保存。V10 新增 `agent_memory`，用户外键 `ON DELETE CASCADE`，用户数据删除时同步清理。`GET /api/agent/memories` 查看当前用户记忆，`DELETE /api/agent/memories/{id}` 删除一条（204）；他人的 id 返回 404。
 
@@ -536,7 +548,13 @@ node --experimental-strip-types --test tests/report-export.test.ts
 | POST | `/api/analysis-histories/ai` | 异步启动 AI 匹配（立即返回 PENDING；超限 429） |
 | GET | `/api/analysis-histories` / `{id}` | 历史与轮询（列表 `size` 最大 50） |
 | DELETE | `/api/analysis-histories/{id}` | 删除记录 |
-| POST | `/api/agent/chat` | AI 助手一轮对话，返回 SSE（`step` / `note` / `confirmation_required` / `message` / `error` / `done`）；对话记录不合法 400，限流 429，模型未配置或队列满 503 |
+| GET/POST | `/api/agent/conversations` | 当前用户的助手会话列表 / 新建会话 |
+| GET/PATCH/DELETE | `/api/agent/conversations/{id}` | 会话详情与事件续读（`?after=<sequence>`）/ 切换「完全访问」/ 删除 |
+| POST | `/api/agent/chat` | 助手一轮对话：`{conversationId, question \| approval \| browserResult}` 三选一，返回 SSE（`step_started` / `step` / `note` / `plan` / `confirmation_required` / `browser_task_required` / `collector_progress` / `message` / `error` / `done`）；输入不合法 400，会话运行中或挂起步骤未回答 409，限流 429，模型未配置或队列满 503 |
+| GET/DELETE | `/api/agent/memories` / `{id}` | 长期记忆查看 / 删除 |
+| GET/PUT | `/api/job-search/preferences` | 求职条件（学历、毕业时间、在校状态、到岗条件、地区） |
+| GET/PUT/DELETE | `/api/job-applications` / `{jobId}` | 手动记录的投递进展 |
+| POST | `/api/browser-extension/analyze` | 浏览器扩展提交当前页 JD 并发起分析 |
 
 统一响应：`{ success, code, message, data }`。
 
@@ -558,12 +576,41 @@ node --experimental-strip-types --test tests/report-export.test.ts
 | `app.analysis.pending-timeout-minutes` | 卡住的 PENDING 回收阈值 |
 | `app.analysis.max-pending-per-user` | 默认 2 |
 | `app.analysis.max-submits-per-window` | 默认 10 次 / 10 分钟 |
+| `app.metrics.scrape-token` | 环境变量 `METRICS_TOKEN`。不设则 `/actuator/prometheus` 对谁都不回应；设了之后只接受带这个 token 的抓取（见 [可观测性](#可观测性)） |
 | `app.upload.max-resumes-per-user` | 默认 30 |
 | `app.upload.max-stored-bytes-per-user` | 默认 200MB |
 | `app.job-description.max-per-user` | 默认 200 |
-| `app.agent.*` | 助手单轮步数（6）、单轮预算（90s）、SSE 超时（120s）、每人每 10 分钟 20 轮 |
+| `app.agent.*` | 助手单轮工具步数（12）与常规模型调用数（12）、重规划次数（2）、单轮预算（90s）、SSE 超时（120s）、每人每 10 分钟 20 轮、浏览器任务等待（180s）、JD 核实时效（7 天） |
 
 **安全提示**：当前配置面向本地演示；公开仓库前请移除真实密钥，改用环境变量或外部配置。BFF 会覆盖 `X-BFF-Client-IP`，后端只信任 loopback/私有服务网来源，因此部署时不要绕过 BFF 将后端直接暴露到公网。
+
+---
+
+## 可观测性
+
+后端用 Micrometer 记指标，由 Actuator 的 Prometheus 端点输出。助手这条链路的指标不是在 `AgentLoop` 里埋点，而是从它已有的两个边界推出来的：模型接口外面包一层计时，事件流外面包一层观察（`AgentMetrics`）。所以 transcript 记了什么，指标就是什么，两边不会漂移；标签也都是有界集合（工具名来自注册表、错误码是常量、状态是枚举），不带用户数据。
+
+| 指标 | 类型 | 标签 | 含义 |
+|---|---|---|---|
+| `agent.turns` | counter | `state` | 每轮的终态：COMPLETED / AWAITING_CONFIRMATION / AWAITING_BROWSER / STEP_LIMIT / REPLAN_LIMIT / TIMED_OUT / FAILED / CANCELLED |
+| `agent.model.calls` | timer | `outcome`、`effort` | 每次模型往返的耗时与成败，按推理档位分开 |
+| `agent.tool.calls` | timer | `tool`、`outcome` | 每个工具步骤的耗时与成败；执行前被拒绝的调用也算一次 error 步骤 |
+| `agent.tool.errors` | counter | `tool`、`code` | 失败的工具步骤按错误码计数，例如 `UNKNOWN_TOOL`、`JOB_SEARCH_BUDGET` |
+| `agent.turn.errors` | counter | `code` | 用户看到的轮级错误，例如 `AGENT_STEP_LIMIT`、`AGENT_TIMEOUT` |
+
+抓取端点 `/actuator/prometheus` 只认运维侧的抓取 token：设置 `METRICS_TOKEN`（至少 32 个字符，太短启动即失败）后，Prometheus 以 `Authorization: Bearer <token>` 抓取；不带或带错 token 返回 401，带着**有效的用户 JWT** 返回 403（实例级计数是运维数据，不是用户数据）。不设 `METRICS_TOKEN` 时端点对谁都不回应。`/actuator/health` 仍留在 API 端口上公开，前端状态徽标和 compose 健康检查都从那里读。`PrometheusEndpointSecurityTests` 和 `PrometheusEndpointWithoutScrapeTokenTests` 走真实的 `SecurityConfig` 装配守着这几条规则。
+
+Prometheus 侧的抓取配置示例：
+
+```yaml
+scrape_configs:
+  - job_name: resumelens
+    metrics_path: /actuator/prometheus
+    authorization:
+      credentials_file: /etc/prometheus/resumelens-metrics-token
+    static_configs:
+      - targets: ["backend:8080"]
+```
 
 ---
 
