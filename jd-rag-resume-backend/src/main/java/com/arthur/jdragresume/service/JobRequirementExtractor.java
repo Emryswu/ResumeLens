@@ -41,10 +41,10 @@ public final class JobRequirementExtractor {
             "学历|学位|教育背景|本科及以上|硕士及以上|博士及以上|及以上|以上|不低于|"
             + "优先|加分|更佳|更好|均可|皆可|可接受|限|仅限|要求|必须|须|毕业|在读|应届");
     private static final Pattern EXPERIENCE_YEARS = Pattern.compile(
-            "(不超过\\s*)?([0-9零一二三四五六七八九十两]+)\\s*"
+            "(?<![0-9零一二三四五六七八九十两\\-~至])(不超过\\s*)?([0-9零一二三四五六七八九十两]+)\\s*"
             + "(?:[-~至]\\s*([0-9零一二三四五六七八九十两]+)\\s*)?年\\s*(以内|以下|之内)?");
     private static final Pattern GRADUATION = Pattern.compile(
-            "20\\d{2}(?:\\s*[、/，,或和及]\\s*20\\d{2})*\\s*届|20\\d{2}(?:\\s*[、/，,或和及]\\s*20\\d{2})*\\s*年毕业");
+            "(?<![0-9])20\\d{2}(?:\\s*[、/，,或和及]\\s*20\\d{2})*\\s*届|(?<![0-9])20\\d{2}(?:\\s*[、/，,或和及]\\s*20\\d{2})*\\s*年毕业");
     private static final Pattern YEAR = Pattern.compile("20\\d{2}");
     private static final Pattern PREFERRED = Pattern.compile("优先|加分|更佳|更好|优待");
     private static final Pattern UNRESTRICTED_EDUCATION = Pattern.compile("学历不限|不限学历|无学历要求");
@@ -172,11 +172,13 @@ public final class JobRequirementExtractor {
             Matcher years = EXPERIENCE_YEARS.matcher(clause);
             Integer minimum = null, maximum = null;
             while (years.find()) {
-                int parsed = number(years.group(2));
+                if (isGraduationDuration(clause, years.start(), years.end())) continue;
+                int parsed = experienceYearNumber(years.group(2));
                 if (parsed < 0) continue;
                 if (years.group(3) != null) {
+                    int upper = experienceYearNumber(years.group(3));
+                    if (upper < 0) continue;
                     minimum = minimum == null ? parsed : Math.max(minimum, parsed);
-                    int upper = number(years.group(3));
                     maximum = maximum == null ? upper : Math.min(maximum, upper);
                 } else if (years.group(1) != null || years.group(4) != null) {
                     maximum = maximum == null ? parsed : Math.min(maximum, parsed);
@@ -259,6 +261,23 @@ public final class JobRequirementExtractor {
                     requiredText, preferredText, Set.copyOf(requiredYears), Set.copyOf(preferredYears));
         }
         return Requirement.absent();
+    }
+
+    /** A graduation cohort or study duration is not employment tenure. */
+    private static boolean isGraduationDuration(String clause, int start, int end) {
+        String before = clause.substring(0, start).stripTrailing();
+        String after = clause.substring(end).stripLeading();
+        return before.endsWith("毕业") || before.endsWith("毕业后")
+                || before.endsWith("毕业满") || before.endsWith("届")
+                || after.startsWith("毕业") || after.startsWith("届")
+                || after.startsWith("制");
+    }
+
+    private static int experienceYearNumber(String value) {
+        // Four-digit years and oversized numbers must never reach number()/parseInt().
+        if (value.length() >= 4) return -1;
+        int years = number(value);
+        return years >= 0 && years <= 30 ? years : -1;
     }
 
     private static int number(String value) {
