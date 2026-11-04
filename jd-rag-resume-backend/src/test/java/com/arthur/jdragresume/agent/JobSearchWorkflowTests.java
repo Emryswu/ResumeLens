@@ -5,7 +5,9 @@ import com.arthur.jdragresume.agent.tool.AgentToolContext;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.agent.tool.DeferrableTool;
 import com.arthur.jdragresume.agent.tool.ToolSchema;
+import com.arthur.jdragresume.dto.user.JobSearchPreferencesView;
 import com.arthur.jdragresume.entity.AppUser;
+import com.arthur.jdragresume.service.JobAvailabilityMatcher;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -598,6 +600,29 @@ class JobSearchWorkflowTests {
         var result = JobSearchWorkflow.inspect(log, mapper);
         assertEquals(Set.of(102L), result.qualifiedIds());
         assertEquals(Set.of(101L), result.unknownIds());
+    }
+
+    @Test
+    void qualifiedFullTimeChecksReachTheTarget() throws Exception {
+        var own = new JobSearchPreferencesView(true, null, null, null, null, false,
+                2, null, 3, false);
+        var findings = JobAvailabilityMatcher.compare(own, "FULL",
+                "负责 Java 后端服务开发，参与系统设计与编码。",
+                "本科及以上；3年以上工作经验", "深圳·南山区·科技园");
+        String findingsJson = mapper.writeValueAsString(findings);
+        List<AgentMessage> log = new ArrayList<>(List.of(AgentMessage.user("找深圳 Java 全职")));
+        for (long id : List.of(11L, 12L, 13L)) {
+            verify(log, "v" + id, id, saved(id, "SAVED_FULL"));
+            log.add(AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("c" + id,
+                    "check_job_preferences", "{\"jobId\":" + id + "}"))));
+            log.add(AgentMessage.tool("c" + id, "{\"tool\":\"check_job_preferences\",\"ok\":true,\"untrusted_data\":{"
+                    + "\"jobId\":" + id + ",\"captureDepth\":\"FULL\",\"findings\":" + findingsJson + "}}"));
+        }
+        var progress = JobSearchWorkflow.inspect(log, mapper);
+        assertEquals(Set.of(11L, 12L, 13L), progress.qualifiedIds());
+        assertTrue(progress.reachedTarget());
+        assertTrue(JobSearchWorkflow.refuse(progress, mapper.readTree(
+                "{\"keyword\":\"Java\",\"city\":\"深圳\",\"maxPages\":1}")).contains("提前收尾"));
     }
 
 }

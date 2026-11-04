@@ -98,14 +98,19 @@ class SubmitRecommendationsToolTests {
     void successfulItemsSurviveFailuresAndUnknownConditionsStayExplicit() throws Exception {
         when(jobs.findById(4L)).thenReturn(job(4, "FULL", "实习至少 7 个月，每周 5 天。负责 Java 开发", ""));
         when(jobs.findById(5L)).thenReturn(job(5, "FULL", "负责 Java 后端开发", "优先有 Redis"));
+        when(jobs.findById(9L)).thenReturn(job(9, "FULL", "实习三个月优先；每周5天优先。负责 Java 后端开发", ""));
         var result = (SubmitRecommendationsTool.Result) tool.execute(
-                proposals(item(4, "负责 Java 开发"), item(5, "负责 Java 后端开发")), context);
+                proposals(item(4, "负责 Java 开发"), item(5, "负责 Java 后端开发"), item(9, "负责 Java 后端开发")), context);
         assertFalse(result.accepted());
-        assertEquals(List.of(5L), result.recommendations().stream().map(SubmitRecommendationsTool.Submitted::jobId).toList());
+        assertEquals(List.of(5L, 9L), result.recommendations().stream().map(SubmitRecommendationsTool.Submitted::jobId).toList());
         assertEquals(4L, result.rejected().getFirst().jobId());
         assertTrue(result.rejected().getFirst().reason().contains("硬条件冲突"));
-        assertTrue(result.recommendations().getFirst().unknownConditions().contains("实习时长"));
-        assertTrue(result.recommendations().getFirst().unknownConditions().contains("每周到岗天数"));
+        var silent = result.recommendations().getFirst();
+        assertFalse(silent.unknownConditions().contains("实习时长"));
+        assertFalse(silent.unknownConditions().contains("每周到岗天数"));
+        var vague = result.recommendations().get(1);
+        assertTrue(vague.unknownConditions().contains("实习时长"));
+        assertTrue(vague.unknownConditions().contains("每周到岗天数"));
     }
 
     @Test
