@@ -31,6 +31,10 @@ class AgentToolEmptyResultPolicyTests {
         assertTrue(registry.names().contains("list_job_applications"));
         assertTrue(registry.names().contains("search_jobs"));
         assertTrue(registry.names().contains("rank_jobs_for_resume"));
+        assertTrue(registry.find("list_job_applications").orElseThrow().emptyResultIsValid());
+        assertTrue(registry.find("list_resumes").orElseThrow().emptyResultIsValid());
+        assertFalse(registry.find("search_jobs").orElseThrow().emptyResultIsValid());
+        assertFalse(registry.find("rank_jobs_for_resume").orElseThrow().emptyResultIsValid());
         for (String name : registry.names()) {
             assertTrue(registry.find(name).isPresent(), name);
         }
