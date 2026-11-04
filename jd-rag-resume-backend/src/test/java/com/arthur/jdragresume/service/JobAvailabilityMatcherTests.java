@@ -62,12 +62,13 @@ class JobAvailabilityMatcherTests {
         assertEquals("UNKNOWN", compared.attendance().status());
     }
 
-    @Test void vagueOrPreferredConditionsAreUnknown() {
+    @Test void unparsedMentionStaysUnknownWhileAParsedPreferenceDoesNot() {
         var compared = JobAvailabilityMatcher.compare(profile(2, 2, false), "FULL",
                 "实习三个月优先；每周5天优先；其他面议", "", "");
-        assertEquals("UNKNOWN", compared.duration().status());
-        assertEquals("UNKNOWN", compared.attendance().status());
+        assertEquals("UNKNOWN", compared.duration().status(), "a Chinese numeral without a parsed digit stays unknown");
+        assertEquals("PREFERRED", compared.attendance().status());
         assertFalse(compared.hardBlock());
+        assertFalse(compared.jdConditionsMet());
     }
 
     /** Real extension format is 城市·区·商圈 (boss-api-extractor.js); the UI hint suggests "深圳龙岗区". */
@@ -308,6 +309,49 @@ class JobAvailabilityMatcherTests {
         assertTrue(result.jdConditionsMet());
     }
 
+    /** "实习 6 个月以上优先" is a preference, not a hard gate. */
+    @Test void preferredInternshipMonthsDoNotBlockAStudent() {
+        var filled = JobAvailabilityMatcher.compare(person(3, 5, 2, 0, true), "FULL",
+                "实习 6 个月以上优先。参与 Java 后端开发。", "本科及以上；每周5天", "深圳");
+        assertEquals("PREFERRED", filled.duration().status());
+        assertEquals("MEETS", filled.attendance().status());
+        assertFalse(filled.hardBlock());
+        assertFalse(filled.hasUnknown());
+        assertTrue(filled.jdConditionsMet());
+        assertTrue(filled.duration().explanation().contains("6") && filled.duration().explanation().contains("3"),
+                filled.duration().explanation());
+        assertTrue(filled.preferredWarnings().contains(filled.duration().explanation()));
+
+        var missing = JobAvailabilityMatcher.compare(person(null, 5, 2, 0, true), "FULL",
+                "实习 6 个月以上优先。参与 Java 后端开发。", "本科及以上；每周5天", "深圳");
+        assertEquals("PREFERRED", missing.duration().status());
+        assertTrue(missing.jdConditionsMet());
+        assertFalse(missing.duration().explanation().contains("你可提供"), missing.duration().explanation());
+        assertTrue(missing.duration().explanation().contains("6"), missing.duration().explanation());
+    }
+
+    /** "每周 4 天优先" is a preference, not a hard gate. */
+    @Test void preferredWeeklyDaysDoNotBlockAStudent() {
+        var result = JobAvailabilityMatcher.compare(person(6, 2, 2, 0, true), "FULL",
+                "每周 4 天优先。参与 Java 后端开发。", "本科及以上；实习至少3个月", "深圳");
+        assertEquals("PREFERRED", result.attendance().status());
+        assertEquals("MEETS", result.duration().status());
+        assertFalse(result.hardBlock());
+        assertFalse(result.hasUnknown());
+        assertTrue(result.jdConditionsMet());
+        assertTrue(result.attendance().explanation().contains("4") && result.attendance().explanation().contains("2"),
+                result.attendance().explanation());
+    }
+
+    /** A hard minimum still blocks when the same JD also states a higher preference. */
+    @Test void hardMonthMinimumStillBlocksBesideAPreferredClause() {
+        var result = JobAvailabilityMatcher.compare(person(2, 5, 2, 0, true), "FULL",
+                "至少实习 3 个月，6 个月以上优先。", "本科及以上；每周5天", "深圳");
+        assertEquals("BLOCKED", result.duration().status());
+        assertTrue(result.hardBlock());
+        assertFalse(result.jdConditionsMet());
+    }
+
     /** An explicit weekly-attendance conflict still blocks; silence is not the same as a match. */
     @Test void studentAskingForFourDaysDoesNotMeetAnExplicitFiveDayRequirement() {
         var result = JobAvailabilityMatcher.compare(person(6, 4, 2, 0, true), "FULL",
@@ -364,6 +408,8 @@ class JobAvailabilityMatcherTests {
                         "实习至少6个月；每周5天。", "本科及以上；1年以上工作经验"),
                 new Sample("months", "BLOCKED", false, person(3, 5, 2, 1, true),
                         "实习至少6个月；每周5天。", "本科及以上；1年以上工作经验"),
+                new Sample("months", "PREFERRED", true, person(3, 5, 2, 1, true),
+                        "实习 6 个月以上优先；每周5天。", "本科及以上；1年以上工作经验"),
                 new Sample("months", "NOT_APPLICABLE", true, person(3, 4, 2, 3, false),
                         "实习至少6个月；每周至少5天。", "本科及以上；3年以上工作经验"),
                 new Sample("days", "MEETS", true, person(6, 5, 2, 1, true),
@@ -376,6 +422,8 @@ class JobAvailabilityMatcherTests {
                         "实习至少3个月；每周至少5天。", "本科及以上；1年以上工作经验"),
                 new Sample("days", "BLOCKED", false, person(6, 4, 2, 1, true),
                         "实习至少3个月；每周至少5天。", "本科及以上；1年以上工作经验"),
+                new Sample("days", "PREFERRED", true, person(6, 2, 2, 1, true),
+                        "实习至少3个月；每周 4 天优先。", "本科及以上；1年以上工作经验"),
                 new Sample("days", "NOT_APPLICABLE", true, person(3, 4, 2, 3, false),
                         "实习至少6个月；每周至少5天。", "本科及以上；3年以上工作经验")
         );

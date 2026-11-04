@@ -110,7 +110,8 @@ class SubmitRecommendationsToolTests {
         assertFalse(silent.unknownConditions().contains("每周到岗天数"));
         var vague = result.recommendations().get(1);
         assertTrue(vague.unknownConditions().contains("实习时长"));
-        assertTrue(vague.unknownConditions().contains("每周到岗天数"));
+        assertFalse(vague.unknownConditions().contains("每周到岗天数"));
+        assertTrue(vague.preferredWarnings().stream().anyMatch(warning -> warning.contains("5")));
     }
 
     @Test

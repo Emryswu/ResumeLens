@@ -23,6 +23,13 @@ public final class JobAvailabilityMatcher {
     /** Same shape as {@link #DAYS}, plus Chinese numerals that the strict pattern leaves unparsed. */
     private static final Pattern DAYS_MENTION = Pattern.compile(
             "(?:每周|一周|周)\\s*(?:至少|不少于|不低于|需|须|可|能|到岗)?\\s*(?:[1-7]|[一二三四五六七])\\s*(?:天|日)");
+    /**
+     * Preferred-only duration, e.g. {@code 实习 6 个月以上优先}. The hard pattern requires
+     * 至少/不少于/…, so this only supplies a number after a clause has already been marked 优先.
+     */
+    private static final Pattern PREFERRED_MONTHS = Pattern.compile(
+            "实习(?:时长|期|时间)?[^。；;，,\\n]{0,12}(\\d{1,2})\\s*(?:个)?月"
+                    + "|(\\d{1,2})\\s*(?:个)?月(?:以上|及以上)");
 
     public record Finding(String status, String explanation) { }
     public record Comparison(Finding duration, Finding attendance, Finding startDate,
@@ -41,10 +48,10 @@ public final class JobAvailabilityMatcher {
         // says "每周5天" must not block someone who is not in school.
         boolean checksInternshipTime = !Boolean.FALSE.equals(own.currentlyStudent());
         Finding months = checksInternshipTime
-                ? numberFinding(own.availableMonths(), full, text, MONTHS, MONTHS_MENTION, "个月")
+                ? numberFinding(own.availableMonths(), full, text, MONTHS, MONTHS_MENTION, PREFERRED_MONTHS, "个月")
                 : new Finding("NOT_APPLICABLE", "非在校用户不检查实习月数");
         Finding days = checksInternshipTime
-                ? numberFinding(own.daysPerWeek(), full, text, DAYS, DAYS_MENTION, "天/周")
+                ? numberFinding(own.daysPerWeek(), full, text, DAYS, DAYS_MENTION, DAYS, "天/周")
                 : new Finding("NOT_APPLICABLE", "非在校用户不检查每周天数");
         Finding start = own.earliestStartDate() == null
                 ? new Finding("NOT_SET", "尚未填写最早到岗日期")
@@ -81,6 +88,8 @@ public final class JobAvailabilityMatcher {
         List<String> warnings = new ArrayList<>();
         List<String> notes = new ArrayList<>();
         List<String> missing = new ArrayList<>();
+        if ("PREFERRED".equals(months.status())) warnings.add(months.explanation());
+        if ("PREFERRED".equals(days.status())) warnings.add(days.explanation());
         addQualificationDetails("学历", education, extracted == null ? null : extracted.education(),
                 own.educationLevel(), warnings, notes, missing);
         addQualificationDetails("经验", experience, extracted == null ? null : extracted.experience(),
@@ -240,29 +249,56 @@ public final class JobAvailabilityMatcher {
     }
 
     private static Finding numberFinding(Integer userValue, boolean full, String text,
-                                         Pattern requirement, Pattern mention, String unit) {
+                                         Pattern requirement, Pattern mention, Pattern preferredNumber, String unit) {
         if (!full) return new Finding("UNKNOWN", "职位尚为列表摘要，需获取完整 JD 才能核实 " + unit);
         List<Integer> minimums = new ArrayList<>();
+        List<Integer> preferred = new ArrayList<>();
         boolean mentioned = false;
-        for (String sentence : text.split("[\\n。；;]")) {
-            if (mention.matcher(sentence).find() || requirement.matcher(sentence).find()) mentioned = true;
-            if (sentence.contains("优先")) continue;
+        for (String sentence : text.split("[\\n。；;，,]+")) {
+            boolean preference = sentence.contains("优先");
+            List<Integer> found = new ArrayList<>();
             Matcher matcher = requirement.matcher(sentence);
-            while (matcher.find()) minimums.add(Integer.parseInt(matcher.group(1)));
+            while (matcher.find()) found.add(Integer.parseInt(matcher.group(1)));
+            if (preference && found.isEmpty()) {
+                Matcher loose = preferredNumber.matcher(sentence);
+                while (loose.find()) {
+                    String digits = firstCaptured(loose);
+                    if (digits != null) found.add(Integer.parseInt(digits));
+                }
+            }
+            if (!found.isEmpty() || mention.matcher(sentence).find()) mentioned = true;
+            if (preference) preferred.addAll(found);
+            else minimums.addAll(found);
         }
-        if (minimums.isEmpty()) {
-            // Preferred-only or unparsed wording stays UNKNOWN. Silence is not a requirement.
-            if (mentioned) return new Finding("UNKNOWN", "完整 JD 未明确可解析的 " + unit + " 要求，需向 HR 核实");
-            if (userValue == null) return new Finding("NOT_SET", "你尚未填写 " + unit + " 的可用时间");
-            return new Finding("NOT_MENTIONED", "JD 未写" + unit + "要求");
+        if (!minimums.isEmpty()) {
+            // A hard floor wins over a preference in the same JD.
+            if (userValue == null) {
+                return new Finding("UNKNOWN", "JD 写有" + unit + "要求，但你尚未填写对应求职条件");
+            }
+            int required = minimums.stream().mapToInt(Integer::intValue).max().orElseThrow();
+            return userValue >= required
+                    ? new Finding("MEETS", "你可提供 " + userValue + unit + "，已识别岗位要求至少 " + required + unit)
+                    : new Finding("BLOCKED", "你可提供 " + userValue + unit + "，岗位明确要求至少 " + required + unit);
         }
-        if (userValue == null) {
-            return new Finding("UNKNOWN", "JD 写有" + unit + "要求，但你尚未填写对应求职条件");
+        if (!preferred.isEmpty()) {
+            int wanted = preferred.stream().mapToInt(Integer::intValue).max().orElseThrow();
+            if (userValue == null) {
+                return new Finding("PREFERRED", "JD 仅有" + unit + "优先条件：" + wanted + " " + unit
+                        + "以上优先；尚未填写对应求职条件，可补充后核实偏好");
+            }
+            return new Finding("PREFERRED", "JD 写 " + wanted + " " + unit + "以上优先，你可提供 " + userValue + " " + unit);
         }
-        int required = minimums.stream().mapToInt(Integer::intValue).max().orElseThrow();
-        return userValue >= required
-                ? new Finding("MEETS", "你可提供 " + userValue + unit + "，已识别岗位要求至少 " + required + unit)
-                : new Finding("BLOCKED", "你可提供 " + userValue + unit + "，岗位明确要求至少 " + required + unit);
+        // Mentioned, but neither a hard number nor a 优先 number. Silence is not a requirement.
+        if (mentioned) return new Finding("UNKNOWN", "完整 JD 未明确可解析的 " + unit + " 要求，需向 HR 核实");
+        if (userValue == null) return new Finding("NOT_SET", "你尚未填写 " + unit + " 的可用时间");
+        return new Finding("NOT_MENTIONED", "JD 未写" + unit + "要求");
+    }
+
+    private static String firstCaptured(Matcher matcher) {
+        for (int i = 1; i <= matcher.groupCount(); i++) {
+            if (matcher.group(i) != null) return matcher.group(i);
+        }
+        return null;
     }
 
     private JobAvailabilityMatcher() { }
