@@ -22,7 +22,7 @@ class RankJobsForResumeToolTests {
     @Test
     void fullLimitStillReportsRequestedIdsMissingFromTheUsersLibrary() throws Exception {
         var ids = List.of(10L, 11L, 404L);
-        when(ranking.rank(1L, 2, ids)).thenReturn(List.of(
+        when(ranking.rank(1L, 3, ids)).thenReturn(List.of(
                 new JobSemanticMatchResponse(job(10L), 0.9),
                 new JobSemanticMatchResponse(job(11L), 0.8)));
         var result = (Map<?, ?>) tool.execute(
@@ -30,6 +30,20 @@ class RankJobsForResumeToolTests {
                 new AgentToolContext(new AppUser()));
         assertEquals(2, ((List<?>) result.get("matches")).size());
         assertEquals(List.of(404L), result.get("notInLibrary"));
+    }
+
+    @Test
+    void lowerRankedExistingIdsAreNotReportedMissingWhenLimitIsSmallerThanTheRequest() throws Exception {
+        var ids = List.of(10L, 11L, 12L);
+        when(ranking.rank(1L, 3, ids)).thenReturn(List.of(
+                new JobSemanticMatchResponse(job(10L), 0.9),
+                new JobSemanticMatchResponse(job(11L), 0.8),
+                new JobSemanticMatchResponse(job(12L), 0.7)));
+        var result = (Map<?, ?>) tool.execute(
+                json.readTree("{\"resumeId\":1,\"limit\":2,\"jobIds\":[10,11,12]}"),
+                new AgentToolContext(new AppUser()));
+        assertEquals(2, ((List<?>) result.get("matches")).size());
+        assertEquals(false, result.containsKey("notInLibrary"));
     }
 
     private static JobDescriptionResponse job(long id) {
