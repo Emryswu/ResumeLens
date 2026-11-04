@@ -19,6 +19,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -172,6 +174,54 @@ class RecommendationSubmissionLoopTests {
         assertTrue(outputs.getLast().contains("示例公司"));
         assertTrue(outputs.getLast().contains("JD 原文证据"));
         assertFalse(outputs.getLast().contains("jobId="));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2})
+    void acceptedSubmissionClosesTheBatchBeforeTheNextQuestion(int submitPosition) throws Exception {
+        List<AgentMessage.ToolCall> batch = new ArrayList<>(List.of(
+                call("read", "get_job", "{\"jobId\":7}"),
+                call("collect", "collect_boss_jobs", "{}")));
+        batch.add(submitPosition, call("submit", "submit_recommendations",
+                proposal(item(7, "负责 Java 后端开发"))));
+        var outcome = run((system, transcript, tools, timeout) ->
+                AgentModel.Reply.call(batch.toArray(AgentMessage.ToolCall[]::new)), new ArrayList<>());
+
+        List<AgentMessage> next = new ArrayList<>(outcome.transcript());
+        next.add(AgentMessage.user("再看看其他岗位"));
+        assertDoesNotThrow(() -> new TranscriptPolicy(properties).normalize(next, null));
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(3, outcome.transcript().stream().filter(message -> AgentMessage.TOOL.equals(message.role())).count());
+        for (int index = submitPosition + 1; index < batch.size(); index++) {
+            String id = batch.get(index).id();
+            JsonNode result = json.readTree(outcome.transcript().stream()
+                    .filter(message -> id.equals(message.toolCallId())).findFirst().orElseThrow().content());
+            assertFalse(ToolEnvelope.executed(result), "remaining calls must not execute or consume budget");
+            assertFalse(result.path("ok").asBoolean());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void rejectedSubmissionAlsoClosesTheBatchWhenRetriesOrStepsRunOut(boolean stepLimit) throws Exception {
+        if (stepLimit) properties.setMaxPlanningSteps(1);
+        AtomicInteger calls = new AtomicInteger();
+        var outcome = run((system, transcript, tools, timeout) -> {
+            int attempt = calls.incrementAndGet();
+            var submit = call("submit" + attempt, "submit_recommendations",
+                    proposal(item(8, "列表摘要：AI 应用开发")));
+            return !stepLimit && attempt == 1 ? AgentModel.Reply.call(submit)
+                    : AgentModel.Reply.call(submit, call("read", "get_job", "{\"jobId\":7}"));
+        }, new ArrayList<>());
+
+        List<AgentMessage> next = new ArrayList<>(outcome.transcript());
+        next.add(AgentMessage.user("继续找"));
+        assertDoesNotThrow(() -> new TranscriptPolicy(properties).normalize(next, null));
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        assertEquals(stepLimit ? 1 : 2, calls.get());
+        JsonNode skipped = json.readTree(outcome.transcript().stream()
+                .filter(message -> "read".equals(message.toolCallId())).findFirst().orElseThrow().content());
+        assertFalse(ToolEnvelope.executed(skipped));
     }
 
     @Test

@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -486,6 +488,25 @@ class AgentLoopTests {
 
         assertEquals(AgentLoop.State.CANCELLED, outcome.state());
         assertEquals(1, model.inputs.size());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"note", "step_started", "step"})
+    void failedSendMidBatchClosesUnansweredCalls(String stopAt) {
+        AgentModel model = (system, transcript, tools, timeout) -> new AgentModel.Reply("开始查询", List.of(
+                call("c1", "lookup", "{\"id\":1}"), call("c2", "lookup", "{\"id\":2}")));
+        RecordingSink sink = new RecordingSink();
+        sink.onEmit = name -> {
+            if (stopAt.equals(name)) throw new AgentEventSink.ClientGoneException(null);
+        };
+        var outcome = loop(model).run(fresh("查两条"), null, context, sink, () -> false);
+
+        assertEquals(AgentLoop.State.CANCELLED, outcome.state());
+        assertEquals(2, toolMessages(outcome.transcript()).size(), stopAt);
+        assertTrue(lookup.seenIds.size() <= 1);
+        List<AgentMessage> next = new ArrayList<>(outcome.transcript());
+        next.add(AgentMessage.user("继续"));
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> policy().normalize(next, null));
     }
 
     @Test
