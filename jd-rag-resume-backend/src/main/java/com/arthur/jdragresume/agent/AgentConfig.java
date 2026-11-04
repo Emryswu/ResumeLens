@@ -5,6 +5,7 @@ import com.arthur.jdragresume.ai.AiClient;
 import com.arthur.jdragresume.ai.AiProperties;
 import com.arthur.jdragresume.service.JobSearchPreferencesService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,11 +15,18 @@ import org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecu
 
 @Configuration
 public class AgentConfig {
+    /** The registry's names bound the tool tag; a name the model invents is folded into one value. */
     @Bean
-    public AgentModel agentModel(AiProperties aiProperties, AiClient aiClient, ObjectMapper objectMapper) {
-        return aiProperties.isMockEnabled()
+    public AgentMetrics agentMetrics(MeterRegistry registry, AgentToolRegistry tools) {
+        return new AgentMetrics(registry, tools.names());
+    }
+
+    /** The scripted and the real model are metered alike, so a mock deployment shows the same meters. */
+    @Bean
+    public AgentModel agentModel(AiProperties aiProperties, AiClient aiClient, ObjectMapper objectMapper, AgentMetrics metrics) {
+        return metrics.model(aiProperties.isMockEnabled()
                 ? new ScriptedAgentModel(objectMapper)
-                : new OpenAiCompatibleAgentModel(aiClient);
+                : new OpenAiCompatibleAgentModel(aiClient));
     }
 
     @Bean

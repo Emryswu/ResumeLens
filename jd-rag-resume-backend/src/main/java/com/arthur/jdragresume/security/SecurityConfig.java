@@ -30,8 +30,10 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthenticationFilter jwtAuthenticationFilter,
-            SecurityProblemSupport securityProblemSupport
+            SecurityProblemSupport securityProblemSupport,
+            @Value("${app.metrics.scrape-token:}") String scrapeToken
     ) throws Exception {
+        MetricsScrapeMatcher scrape = new MetricsScrapeMatcher(scrapeToken);
         return http
                 // Business endpoints take a Bearer header, which browsers never send on their own;
                 // the refresh-cookie endpoints under /api/auth are covered by FetchMetadataGuard below.
@@ -51,6 +53,10 @@ public class SecurityConfig {
                                 "/actuator/health",
                                 "/actuator/health/**"
                         ).permitAll()
+                        // Scrapes present the operator's token; a user's JWT does not open the endpoint.
+                        .requestMatchers(request -> request.getRequestURI().startsWith("/actuator/prometheus")
+                                && scrape.matches(request)).permitAll()
+                        .requestMatchers("/actuator/prometheus", "/actuator/prometheus/**").denyAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
