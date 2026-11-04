@@ -72,12 +72,13 @@ public class RankJobsForResumeTool implements AgentTool {
         long resumeId = arguments.get("resumeId").asLong();
         int limit = arguments.path("limit").asInt(5);
         boolean screened = preferences != null;
-        int fetched = screened ? CANDIDATE_POOL : limit;
         List<Long> jobIds = null;
         if (arguments.hasNonNull("jobIds")) {
             jobIds = new ArrayList<>();
             for (var id : arguments.get("jobIds")) jobIds.add(id.asLong());
         }
+        // Fetch every requested ID before applying the output limit, otherwise a valid lower-ranked ID looks missing.
+        int fetched = screened ? CANDIDATE_POOL : jobIds == null ? limit : Math.max(limit, jobIds.size());
         List<JobSemanticMatchResponse> matches;
         try {
             matches = jobSemanticMatchService.rank(resumeId, fetched, jobIds);
@@ -120,9 +121,9 @@ public class RankJobsForResumeTool implements AgentTool {
         }
         if (jobIds != null) {
             List<Long> found = ranked.stream().map(Item::jobId).toList();
-            // Only reported when the ids did not all rank: the model must not assume a missing job was compared.
+            // Missing/unauthorized IDs must be reported even when the output already fills limit.
             List<Long> missing = jobIds.stream().distinct().filter(id -> !found.contains(id)).toList();
-            if (items.size() < limit && !missing.isEmpty()) result.put("notInLibrary", missing);
+            if (!missing.isEmpty()) result.put("notInLibrary", missing);
         }
         return result;
     }
