@@ -588,7 +588,7 @@ node --experimental-strip-types --test tests/report-export.test.ts
 
 ## 可观测性
 
-后端用 Micrometer 记指标，由 Actuator 的 Prometheus 端点输出。助手这条链路的指标不是在 `AgentLoop` 里埋点，而是从它已有的两个边界推出来的：模型接口外面包一层计时，事件流外面包一层观察（`AgentMetrics`）。所以 transcript 记了什么，指标就是什么，两边不会漂移；标签也都是有界集合（工具名来自注册表、错误码是常量、状态是枚举），不带用户数据。
+后端用 Micrometer 记指标，由 Actuator 的 Prometheus 端点输出。助手这条链路的指标不是在 `AgentLoop` 里埋点，而是从它已有的两个边界推出来的：模型接口外面包一层计时，事件流外面包一层观察（`AgentMetrics`）。所以 transcript 记了什么，指标就是什么，两边不会漂移；标签也都是有界集合（工具名只能是注册表里的名字，模型编出来的名字一律折叠成 `unknown`；错误码是常量；状态是枚举），不带用户数据。
 
 | 指标 | 类型 | 标签 | 含义 |
 |---|---|---|---|

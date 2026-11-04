@@ -1,23 +1,29 @@
 package com.arthur.jdragresume.agent;
 
+import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.ai.ReasoningEffort;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Operational meters for the assistant. They are derived at two boundaries the loop already has, the model
  * interface and the event sink, so {@link AgentLoop} itself carries no instrumentation and the counters cannot
- * drift from what the transcript records. Tags are bounded: tool names come from the registry, error codes are
- * constants, states are the {@link AgentLoop.State} enum. No tag carries user data.
+ * drift from what the transcript records. Tags are bounded: a tool tag is one of the registered names or
+ * {@link #UNKNOWN_TOOL} (the model can ask for any name it likes, and a step is recorded for the refusal), error
+ * codes are constants, states are the {@link AgentLoop.State} enum. No tag carries user data.
  */
 public class AgentMetrics {
+    /** Tool tag for a step whose name is not in the registry; the step's error code already says UNKNOWN_TOOL. */
+    public static final String UNKNOWN_TOOL = "unknown";
     /** Turns by terminal state. */
     public static final String TURNS = "agent.turns";
     /** Model round trips by outcome and reasoning effort. */
@@ -30,18 +36,29 @@ public class AgentMetrics {
     public static final String TURN_ERRORS = "agent.turn.errors";
 
     private final MeterRegistry registry;
+    private final Set<String> tools;
 
-    public AgentMetrics(MeterRegistry registry) {
+    /** {@code tools} is the registry's name list: the only tool tag values besides {@link #UNKNOWN_TOOL}. */
+    public AgentMetrics(MeterRegistry registry, Collection<String> tools) {
         this.registry = Objects.requireNonNull(registry);
+        this.tools = Set.copyOf(tools);
     }
 
-    /** For code paths and tests that have no registry: meters are kept in memory and never exported. */
-    public static AgentMetrics none() {
-        return new AgentMetrics(new SimpleMeterRegistry());
+    /**
+     * For code paths and tests that have no meter registry: meters are kept in memory and never exported.
+     * A test double may pass no tool registry at all; every tool is then {@link #UNKNOWN_TOOL}.
+     */
+    public static AgentMetrics none(AgentToolRegistry tools) {
+        return new AgentMetrics(new SimpleMeterRegistry(), tools == null ? List.of() : tools.names());
     }
 
     public MeterRegistry registry() {
         return registry;
+    }
+
+    /** The only place a tool name becomes a tag value. */
+    String toolTag(String name) {
+        return name != null && tools.contains(name) ? name : UNKNOWN_TOOL;
     }
 
     public AgentModel model(AgentModel delegate) {
@@ -99,11 +116,12 @@ public class AgentMetrics {
         switch (event) {
             case "step" -> {
                 if (payload instanceof AgentLoop.StepEvent step) {
+                    String tool = toolTag(step.tool());
                     String outcome = step.ok() ? "ok" : "error";
-                    registry.timer(TOOL_CALLS, "tool", step.tool(), "outcome", outcome)
+                    registry.timer(TOOL_CALLS, "tool", tool, "outcome", outcome)
                             .record(step.latencyMs(), TimeUnit.MILLISECONDS);
                     if (!step.ok()) {
-                        registry.counter(TOOL_ERRORS, "tool", step.tool(),
+                        registry.counter(TOOL_ERRORS, "tool", tool,
                                 "code", Objects.requireNonNullElse(step.errorCode(), "UNKNOWN")).increment();
                     }
                 }

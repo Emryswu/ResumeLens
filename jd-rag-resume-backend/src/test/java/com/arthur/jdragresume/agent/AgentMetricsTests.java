@@ -7,13 +7,16 @@ import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -28,11 +31,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class AgentMetricsTests {
     private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
-    private final AgentMetrics metrics = new AgentMetrics(registry);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AgentProperties properties = new AgentProperties();
     private final AgentToolContext context = new AgentToolContext(new AppUser());
     private final AgentLoopTests.LookupTool lookup = new AgentLoopTests.LookupTool();
+    private final AgentToolRegistry tools = new AgentToolRegistry(List.of(lookup));
+    private final AgentMetrics metrics = new AgentMetrics(registry, tools.names());
 
     @Test
     void aCompletedTurnCountsModelCallsToolStepsAndItsTerminalState() {
@@ -48,11 +52,36 @@ class AgentMetricsTests {
         assertEquals(1.0, counter(AgentMetrics.TURNS, "state", "COMPLETED").count());
         assertEquals(3, timer(AgentMetrics.MODEL_CALLS, "outcome", "ok", "effort", "high").count());
         assertEquals(1, timer(AgentMetrics.TOOL_CALLS, "tool", "lookup", "outcome", "ok").count());
-        assertEquals(1, timer(AgentMetrics.TOOL_CALLS, "tool", "delete_everything", "outcome", "error").count());
-        assertEquals(1.0, counter(AgentMetrics.TOOL_ERRORS, "tool", "delete_everything", "code", "UNKNOWN_TOOL").count());
+        // The model asked for a tool that does not exist: the step is counted, but under the fixed unknown tag.
+        assertEquals(1, timer(AgentMetrics.TOOL_CALLS, "tool", AgentMetrics.UNKNOWN_TOOL, "outcome", "error").count());
+        assertEquals(1.0, counter(AgentMetrics.TOOL_ERRORS, "tool", AgentMetrics.UNKNOWN_TOOL, "code", "UNKNOWN_TOOL").count());
         assertNull(registry.find(AgentMetrics.TURN_ERRORS).counter(), "a completed turn raises no turn-level error");
         // The metered sink is transparent: the durable sink still sees every event, in order, unchanged.
         assertEquals(List.of("step", "step_started", "step", "message", "done"), delegate.names());
+    }
+
+    /**
+     * The tool tag must stay a bounded set however many names the model invents: each distinct value is a
+     * new time series in the exporter, and the name itself is model output.
+     */
+    @Test
+    void toolTagValuesNeverLeaveTheRegistryNamesPlusUnknown() {
+        for (String invented : List.of("delete_everything", "drop_table", "rm -rf /", "", "lookup2")) {
+            metrics.observe("step", new AgentLoop.StepEvent("c", invented, "{}", false, "UNKNOWN_TOOL", 1, 0, "", null));
+        }
+        metrics.observe("step", new AgentLoop.StepEvent("c", null, "{}", false, "UNKNOWN_TOOL", 1, 0, "", null));
+        metrics.observe("step", new AgentLoop.StepEvent("c", "lookup", "{}", true, null, 1, 0, "", null));
+
+        Set<String> allowed = new HashSet<>(tools.names());
+        allowed.add(AgentMetrics.UNKNOWN_TOOL);
+        Set<String> seen = new HashSet<>();
+        for (Meter meter : registry.getMeters()) {
+            String tool = meter.getId().getTag("tool");
+            if (tool != null) seen.add(tool);
+        }
+        assertEquals(Set.of("lookup", AgentMetrics.UNKNOWN_TOOL), seen);
+        assertTrue(allowed.containsAll(seen));
+        assertEquals(6.0, counter(AgentMetrics.TOOL_ERRORS, "tool", AgentMetrics.UNKNOWN_TOOL, "code", "UNKNOWN_TOOL").count());
     }
 
     @Test
@@ -112,9 +141,11 @@ class AgentMetricsTests {
 
     @Test
     void noRegistryKeepsMetersInMemory() {
-        AgentMetrics none = AgentMetrics.none();
+        AgentMetrics none = AgentMetrics.none(tools);
         none.observe("done", new AgentLoop.DoneEvent(AgentLoop.State.FAILED, 0, List.of(), null, null, List.of()));
         assertEquals(1.0, none.registry().get(AgentMetrics.TURNS).tag("state", "FAILED").counter().count());
+        assertEquals("lookup", none.toolTag("lookup"));
+        assertEquals(AgentMetrics.UNKNOWN_TOOL, none.toolTag("delete_everything"));
     }
 
     private Counter counter(String name, String... tags) {
@@ -127,7 +158,7 @@ class AgentMetricsTests {
 
     private AgentLoop loop(AgentModel model) {
         AtomicLong clock = new AtomicLong(1_000_000);
-        return new AgentLoop(metrics.model(model), new AgentToolRegistry(List.of(lookup)), objectMapper, properties, clock::get);
+        return new AgentLoop(metrics.model(model), tools, objectMapper, properties, clock::get);
     }
 
     private TranscriptPolicy.Normalized fresh(String question) {

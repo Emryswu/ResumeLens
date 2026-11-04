@@ -54,7 +54,7 @@ public class AgentChatService {
             ConversationStore conversations
     ) {
         this(currentUserService, transcriptPolicy, agentLoop, rateLimiter, agentTaskExecutor, properties, memoryService,
-                toolRegistry, browserTasks, conversations, AgentMetrics.none());
+                toolRegistry, browserTasks, conversations, AgentMetrics.none(toolRegistry));
     }
 
     @Autowired

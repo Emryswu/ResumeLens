@@ -71,7 +71,7 @@ CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
 - JD 核实时效阈值只有一个来源：`app.agent.verified-jd-max-age-days`（`AgentProperties` 与 `application.properties` 同步，`AgentPropertiesDefaultsTests` 守着），判断只在 `JdFreshness` 里做，排序、核实预算（`VerifyBossJobTool.beforeBudget`）、推荐验收共用；业务代码取时间用注入的 `Clock`，不直接调 `now()`。`VerifyPriorityFreshnessTests` 会扫描源码，拦下在别处读 `fullVerifiedAt` 自行比较的写法。
 - 浏览器插件里每次打开 BOSS 页面都要先扣每日页数；连续打开详情页之间要有随机间隔，不能一口气秒开多个页面。
 - 跨进程比较日期必须使用同一时区（BOSS 每日额度统一为 `Asia/Shanghai`），后端是日期的唯一来源，插件和采集服务按该时区校验后端下发的 `budgetDate`。
-- 助手的指标只在 `AgentMetrics` 里从两个既有边界推出：模型接口的包装（计时、成败）和事件流的包装（`step` / `done` / `error` 事件）。不要在 `AgentLoop` 或工具里另外埋点，新指标先问「事件流里有没有」，没有就先把它变成事件。标签必须是有界集合（工具名、错误码、状态枚举），不得带用户数据。`/actuator/prometheus` 只对带 `METRICS_TOKEN` 的抓取放行（`MetricsScrapeMatcher`），用户 JWT 打不开它；不要为了方便把它加进 `permitAll`。`/actuator/health` 留在 API 端口上，前端状态徽标和 compose 健康检查都从那里读。
+- 助手的指标只在 `AgentMetrics` 里从两个既有边界推出：模型接口的包装（计时、成败）和事件流的包装（`step` / `done` / `error` 事件）。不要在 `AgentLoop` 或工具里另外埋点，新指标先问「事件流里有没有」，没有就先把它变成事件。标签必须是有界集合：工具名只经 `AgentMetrics.toolTag` 取注册表里的名字，不在注册表里的一律折叠成 `unknown`（模型会编造工具名，被拒绝的调用也有 step 事件）；错误码是常量；状态是枚举；不得带用户数据。`AgentMetricsTests.toolTagValuesNeverLeaveTheRegistryNamesPlusUnknown` 守着这条。`/actuator/prometheus` 只对带 `METRICS_TOKEN` 的抓取放行（`MetricsScrapeMatcher`），用户 JWT 打不开它；不要为了方便把它加进 `permitAll`。`/actuator/health` 留在 API 端口上，前端状态徽标和 compose 健康检查都从那里读。
 
 ## JD 技能规则
 

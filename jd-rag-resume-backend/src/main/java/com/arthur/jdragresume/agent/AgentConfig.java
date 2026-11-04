@@ -15,9 +15,10 @@ import org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecu
 
 @Configuration
 public class AgentConfig {
+    /** The registry's names bound the tool tag; a name the model invents is folded into one value. */
     @Bean
-    public AgentMetrics agentMetrics(MeterRegistry registry) {
-        return new AgentMetrics(registry);
+    public AgentMetrics agentMetrics(MeterRegistry registry, AgentToolRegistry tools) {
+        return new AgentMetrics(registry, tools.names());
     }
 
     /** The scripted and the real model are metered alike, so a mock deployment shows the same meters. */
