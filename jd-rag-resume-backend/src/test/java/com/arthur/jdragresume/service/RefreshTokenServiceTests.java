@@ -82,6 +82,20 @@ class RefreshTokenServiceTests {
     }
 
     @Test
+    void passwordChangeRevokedTokenIsInvalidInsteadOfReused() {
+        RefreshToken revoked = new RefreshToken();
+        revoked.setFamilyId("previous-session");
+        revoked.setRevokedAt(LocalDateTime.now().minusSeconds(1));
+        revoked.setReplacedByHash("PASSWORD_CHANGED");
+        repositoryState.found = Optional.of(revoked);
+
+        BusinessException error = assertThrows(
+                BusinessException.class, () -> refreshTokenService.rotate("previous-token")
+        );
+        assertEquals("REFRESH_TOKEN_INVALID", error.getCode());
+    }
+
+    @Test
     void cleanupDeletesOnlyOneBoundedBatch() {
         repositoryState.cleanupCandidateIds = List.of(11L, 12L, 13L);
 

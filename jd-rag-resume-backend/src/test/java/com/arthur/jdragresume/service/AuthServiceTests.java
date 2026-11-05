@@ -20,6 +20,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -34,10 +35,17 @@ class AuthServiceTests {
         passwordEncoder = new CountingPasswordEncoder();
         AppUserRepository repository = proxy(AppUserRepository.class, (ignored, method, args) ->
                 switch (method.getName()) {
-                    case "existsByUsername" -> state.usernameExists;
+                    case "existsByUsername" -> state.usernameExists || (state.knownUsername != null
+                            && state.knownUsername.equalsIgnoreCase((String) args[0]));
                     case "existsByEmail" -> state.emailExists;
-                    case "findByUsername" -> Optional.ofNullable(state.user);
-                    case "save" -> args[0];
+                    case "findByUsername" -> {
+                        state.lastLookupUsername = (String) args[0];
+                        yield Optional.ofNullable(state.user);
+                    }
+                    case "save" -> {
+                        state.savedUser = (AppUser) args[0];
+                        yield args[0];
+                    }
                     case "toString" -> "AppUserRepositoryTestDouble";
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
@@ -106,6 +114,39 @@ class AuthServiceTests {
         );
     }
 
+    @Test
+    void rejectsInvalidAndReservedRegistrationNames() {
+        for (String username : java.util.List.of("a", "al ice", "alice\u3000", "anonymousUser")) {
+            BusinessException error = assertThrows(BusinessException.class, () ->
+                    authService.register(new RegisterRequest(username, "a@example.com", "Alice", "secret1")));
+            assertEquals("INVALID_USERNAME", error.getCode());
+        }
+    }
+
+    @Test
+    void registrationTrimsBeforeConflictLookupAndLowercasesEmail() {
+        state.knownUsername = "Alice";
+        BusinessException conflict = assertThrows(BusinessException.class, () ->
+                authService.register(new RegisterRequest(" alice ", "a@example.com", "Alice", "secret1")));
+        assertEquals("ACCOUNT_CONFLICT", conflict.getCode());
+
+        state.knownUsername = null;
+        authService.register(new RegisterRequest(" ALICE ", " PERSON@Example.COM ", "Alice", "secret1"));
+        assertNotNull(state.savedUser);
+        assertEquals("ALICE", state.savedUser.getUsername());
+        assertEquals("person@example.com", state.savedUser.getEmail());
+    }
+
+    @Test
+    void loginTrimsUsernameBeforeLookup() {
+        AppUser user = new AppUser();
+        user.setUsername("arthur");
+        user.setPasswordHash(passwordEncoder.encode("secret1"));
+        state.user = user;
+        authService.login(new LoginRequest(" arthur ", "secret1"));
+        assertEquals("arthur", state.lastLookupUsername);
+    }
+
     @SuppressWarnings("unchecked")
     private static <T> T proxy(Class<T> type, java.lang.reflect.InvocationHandler handler) {
         return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[]{type}, handler);
@@ -114,6 +155,9 @@ class AuthServiceTests {
     private static final class RepositoryState {
         private boolean usernameExists;
         private boolean emailExists;
+        private String knownUsername;
+        private String lastLookupUsername;
+        private AppUser savedUser;
         private AppUser user;
     }
 
