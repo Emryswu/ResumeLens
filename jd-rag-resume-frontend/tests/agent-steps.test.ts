@@ -262,3 +262,16 @@ test("normal collection completion explains why it ended and warns about a first
   assert.doesNotMatch(describeOutcome({ ...row, facts: { ...row.facts, pagesRead: 2 } }) ?? "", /可能未登录/);
   assert.match(describeOutcome({ ...row, facts: { ...row.facts, finishReason: "MAX_PAGES" } }) ?? "", /已读完要求的页数/);
 });
+
+test("JSON keys that shadow Object.prototype remain readable arguments", () => {
+  assert.equal(describeArguments('{"__proto__":1}'), "__proto__=1");
+  for (const key of ["constructor", "toString", "hasOwnProperty", "valueOf"]) {
+    assert.equal(describeArguments(JSON.stringify({ [key]: 1 })), `${key}=1`);
+  }
+});
+
+test("unknown tool names never invoke inherited outcome formatters", () => {
+  for (const tool of ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf"]) {
+    assert.equal(describeOutcome({ tool, status: "done", facts: {} }), null, tool);
+  }
+});
