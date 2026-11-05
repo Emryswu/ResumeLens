@@ -36,6 +36,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
         HttpStatus status = switch (ex.getCode()) {
+            case "PAYLOAD_TOO_LARGE" -> HttpStatus.PAYLOAD_TOO_LARGE;
             case "REFRESH_TOKEN_INVALID", "REFRESH_TOKEN_EXPIRED", "REFRESH_TOKEN_REUSED" -> HttpStatus.UNAUTHORIZED;
             case "AUTH_RATE_LIMITED", "ANALYSIS_RATE_LIMITED", "ANALYSIS_TOO_MANY_PENDING",
                  "AGENT_RATE_LIMITED" -> HttpStatus.TOO_MANY_REQUESTS;

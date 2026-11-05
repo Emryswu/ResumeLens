@@ -16,7 +16,6 @@ import {
 } from "../app/lib/api.ts";
 import {
   POST as proxyPost,
-  clientIpFromHeaders,
   rewriteUpstreamCookie,
 } from "../app/api/backend/[...path]/route.ts";
 
@@ -212,7 +211,7 @@ test("the backend proxy rewrites the refresh cookie path for the browser route",
   });
 
   const response = await proxyPost(request, {
-    params: Promise.resolve({ path: ["api", "auth", "login"] }),
+    params: Promise.resolve({ path: ["api", "auth", "login"] }), peer: "127.0.0.1",
   });
 
   assert.match(
@@ -221,31 +220,30 @@ test("the backend proxy rewrites the refresh cookie path for the browser route",
   );
 });
 
-test("the backend proxy replaces caller-supplied client identity with the edge address", async () => {
-  let forwardedHeaders = new Headers();
+test("only follows XFF hops vouched for by the TCP peer", async (t) => {
+  const before = process.env.TRUSTED_PROXIES;
+  process.env.TRUSTED_PROXIES = "192.0.2.1,192.0.2.2";
+  t.after(() => { if (before === undefined) delete process.env.TRUSTED_PROXIES; else process.env.TRUSTED_PROXIES = before; });
+  const seen: Headers[] = [];
   globalThis.fetch = async (_input, init) => {
-    forwardedHeaders = new Headers(init?.headers);
-    return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+    seen.push(new Headers(init?.headers));
+    return new Response("{}");
   };
-  const request = new Request("http://localhost/api/backend/api/auth/register", {
-    method: "POST",
-    body: "{}",
-    headers: {
-      "Content-Type": "application/json",
-      "CF-Connecting-IP": "203.0.113.43",
-      "X-Forwarded-For": "198.51.100.8, 198.51.100.9",
-      "X-BFF-Client-IP": "192.0.2.99",
-    },
-  });
-
-  await proxyPost(request, {
-    params: Promise.resolve({ path: ["api", "auth", "register"] }),
-  });
-
-  assert.equal(clientIpFromHeaders(request.headers), "203.0.113.43");
-  assert.equal(forwardedHeaders.get("x-bff-client-ip"), "203.0.113.43");
-  assert.equal(forwardedHeaders.has("cf-connecting-ip"), false);
-  assert.equal(forwardedHeaders.has("x-forwarded-for"), false);
+  for (const peer of ["203.0.113.1", "192.0.2.1"]) {
+    for (const forged of ["198.51.100.1", "198.51.100.2"]) {
+      const request = new Request("http://localhost/api/backend/api/auth/login", {
+        method: "POST", headers: {
+          "x-forwarded-for": [forged, "203.0.113.9", "192.0.2.2"].join(", "),
+          "cf-connecting-ip": forged, "x-real-ip": forged, "x-bff-client-ip": forged,
+        },
+      });
+      await proxyPost(request, { params: Promise.resolve({ path: ["api", "auth", "login"] }), peer });
+    }
+  }
+  assert.deepEqual(seen.map(h => h.get("x-bff-client-ip")), ["203.0.113.1", "203.0.113.1", "203.0.113.9", "203.0.113.9"]);
+  for (const h of seen) {
+    for (const name of ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"]) assert.equal(h.has(name), false);
+  }
 });
 
 test("the backend proxy adds Secure on HTTPS but leaves local HTTP cookies intact", () => {

@@ -49,7 +49,7 @@ public class AgentProperties {
     private long browserTaskTimeoutSeconds = 180;
     /** Upper bound on the serialized browser report; 45 listings fit in well under this. */
     @Min(1)
-    private int maxBrowserReportChars = 200_000;
+    private int maxBrowserReportBytes = 200_000;
     /**
      * How long a FULL JD read from a BOSS detail page stays verified. Older verifications count as unverified for
      * ranking, the verification budget and the recommendation gate alike; {@link JdFreshness} is the only reader.
@@ -73,8 +73,8 @@ public class AgentProperties {
     public void setBrowserTaskTimeoutSeconds(long value) { browserTaskTimeoutSeconds = value; }
     public int getVerifiedJdMaxAgeDays() { return verifiedJdMaxAgeDays; }
     public void setVerifiedJdMaxAgeDays(int value) { verifiedJdMaxAgeDays = value; }
-    public int getMaxBrowserReportChars() { return maxBrowserReportChars; }
-    public void setMaxBrowserReportChars(int value) { maxBrowserReportChars = value; }
+    public int getMaxBrowserReportBytes() { return maxBrowserReportBytes; }
+    public void setMaxBrowserReportBytes(int value) { maxBrowserReportBytes = value; }
 
     public int getMaxSteps() {
         return maxSteps;
