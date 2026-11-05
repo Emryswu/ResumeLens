@@ -42,7 +42,7 @@ class AgentJobSearchEvalV3Tests {
     /** Business code under test for the single pre-registered slot: main when v3 was written (after #123). */
     static final String TARGET_BUSINESS = "31413632511d1805205e51d011dfe0e582122da9";
     /** Frozen acceptance inputs. Changing any acceptance task or snapshot changes this value; see PROTOCOL.md. */
-    static final String ACCEPTANCE_DIGEST = "982eedc19accdc7104748d2510918ff6e8ade882b16e507892860e1c227dbac0";
+    static final String ACCEPTANCE_DIGEST = "900dafd7f47693865552bc12297ab70ee5b31f517e974f5ceb016b7cc24efecb";
     static final List<String> SLOTS = List.of("current");
     private static final int REPETITIONS = 3;
     private static final Set<String> CHECK_TYPES = Set.of("prerequisites", "inherit_filters", "stop_on_signal",
