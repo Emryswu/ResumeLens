@@ -47,6 +47,16 @@ class BrowserExtensionJobCollectorTests {
     }
 
     @Test
+    void explicitBroadSearchWithoutAKeywordOrExperienceCanReachTheExtension() {
+        CollectRequest request = new CollectRequest("", "深圳", 1, "不限", true);
+        JobCollector.Delegated delegated = assertInstanceOf(JobCollector.Delegated.class, collector.start(request));
+        assertEquals("", delegated.command().get("keyword"));
+        assertEquals("不限", delegated.command().get("experience"));
+        assertEquals(true, delegated.command().get("broadSearch"));
+        assertEquals("INVALID_ARGUMENTS", code(() -> collector.start(new CollectRequest("", "深圳", 1))));
+    }
+
+    @Test
     void studentFilterIsDelegatedAndAReportThatDropsItIsRefused() throws Exception {
         CollectRequest request = objectMapper.readValue("""
                 {"keyword":"Java 后端","city":"深圳","maxPages":2,"experience":"在校生"}
