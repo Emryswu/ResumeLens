@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronRight, Clock, LoaderCircle } from "lucide-react";
+import { Component, type ReactNode } from "react";
 import type { AgentTurn } from "../../agent-stream";
 import {
   describeArguments,
@@ -94,10 +95,23 @@ export function ProcessDrawer({ turn, turnKey, pendingId, onClose }: {
   );
 }
 
+/** A single corrupt step must not take down the conversation or its other rows. */
+class StepErrorBoundary extends Component<{ children: ReactNode }, { broken: boolean }> {
+  state = { broken: false };
+
+  static getDerivedStateFromError() { return { broken: true }; }
+
+  render() {
+    return this.state.broken
+      ? <li className="agent-step failed" role="alert">该步骤无法展示</li>
+      : this.props.children;
+  }
+}
+
 function Timeline({ rows, thinking }: { rows: TimelineStep[]; thinking: boolean }) {
   return (
     <ol className="agent-timeline">
-      {rows.map((row) => <StepRow key={row.id} row={row} />)}
+      {rows.map((row) => <StepErrorBoundary key={row.id}><StepRow row={row} /></StepErrorBoundary>)}
       {thinking && !rows.some((row) => row.status === "running") && (
         <li className="agent-step running thinking">
           <div className="agent-step-line">
