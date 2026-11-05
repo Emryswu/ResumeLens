@@ -277,7 +277,7 @@ public class ResumeService {
         if (!violations.isEmpty()) {
             var violation = violations.iterator().next();
             throw new BusinessException("VALIDATION_ERROR",
-                    violation.getPropertyPath() + "：" + violation.getMessage());
+                    "简历字段 " + violation.getPropertyPath() + " 格式或长度不符合要求");
         }
     }
 
