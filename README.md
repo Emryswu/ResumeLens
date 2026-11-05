@@ -535,7 +535,8 @@ node --experimental-strip-types --test tests/report-export.test.ts
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | `/api/auth/register` | 注册（经 BFF 识别的客户端 IP 有频率限制；用户名/邮箱冲突返回同一错误码，409） |
-| POST | `/api/auth/login` | 登录，返回 JWT（经 BFF 识别的客户端 IP+用户名有频率限制） |
+| POST | `/api/auth/login` | 登录，返回 JWT。每 15 分钟先限每 IP 100 次，再限每 IP+用户名 20 次（默认值） |
+| POST | `/api/auth/refresh`、`/api/auth/logout` | 刷新和退出分别按 IP 限流，默认各 120 次 / 15 分钟，超限返回 429 |
 | GET/PUT | `/api/users/me` | 当前用户 |
 | GET/POST | `/api/resumes` | 列表（不含 `rawText`，`size` 最大 50）/ 文本创建 |
 | POST | `/api/resumes/upload` | multipart 上传（计入 30 份 / 200MB 配额） |
@@ -582,7 +583,7 @@ node --experimental-strip-types --test tests/report-export.test.ts
 | `app.job-description.max-per-user` | 默认 200 |
 | `app.agent.*` | 助手单轮工具步数（12）与常规模型调用数（12）、重规划次数（2）、单轮预算（90s）、SSE 超时（120s）、每人每 10 分钟 20 轮、浏览器任务等待（180s）、JD 核实时效（7 天） |
 
-**安全提示**：当前配置面向本地演示；公开仓库前请移除真实密钥，改用环境变量或外部配置。BFF 会覆盖 `X-BFF-Client-IP`，后端只信任 loopback/私有服务网来源，因此部署时不要绕过 BFF 将后端直接暴露到公网。
+**安全提示**：当前配置面向本地演示；公开仓库前请移除真实密钥，改用环境变量或外部配置。请保持后端只对 BFF 和受控服务开放。Node BFF 从 TCP 对端识别客户端；前置代理须覆盖 XFF，或在链尾追加真实对端。前端的 `TRUSTED_PROXIES` 填这些代理的固定 IP（逗号分隔），BFF 从右往左找到首个不可信地址并覆盖 `X-BFF-Client-IP`。后端的 `TRUSTED_PROXIES` 只填直连 BFF 的固定 IP。Compose 已把内部网络固定为 `172.29.88.0/24`、前端容器固定为 `172.29.88.10`，后端默认只信任这个地址，开箱即按真实客户端 IP 限流；网段与本机冲突时，在 `compose.env` 里同时改 `RESUMELENS_SUBNET`、`FRONTEND_IP`、`BACKEND_TRUSTED_PROXIES`。不用 Compose 自行部署时，后端 `TRUSTED_PROXIES` 若留空，启动日志会告警：此时经 BFF 的所有请求会落进同一个 IP 桶。
 
 ---
 

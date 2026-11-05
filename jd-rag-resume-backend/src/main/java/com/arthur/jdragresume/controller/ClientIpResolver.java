@@ -1,46 +1,45 @@
 package com.arthur.jdragresume.controller;
 
 import java.net.InetAddress;
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import jakarta.servlet.http.HttpServletRequest;
 
-/**
- * Resolves the address stamped by the browser-facing BFF. The BFF overwrites
- * this header; the backend must remain on loopback or a private service network.
- */
+@Component
 final class ClientIpResolver {
-
+    private static final Logger log = LoggerFactory.getLogger(ClientIpResolver.class);
     static final String BFF_CLIENT_IP_HEADER = "X-BFF-Client-IP";
+    private final Set<String> trustedProxies;
 
-    private ClientIpResolver() {
+    ClientIpResolver(@Value("${TRUSTED_PROXIES:}") String configured) {
+        trustedProxies = Arrays.stream(configured.split(",")).map(String::trim).filter(s -> !s.isEmpty())
+                .map(s -> {
+                    String ip = normalize(s);
+                    if (ip == null) throw new IllegalArgumentException("TRUSTED_PROXIES must contain IP addresses");
+                    return ip;
+                }).collect(Collectors.toUnmodifiableSet());
+        if (trustedProxies.isEmpty()) {
+            // Not fatal: running the backend directly (dev, tests) has no BFF to trust. Behind a BFF it
+            // means every user is rate-limited as the BFF's single address.
+            log.warn("TRUSTED_PROXIES is empty: X-BFF-Client-IP is ignored and requests relayed by a BFF "
+                    + "share that BFF's IP rate-limit bucket. Set it to the BFF's address when deploying.");
+        }
     }
 
-    static String resolve(HttpServletRequest request) {
+    String resolve(HttpServletRequest request) {
         String remote = normalize(request.getRemoteAddr());
-        if (isTrustedProxy(remote)) {
+        if (remote == null) throw new IllegalArgumentException("Missing or invalid TCP peer address");
+        if (trustedProxies.contains(remote)) {
             String forwarded = normalize(request.getHeader(BFF_CLIENT_IP_HEADER));
-            if (forwarded != null) {
-                return forwarded;
-            }
+            if (forwarded != null) return forwarded;
         }
-        return remote != null ? remote : "unknown";
-    }
-
-    private static boolean isTrustedProxy(String address) {
-        if (address == null) {
-            return false;
-        }
-        try {
-            InetAddress parsed = InetAddress.getByName(address);
-            byte[] bytes = parsed.getAddress();
-            boolean uniqueLocalV6 = bytes.length == 16 && (bytes[0] & 0xfe) == 0xfc;
-            return parsed.isLoopbackAddress()
-                    || parsed.isSiteLocalAddress()
-                    || parsed.isLinkLocalAddress()
-                    || uniqueLocalV6;
-        } catch (Exception ignored) {
-            return false;
-        }
+        return remote;
     }
 
     private static String normalize(String value) {

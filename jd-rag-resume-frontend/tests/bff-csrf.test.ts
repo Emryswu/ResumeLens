@@ -29,7 +29,7 @@ async function proxyThrough(
       headers,
       body: method === "GET" ? undefined : "{}",
     });
-    const response = await handler(request, { params: Promise.resolve({ path }) });
+    const response = await handler(request, { params: Promise.resolve({ path }), peer: "127.0.0.1" });
     return { response, forwarded };
   } finally {
     globalThis.fetch = originalFetch;
@@ -126,3 +126,42 @@ test("every method the proxy guards is also exported, so the page can send it", 
     assert.equal(typeof (route as Record<string, unknown>)[method], "function", `route.ts must export ${method}`);
   }
 });
+
+for (const segment of ["..", "%2e%2E", "%252e%252e", "..%2f..", "..\\\\..", "x;id=1"]) {
+  test(`rejects unsafe upstream segment ${segment} before fetch`, async () => {
+    const { response, forwarded } = await proxyThrough(GET, "GET", {}, ["api", segment, "actuator", "prometheus"]);
+    assert.equal(response.status, 404);
+    assert.equal(forwarded.length, 0);
+  });
+}
+
+test("only exposes health under actuator", async () => {
+  const denied = await proxyThrough(GET, "GET", {}, ["actuator", "prometheus"]);
+  assert.equal(denied.response.status, 404);
+  assert.equal(denied.forwarded.length, 0);
+  assert.equal((await proxyThrough(GET, "GET", {}, ["actuator", "health"])).response.status, 200);
+});
+
+for (const declared of [true, false]) {
+  test(`rejects an oversized ${declared ? "declared" : "streamed"} login before fetch`, async (t) => {
+    const fetch = t.mock.method(globalThis, "fetch", () => new Response("{}"));
+    let cancelled = false;
+    let chunks = 0;
+    const stream = new ReadableStream({
+      pull(controller) {
+        if (++chunks > 4) controller.close();
+        else controller.enqueue(new Uint8Array(512 * 1024));
+      },
+      cancel() { cancelled = true; },
+    });
+    const request = new Request("http://localhost/api/backend/api/auth/login", {
+      method: "POST", body: stream, duplex: "half",
+      headers: declared ? { "content-length": String(2 * 1024 * 1024) } : {},
+    } as RequestInit);
+    const response = await POST(request, { params: Promise.resolve({ path: ["api", "auth", "login"] }), peer: "127.0.0.1" });
+    assert.equal(response.status, 413);
+    assert.equal(fetch.mock.callCount(), 0);
+    if (declared) assert.ok(chunks <= 1);
+    else assert.equal(cancelled, true);
+  });
+}

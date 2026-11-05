@@ -1,3 +1,6 @@
+import { isIP } from "node:net";
+import ipaddr from "ipaddr.js";
+
 const BACKEND_URL = (process.env.BACKEND_API_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 
 const BFF_CLIENT_IP_HEADER = "x-bff-client-ip";
@@ -8,20 +11,25 @@ const CLIENT_IP_SOURCE_HEADERS = [
   "x-real-ip",
 ] as const;
 
-export function clientIpFromHeaders(headers: Headers): string | null {
-  for (const name of CLIENT_IP_SOURCE_HEADERS) {
-    const value = headers.get(name);
-    if (!value) continue;
+function address(value: string) {
+  return isIP(value) ? ipaddr.process(value).toString() : null;
+}
 
-    const candidate = value.split(",", 1)[0].trim();
-    const unwrapped = candidate.startsWith("[") && candidate.endsWith("]")
-      ? candidate.slice(1, -1)
-      : candidate;
-    if (unwrapped.length > 0 && unwrapped.length <= 45 && /^[0-9a-f:.]+$/i.test(unwrapped)) {
-      return unwrapped;
-    }
+function clientIp(peer: string, headers: Headers): string | null {
+  let current = address(peer);
+  const trusted = new Set((process.env.TRUSTED_PROXIES ?? "").split(",").filter(s => s.trim()).map(s => {
+    const ip = address(s.trim());
+    if (!ip) throw new Error("TRUSTED_PROXIES must contain IP addresses");
+    return ip;
+  }));
+  if (!current || !trusted.has(current)) return current;
+  const hops = (headers.get("x-forwarded-for") ?? "").split(",");
+  for (let i = hops.length - 1; i >= 0 && trusted.has(current); i--) {
+    const next = address(hops[i].trim());
+    if (!next) break; // An invalid hop cannot vouch for any address to its left.
+    current = next;
   }
-  return null;
+  return current;
 }
 
 const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -71,7 +79,38 @@ function normalizeOrigin(value: string): string | null {
   }
 }
 
-async function proxy(request: Request, context: { params: Promise<{ path: string[] }> }) {
+const JSON_LIMIT = 1024 * 1024;
+const UPLOAD_LIMIT = 25 * 1024 * 1024; // Spring multipart.max-request-size
+
+async function boundedBody(request: Request, limit: number) {
+  if (Number(request.headers.get("content-length")) > limit) return null;
+  if (!request.body) return undefined;
+  const reader = request.body.getReader();
+  let buffer = new Uint8Array(0);
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return buffer.subarray(0, bytes);
+      const size = bytes + value.byteLength;
+      if (size > limit) {
+        await reader.cancel();
+        return null;
+      }
+      if (size > buffer.length) {
+        const grown = new Uint8Array(Math.min(limit, Math.max(size, buffer.length * 2)));
+        grown.set(buffer);
+        buffer = grown;
+      }
+      buffer.set(value, bytes);
+      bytes = size;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function proxy(request: Request, context: { params: Promise<{ path: string[] }>; peer?: string }) {
   if (isCrossSiteWrite(request)) {
     return Response.json(
       { success: false, code: "CROSS_SITE_REQUEST_BLOCKED", message: "跨站请求已被拒绝，请从本站页面发起操作", data: null },
@@ -79,6 +118,13 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
     );
   }
   const { path } = await context.params;
+  const api = path.length > 1 && path[0] === "api";
+  const health = path.length === 2 && path[0] === "actuator" && path[1] === "health";
+  if ((!api && !health) || path.some(segment => !/^[A-Za-z0-9_-]+$/.test(segment))) {
+    return new Response(null, { status: 404 });
+  }
+  // A router-normalized alias must not re-enter the BFF without its TCP identity.
+  if (!context.peer) return new Response(null, { status: 404 });
   const incoming = new URL(request.url);
   const target = `${BACKEND_URL}/${path.join("/")}${incoming.search}`;
   const headers = new Headers(request.headers);
@@ -86,13 +132,18 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
     "host",
     "content-length",
     "connection",
+    "transfer-encoding",
+    "trailer",
     "accept-encoding",
     BFF_CLIENT_IP_HEADER,
     ...CLIENT_IP_SOURCE_HEADERS,
   ].forEach((name) => headers.delete(name));
-  const clientIp = clientIpFromHeaders(request.headers);
-  if (clientIp) headers.set(BFF_CLIENT_IP_HEADER, clientIp);
-  const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
+  const ip = clientIp(context.peer, request.headers);
+  if (!ip) return new Response(null, { status: 400 });
+  headers.set(BFF_CLIENT_IP_HEADER, ip);
+  const limit = path.join("/") === "api/resumes/upload" ? UPLOAD_LIMIT : JSON_LIMIT;
+  const body = await boundedBody(request, limit);
+  if (body === null) return Response.json({ success: false, code: "PAYLOAD_TOO_LARGE" }, { status: 413 });
 
   try {
     const upstream = await fetch(target, { method: request.method, headers, body, redirect: "manual" });

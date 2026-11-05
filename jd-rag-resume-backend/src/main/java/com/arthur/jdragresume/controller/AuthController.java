@@ -8,6 +8,7 @@ import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.security.CookieSecurity;
 import com.arthur.jdragresume.security.JwtProperties;
 import com.arthur.jdragresume.security.SlidingWindowRateLimiter;
+import com.arthur.jdragresume.security.SlidingWindowRateLimiter.Key;
 import com.arthur.jdragresume.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -34,6 +35,9 @@ public class AuthController {
     private final AuthService authService;
     private final JwtProperties jwtProperties;
     private final SlidingWindowRateLimiter rateLimiter;
+    private final ClientIpResolver clientIps;
+    private final int loginIpMax;
+    private final int sessionIpMax;
     private final int loginMaxPerWindow;
     private final long loginWindowMs;
     private final int registerMaxPerWindow;
@@ -43,6 +47,9 @@ public class AuthController {
             AuthService authService,
             JwtProperties jwtProperties,
             SlidingWindowRateLimiter rateLimiter,
+            ClientIpResolver clientIps,
+            @Value("${app.auth.login-ip-max-per-window:100}") int loginIpMax,
+            @Value("${app.auth.session-ip-max-per-window:120}") int sessionIpMax,
             @Value("${app.auth.login-max-per-window:20}") int loginMaxPerWindow,
             @Value("${app.auth.login-window-minutes:15}") long loginWindowMinutes,
             @Value("${app.auth.register-max-per-window:8}") int registerMaxPerWindow,
@@ -51,6 +58,9 @@ public class AuthController {
         this.authService = authService;
         this.jwtProperties = jwtProperties;
         this.rateLimiter = rateLimiter;
+        this.clientIps = clientIps;
+        this.loginIpMax = loginIpMax;
+        this.sessionIpMax = sessionIpMax;
         this.loginMaxPerWindow = Math.max(1, loginMaxPerWindow);
         this.loginWindowMs = Math.max(1L, loginWindowMinutes) * 60_000L;
         this.registerMaxPerWindow = Math.max(1, registerMaxPerWindow);
@@ -62,7 +72,7 @@ public class AuthController {
             @Valid @RequestBody RegisterRequest request,
             HttpServletRequest httpRequest
     ) {
-        acquire("register:" + clientKey(httpRequest), registerMaxPerWindow, registerWindowMs);
+        acquire(new Key("register", clientIps.resolve(httpRequest), null), registerMaxPerWindow, registerWindowMs);
         return sessionResponse(authService.register(request), HttpStatus.CREATED, httpRequest);
     }
 
@@ -71,11 +81,10 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest
     ) {
-        acquire(
-                "login:" + clientKey(httpRequest) + ":" + request.username().trim().toLowerCase(Locale.ROOT),
-                loginMaxPerWindow,
-                loginWindowMs
-        );
+        String ip = clientIps.resolve(httpRequest);
+        acquire(new Key("login", ip, null), loginIpMax, loginWindowMs);
+        String username = request.username().trim().toLowerCase(Locale.ROOT);
+        acquire(new Key("login", ip, username), loginMaxPerWindow, loginWindowMs);
         return sessionResponse(authService.login(request), HttpStatus.OK, httpRequest);
     }
 
@@ -84,6 +93,7 @@ public class AuthController {
             @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken,
             HttpServletRequest httpRequest
     ) {
+        acquire(new Key("refresh", clientIps.resolve(httpRequest), null), sessionIpMax, loginWindowMs);
         return sessionResponse(authService.refresh(refreshToken), HttpStatus.OK, httpRequest);
     }
 
@@ -92,6 +102,7 @@ public class AuthController {
             @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken,
             HttpServletRequest httpRequest
     ) {
+        acquire(new Key("logout", clientIps.resolve(httpRequest), null), sessionIpMax, loginWindowMs);
         authService.logout(refreshToken);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, clearRefreshCookie(httpRequest).toString())
@@ -130,13 +141,9 @@ public class AuthController {
                 .path(REFRESH_COOKIE_PATH);
     }
 
-    private void acquire(String key, int limit, long windowMs) {
+    private void acquire(Key key, int limit, long windowMs) {
         if (!rateLimiter.tryAcquire(key, limit, windowMs)) {
             throw new BusinessException("AUTH_RATE_LIMITED", "too many attempts, please retry later");
         }
-    }
-
-    private static String clientKey(HttpServletRequest request) {
-        return ClientIpResolver.resolve(request);
     }
 }

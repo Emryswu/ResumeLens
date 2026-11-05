@@ -53,7 +53,8 @@ class AuthControllerFetchMetadataTests {
         rateLimiter = new RecordingRateLimiter();
         // 防护不在 controller 里，而是挂在 /api/auth/* 上的过滤器，与 SecurityConfig 同一路径。
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new AuthController(authService, new JwtProperties(), rateLimiter, 20, 15, 8, 30))
+                .standaloneSetup(new AuthController(authService, new JwtProperties(), rateLimiter,
+                        new ClientIpResolver(""), 100, 120, 20, 15, 8, 30))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .addFilter(new FetchMetadataGuard(List.of("http://localhost:3000"),
                         Jackson2ObjectMapperBuilder.json().build()), "/api/auth/*")
@@ -169,10 +170,10 @@ class AuthControllerFetchMetadataTests {
     }
 
     private static final class RecordingRateLimiter extends SlidingWindowRateLimiter {
-        private final List<String> keys = new CopyOnWriteArrayList<>();
+        private final List<Key> keys = new CopyOnWriteArrayList<>();
 
         @Override
-        public boolean tryAcquire(String key, int limit, long windowMs) {
+        public boolean tryAcquire(Key key, int limit, long windowMs) {
             keys.add(key);
             return true;
         }
