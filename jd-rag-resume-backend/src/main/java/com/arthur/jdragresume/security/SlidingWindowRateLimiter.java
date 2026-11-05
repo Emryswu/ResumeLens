@@ -106,6 +106,22 @@ public class SlidingWindowRateLimiter {
         return true;
     }
 
+    /** Refund a successful password verification without refunding its IP-level attempt. */
+    public synchronized void release(Key key) {
+        Account account = accounts.get(key.owner());
+        if (account == null) return;
+        KeyWindow window = account.windows.get(key);
+        if (window == null) return;
+        window.timestamps.removeLast();
+        if (window.timestamps.isEmpty()) {
+            bySize.remove(account);
+            account.windows.remove(key);
+            trackedKeys--;
+            if (account.windows.isEmpty()) accounts.remove(account.owner);
+            else bySize.add(account);
+        }
+    }
+
     synchronized int trackedKeyCount() {
         return trackedKeys;
     }

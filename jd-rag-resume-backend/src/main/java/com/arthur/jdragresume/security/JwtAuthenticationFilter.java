@@ -1,5 +1,7 @@
 package com.arthur.jdragresume.security;
 
+import com.arthur.jdragresume.entity.AppUser;
+import com.arthur.jdragresume.repository.AppUserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -7,9 +9,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.List;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -28,11 +29,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      */
     private final SecurityContextRepository securityContextRepository = new RequestAttributeSecurityContextRepository();
     private final JwtService jwtService;
-    private final UserDetailsService userDetailsService;
+    private final AppUserRepository appUserRepository;
 
-    public JwtAuthenticationFilter(JwtService jwtService, UserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtService jwtService, AppUserRepository appUserRepository) {
         this.jwtService = jwtService;
-        this.userDetailsService = userDetailsService;
+        this.appUserRepository = appUserRepository;
     }
 
     @Override
@@ -49,21 +50,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
         if (SecurityContextHolder.getContext().getAuthentication() == null && jwtService.isTokenValid(token)) {
-            String username = jwtService.extractUsername(token);
-            try {
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            Long userId = jwtService.extractUserId(token);
+            AppUser user = userId == null ? null : appUserRepository.findById(userId).orElse(null);
+            if (user != null) {
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        userDetails,
+                        new JwtUserPrincipal(user.getId(), user.getUsername()),
                         null,
-                        userDetails.getAuthorities()
+                        List.of(new SimpleGrantedAuthority("ROLE_USER"))
                 );
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
                 context.setAuthentication(authentication);
                 SecurityContextHolder.setContext(context);
                 securityContextRepository.saveContext(context, request, response);
-            } catch (UsernameNotFoundException ignored) {
-                SecurityContextHolder.clearContext();
             }
         }
 

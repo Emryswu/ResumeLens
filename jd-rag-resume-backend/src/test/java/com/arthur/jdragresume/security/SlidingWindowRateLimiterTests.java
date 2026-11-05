@@ -99,4 +99,22 @@ class SlidingWindowRateLimiterTests {
         now.addAndGet(loginWindowMs + 1);
         assertTrue(limiter.tryAcquire(new Key("login", "203.0.113.7", "overflow"), 5, loginWindowMs));
     }
+
+    @Test
+    void aSuccessfulVerificationRefundsOnlyTheUserBucket() {
+        SlidingWindowRateLimiter limiter = new SlidingWindowRateLimiter(() -> 1_000_000L);
+        Key ip = new Key("profile-password", "192.0.2.11", null);
+        Key user = new Key("profile-password", null, "user:7");
+
+        assertTrue(limiter.tryAcquire(ip, 1, 900_000L));
+        assertTrue(limiter.tryAcquire(user, 1, 900_000L));
+        assertFalse(limiter.tryAcquire(user, 1, 900_000L));
+
+        limiter.release(user);
+        assertEquals(1, limiter.trackedKeyCount());
+        assertTrue(limiter.tryAcquire(user, 1, 900_000L));
+        assertFalse(limiter.tryAcquire(user, 1, 900_000L));
+        assertFalse(limiter.tryAcquire(ip, 1, 900_000L));
+    }
+
 }

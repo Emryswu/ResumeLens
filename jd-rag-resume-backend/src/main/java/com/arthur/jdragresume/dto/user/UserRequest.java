@@ -8,6 +8,7 @@ public record UserRequest(
         @NotBlank @Size(max = 64) String username,
         @NotBlank @Email @Size(max = 128) String email,
         @NotBlank @Size(max = 80) String displayName,
-        @NotBlank @Size(min = 6, max = 72) String password
+        @Size(min = 6, max = 72) String password,
+        @Size(max = 72) String currentPassword
 ) {
 }
