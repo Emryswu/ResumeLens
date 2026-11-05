@@ -115,7 +115,8 @@ class AnalysisSubmitGuardTests {
                 jobDescriptionRepository,
                 2,
                 10,
-                10
+                10,
+                java.time.Clock.systemDefaultZone()
         );
     }
 

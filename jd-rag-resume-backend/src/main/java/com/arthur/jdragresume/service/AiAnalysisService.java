@@ -17,6 +17,7 @@ public class AiAnalysisService {
     private final CurrentUserService currentUserService;
     private final AnalysisHistoryRepository analysisHistoryRepository;
     private final AnalysisSubmitGuard analysisSubmitGuard;
+    private final AnalysisHistoryUpdateService historyUpdateService;
     private final AiAnalysisWorker aiAnalysisWorker;
     private final TaskExecutor analysisTaskExecutor;
 
@@ -24,12 +25,14 @@ public class AiAnalysisService {
             CurrentUserService currentUserService,
             AnalysisHistoryRepository analysisHistoryRepository,
             AnalysisSubmitGuard analysisSubmitGuard,
+            AnalysisHistoryUpdateService historyUpdateService,
             AiAnalysisWorker aiAnalysisWorker,
             @Qualifier("analysisTaskExecutor") TaskExecutor analysisTaskExecutor
     ) {
         this.currentUserService = currentUserService;
         this.analysisHistoryRepository = analysisHistoryRepository;
         this.analysisSubmitGuard = analysisSubmitGuard;
+        this.historyUpdateService = historyUpdateService;
         this.aiAnalysisWorker = aiAnalysisWorker;
         this.analysisTaskExecutor = analysisTaskExecutor;
     }
@@ -52,9 +55,8 @@ public class AiAnalysisService {
         try {
             analysisTaskExecutor.execute(() -> aiAnalysisWorker.process(saved.getId()));
         } catch (RuntimeException ex) {
-            saved.setStatus(AnalysisStatus.FAILED);
-            saved.setSummary("AI analysis failed: task queue is full");
-            analysisHistoryRepository.save(saved);
+            historyUpdateService.failIfPendingAndRefund(
+                    saved.getId(), "AI analysis failed: task queue is full", "ANALYSIS_QUEUE_FULL");
             throw new BusinessException("ANALYSIS_QUEUE_FULL", "AI analysis task queue is full, please retry later");
         }
         return new Submission(AnalysisHistoryResponse.from(saved), false);

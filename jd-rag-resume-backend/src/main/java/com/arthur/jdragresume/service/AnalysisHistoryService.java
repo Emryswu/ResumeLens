@@ -1,6 +1,7 @@
 package com.arthur.jdragresume.service;
 
 import com.arthur.jdragresume.common.PageResponse;
+import com.arthur.jdragresume.common.LikeKeywords;
 import com.arthur.jdragresume.dto.analysis.AnalysisHistoryResponse;
 import com.arthur.jdragresume.dto.analysis.AnalysisHistorySummaryResponse;
 import com.arthur.jdragresume.entity.AnalysisHistory;
@@ -44,7 +45,7 @@ public class AnalysisHistoryService {
         AppUser user = currentUserService.getCurrentUser();
         var pageRequest = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return PageResponse.from(analysisHistoryRepository
-                .searchByUserId(user.getId(), normalizeKeyword(keyword), pageRequest)
+                .searchByUserId(user.getId(), escapedKeyword(keyword), pageRequest)
                 .map(AnalysisHistoryResponse::listItem));
     }
 
@@ -102,7 +103,8 @@ public class AnalysisHistoryService {
                 .orElseThrow(() -> new ResourceNotFoundException("analysis history", id));
     }
 
-    private String normalizeKeyword(String keyword) {
-        return keyword == null ? "" : keyword.trim();
+    private String escapedKeyword(String keyword) {
+        String escaped = LikeKeywords.escapeLikeKeyword(keyword);
+        return escaped == null ? "" : escaped;
     }
 }

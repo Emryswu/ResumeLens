@@ -9,6 +9,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -21,16 +22,18 @@ public class JwtService {
 
     private final JwtProperties jwtProperties;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
     private final Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
     private final Base64.Decoder decoder = Base64.getUrlDecoder();
 
-    public JwtService(JwtProperties jwtProperties, ObjectMapper objectMapper) {
+    public JwtService(JwtProperties jwtProperties, ObjectMapper objectMapper, Clock clock) {
         this.jwtProperties = jwtProperties;
         this.objectMapper = objectMapper;
+        this.clock = clock;
     }
 
     public String generateToken(AppUser user) {
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         Instant expiresAt = now.plusSeconds(jwtProperties.getExpirationMinutes() * 60);
 
         Map<String, Object> header = new LinkedHashMap<>();
@@ -63,7 +66,7 @@ public class JwtService {
             if (!(exp instanceof Number number)) {
                 return false;
             }
-            return Instant.now().getEpochSecond() < number.longValue();
+            return Instant.now(clock).getEpochSecond() < number.longValue();
         } catch (Exception ex) {
             return false;
         }

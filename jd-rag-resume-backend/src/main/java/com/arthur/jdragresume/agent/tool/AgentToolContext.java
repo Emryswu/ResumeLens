@@ -4,6 +4,10 @@ import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.collect.CollectionSession;
 import com.arthur.jdragresume.collect.CollectorMode;
 import java.util.function.Consumer;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 /** Resolved once per turn on the request thread; services still re-check ownership themselves. */
 public record AgentToolContext(AppUser user, com.arthur.jdragresume.agent.ConversationStore.Run run,
@@ -21,7 +25,17 @@ public record AgentToolContext(AppUser user, com.arthur.jdragresume.agent.Conver
     }
     public CollectionSession collection() {
         return new CollectionSession(user.getId(), run == null ? null : Long.toString(run.conversationId()),
-                run == null ? null : run.conversationId() + ":" + run.turnId() + ":" + toolCallId,
+                run == null ? null : run.conversationId() + ":" + run.turnId() + ":" + hashedToolCallId(toolCallId),
                 toolCallId, collectorMode, deadline, progress);
+    }
+
+    private static String hashedToolCallId(String callId) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(String.valueOf(callId).getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 }

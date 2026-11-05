@@ -16,6 +16,8 @@ import com.arthur.jdragresume.repository.ResumeRepository;
 import com.arthur.jdragresume.repository.ResumeChunkRepository;
 import com.arthur.jdragresume.rag.LuceneVectorIndex;
 import com.arthur.jdragresume.security.CurrentUserService;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,7 @@ import org.slf4j.LoggerFactory;
 public class ResumeService {
     private static final Logger log = LoggerFactory.getLogger(ResumeService.class);
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "doc", "docx", "txt", "md");
+    private static final Validator REQUEST_VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
 
     private final ResumeRepository resumeRepository;
     private final ResumeChunkRepository resumeChunkRepository;
@@ -123,22 +126,30 @@ public class ResumeService {
             String title,
             String candidateName,
             String phone,
-            String email,
-            String rawText
+            String email
     ) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException("EMPTY_FILE", "resume file must not be empty");
         }
 
         String originalFileName = file.getOriginalFilename() == null ? "resume" : file.getOriginalFilename();
+        if (originalFileName.length() > 255) {
+            throw new BusinessException("VALIDATION_ERROR", "originalFileName 不能超过 255 个字符");
+        }
+        String contentType = file.getContentType();
+        if (contentType != null && contentType.length() > 120) {
+            throw new BusinessException("VALIDATION_ERROR", "Content-Type 不能超过 120 个字符");
+        }
         String extension = extractExtension(originalFileName);
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new BusinessException("UNSUPPORTED_FILE_TYPE", "only PDF, DOC, DOCX, TXT and MD files are supported");
         }
 
-        validateUploadMetadata(title, candidateName, email);
-
-        String parsedRawText = limitRawText(resolveRawText(file, rawText));
+        String parsedRawText = limitRawText(resumeTextExtractor.extract(file));
+        ResumeRequest request = new ResumeRequest(
+                isBlank(title) ? truncate(originalFileName, 120) : title.trim(),
+                candidateName, phone, email, parsedRawText);
+        validateRequest(request);
         AppUser user = lockCurrentUser();
         enforceResumeCount(user);
         enforceStoredBytes(user, file.getSize());
@@ -157,16 +168,12 @@ public class ResumeService {
 
             Resume resume = new Resume();
             resume.setUser(user);
-            resume.setTitle(isBlank(title) ? truncate(originalFileName, 120) : title.trim());
-            resume.setCandidateName(candidateName);
-            resume.setPhone(phone);
-            resume.setEmail(email);
+            applyRequest(resume, request);
             resume.setOriginalFileName(originalFileName);
-            resume.setContentType(file.getContentType());
+            resume.setContentType(contentType);
             resume.setFileExtension(extension);
             resume.setStoredFilePath(storedPath.toString());
             resume.setFileSize(file.getSize());
-            resume.setRawText(parsedRawText);
             semanticEmbeddingService.refresh(resume);
             return ResumeResponse.from(resumeRepository.save(resume));
         } catch (BusinessException ex) {
@@ -265,18 +272,12 @@ public class ResumeService {
         }
     }
 
-    private void validateUploadMetadata(String title, String candidateName, String email) {
-        if (isBlank(candidateName)) {
-            throw new BusinessException("VALIDATION_ERROR", "candidateName must not be blank");
-        }
-        if (candidateName.trim().length() > 80) {
-            throw new BusinessException("VALIDATION_ERROR", "candidateName must be at most 80 characters");
-        }
-        if (title != null && title.trim().length() > 120) {
-            throw new BusinessException("VALIDATION_ERROR", "title must be at most 120 characters");
-        }
-        if (!isBlank(email) && !email.contains("@")) {
-            throw new BusinessException("VALIDATION_ERROR", "email must be a valid address");
+    private void validateRequest(ResumeRequest request) {
+        var violations = REQUEST_VALIDATOR.validate(request);
+        if (!violations.isEmpty()) {
+            var violation = violations.iterator().next();
+            throw new BusinessException("VALIDATION_ERROR",
+                    violation.getPropertyPath() + "：" + violation.getMessage());
         }
     }
 
@@ -296,13 +297,6 @@ public class ResumeService {
         }
         String trimmed = value.trim();
         return trimmed.length() <= maxLength ? trimmed : trimmed.substring(0, maxLength);
-    }
-
-    private String resolveRawText(MultipartFile file, String rawText) {
-        if (!isBlank(rawText)) {
-            return rawText;
-        }
-        return resumeTextExtractor.extract(file);
     }
 
     private String extractExtension(String filename) {

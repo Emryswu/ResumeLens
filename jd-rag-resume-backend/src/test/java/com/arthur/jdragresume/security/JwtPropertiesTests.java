@@ -22,6 +22,8 @@ class JwtPropertiesTests {
     void acceptsJwtSecretAtLeast32Bytes() {
         JwtProperties properties = new JwtProperties();
         properties.setSecret("0123456789abcdef0123456789abcdef");
+        properties.setExpirationMinutes(15);
+        properties.setRefreshExpirationDays(7);
 
         assertTrue(validator.validate(properties).isEmpty());
     }

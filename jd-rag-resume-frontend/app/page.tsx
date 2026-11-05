@@ -84,8 +84,9 @@ export default function HomePage() {
   }, [router]);
 
   useEffect(() => {
+    if (status !== "signedIn" || !user) return;
     let active = true;
-    void apiRequest<AiStatus>("/api/ai/status", {}, { auth: false })
+    void apiRequest<AiStatus>("/api/ai/status")
       .then((next) => {
         if (active) setAiStatus(next);
       })
@@ -95,7 +96,7 @@ export default function HomePage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [status, user]);
 
   async function submitAuth(event: FormEvent) {
     event.preventDefault();

@@ -39,7 +39,7 @@ class ResumeServiceUploadTransactionTests {
         TransactionSynchronizationManager.initSynchronization();
         ResumeService service = service(tempDir);
 
-        service.upload(file(), "Resume", "Arthur", null, null, "Java backend resume text");
+        service.upload(file(), "Resume", "Arthur", null, null);
         assertEquals(1, regularFileCount(tempDir));
 
         TransactionSynchronizationManager.getSynchronizations().forEach(
@@ -54,7 +54,7 @@ class ResumeServiceUploadTransactionTests {
         TransactionSynchronizationManager.initSynchronization();
         ResumeService service = service(tempDir);
 
-        service.upload(file(), "Resume", "Arthur", null, null, "Java backend resume text");
+        service.upload(file(), "Resume", "Arthur", null, null);
         TransactionSynchronizationManager.getSynchronizations().forEach(
                 synchronization -> synchronization.afterCompletion(TransactionSynchronization.STATUS_COMMITTED)
         );
@@ -70,7 +70,7 @@ class ResumeServiceUploadTransactionTests {
         // 这条用例锁的是"保存失败必须删掉已落盘的文件"，归因是否准确另行处理。
         BusinessException error = assertThrows(
                 BusinessException.class,
-                () -> service.upload(file(), "Resume", "Arthur", null, null, "Java backend resume text")
+                () -> service.upload(file(), "Resume", "Arthur", null, null)
         );
         assertEquals("FILE_SAVE_FAILED", error.getCode());
 
@@ -122,7 +122,7 @@ class ResumeServiceUploadTransactionTests {
                 proxy(ResumeChunkRepository.class, (ignored, method, args) -> null),
                 currentUserService,
                 appUserRepository,
-                null,
+                new ResumeTextExtractor(new ResumeTextQualityValidator()),
                 uploadDir.toString(),
                 null,
                 SemanticEmbeddingTestSupport.service(),
@@ -135,7 +135,7 @@ class ResumeServiceUploadTransactionTests {
                 "file",
                 "resume.txt",
                 "text/plain",
-                "resume bytes".getBytes(StandardCharsets.UTF_8)
+                "Java Spring Boot backend resume with MySQL, Redis, Docker and unit testing experience.".getBytes(StandardCharsets.UTF_8)
         );
     }
 

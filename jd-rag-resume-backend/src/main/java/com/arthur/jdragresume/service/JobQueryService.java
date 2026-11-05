@@ -1,6 +1,7 @@
 package com.arthur.jdragresume.service;
 
 import com.arthur.jdragresume.dto.JobListItem;
+import com.arthur.jdragresume.common.LikeKeywords;
 import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.mapper.JobDescriptionMapper;
@@ -29,7 +30,7 @@ public class JobQueryService {
      * <p>
      * 不用反斜杠：MySQL 开启 NO_BACKSLASH_ESCAPES 时 {@code '\\'} 的含义会变，'!' 不受 sql_mode 影响。
      */
-    static final char LIKE_ESCAPE = '!';
+    static final char LIKE_ESCAPE = LikeKeywords.LIKE_ESCAPE;
 
     private final JobDescriptionMapper jobDescriptionMapper;
     private final CurrentUserService currentUserService;
@@ -52,22 +53,7 @@ public class JobQueryService {
      * 以及转义字符本身转义掉。否则搜 "%" 会返回全部岗位，搜 "C_" 会匹配到 "CA"。
      */
     static String escapeLikeKeyword(String keyword) {
-        if (keyword == null) {
-            return null;
-        }
-        String trimmed = keyword.trim();
-        if (trimmed.isEmpty()) {
-            return null;
-        }
-        StringBuilder escaped = new StringBuilder(trimmed.length() + 8);
-        for (int i = 0; i < trimmed.length(); i++) {
-            char c = trimmed.charAt(i);
-            if (c == LIKE_ESCAPE || c == '%' || c == '_') {
-                escaped.append(LIKE_ESCAPE);
-            }
-            escaped.append(c);
-        }
-        return escaped.toString();
+        return LikeKeywords.escapeLikeKeyword(keyword);
     }
 
     /** location 是等值匹配，不涉及通配符，只做 trim；空白视为不过滤。 */

@@ -56,10 +56,9 @@ public class ResumeController {
             @RequestParam(required = false) String title,
             @RequestParam String candidateName,
             @RequestParam(required = false) String phone,
-            @RequestParam(required = false) String email,
-            @RequestParam(required = false) String rawText
+            @RequestParam(required = false) String email
     ) {
-        return ApiResponse.ok(resumeService.upload(file, title, candidateName, phone, email, rawText));
+        return ApiResponse.ok(resumeService.upload(file, title, candidateName, phone, email));
     }
 
     @PutMapping("/{id}")
