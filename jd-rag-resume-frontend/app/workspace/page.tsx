@@ -221,6 +221,7 @@ export default function Home() {
     jobSemanticRequestGeneration.current += 1;
     setToken("");
     setUser(null);
+    setAiStatus(null);
     setSavedJobs([]);
     setFetchingReport(false);
     setAnalysis(null);
@@ -501,6 +502,15 @@ export default function Home() {
     }
   }
 
+  async function loadAiStatus(sessionId: number, isActive: () => boolean = () => true) {
+    try {
+      const status = await apiRequest<AiStatus>("/api/ai/status");
+      if (isActive() && isAuthSessionCurrent(sessionId)) setAiStatus(status);
+    } catch {
+      // Keep the UI neutral when runtime mode cannot be confirmed.
+    }
+  }
+
   useEffect(() => {
     let active = true;
     const params = new URLSearchParams(window.location.search);
@@ -517,18 +527,12 @@ export default function Home() {
       setError("登录已过期，请重新登录");
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
-    void apiRequest<AiStatus>("/api/ai/status", {}, { auth: false })
-      .then((status) => {
-        if (active) setAiStatus(status);
-      })
-      .catch(() => {
-        // Keep the UI neutral when runtime mode cannot be confirmed.
-      });
     void refreshSession().then(async (session) => {
       if (!session || !active) return;
       const sessionId = getAuthSessionId();
       setToken(session.accessToken);
       setUser(session.user);
+      void loadAiStatus(sessionId, () => active);
       await loadWorkspace();
       if (!active || !isAuthSessionCurrent(sessionId)) return;
       if (Number.isFinite(analysisIdParam) && analysisIdParam > 0) {
@@ -562,6 +566,7 @@ export default function Home() {
       setAccessToken(result.accessToken);
       setToken(result.accessToken);
       setUser(result.user);
+      void loadAiStatus(getAuthSessionId());
       setNotice(`欢迎回来，${result.user.displayName}`);
       await loadWorkspace();
     } catch (reason) {

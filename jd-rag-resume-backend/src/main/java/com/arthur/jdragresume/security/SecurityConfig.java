@@ -1,7 +1,6 @@
 package com.arthur.jdragresume.security;
 
 import com.arthur.jdragresume.entity.AppUser;
-import com.arthur.jdragresume.collect.BossPageBudgetConfig;
 import com.arthur.jdragresume.repository.AppUserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,7 +9,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -27,7 +25,6 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 @EnableConfigurationProperties(JwtProperties.class)
-@Import(BossPageBudgetConfig.class)
 public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(
