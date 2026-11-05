@@ -96,11 +96,11 @@ public class AgentChatService {
             throw new BusinessException("AGENT_INVALID_INPUT", "send exactly one question, approval or browser result");
         }
         if (browserReport != null && browserReport.report() != null
-                && browserReport.report().toString().length() > properties.getMaxBrowserReportChars()) {
-            throw new BusinessException("AGENT_TRANSCRIPT_TOO_LARGE", "browser result is too large");
+                && browserReport.report().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > properties.getMaxBrowserReportBytes()) {
+            throw new BusinessException("PAYLOAD_TOO_LARGE", "browser result is too large");
         }
         agentLoop.requireModelReady();
-        if (!rateLimiter.tryAcquire("agent:" + user.getId(), properties.getMaxTurnsPerWindow(),
+        if (!rateLimiter.tryAcquire(SlidingWindowRateLimiter.Key.agent(user.getId()), properties.getMaxTurnsPerWindow(),
                 properties.getWindowMinutes() * 60_000)) {
             throw new BusinessException("AGENT_RATE_LIMITED", "too many assistant turns, please retry later");
         }

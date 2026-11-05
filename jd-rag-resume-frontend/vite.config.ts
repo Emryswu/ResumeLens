@@ -1,3 +1,4 @@
+import { bffIngress } from "./scripts/bff-vite.ts";
 import vinext from "vinext";
 import { defineConfig } from "vite";
 
@@ -24,6 +25,7 @@ export default defineConfig(async () => {
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
     plugins: [
+      bffIngress,
       vinext(),
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
