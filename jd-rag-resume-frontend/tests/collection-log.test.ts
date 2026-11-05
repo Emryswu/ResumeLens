@@ -39,3 +39,10 @@ test("first-page exhaustion shows the login hint, but other finishes and later p
   assert.doesNotMatch(collectionReason({ pagesRead: 2, finishReason: "NO_MORE_RESULTS" })!, /可能未登录/);
   assert.doesNotMatch(collectionReason({ pagesRead: 1, finishReason: "MAX_PAGES" })!, /可能未登录/);
 });
+
+test("unexpected prototype property names are not translated as collection reasons", () => {
+  for (const name of ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf"]) {
+    assert.equal(collectionReason({ stopReason: name }), null, name);
+    assert.equal(collectionReason({ finishReason: name }), null, name);
+  }
+});
