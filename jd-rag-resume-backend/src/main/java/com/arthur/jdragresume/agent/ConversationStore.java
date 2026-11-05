@@ -224,12 +224,14 @@ public class ConversationStore {
         long userId = jdbc.queryForObject("SELECT user_id FROM agent_conversation WHERE id=?", Long.class, row.id());
         var run = new Run(userId, row.id(), row.currentTurn(), row.activeRun(), null, null, 0);
         List<AgentMessage> messages = new ArrayList<>(messages(row.id()));
-        Map<String, AgentMessage.ToolCall> open = new java.util.LinkedHashMap<>();
-        for (var entry : messages) {
-            if (entry.hasToolCalls()) entry.toolCalls().forEach(call -> open.put(call.id(), call));
-            if (AgentMessage.TOOL.equals(entry.role())) open.remove(entry.toolCallId());
+        var unpaired = ToolCallPairs.unpaired(messages);
+        // Work backwards: inserting missing results cannot shift earlier insertion positions.
+        for (int i = unpaired.size() - 1; i >= 0; i--) {
+            var missing = unpaired.get(i);
+            var call = missing.call();
+            messages.add(missing.insertBefore(),
+                    AgentMessage.tool(call.id(), ToolEnvelope.error(call.name(), code, message)));
         }
-        open.values().forEach(call -> messages.add(AgentMessage.tool(call.id(), ToolEnvelope.error(call.name(), code, message))));
         replaceMessages(row.id(), messages);
         append(run, "error", Map.of("code", code, "message", message));
         append(run, "done", Map.of("state", "FAILED", "steps", 0));
