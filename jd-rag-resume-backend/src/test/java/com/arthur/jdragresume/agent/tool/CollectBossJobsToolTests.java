@@ -107,8 +107,16 @@ class CollectBossJobsToolTests {
         JsonNode arguments = objectMapper.createObjectNode().put("city", "深圳").put("experience", "在校生").put("broadSearch", true);
         assertTrue(tool.parameters().validate(arguments).isEmpty());
         tool.begin(arguments, context);
-        assertEquals(new CollectRequest("", "深圳", 1, "在校生"), collector.started.getFirst());
+        assertEquals(new CollectRequest("", "深圳", 1, "在校生", true), collector.started.getFirst());
         assertTrue(tool.description().contains("在校生不保证是实习"));
+    }
+
+    @Test
+    void anExplicitBroadSearchWithUnlimitedExperienceStartsTheBrowserTask() {
+        JsonNode arguments = objectMapper.createObjectNode().put("city", "深圳").put("broadSearch", true);
+        var browser = assertInstanceOf(DeferrableTool.InBrowser.class, tool.begin(arguments, context));
+        assertEquals("browser-extension", browser.executor());
+        assertEquals(new CollectRequest("", "深圳", 1, "不限", true), collector.started.getFirst());
     }
 
     @Test

@@ -54,7 +54,7 @@ public class CollectBossJobsTool implements DeferrableTool {
                 + "例如“找深圳 Java 后端实习”用 city=深圳、keyword=Java 后端、jobType=实习；本会话后续不变的参数可省略。明确改成全职传 jobType=全职；清除城市传 city=空字符串；"
                 + "“找深圳实习”没指定方向时先 list_resumes 选简历、get_resume 读正文，按简历方向填写非空 keyword，并说明“按你的《xxx》简历推断”；不要直接用空关键词泛搜。"
                 + "多份简历遵循系统的方向与更新时间选择规则，同一会话沿用已选简历。校招可用 experience=应届生辅助筛选。"
-                + "只有用户明确要求不限方向时才传 broadSearch=true 允许空关键词；否则空关键词会被拒绝，请先根据简历确定方向。"
+                + "只有用户明确要求不限方向时才传 broadSearch=true 允许空关键词（包括 experience=不限）；否则空关键词会被拒绝，请先根据简历确定方向。"
                 + "采集后用选定的 resumeId 与本次 jobIds 调 rank_jobs_for_resume，优先展示对口岗位；不要把不相关岗位当成推荐。"
                 + "网页的求职类型是全职/兼职，实习相关人群筛选在工作经验里；在校生不保证是实习，应届生不保证是校招，需结合岗位内容核实。"
                 + "采集方式及自动切换由代码处理；用户需在所用浏览器里登录 BOSS。失败时返回 ok=false，"
@@ -67,7 +67,7 @@ public class CollectBossJobsTool implements DeferrableTool {
     public ToolSchema parameters() {
         return ToolSchema.object()
                 .string("keyword", "岗位方向，如 Java 后端；城市和学生身份用对应筛选参数。未指定方向时先读选定简历推断；仅用户明确要求不限方向时可留空", false, 50)
-                .bool("broadSearch", "仅用户明确要求不限方向时传 true，允许空 keyword 泛搜；默认 false", false)
+                .bool("broadSearch", "仅用户明确要求不限方向时传 true，允许空 keyword 且 experience=不限 泛搜；默认 false", false)
                 .string("city", "城市：全国、北京、上海、广州、深圳、杭州、南京、苏州、成都、武汉、西安、天津、重庆、长沙、厦门；省略沿用本会话，空字符串清除城市限制", false, 10)
                 .string("jobType", "岗位意图：实习、全职、不限；省略沿用，空字符串清除。实习默认 experience=在校生，全职默认 experience=不限", false, 10)
                 .string("experience", "BOSS 工作经验筛选：不限、在校生、应届生、经验不限、1年以内、1-3年、3-5年、5-10年、10年以上；默认不限。用户求职条件为在校生且找实习时只能是在校生（服务端会拒绝更宽的值），用户明确要放宽须先调用 relax_job_search_condition", false, 10)
@@ -97,7 +97,8 @@ public class CollectBossJobsTool implements DeferrableTool {
                 arguments.path("keyword").asText(""),
                 arguments.path("city").asText(""),
                 arguments.path("maxPages").asInt(1),
-                arguments.path("experience").asText("不限"));
+                arguments.path("experience").asText("不限"),
+                arguments.path("broadSearch").asBoolean(false));
         if (request.keyword().isBlank() && !BooleanNode.TRUE.equals(arguments.get("broadSearch"))) {
             throw new ToolNotStartedException("BOSS_DIRECTION_REQUIRED", "请先根据简历确定方向并填写 keyword；仅用户明确要求不限方向时可传 broadSearch=true 泛搜");
         }

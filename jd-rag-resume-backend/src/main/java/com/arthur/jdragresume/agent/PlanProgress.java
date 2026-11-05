@@ -17,8 +17,7 @@ record PlanProgress(AgentPlan plan, int cursor, boolean needsReplan, int replans
     static final PlanProgress NONE = new PlanProgress(null, 0, false, 0);
 
     /** Results the loop wrote without treating the call as a plan step; they never move the plan. */
-    static final Set<String> NOT_A_STEP = TurnUsage.union(TurnUsage.RETRY_SAME_STEP,
-            Set.of("ONE_PENDING_ACTION_AT_A_TIME", "ONE_CONFIRMATION_AT_A_TIME"));
+    static final Set<String> NOT_A_STEP = PreExecutionRefusal.RETRY_SAME_STEP;
 
     /**
      * Replays the turn since the last user message: the last accepted {@code submit_plan} sets the
@@ -46,7 +45,8 @@ record PlanProgress(AgentPlan plan, int cursor, boolean needsReplan, int replans
                             progress.plan == null ? progress.replans : progress.replans + 1);
                 }
             } else if (planBatch && progress.plan != null && !progress.needsReplan
-                    && !NOT_A_STEP.contains(result.path("error").path("code").asText())) {
+                    && (ToolEnvelope.executed(result)
+                            || !NOT_A_STEP.contains(result.path("error").path("code").asText()))) {
                 boolean failed = !result.path("ok").asBoolean(false)
                         || (!registry.find(call.name()).orElseThrow().emptyResultIsValid()
                                 && emptyData(result.path("untrusted_data")));

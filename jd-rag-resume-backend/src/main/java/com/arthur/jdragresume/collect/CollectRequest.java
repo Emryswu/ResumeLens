@@ -1,9 +1,12 @@
 package com.arthur.jdragresume.collect;
 
 /** What to search for. Each collector checks the values against its own limits in {@link JobCollector#start}. */
-public record CollectRequest(String keyword, String city, int maxPages, String experience) {
+public record CollectRequest(String keyword, String city, int maxPages, String experience, boolean broadSearch) {
+    public CollectRequest(String keyword, String city, int maxPages, String experience) {
+        this(keyword, city, maxPages, experience, false);
+    }
     public CollectRequest(String keyword, String city, int maxPages) {
-        this(keyword, city, maxPages, "不限");
+        this(keyword, city, maxPages, "不限", false);
     }
 
     /** JavaScript's \s, which the extension normalizes with: Unicode white space (full-width too) plus BOM. */
