@@ -215,6 +215,12 @@ class CrossCuttingRegressionTests {
     }
 
     @Test
+    void securityConfigDoesNotDependOnCollectorClockConfiguration() throws Exception {
+        assertFalse(source("security/SecurityConfig.java").contains("BossPageBudgetConfig"),
+                "SecurityConfig should not import collect package's Clock configuration");
+    }
+
+    @Test
     void aiStatusRequiresAuthenticationAndClientWaitsUntilSignedIn() throws Exception {
         assertFalse(source("security/SecurityConfig.java").contains("\"/api/ai/status\""),
                 "AI model status must not be in permitAll matchers");
