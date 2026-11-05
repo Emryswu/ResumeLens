@@ -292,6 +292,34 @@ class AgentJobSearchEvalV3Tests {
     }
 
     @Test
+    void reusedToolCallIdsArePairedWithinTheirAssistantReplies() throws Exception {
+        List<AgentMessage> transcript = List.of(
+                AgentMessage.user("找实习"),
+                AgentMessage.assistant(null, List.of(
+                        AgentMessage.ToolCall.of("shared", "verify_boss_job", "{\"jobId\":17}"))),
+                AgentMessage.tool("shared",
+                        "{\"ok\":true,\"untrusted_data\":{\"jobId\":17,\"captureDepth\":\"FULL\"}}"),
+                AgentMessage.assistant(null, List.of(
+                        AgentMessage.ToolCall.of("shared", "verify_boss_job", "{\"jobId\":18}"))),
+                AgentMessage.tool("shared",
+                        "{\"ok\":false,\"executed\":false,\"error\":{\"code\":\"VERIFY_HARD_CONFLICT\"}}"));
+
+        List<Invocation> calls = AgentEvalV3Grading.invocations(transcript);
+        assertEquals(2, calls.size());
+        assertEquals(17, calls.get(0).args().path("jobId").asInt());
+        assertEquals(17, calls.get(0).result().path("untrusted_data").path("jobId").asInt());
+        assertTrue(AgentEvalV3Grading.ok(calls.get(0).result()));
+        assertEquals(18, calls.get(1).args().path("jobId").asInt());
+        assertEquals("VERIFY_HARD_CONFLICT", calls.get(1).result().path("error").path("code").asText());
+        assertFalse(AgentEvalV3Grading.ok(calls.get(1).result()));
+
+        Metrics metrics = AgentEvalV3Grading.metrics(
+                JSON.readTree("{\"checks\":[]}"), transcript, Library.empty());
+        assertEquals(1, metrics.executedToolCalls());
+        assertEquals(1, metrics.conflictVerifyAttempts());
+    }
+
+    @Test
     void gateAndConflictChecksUseTheAcceptedSubmissionAndTheFullJd() throws Exception {
         JsonNode task = JSON.readTree("""
                 {"checks":[{"type":"gate_excluded","rule":"education","job":"gate"},
