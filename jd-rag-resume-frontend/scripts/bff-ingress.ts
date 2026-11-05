@@ -43,6 +43,11 @@ export async function serveBff(req: IncomingMessage, res: ServerResponse, next: 
     params: Promise.resolve({ path }),
     peer: req.socket.remoteAddress,
   });
+  // Navigation can close an SSE connection while the backend is opening the response.
+  if (res.destroyed) {
+    await response.body?.cancel();
+    return;
+  }
   if (response.status === 413) res.shouldKeepAlive = false;
   await sendWebResponse(response, req, res, false);
 }

@@ -1,6 +1,6 @@
-import { serveBff } from "./scripts/bff-ingress.ts";
+import { bffIngress } from "./scripts/bff-vite.ts";
 import vinext from "vinext";
-import { defineConfig, type ViteDevServer } from "vite";
+import { defineConfig } from "vite";
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
@@ -25,13 +25,7 @@ export default defineConfig(async () => {
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
     plugins: [
-      {
-        name: "bff-socket-ingress",
-        enforce: "pre",
-        configureServer(server: ViteDevServer) {
-          server.middlewares.use((req, res, next) => { serveBff(req, res, next).catch(next); });
-        },
-      },
+      bffIngress,
       vinext(),
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
