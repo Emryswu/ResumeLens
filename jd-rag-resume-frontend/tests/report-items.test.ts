@@ -78,3 +78,10 @@ test("缺口条目不显示相似度", () => {
   const source = readFileSync(join(appDir, "components/report/FindingList.tsx"), "utf8");
   assert.match(source, /similarity=\{kind === "strength" \? chunkSimilarity\(evidence, chunk\) : undefined\}/);
 });
+
+test("report categories that shadow Object.prototype use the general category", () => {
+  for (const key of ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf"]) {
+    assert.equal(normalizeCategory(key), "GENERAL", key);
+    assert.equal(findingsFrom([{ title: "测试", category: key }], [])[0].category, "GENERAL");
+  }
+});

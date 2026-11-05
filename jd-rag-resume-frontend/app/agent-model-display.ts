@@ -1,11 +1,10 @@
 import type { ReasoningEffort } from "./agent-stream";
 
-const MODEL_DISPLAY_NAMES: Readonly<Record<string, string>> = {
-  "deepseek-flash": "DeepSeek Flash",
-};
+const MODEL_DISPLAY_NAMES: Readonly<Record<string, string>> = Object.assign(
+  Object.create(null) as Record<string, string>, { "deepseek-flash": "DeepSeek Flash" });
 
 export function modelDisplayName(id: string | null | undefined): string {
-  return id ? MODEL_DISPLAY_NAMES[id] ?? id : "模型加载中";
+  return id ? (Object.hasOwn(MODEL_DISPLAY_NAMES, id) ? MODEL_DISPLAY_NAMES[id] : id) : "模型加载中";
 }
 
 export const REASONING_OPTIONS: readonly { value: ReasoningEffort; label: string; description: string }[] = [

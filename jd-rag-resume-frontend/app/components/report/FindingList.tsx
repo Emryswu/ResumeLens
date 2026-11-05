@@ -9,14 +9,15 @@ export type FindingKind = "strength" | "gap";
 /** What the evidence drawer shows: one chunk, opened from one finding. */
 export type OpenedEvidence = { key: string; finding: Pick<ReportItem, "title" | "detail">; chunk: number; kind: FindingKind | "requirement" };
 
-const CATEGORY_ICONS: Record<ReportCategory, LucideIcon> = {
+const CATEGORY_ICONS: Record<ReportCategory, LucideIcon> = Object.assign(
+  Object.create(null) as Record<ReportCategory, LucideIcon>, {
   TECH_STACK: Code,
   PROJECT: FolderKanban,
   ENGINEERING: Wrench,
   DOMAIN: Building2,
   COLLABORATION: Users,
   GENERAL: Layers,
-};
+});
 
 export function EvidenceTag({ chunk, similarity, active, recorded, onOpen }: {
   chunk: number;
@@ -54,14 +55,14 @@ export function FindingList({ kind, items, evidence, opened, onOpen, empty }: {
   return (
     <ul className={`finding-list ${kind}`}>
       {items.map((item, index) => {
-        const Icon = CATEGORY_ICONS[item.category];
+        const Icon = Object.hasOwn(CATEGORY_ICONS, item.category) ? CATEGORY_ICONS[item.category] : Layers;
         return (
           <li key={`${index}-${item.title}`} className="finding">
             <span className={`finding-icon ${kind === "gap" ? "gap" : `cat-${item.category}`}`} aria-hidden="true"><Icon size={18} /></span>
             <div className="finding-body">
               <div className="finding-head">
                 <strong>{item.title}</strong>
-                <span className="finding-cat">{CATEGORY_LABELS[item.category]}</span>
+                <span className="finding-cat">{Object.hasOwn(CATEGORY_LABELS, item.category) ? CATEGORY_LABELS[item.category] : CATEGORY_LABELS.GENERAL}</span>
                 {item.source === "RULE" && <span className="finding-rule" title="由岗位要求中的硬技能规则检出，不是模型判断">规则检出</span>}
               </div>
               {item.detail && <p>{item.detail}</p>}

@@ -51,7 +51,7 @@ export type ToolMeta = { label: string; icon: LucideIcon };
  * Every tool the backend registers (classes implementing AgentTool), with its Chinese name and icon.
  * tests/agent-tools.test.ts reads the backend sources and fails when a tool is missing here.
  */
-export const AGENT_TOOLS: Record<string, ToolMeta> = {
+export const AGENT_TOOLS: Record<string, ToolMeta> = Object.assign(Object.create(null) as Record<string, ToolMeta>, {
   list_resumes: { label: "读取简历列表", icon: FileStack },
   get_resume: { label: "读取简历正文", icon: FileSearch },
   search_jobs: { label: "搜索职位库", icon: Search },
@@ -68,11 +68,11 @@ export const AGENT_TOOLS: Record<string, ToolMeta> = {
   check_job_preferences: { label: "核对到岗硬条件", icon: FileSearch },
   submit_recommendations: { label: "提交岗位推荐验收", icon: BriefcaseBusiness },
   verify_boss_job: { label: "核实完整职位 JD", icon: FileSearch },
-};
+});
 
 /** A tool this page does not know yet still shows, under its raw name and a generic icon. */
 export function toolMeta(tool: string): ToolMeta {
-  return AGENT_TOOLS[tool] ?? { label: tool, icon: Wrench };
+  return Object.hasOwn(AGENT_TOOLS, tool) ? AGENT_TOOLS[tool] : { label: tool, icon: Wrench };
 }
 
 export const STATUS_LABELS: Record<StepStatus, string> = {
@@ -200,7 +200,8 @@ export function formatDuration(ms: number): string {
   return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
 
-const ARGUMENT_TEXT: Record<string, (value: unknown) => string> = {
+const ARGUMENT_TEXT: Record<string, (value: unknown) => string> = Object.assign(
+  Object.create(null) as Record<string, (value: unknown) => string>, {
   resumeId: (value) => `简历 #${String(value)}`,
   jobId: (value) => `职位 #${String(value)}`,
   limit: (value) => `前 ${String(value)} 个`,
@@ -208,7 +209,7 @@ const ARGUMENT_TEXT: Record<string, (value: unknown) => string> = {
   city: (value) => String(value),
   maxPages: (value) => `最多 ${String(value)} 页`,
   page: (value) => `第 ${Number(value) + 1} 页`,
-};
+});
 
 /** A short Chinese reading of the arguments; unknown keys are kept as key=value. */
 export function describeArguments(raw: string): string {
@@ -221,14 +222,16 @@ export function describeArguments(raw: string): string {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return raw;
   const parts = Object.entries(parsed as Record<string, unknown>)
     .filter(([, value]) => value != null && value !== "")
-    .map(([key, value]) => ARGUMENT_TEXT[key]?.(value) ?? `${key}=${typeof value === "object" ? JSON.stringify(value) : String(value)}`);
+    .map(([key, value]) => Object.hasOwn(ARGUMENT_TEXT, key) ? ARGUMENT_TEXT[key](value)
+      : `${key}=${typeof value === "object" ? JSON.stringify(value) : String(value)}`);
   return parts.length > 0 ? parts.join(" · ") : "无参数";
 }
 
 const count = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
 /** One line per tool that reports facts, built only from those server-sent fields. */
-const OUTCOME_TEXT: Record<string, (facts: Record<string, unknown>) => string | null> = {
+const OUTCOME_TEXT: Record<string, (facts: Record<string, unknown>) => string | null> = Object.assign(
+  Object.create(null) as Record<string, (facts: Record<string, unknown>) => string | null>, {
   collect_boss_jobs: (facts) => {
     const pages = count(facts.pagesRead);
     const created = count(facts.created);
@@ -244,12 +247,12 @@ const OUTCOME_TEXT: Record<string, (facts: Record<string, unknown>) => string | 
     }
     return parts.join(" · ");
   },
-};
+});
 
 /** What a finished step found, e.g. "读了 2 页 · 新入库 3 个 · 库里已有 1 个"; null when the tool reports no facts. */
 export function describeOutcome(row: Pick<TimelineStep, "tool" | "status" | "facts">): string | null {
   if (row.status !== "done" || !row.facts || typeof row.facts !== "object") return null;
-  return OUTCOME_TEXT[row.tool]?.(row.facts) ?? null;
+  return Object.hasOwn(OUTCOME_TEXT, row.tool) ? OUTCOME_TEXT[row.tool](row.facts) : null;
 }
 
 /** Arguments pretty-printed for the expanded view. */

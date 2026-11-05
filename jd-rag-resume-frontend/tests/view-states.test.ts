@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { loadState, reportPanelState } from "../app/view-states.ts";
+import { modelDisplayName } from "../app/agent-model-display.ts";
 
 test("nothing loaded yet is loading, not empty; a failure with nothing to show is an error", () => {
   assert.equal(loadState({ hasData: false, loading: true, error: "" }), "loading");
@@ -45,4 +46,10 @@ test("running, reading and failing each get their own panel, in that order", () 
   assert.equal(reportPanelState({ ...base, analysis: { status: "FAILED" } }), "failed");
   // A failed analysis is still shown when the library has since been emptied, so its retry stays reachable.
   assert.equal(reportPanelState({ ...base, analysis: { status: "FAILED" }, resumeCount: 0 }), "failed");
+});
+
+test("unknown model identifiers must not resolve inherited Object names", () => {
+  for (const name of ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf"]) {
+    assert.equal(modelDisplayName(name), name);
+  }
 });

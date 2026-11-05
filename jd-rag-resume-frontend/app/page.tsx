@@ -57,7 +57,7 @@ const EXAMPLES = [
   "帮我对最合适的职位做一次完整分析",
 ];
 
-const ERROR_COPY: Record<string, string> = {
+const ERROR_COPY: Record<string, string> = Object.assign(Object.create(null) as Record<string, string>, {
   AGENT_RATE_LIMITED: "提问太频繁了，请稍后再试",
   AGENT_BUSY: "助手正忙，请稍后重试",
   AGENT_STEP_LIMIT: "本轮查询已达到步骤上限，已根据已有结果收尾",
@@ -65,7 +65,7 @@ const ERROR_COPY: Record<string, string> = {
   AGENT_TRANSCRIPT_TOO_LARGE: "对话太长了，请点「新对话」重新开始",
   AGENT_STREAM_INTERRUPTED: "连接中断，本轮对话未完整接收。若已同意发起分析，请到分析记录确认结果。",
   AI_NOT_CONFIGURED: "后端尚未配置大模型",
-};
+});
 
 /** The home page: the assistant, or the sign-in form when there is no session. */
 export default function HomePage() {
@@ -520,7 +520,7 @@ function TurnView({
       {turn.browserTask && (
         <BrowserTaskCard
           task={turn.browserTask}
-          progress={turn.collectorProgress?.[turn.browserTask.toolCallId]
+          progress={turn.collectorProgress && Object.hasOwn(turn.collectorProgress, turn.browserTask.toolCallId)
             ? { ...turn.collectorProgress[turn.browserTask.toolCallId].progress, switchReason: turn.collectorProgress[turn.browserTask.toolCallId].switchReason }
             : turn.browserProgress}
           facts={turn.steps.find((step) => step.toolCallId === turn.browserTask?.toolCallId)?.facts ?? undefined}
@@ -545,7 +545,7 @@ function TurnView({
         <div className="assistant-error" role="alert">
           <CircleAlert size={18} aria-hidden="true" />
           <span>
-            {ERROR_COPY[turn.error.code] ?? turn.error.message}
+            {Object.hasOwn(ERROR_COPY, turn.error.code) ? ERROR_COPY[turn.error.code] : turn.error.message}
 
           </span>
           {onRetry && <RetryButton className="ghost compact" onClick={onRetry} />}
