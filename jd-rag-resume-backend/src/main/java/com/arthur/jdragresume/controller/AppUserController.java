@@ -24,10 +24,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AppUserController {
     private final AppUserService appUserService;
     private final JwtProperties jwtProperties;
+    private final ClientIpResolver clientIps;
 
-    public AppUserController(AppUserService appUserService, JwtProperties jwtProperties) {
+    public AppUserController(AppUserService appUserService, JwtProperties jwtProperties, ClientIpResolver clientIps) {
         this.appUserService = appUserService;
         this.jwtProperties = jwtProperties;
+        this.clientIps = clientIps;
     }
 
     @GetMapping("/me")
@@ -40,7 +42,7 @@ public class AppUserController {
             @Valid @RequestBody UserRequest request,
             HttpServletRequest httpRequest
     ) {
-        AppUserService.UpdatedUser updated = appUserService.updateMe(request);
+        AppUserService.UpdatedUser updated = appUserService.updateMe(request, clientIps.resolve(httpRequest));
         ResponseEntity.BodyBuilder response = ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, "no-store");
         if (updated.refreshToken() != null) {
             ResponseCookie cookie = ResponseCookie.from("jd-rag-refresh", updated.refreshToken().value())

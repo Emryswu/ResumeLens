@@ -10,27 +10,36 @@ import java.util.Locale;
 import java.util.Objects;
 import com.arthur.jdragresume.repository.AppUserRepository;
 import com.arthur.jdragresume.security.CurrentUserService;
+import com.arthur.jdragresume.security.SlidingWindowRateLimiter;
+import com.arthur.jdragresume.security.SlidingWindowRateLimiter.Key;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AppUserService {
+    private static final long PASSWORD_WINDOW_MS = 15 * 60_000L;
+    private static final int PASSWORD_IP_MAX = 50;
+    private static final int PASSWORD_USER_MAX_FAILURES = 5;
+
     private final AppUserRepository appUserRepository;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUserService currentUserService;
     private final RefreshTokenService refreshTokenService;
+    private final SlidingWindowRateLimiter rateLimiter;
 
     public AppUserService(
             AppUserRepository appUserRepository,
             PasswordEncoder passwordEncoder,
             CurrentUserService currentUserService,
-            RefreshTokenService refreshTokenService
+            RefreshTokenService refreshTokenService,
+            SlidingWindowRateLimiter rateLimiter
     ) {
         this.appUserRepository = appUserRepository;
         this.passwordEncoder = passwordEncoder;
         this.currentUserService = currentUserService;
         this.refreshTokenService = refreshTokenService;
+        this.rateLimiter = rateLimiter;
     }
 
     @Transactional(readOnly = true)
@@ -39,16 +48,23 @@ public class AppUserService {
     }
 
     @Transactional
-    public UpdatedUser updateMe(UserRequest request) {
+    public UpdatedUser updateMe(UserRequest request, String ip) {
         AppUser user = currentUserService.getCurrentUser();
         boolean passwordChanged = request.password() != null && !request.password().isBlank();
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         boolean emailChanged = !user.getEmail().equalsIgnoreCase(email);
         if (emailChanged || passwordChanged) {
+            Key ipKey = new Key("profile-password", ip, null);
+            Key userKey = new Key("profile-password", null, "user:" + user.getId());
+            if (!rateLimiter.tryAcquire(ipKey, PASSWORD_IP_MAX, PASSWORD_WINDOW_MS)
+                    || !rateLimiter.tryAcquire(userKey, PASSWORD_USER_MAX_FAILURES, PASSWORD_WINDOW_MS)) {
+                throw new BusinessException("AUTH_RATE_LIMITED", "尝试次数过多，请稍后再试");
+            }
             if (request.currentPassword() == null || request.currentPassword().isBlank()
                     || !passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
                 throw new BusinessException("CURRENT_PASSWORD_INVALID", "当前密码不正确，请重新输入");
             }
+            rateLimiter.release(userKey);
         }
         String username = request.username().trim();
         if (!user.getUsername().trim().equalsIgnoreCase(username)

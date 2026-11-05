@@ -7,6 +7,7 @@ import com.arthur.jdragresume.repository.AppUserRepository;
 import com.arthur.jdragresume.repository.RefreshTokenRepository;
 import com.arthur.jdragresume.security.CurrentUserService;
 import com.arthur.jdragresume.security.JwtProperties;
+import com.arthur.jdragresume.security.SlidingWindowRateLimiter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -83,14 +84,14 @@ class AppUserServiceTests {
         properties.setRefreshExpirationDays(7);
         RefreshTokenService tokens = new RefreshTokenService(tokenRepository, properties,
                 Clock.fixed(Instant.parse("2026-11-05T08:00:00Z"), ZoneOffset.UTC));
-        service = new AppUserService(repository, encoder, currentUser, tokens);
+        service = new AppUserService(repository, encoder, currentUser, tokens, new SlidingWindowRateLimiter(() -> 1_000_000L));
     }
 
     @Test
     void changingEmailRequiresCorrectCurrentPassword() {
         for (String current : new String[]{null, "", "incorrect"}) {
             BusinessException error = assertThrows(BusinessException.class, () ->
-                    service.updateMe(new UserRequest("arthur", "new@example.com", "New", null, current)));
+                    service.updateMe(new UserRequest("arthur", "new@example.com", "New", null, current), "192.0.2.10"));
             assertEquals("CURRENT_PASSWORD_INVALID", error.getCode());
         }
         assertEquals("old@example.com", user.getEmail());
@@ -101,7 +102,7 @@ class AppUserServiceTests {
     void changingPasswordRequiresCorrectCurrentPassword() {
         for (String current : new String[]{null, "", "incorrect"}) {
             BusinessException error = assertThrows(BusinessException.class, () ->
-                    service.updateMe(new UserRequest("arthur", "old@example.com", "New", "new-secret", current)));
+                    service.updateMe(new UserRequest("arthur", "old@example.com", "New", "new-secret", current), "192.0.2.10"));
             assertEquals("CURRENT_PASSWORD_INVALID", error.getCode());
         }
         assertEquals("encoded-old-password", user.getPasswordHash());
@@ -112,7 +113,7 @@ class AppUserServiceTests {
     @Test
     void successfulPasswordChangeRevokesExistingTokensAndIssuesNewSession() {
         var updated = service.updateMe(new UserRequest(
-                "ARTHUR", "old@example.com", "New", "new-secret", "old-password"));
+                "ARTHUR", "old@example.com", "New", "new-secret", "old-password"), "192.0.2.10");
         assertEquals("encoded-new-secret", user.getPasswordHash());
         assertEquals(1, saved);
         assertEquals(1, revoked);
@@ -124,7 +125,7 @@ class AppUserServiceTests {
     @Test
     void emailUpdateNormalizesAndKeepsRefreshSession() {
         var updated = service.updateMe(new UserRequest(
-                "ARTHUR", " New@Example.COM ", "New", null, "old-password"));
+                "ARTHUR", " New@Example.COM ", "New", null, "old-password"), "192.0.2.10");
         assertEquals("new@example.com", user.getEmail());
         assertEquals("encoded-old-password", user.getPasswordHash());
         assertNull(updated.refreshToken());
@@ -133,7 +134,7 @@ class AppUserServiceTests {
 
     @Test
     void profileOnlyUpdateNeedsNoPasswordAndCaseDifferenceIsNotRename() {
-        service.updateMe(new UserRequest("ARTHUR", "old@example.com", "New", null, null));
+        service.updateMe(new UserRequest("ARTHUR", "old@example.com", "New", null, null), "192.0.2.10");
         assertEquals("arthur", user.getUsername());
         assertEquals("New", user.getDisplayName());
     }
@@ -141,7 +142,7 @@ class AppUserServiceTests {
     @Test
     void actualUsernameRenameIsRejected() {
         BusinessException error = assertThrows(BusinessException.class, () ->
-                service.updateMe(new UserRequest("arthur-renamed", "old@example.com", "New", null, null)));
+                service.updateMe(new UserRequest("arthur-renamed", "old@example.com", "New", null, null), "192.0.2.10"));
         assertEquals("USERNAME_IMMUTABLE", error.getCode());
         assertEquals(0, saved);
     }

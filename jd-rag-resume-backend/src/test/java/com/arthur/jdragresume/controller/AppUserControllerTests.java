@@ -23,9 +23,9 @@ class AppUserControllerTests {
         user.setUsername("arthur");
         user.setEmail("arthur@example.com");
         user.setDisplayName("Arthur");
-        AppUserService service = new AppUserService(null, null, null, null) {
+        AppUserService service = new AppUserService(null, null, null, null, null) {
             @Override
-            public UpdatedUser updateMe(UserRequest request) {
+            public UpdatedUser updateMe(UserRequest request, String ip) {
                 return new UpdatedUser(UserResponse.from(user),
                         new RefreshTokenService.IssuedRefreshToken(
                                 "replacement-token", LocalDateTime.of(2026, 11, 12, 8, 0)));
@@ -33,7 +33,7 @@ class AppUserControllerTests {
         };
         JwtProperties properties = new JwtProperties();
         properties.setRefreshExpirationDays(7);
-        AppUserController controller = new AppUserController(service, properties);
+        AppUserController controller = new AppUserController(service, properties, new ClientIpResolver(""));
         var response = controller.updateMe(
                 new UserRequest("arthur", "arthur@example.com", "Arthur", "new-password", "old-password"),
                 new MockHttpServletRequest());

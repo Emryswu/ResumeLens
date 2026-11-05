@@ -5,6 +5,7 @@ import com.arthur.jdragresume.exception.GlobalExceptionHandler;
 import com.arthur.jdragresume.repository.AppUserRepository;
 import com.arthur.jdragresume.security.CurrentUserService;
 import com.arthur.jdragresume.security.JwtProperties;
+import com.arthur.jdragresume.security.SlidingWindowRateLimiter;
 import com.arthur.jdragresume.service.AppUserService;
 import com.arthur.jdragresume.service.RefreshTokenService;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,10 +27,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AppUserRateLimitTests {
     private MockMvc mockMvc;
     private PasswordEncoder passwords;
+    private AppUser user;
 
     @BeforeEach
     void setUp() {
-        AppUser user = new AppUser();
+        user = new AppUser();
         ReflectionTestUtils.setField(user, "id", 7L);
         user.setUsername("arthur");
         user.setEmail("old@example.com");
@@ -46,8 +48,9 @@ class AppUserRateLimitTests {
                 return user;
             }
         };
-        AppUserService service = new AppUserService(users, passwords, currentUser, mock(RefreshTokenService.class));
-        mockMvc = MockMvcBuilders.standaloneSetup(new AppUserController(service, new JwtProperties()))
+        AppUserService service = new AppUserService(users, passwords, currentUser,
+                mock(RefreshTokenService.class), new SlidingWindowRateLimiter(() -> 1_000_000L));
+        mockMvc = MockMvcBuilders.standaloneSetup(new AppUserController(service, new JwtProperties(), new ClientIpResolver("")))
                 .setControllerAdvice(new GlobalExceptionHandler()).build();
     }
 
@@ -85,6 +88,39 @@ class AppUserRateLimitTests {
                 .andExpect(status().isTooManyRequests())
                 .andExpect(jsonPath("$.code").value("AUTH_RATE_LIMITED"));
         verify(passwords, times(5)).matches("wrong123", "stored-hash");
+    }
+
+    @Test
+    void successfulPasswordChecksDoNotSpendUserFailureQuota() throws Exception {
+        for (int i = 0; i < 7; i++) {
+            String nextEmail = i % 2 == 0 ? "new@example.com" : "old@example.com";
+            mockMvc.perform(update("192.0.2.11", nextEmail, "correct123"))
+                    .andExpect(status().isOk());
+        }
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(update("192.0.2.11", "old@example.com", "wrong123"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("CURRENT_PASSWORD_INVALID"));
+        }
+        mockMvc.perform(update("192.0.2.11", "old@example.com", "wrong123"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("AUTH_RATE_LIMITED"));
+        verify(passwords, times(7)).matches("correct123", "stored-hash");
+        verify(passwords, times(5)).matches("wrong123", "stored-hash");
+    }
+
+    @Test
+    void sameIpCannotCircumventTheAggregateBucketByRotatingUsers() throws Exception {
+        for (int i = 1; i <= 50; i++) {
+            ReflectionTestUtils.setField(user, "id", (long) i);
+            mockMvc.perform(update("192.0.2.11", "new@example.com", "wrong123"))
+                    .andExpect(status().isBadRequest());
+        }
+        ReflectionTestUtils.setField(user, "id", 51L);
+        mockMvc.perform(update("192.0.2.11", "new@example.com", "wrong123"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("AUTH_RATE_LIMITED"));
+        verify(passwords, times(50)).matches("wrong123", "stored-hash");
     }
 
     @Test
