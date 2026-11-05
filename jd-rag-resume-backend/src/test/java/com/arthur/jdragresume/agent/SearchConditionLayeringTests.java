@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.agent;
 
+import com.arthur.jdragresume.agent.tool.AgentTool;
 import com.arthur.jdragresume.agent.tool.AgentToolContext;
 import com.arthur.jdragresume.agent.tool.AgentToolRegistry;
 import com.arthur.jdragresume.agent.tool.DeferrableTool;
@@ -76,6 +77,66 @@ class SearchConditionLayeringTests {
         var progress = JobSearchWorkflow.inspect(outcome.transcript(), mapper, stored.get());
         assertEquals(1, progress.attempts().size(), "the refused call is not charged to the search budget");
         assertNull(stored.get().experience(), "the refused value is not written into the session");
+    }
+
+    @Test
+    void conflictingFirstTurnPlanStepRetriesWithCorrectedArgumentsWithoutReplanning() throws Exception {
+        stored.set(JobSearchContext.empty());
+        var allowed = new ArrayList<List<String>>();
+        AtomicInteger modelCalls = new AtomicInteger();
+        AgentModel model = (system, messages, tools, timeout) -> {
+            allowed.add(tools.stream().map(AgentModel.ToolDefinition::name).toList());
+            return switch (modelCalls.getAndIncrement()) {
+                case 0 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("plan", AgentPlan.TOOL,
+                        "{\"steps\":[{\"tool\":\"get_resume\",\"purpose\":\"读简历\"},"
+                                + "{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读求职条件\"},"
+                                + "{\"tool\":\"collect_boss_jobs\",\"purpose\":\"找实习\"}]}"));
+                case 1 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("resume", "get_resume", "{\"resumeId\":3}"));
+                case 2 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("preferences", "get_job_search_preferences", "{}"));
+                case 3 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("conflict", JobSearchWorkflow.TOOL,
+                        "{\"keyword\":\"AI 应用开发\",\"city\":\"杭州\",\"jobType\":\"实习\",\"experience\":\"不限\"}"));
+                case 4 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("retry", JobSearchWorkflow.TOOL,
+                        "{\"keyword\":\"AI 应用开发\",\"city\":\"杭州\",\"jobType\":\"实习\",\"experience\":\"在校生\"}"));
+                default -> AgentModel.Reply.answer("完成");
+            };
+        };
+        AgentTool resume = basicTool("get_resume", Map.of("resumeId", 3, "text", "Java Spring Boot"));
+        AgentTool preferences = basicTool("get_job_search_preferences", Map.of("configured", true));
+        AgentToolRegistry registry = new AgentToolRegistry(List.of(resume, preferences, collector()));
+        AgentProperties properties = new AgentProperties();
+        var loop = new AgentLoop(model, registry, mapper, properties, System::currentTimeMillis,
+                new BrowserTaskRegistry(), store, userId -> student);
+        var transcript = new TranscriptPolicy(properties).normalize(
+                List.of(AgentMessage.user("找杭州的 AI 应用实习")), null);
+        AgentLoop.Outcome outcome = loop.run(transcript, null, context(), new AgentEventSink() {
+            @Override public void emit(String name, Object payload) { }
+            @Override public void checkpoint(List<AgentMessage> messages, String summary) { }
+        }, () -> false);
+
+        assertEquals(AgentLoop.State.COMPLETED, outcome.state());
+        JsonNode refused = mapper.readTree(toolResults(outcome).stream()
+                .filter(message -> "conflict".equals(message.toolCallId())).findFirst().orElseThrow().content());
+        assertEquals(SearchConditionPolicy.CONFLICT, refused.path("error").path("code").asText());
+        assertFalse(ToolEnvelope.executed(refused));
+        assertEquals(List.of(JobSearchWorkflow.TOOL), allowed.get(4),
+                "the model must be allowed to retry this planned step, without submit_plan");
+        assertEquals(1, collected.size());
+        assertEquals("在校生", collected.getFirst().path("experience").asText());
+        assertEquals(3, TurnUsage.of(outcome.transcript(), mapper).toolSteps(),
+                "the two prerequisite reads and one successful collection are the only spent steps");
+        PlanProgress progress = PlanProgress.of(outcome.transcript(), mapper, registry);
+        assertEquals(3, progress.cursor());
+        assertEquals(0, progress.replans());
+        assertFalse(progress.needsReplan());
+    }
+
+    private static AgentTool basicTool(String name, Object result) {
+        return new AgentTool() {
+            @Override public String name() { return name; }
+            @Override public String description() { return name; }
+            @Override public ToolSchema parameters() { return ToolSchema.object().integer("resumeId", "resume", false, 1, 100); }
+            @Override public Object execute(JsonNode arguments, AgentToolContext context) { return result; }
+        };
     }
 
     @Test
