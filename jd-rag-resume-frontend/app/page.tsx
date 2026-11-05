@@ -71,6 +71,7 @@ const ERROR_COPY: Record<string, string> = Object.assign(Object.create(null) as 
 export default function HomePage() {
   const router = useRouter();
   const { user, status, logout, signedIn } = useSessionUser({ signInHere: true });
+  const userId = user?.id;
   const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [auth, setAuth] = useState<AuthForm>({ username: "", password: "", email: "", displayName: "" });
@@ -84,7 +85,7 @@ export default function HomePage() {
   }, [router]);
 
   useEffect(() => {
-    if (status !== "signedIn" || !user) return;
+    if (status !== "signedIn" || userId == null) return;
     let active = true;
     void apiRequest<AiStatus>("/api/ai/status")
       .then((next) => {
@@ -96,7 +97,7 @@ export default function HomePage() {
     return () => {
       active = false;
     };
-  }, [status, user]);
+  }, [status, userId]);
 
   async function submitAuth(event: FormEvent) {
     event.preventDefault();

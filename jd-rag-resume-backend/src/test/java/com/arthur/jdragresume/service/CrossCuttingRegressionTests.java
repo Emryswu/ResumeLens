@@ -221,7 +221,7 @@ class CrossCuttingRegressionTests {
         String page = Files.readString(Path.of("../jd-rag-resume-frontend/app/page.tsx"));
         assertFalse(page.contains("apiRequest<AiStatus>(\"/api/ai/status\", {}, { auth: false })"),
                 "anonymous API request must be removed");
-        assertTrue(page.contains("if (status !== \"signedIn\" || !user) return;"),
+        assertTrue(page.contains("if (status !== \"signedIn\" || userId == null) return;"),
                 "the status request effect must wait for a user session");
     }
 }
