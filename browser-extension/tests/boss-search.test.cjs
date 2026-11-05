@@ -37,6 +37,18 @@ test("student and graduate filters use the website experience condition, indepen
   assert.equal(new URL(search.buildSearchUrl(withoutKeyword.command)).searchParams.get("experience"), "108");
 });
 
+test("explicit broad search opens a BOSS page with no keyword or experience filter", () => {
+  const result = search.validateCommand({ ...valid, keyword: "", broadSearch: true });
+  assert.equal(result.ok, true);
+  assert.equal(result.command.broadSearch, true);
+  const url = new URL(search.buildSearchUrl(result.command));
+  assert.equal(url.origin, "https://www.zhipin.com");
+  assert.equal(url.searchParams.get("query"), "");
+  assert.equal(url.searchParams.get("experience"), null);
+  assert.equal(search.validateCommand({ ...valid, keyword: "" }).ok, false);
+  assert.equal(search.validateCommand({ ...valid, keyword: "", broadSearch: "true" }).ok, false);
+});
+
 test("commands cannot smuggle a URL, an unknown city or extra pages", () => {
   const cases = [
     { ...valid, city: "https://evil.example/" },
