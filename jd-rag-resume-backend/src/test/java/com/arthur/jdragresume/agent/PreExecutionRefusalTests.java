@@ -112,6 +112,25 @@ class PreExecutionRefusalTests {
         }
     }
 
+    @Test
+    void toolNotStartedExceptionLiteralsAreAlsoRegistered() throws IOException {
+        Path tools = Path.of("src/main/java/com/arthur/jdragresume/agent/tool");
+        String marker = "new ToolNotStartedException(\"";
+        int checked = 0;
+        try (var paths = Files.walk(tools)) {
+            for (Path path : paths.filter(file -> file.toString().endsWith(".java")).toList()) {
+                String source = Files.readString(path);
+                for (int at = source.indexOf(marker); at >= 0; at = source.indexOf(marker, at + marker.length())) {
+                    int end = source.indexOf('"', at + marker.length());
+                    String code = source.substring(at + marker.length(), end);
+                    assertTrue(PreExecutionRefusal.registered(code), path + ": " + code);
+                    checked++;
+                }
+            }
+        }
+        assertTrue(checked >= 4, "the scan must catch literal refusal codes from tools");
+    }
+
     private static String arguments(String source, int start) {
         int depth = 1;
         boolean quoted = false;
