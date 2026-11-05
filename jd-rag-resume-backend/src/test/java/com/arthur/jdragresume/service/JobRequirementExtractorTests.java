@@ -143,4 +143,62 @@ class JobRequirementExtractorTests {
         assertEquals(3, range.preferredMaximum());
     }
 
+
+    @Test void graduationYearsAndStudyDurationsCannotBecomeWorkExperience() {
+        for (String wording : new String[] {
+                "面向 2025 年毕业且有工作经验",
+                "面向2025年毕业且有工作经验，接受实习生",
+                "面向2025年毕业且有工作经验,接受实习生",
+                "2025届毕业生且有工作经验",
+                "毕业3年且有工作经验",
+                "毕业后3年且有工作经验",
+                "三年制本科且有工作经验"
+        }) {
+            var extracted = JobRequirementExtractor.extract("", wording);
+            assertEquals(JobRequirementExtractor.Mode.NOT_MENTIONED, extracted.experience().mode(), wording);
+            assertNull(extracted.experience().required(), wording);
+            assertTrue(extracted.experienceNotes().isEmpty(), wording);
+        }
+        var graduation = JobRequirementExtractor.extract("", "面向2025年毕业且有工作经验").graduation();
+        assertEquals(java.util.Set.of(2025), graduation.allowedGraduationYears());
+    }
+
+    @Test void validTenureStillParsesAcrossPunctuationVariants() {
+        for (String wording : new String[] {
+                "3年以上工作经验", "3 年以上工作经验", "三年以上工作经验",
+                "2025年毕业,3年以上工作经验", "2025年毕业，3年以上工作经验"
+        }) {
+            var extracted = JobRequirementExtractor.extract("", wording);
+            assertEquals(JobRequirementExtractor.Mode.REQUIRED, extracted.experience().mode(), wording);
+            assertEquals(3, extracted.experience().required(), wording);
+        }
+        var technical = JobRequirementExtractor.extract("", "3 年以上经验");
+        assertEquals(JobRequirementExtractor.Mode.NOT_MENTIONED, technical.experience().mode());
+        assertEquals(1, technical.experienceNotes().size());
+        assertTrue(technical.experienceNotes().getFirst().contains("3 年相关经验"));
+        assertEquals(30, JobRequirementExtractor.extract("", "30年以上工作经验").experience().required());
+    }
+
+    @Test void implausibleOrPartialNumericYearsCannotCreateExperienceGates() {
+        for (String wording : new String[] {
+                "31年以上工作经验", "2025年工作经验",
+                "999999999999999999999年工作经验",
+                "1-31年工作经验", "2025-3年工作经验",
+                "0030年工作经验", "12025年毕业且有工作经验"
+        }) {
+            var experience = JobRequirementExtractor.extract("", wording).experience();
+            assertEquals(JobRequirementExtractor.Mode.NOT_MENTIONED, experience.mode(), wording);
+        }
+    }
+
+    @Test void graduationRegexCannotExtractFourDigitsFromLongerNumbers() {
+        for (String wording : new String[] { "12025届", "12025年毕业", "22025年毕业" }) {
+            var graduation = JobRequirementExtractor.extract("", wording).graduation();
+            assertEquals(JobRequirementExtractor.Mode.NOT_MENTIONED, graduation.mode(), wording);
+        }
+        assertEquals(java.util.Set.of(2025),
+                JobRequirementExtractor.extract("", "2025届").graduation().allowedGraduationYears());
+        assertEquals(java.util.Set.of(2025, 2026),
+                JobRequirementExtractor.extract("", "2025、2026年毕业").graduation().allowedGraduationYears());
+    }
 }
