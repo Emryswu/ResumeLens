@@ -24,8 +24,7 @@ import java.util.Set;
 record TurnUsage(int toolSteps, int modelCalls, int corrections, int correctionsSincePlan, boolean planAccepted) {
     /**
      * Refusals the model answers by retrying the same step with other arguments: they take no tool step and do not
-     * move the plan. Both {@link #NOT_STEPPED} and {@link PlanProgress#NOT_A_STEP} include this set, so a new
-     * code of this kind is added here once and cannot be counted by one and missed by the other.
+     * move the plan. Both sets derive from {@link PreExecutionRefusal}.
      */
     static final Set<String> RETRY_SAME_STEP = PreExecutionRefusal.RETRY_SAME_STEP;
     /** Codes of results the loop wrote before a tool step was taken. */
@@ -83,12 +82,6 @@ record TurnUsage(int toolSteps, int modelCalls, int corrections, int corrections
         }
         toolSteps += waiting(open, unreached);
         return new TurnUsage(toolSteps, modelCalls, corrections, correctionsSincePlan, planAccepted);
-    }
-
-    static Set<String> union(Set<String> first, Set<String> second) {
-        Set<String> all = new HashSet<>(first);
-        all.addAll(second);
-        return Set.copyOf(all);
     }
 
     private static int waiting(Set<String> open, Set<String> unreached) {
