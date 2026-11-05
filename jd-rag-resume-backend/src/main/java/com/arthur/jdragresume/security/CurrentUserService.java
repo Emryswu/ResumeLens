@@ -16,11 +16,11 @@ public class CurrentUserService {
 
     public AppUser getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
+        if (authentication == null || !authentication.isAuthenticated()
+                || !(authentication.getPrincipal() instanceof JwtUserPrincipal principal)) {
             throw new IllegalStateException("current user is not authenticated");
         }
-        String username = authentication.getName();
-        return appUserRepository.findByUsername(username)
+        return appUserRepository.findById(principal.userId())
                 .orElseThrow(() -> new IllegalStateException("current user no longer exists"));
     }
 }

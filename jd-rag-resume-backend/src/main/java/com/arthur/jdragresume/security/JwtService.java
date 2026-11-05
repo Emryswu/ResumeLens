@@ -51,6 +51,11 @@ public class JwtService {
         return parsePayload(token).get("sub").toString();
     }
 
+    public Long extractUserId(String token) {
+        Object uid = parsePayload(token).get("uid");
+        return uid instanceof Number number && number.longValue() > 0 ? number.longValue() : null;
+    }
+
     public boolean isTokenValid(String token) {
         try {
             String[] parts = splitToken(token);
