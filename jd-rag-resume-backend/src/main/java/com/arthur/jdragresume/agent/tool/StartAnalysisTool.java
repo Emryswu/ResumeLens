@@ -17,6 +17,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class StartAnalysisTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return false; }
+
     private final AiAnalysisService aiAnalysisService;
     private final ResumeService resumeService;
     private final JobDescriptionService jobDescriptionService;

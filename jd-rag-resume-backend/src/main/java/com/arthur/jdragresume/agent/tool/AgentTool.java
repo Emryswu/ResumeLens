@@ -15,6 +15,11 @@ public interface AgentTool {
 
     ToolSchema parameters();
 
+    /** Whether an empty successful result completes a plan step. Production tools must override this. */
+    default boolean emptyResultIsValid() {
+        return false;
+    }
+
     /** Serialized result ceiling; a bounded text tool can opt into enough room for its documented text limit. */
     default int resultMaxChars(int configuredLimit) {
         return configuredLimit;

@@ -42,13 +42,13 @@ public final class JobSearchStopPolicy {
 
     /**
      * Only known platform error codes or existing finishReason / stopReason values halt
-     * a collection. This never adds a new browser protocol field.
+     * a BOSS page-loading tool. This never adds a new browser protocol field.
      */
     static String haltReason(JsonNode result) {
         if (!result.path("ok").asBoolean(false)) {
             String code = result.path("error").path("code").asText("");
             return PLATFORM_BLOCKING_ERRORS.contains(code)
-                    ? "采集遇到平台或环境故障（" + code + "），停止自动采集并说明原始错误"
+                    ? "BOSS 页面操作遇到平台或环境故障（" + code + "），停止自动采集与核实并说明原始错误"
                     : null;
         }
         JsonNode data = result.path("untrusted_data");

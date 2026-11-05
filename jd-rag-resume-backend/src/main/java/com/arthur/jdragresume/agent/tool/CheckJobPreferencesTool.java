@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class CheckJobPreferencesTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return false; }
+
     private final JobDescriptionService jobs;
     private final JobSearchPreferencesService preferences;
 

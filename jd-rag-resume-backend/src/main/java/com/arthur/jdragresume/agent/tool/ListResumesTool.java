@@ -11,6 +11,8 @@ import java.util.List;
 
 @Component
 public class ListResumesTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return true; }
+
     static final int PAGE_SIZE = 5;
     private static final java.util.regex.Pattern DIRECTION_SECTION = java.util.regex.Pattern.compile(
             "(?im)(?:^|\\n)\\s*(?:#{1,6}\\s*)?(?:\\*\\*)?(?:求职意向|意向岗位|职业方向|专业技能|技术技能|技能清单|技术栈|技能|Technical Skills|Skills)");

@@ -11,6 +11,8 @@ import java.util.Map;
 
 @Component
 public class GetLatestAnalysisTool implements AgentTool {
+    @Override public boolean emptyResultIsValid() { return true; }
+
     private static final int TEXT_LIMIT = 600;
 
     private final AnalysisHistoryService analysisHistoryService;

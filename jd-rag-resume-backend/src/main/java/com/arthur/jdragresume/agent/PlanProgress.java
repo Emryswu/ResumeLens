@@ -47,7 +47,9 @@ record PlanProgress(AgentPlan plan, int cursor, boolean needsReplan, int replans
                 }
             } else if (planBatch && progress.plan != null && !progress.needsReplan
                     && !NOT_A_STEP.contains(result.path("error").path("code").asText())) {
-                boolean failed = !result.path("ok").asBoolean(false) || emptyData(result.path("untrusted_data"));
+                boolean failed = !result.path("ok").asBoolean(false)
+                        || (!registry.find(call.name()).orElseThrow().emptyResultIsValid()
+                                && emptyData(result.path("untrusted_data")));
                 progress = new PlanProgress(progress.plan, failed ? progress.cursor : progress.cursor + 1,
                         failed, progress.replans);
             }
