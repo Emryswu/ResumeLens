@@ -86,7 +86,7 @@ class PreExecutionRefusalTests {
         String source = Files.readString(Path.of("src/main/java/com/arthur/jdragresume/agent/AgentLoop.java"))
                 .replace("\r\n", "\n");
         Matcher calls = Pattern.compile("\\b(?:rejectBeforeExecution|closeCalls|closeOutstanding)\\(").matcher(source);
-        Pattern literal = Pattern.compile("\\\"([A-Z][A-Z0-9]*_[A-Z0-9_]+)\\\"");
+        Pattern literal = Pattern.compile("\"([A-Z][A-Z0-9]*_[A-Z0-9_]+)\"");
         int checked = 0;
         while (calls.find()) {
             String args = arguments(source, calls.end());
@@ -126,16 +126,16 @@ class PreExecutionRefusalTests {
     }
 
     private List<AgentMessage> planned(String... tools) {
-        StringBuilder json = new StringBuilder("{\\"steps\\":[");
+        StringBuilder json = new StringBuilder("{\"steps\":[");
         for (String tool : tools) {
             if (json.charAt(json.length() - 1) != '[') json.append(',');
-            json.append("{\\"tool\\":\\"").append(tool).append("\\",\\"purpose\\":\\"执行\\\"}");
+            json.append("{\"tool\":\"").append(tool).append("\",\"purpose\":\"执行\"}");
         }
         json.append("]}");
         List<AgentMessage> messages = new ArrayList<>(List.of(
                 AgentMessage.user("找深圳实习岗位"),
                 AgentMessage.assistant(null, List.of(AgentMessage.ToolCall.of("plan", AgentPlan.TOOL, json.toString()))),
-                AgentMessage.tool("plan", "{\\"ok\\":true,\\"planAccepted\\":true}")));
+                AgentMessage.tool("plan", "{\"ok\":true,\"planAccepted\":true}")));
         return messages;
     }
 
@@ -144,7 +144,7 @@ class PreExecutionRefusalTests {
     }
 
     private static String success(String tool) {
-        return "{\\"tool\\":\\"" + tool + "\\",\\"ok\\":true,\\"untrusted_data\\":{\\"jobIds\\":[42],\\"pagesRead\\":1}}";
+        return "{\"tool\":\"" + tool + "\",\"ok\":true,\"untrusted_data\":{\"jobIds\":[42],\"pagesRead\":1}}";
     }
 
     private static AgentTool tool(String name) {
