@@ -13,17 +13,35 @@ import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Ensures the two offline experiment runners cannot silently drift from production defaults. */
 class ExperimentProductionDefaultsTests {
     @Test
     void sweepAndHoldoutMatchEveryProductionRagDefault() throws Exception {
+        assertRunnerDefaults(productionProperties());
+    }
+
+    @Test
+    void changingProductionTopKWouldFailTheGuard() throws Exception {
+        Properties modified = productionProperties();
+        modified.setProperty("app.rag.top-k", "${RAG_TOP_K:" + (new RagProperties().getTopK() + 1) + "}");
+        AssertionError failure = assertThrows(AssertionError.class, () -> assertRunnerDefaults(modified));
+        assertTrue(failure.getMessage().contains("app.rag.top-k"));
+    }
+
+    private static Properties productionProperties() throws Exception {
         Properties source = new Properties();
-        try (InputStream stream = getClass().getClassLoader().getResourceAsStream("application.properties")) {
+        try (InputStream stream = ExperimentProductionDefaultsTests.class.getClassLoader()
+                .getResourceAsStream("application.properties")) {
             assertNotNull(stream, "application.properties must be on the test classpath");
             source.load(new InputStreamReader(stream, StandardCharsets.UTF_8));
         }
+        return source;
+    }
 
+    private static void assertRunnerDefaults(Properties source) throws Exception {
         Method sweepFactory = ThresholdSweepExperimentTests.class.getDeclaredMethod("productionProperties");
         sweepFactory.setAccessible(true);
         RagProperties sweep = (RagProperties) sweepFactory.invoke(null);
