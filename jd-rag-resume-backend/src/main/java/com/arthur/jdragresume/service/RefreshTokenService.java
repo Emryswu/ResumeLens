@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -28,17 +29,21 @@ public class RefreshTokenService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final Base64.Encoder TOKEN_ENCODER = Base64.getUrlEncoder().withoutPadding();
     private static final int CLEANUP_BATCH_SIZE = 500;
+    private static final String PASSWORD_CHANGED = "PASSWORD_CHANGED";
     private static final long EXPIRED_TOKEN_RETENTION_DAYS = 1;
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtProperties jwtProperties;
+    private final Clock clock;
 
     public RefreshTokenService(
             RefreshTokenRepository refreshTokenRepository,
-            JwtProperties jwtProperties
+            JwtProperties jwtProperties,
+            Clock clock
     ) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.jwtProperties = jwtProperties;
+        this.clock = clock;
     }
 
     @Transactional
@@ -51,11 +56,14 @@ public class RefreshTokenService {
         if (rawToken == null || rawToken.isBlank()) {
             throw invalid("refresh token is missing");
         }
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         RefreshToken current = refreshTokenRepository.findByTokenHashForUpdate(hash(rawToken))
                 .orElseThrow(() -> invalid("refresh token is invalid"));
 
         if (current.getRevokedAt() != null) {
+            if (PASSWORD_CHANGED.equals(current.getReplacedByHash())) {
+                throw invalid("密码已修改，请重新登录");
+            }
             refreshTokenRepository.revokeActiveFamily(current.getFamilyId(), now);
             throw new BusinessException("REFRESH_TOKEN_REUSED", "refresh token reuse detected");
         }
@@ -75,7 +83,7 @@ public class RefreshTokenService {
     @Transactional
     public void revoke(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) return;
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         refreshTokenRepository.findByTokenHashForUpdate(hash(rawToken)).ifPresent(token -> {
             if (token.getRevokedAt() == null) {
                 token.setRevokedAt(now);
@@ -84,13 +92,18 @@ public class RefreshTokenService {
         });
     }
 
+    @Transactional
+    public void revokeAllForUser(Long userId) {
+        refreshTokenRepository.revokeActiveForUser(userId, LocalDateTime.now(clock), PASSWORD_CHANGED);
+    }
+
     @Scheduled(
             initialDelayString = "${app.jwt.cleanup-initial-delay-ms:60000}",
             fixedDelayString = "${app.jwt.cleanup-interval-ms:3600000}"
     )
     @Transactional
     public int cleanupExpiredAndRevokedTokens() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         long revokedRetentionDays = Math.max(1, jwtProperties.getRefreshExpirationDays());
         List<Long> candidateIds = refreshTokenRepository.findCleanupCandidateIds(
                 now.minusDays(EXPIRED_TOKEN_RETENTION_DAYS),
@@ -110,7 +123,7 @@ public class RefreshTokenService {
         byte[] bytes = new byte[48];
         SECURE_RANDOM.nextBytes(bytes);
         String rawToken = TOKEN_ENCODER.encodeToString(bytes);
-        LocalDateTime expiresAt = LocalDateTime.now().plusDays(jwtProperties.getRefreshExpirationDays());
+        LocalDateTime expiresAt = LocalDateTime.now(clock).plusDays(jwtProperties.getRefreshExpirationDays());
 
         RefreshToken token = new RefreshToken();
         token.setUser(user);

@@ -14,6 +14,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Locale;
+
 @Service
 public class AuthService {
     private final AppUserRepository appUserRepository;
@@ -40,14 +42,21 @@ public class AuthService {
 
     @Transactional
     public AuthSession register(RegisterRequest request) {
-        if (appUserRepository.existsByUsername(request.username())
-                || appUserRepository.existsByEmail(request.email())) {
+        String username = request.username().trim();
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        if (!username.matches("^[A-Za-z0-9_.-]{3,64}$")
+                || username.equalsIgnoreCase("anonymousUser")) {
+            throw new BusinessException("INVALID_USERNAME",
+                    "用户名需要 3 至 64 位，只能使用英文字母、数字、下划线、点或连字符，且不能使用保留名称");
+        }
+        if (appUserRepository.existsByUsername(username)
+                || appUserRepository.existsByEmail(email)) {
             throw new BusinessException("ACCOUNT_CONFLICT", "an account with that username or email already exists");
         }
 
         AppUser user = new AppUser();
-        user.setUsername(request.username());
-        user.setEmail(request.email());
+        user.setUsername(username);
+        user.setEmail(email);
         user.setDisplayName(request.displayName());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         AppUser savedUser = appUserRepository.save(user);
@@ -57,7 +66,7 @@ public class AuthService {
 
     @Transactional
     public AuthSession login(LoginRequest request) {
-        AppUser user = appUserRepository.findByUsername(request.username()).orElse(null);
+        AppUser user = appUserRepository.findByUsername(request.username().trim()).orElse(null);
         if (user == null) {
             passwordEncoder.matches(request.password(), dummyPasswordHash);
             throw new BadCredentialsException("username or password is incorrect");
