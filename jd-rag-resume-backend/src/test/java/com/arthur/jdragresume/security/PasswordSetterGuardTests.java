@@ -14,13 +14,15 @@ class PasswordSetterGuardTests {
     @Test
     void productionPasswordHashWritesStayInsideRegistrationAndPasswordChange() throws Exception {
         Path root = Path.of("src/main/java");
+        Path registration = root.resolve("com/arthur/jdragresume/service/AuthService.java");
+        Path passwordChange = root.resolve("com/arthur/jdragresume/service/AppUserService.java");
         List<String> unauthorized = new ArrayList<>();
         try (Stream<Path> files = Files.walk(root)) {
             for (Path file : files.filter(path -> path.toString().endsWith(".java")).toList()) {
                 String content = Files.readString(file);
                 if (content.contains(".setPasswordHash(")
-                        && !file.toString().endsWith("service/AuthService.java")
-                        && !file.toString().endsWith("service/AppUserService.java")) {
+                        && !file.equals(registration)
+                        && !file.equals(passwordChange)) {
                     unauthorized.add(root.relativize(file).toString());
                 }
             }

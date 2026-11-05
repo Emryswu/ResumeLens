@@ -99,7 +99,7 @@ class PrometheusEndpointSecurityTests {
                     AppUserRepository.class.getClassLoader(),
                     new Class<?>[]{AppUserRepository.class},
                     (proxy, method, args) -> switch (method.getName()) {
-                        case "findByUsername" -> "alice".equals(args[0]) ? Optional.of(ALICE) : Optional.empty();
+                        case "findById" -> Long.valueOf(1L).equals(args[0]) ? Optional.of(ALICE) : Optional.empty();
                         case "toString" -> "FakeAppUserRepository";
                         case "hashCode" -> System.identityHashCode(proxy);
                         case "equals" -> proxy == args[0];

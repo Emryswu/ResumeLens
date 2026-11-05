@@ -204,10 +204,28 @@ class RefreshTokenRepositoryMySqlTests {
     }
 
     @Test
+    void usernameConflictLookupUsesTheDatabaseCaseInsensitiveCollation() {
+        assertTrue(appUserRepository.existsByUsername(user.getUsername().toUpperCase(java.util.Locale.ROOT)));
+    }
+
+    @Test
     void revokeActiveForUserRevokesOnlyThatUsersLiveTokens() {
         LocalDateTime now = LocalDateTime.of(2026, 11, 5, 16, 0);
         RefreshToken active = saveToken("password-reset", now.plusDays(7), null);
         RefreshToken previouslyRevoked = saveToken("previous", now.plusDays(7), now.minusDays(1));
+        AppUser otherOwner = new AppUser();
+        String otherSuffix = UUID.randomUUID().toString().replace("-", "");
+        otherOwner.setUsername("other-" + otherSuffix);
+        otherOwner.setEmail("other-" + otherSuffix + "@example.com");
+        otherOwner.setDisplayName("Other");
+        otherOwner.setPasswordHash("not-used");
+        otherOwner = appUserRepository.saveAndFlush(otherOwner);
+        RefreshToken otherToken = new RefreshToken();
+        otherToken.setUser(otherOwner);
+        otherToken.setTokenHash(UUID.randomUUID().toString().replace("-", ""));
+        otherToken.setFamilyId(UUID.randomUUID().toString());
+        otherToken.setExpiresAt(now.plusDays(7));
+        otherToken = refreshTokenRepository.saveAndFlush(otherToken);
 
         int affected = refreshTokenRepository.revokeActiveForUser(user.getId(), now, "PASSWORD_CHANGED");
         assertEquals(1, affected);
@@ -218,6 +236,7 @@ class RefreshTokenRepositoryMySqlTests {
         assertEquals("PASSWORD_CHANGED", changed.getReplacedByHash());
         assertEquals(now.minusDays(1),
                 refreshTokenRepository.findById(previouslyRevoked.getId()).orElseThrow().getRevokedAt());
+        assertEquals(null, refreshTokenRepository.findById(otherToken.getId()).orElseThrow().getRevokedAt());
     }
 
     private RefreshToken saveToken(String label, LocalDateTime expiresAt, LocalDateTime revokedAt) {
