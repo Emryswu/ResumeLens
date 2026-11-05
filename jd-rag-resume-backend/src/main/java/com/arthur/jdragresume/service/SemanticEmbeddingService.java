@@ -3,6 +3,7 @@ package com.arthur.jdragresume.service;
 import com.arthur.jdragresume.entity.JobDescription;
 import com.arthur.jdragresume.entity.Resume;
 import com.arthur.jdragresume.exception.BusinessException;
+import com.arthur.jdragresume.common.LogSafe;
 import com.arthur.jdragresume.rag.RagProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,7 +117,7 @@ public class SemanticEmbeddingService {
             }
             return embeddings;
         } catch (RuntimeException ex) {
-            log.error("Failed to build semantic-ranking embeddings", ex);
+            log.error("Failed to build semantic-ranking embeddings {}", LogSafe.describe(ex));
             throw new BusinessException(
                     "SEMANTIC_EMBEDDING_FAILED",
                     "semantic ranking embedding is temporarily unavailable"

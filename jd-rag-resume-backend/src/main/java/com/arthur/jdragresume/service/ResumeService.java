@@ -1,6 +1,7 @@
 package com.arthur.jdragresume.service;
 
 import com.arthur.jdragresume.common.PageResponse;
+import com.arthur.jdragresume.common.LogSafe;
 import com.arthur.jdragresume.dto.resume.ResumeRequest;
 import com.arthur.jdragresume.dto.resume.ResumeResponse;
 import com.arthur.jdragresume.entity.AnalysisStatus;
@@ -178,7 +179,7 @@ public class ResumeService {
                 deleteFile(storedPath);
             }
             // 原始异常此前被整个吞掉：磁盘满、权限不足、路径不可写在日志里毫无痕迹
-            log.error("Failed to store resume file for user {} at {}", user.getId(), storedPath, ex);
+            log.error("Failed to store resume file for user {} at {}: {}", user.getId(), storedPath, LogSafe.describe(ex));
             throw new BusinessException("FILE_SAVE_FAILED", "failed to save resume file");
         }
     }
@@ -215,7 +216,7 @@ public class ResumeService {
             try {
                 vectorIndex.delete(id);
             } catch (Exception ex) {
-                log.error("Database row was deleted but vector index cleanup failed for resume {}", id, ex);
+                log.error("Database row was deleted but vector index cleanup failed for resume {}: {}", id, LogSafe.describe(ex));
             }
         });
     }
@@ -338,7 +339,7 @@ public class ResumeService {
         try {
             Files.deleteIfExists(storedFile);
         } catch (Exception ex) {
-            log.error("Database row was deleted but resume file cleanup failed: {}", storedFile, ex);
+            log.error("Database row was deleted but resume file cleanup failed: {}: {}", storedFile, LogSafe.describe(ex));
         }
     }
 

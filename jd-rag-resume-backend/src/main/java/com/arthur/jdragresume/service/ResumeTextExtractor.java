@@ -1,6 +1,7 @@
 package com.arthur.jdragresume.service;
 
 import com.arthur.jdragresume.exception.BusinessException;
+import com.arthur.jdragresume.common.LogSafe;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.exception.WriteLimitReachedException;
 import org.apache.tika.extractor.EmbeddedDocumentExtractor;
@@ -75,7 +76,7 @@ public class ResumeTextExtractor {
             if (WriteLimitReachedException.isWriteLimitReached(ex)) {
                 throw tooLong();
             }
-            log.warn("Failed to parse uploaded resume with extension {}", extension, ex);
+            log.warn("Failed to parse uploaded resume with extension {}: {}", extension, LogSafe.describe(ex));
             throw new BusinessException("RESUME_PARSE_FAILED", "无法读取简历文件内容，请确认文件未损坏或加密，也可以直接粘贴简历正文");
         }
     }

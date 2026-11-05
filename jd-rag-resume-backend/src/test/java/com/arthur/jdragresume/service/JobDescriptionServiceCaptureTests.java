@@ -4,6 +4,7 @@ import com.arthur.jdragresume.dto.job.JobCaptureRequest;
 import com.arthur.jdragresume.dto.job.JobCaptureResponse;
 import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.entity.JobDescription;
+import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.repository.AppUserRepository;
 import com.arthur.jdragresume.repository.JobDescriptionRepository;
 import com.arthur.jdragresume.security.CurrentUserService;
@@ -19,6 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JobDescriptionServiceCaptureTests {
@@ -96,6 +98,20 @@ class JobDescriptionServiceCaptureTests {
         assertTrue(changed.contentChanged());
         assertEquals(created.job().id(), changed.job().id());
         assertEquals("新 JD：需要 Java 21", changed.job().description());
+    }
+
+    @Test
+    void rejectsInvalidSourceIdentifiersAsBusinessValidationErrors() {
+        for (String sourcePlatform : java.util.List.of("", " ", "B".repeat(33))) {
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> service.findBySource(sourcePlatform, "job-1"));
+            assertEquals("VALIDATION_ERROR", ex.getCode());
+        }
+        for (String sourceJobId : java.util.List.of("", " ", "J".repeat(161))) {
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> service.findBySource("BOSS", sourceJobId));
+            assertEquals("VALIDATION_ERROR", ex.getCode());
+        }
     }
 
     private JobCaptureRequest request(String description) {
