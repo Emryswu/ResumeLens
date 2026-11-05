@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.Clock;
 
 @Service
 public class AnalysisSubmitGuard {
@@ -34,6 +35,7 @@ public class AnalysisSubmitGuard {
     private final int maxPendingPerUser;
     private final int maxSubmitsPerWindow;
     private final long submitWindowMinutes;
+    private final Clock clock;
 
     public AnalysisSubmitGuard(
             AnalysisHistoryRepository analysisHistoryRepository,
@@ -44,7 +46,8 @@ public class AnalysisSubmitGuard {
             JobDescriptionRepository jobDescriptionRepository,
             @Value("${app.analysis.max-pending-per-user:2}") int maxPendingPerUser,
             @Value("${app.analysis.max-submits-per-window:10}") int maxSubmitsPerWindow,
-            @Value("${app.analysis.submit-window-minutes:10}") long submitWindowMinutes
+            @Value("${app.analysis.submit-window-minutes:10}") long submitWindowMinutes,
+            Clock clock
     ) {
         this.analysisHistoryRepository = analysisHistoryRepository;
         this.analysisSubmissionLogRepository = analysisSubmissionLogRepository;
@@ -55,6 +58,7 @@ public class AnalysisSubmitGuard {
         this.maxPendingPerUser = Math.max(1, maxPendingPerUser);
         this.maxSubmitsPerWindow = Math.max(1, maxSubmitsPerWindow);
         this.submitWindowMinutes = Math.max(1, submitWindowMinutes);
+        this.clock = clock;
     }
 
     @Transactional
@@ -104,7 +108,7 @@ public class AnalysisSubmitGuard {
         // analysis_history；否则「删历史 → 重提」就能把窗口内的计数清掉。
         // 因模型输出不合规而失败的提交会被退还，不占计数；但退还过的也算进一道
         // 更高的硬上限，否则在简历里写注入文字故意让模型输出不合规，就能无限调用模型。
-        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(submitWindowMinutes);
+        LocalDateTime cutoff = LocalDateTime.now(clock).minusMinutes(submitWindowMinutes);
         long submitted = analysisSubmissionLogRepository
                 .countByUser_IdAndCreatedAtAfter(lockedUser.getId(), cutoff);
         long refunded = analysisSubmissionRefundRepository

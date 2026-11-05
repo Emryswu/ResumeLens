@@ -157,7 +157,7 @@ public class JobDescriptionService {
                 request.description(),
                 request.requirements()
         );
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
 
         var existing = jobDescriptionRepository.findByUserIdAndSourcePlatformAndSourceJobId(
                 user.getId(),
@@ -205,7 +205,7 @@ public class JobDescriptionService {
     @Transactional
     public ListingCaptureResult captureListings(List<JobCaptureRequest> listings, String collectionExperience) {
         AppUser user = lockCurrentUser();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(clock);
         long count = jobDescriptionRepository.countByUserId(user.getId());
         List<ListingCaptureResult.Saved> saved = new ArrayList<>();
         List<JobDescription> created = new ArrayList<>();

@@ -54,7 +54,7 @@ class ResumeServiceUploadTests {
         ResumeService service = service(tempDir, 30L, 0L, Optional.empty());
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> service.upload(sampleFile(), "title", "Arthur", null, null, null)
+                () -> service.upload(sampleFile(), "title", "Arthur", null, null)
         );
         assertEquals("RESUME_QUOTA_EXCEEDED", exception.getCode());
     }
@@ -64,7 +64,7 @@ class ResumeServiceUploadTests {
         ResumeService service = service(tempDir, 0L, 209_715_200L, Optional.empty());
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> service.upload(sampleFile(), "title", "Arthur", null, null, null)
+                () -> service.upload(sampleFile(), "title", "Arthur", null, null)
         );
         assertEquals("RESUME_STORAGE_QUOTA_EXCEEDED", exception.getCode());
     }
@@ -74,7 +74,7 @@ class ResumeServiceUploadTests {
         ResumeService service = service(tempDir, 0L, 0L, Optional.of(new RuntimeException("db down")));
         BusinessException exception = assertThrows(
                 BusinessException.class,
-                () -> service.upload(sampleFile(), "title", "Arthur", null, null, null)
+                () -> service.upload(sampleFile(), "title", "Arthur", null, null)
         );
         assertEquals("FILE_SAVE_FAILED", exception.getCode());
         Path userDir = tempDir.resolve("1");

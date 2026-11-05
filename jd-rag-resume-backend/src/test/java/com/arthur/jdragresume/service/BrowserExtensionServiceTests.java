@@ -151,7 +151,7 @@ class BrowserExtensionServiceTests {
         private AnalysisHistoryResponse result;
 
         private FixedAiAnalysisService() {
-            super(null, null, null, null, null);
+            super(null, null, null, null, null, null);
         }
 
         @Override

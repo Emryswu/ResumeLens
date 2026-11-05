@@ -27,6 +27,7 @@ class AiAnalysisServiceSubmitGuardTests {
     private JobDescription job;
     private RecordingGuard guard;
     private RecordingExecutor executor;
+    private RecordingUpdates updates;
     private AiAnalysisService service;
 
     @BeforeEach
@@ -45,10 +46,12 @@ class AiAnalysisServiceSubmitGuardTests {
         CurrentUserService currentUserService = new FixedCurrentUserService(user);
         guard = new RecordingGuard();
         executor = new RecordingExecutor();
+        updates = new RecordingUpdates();
         service = new AiAnalysisService(
                 currentUserService,
                 null,
                 guard,
+                updates,
                 null,
                 executor
         );
@@ -96,6 +99,19 @@ class AiAnalysisServiceSubmitGuardTests {
         assertEquals(AnalysisStatus.PENDING, response.status());
     }
 
+    @Test
+    void fullQueueRefundsTheSubmissionAndRejectsTheRequest() {
+        guard.result = pendingHistory();
+        executor.reject = true;
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.analyze(new AiAnalysisRequest(2L, 3L)));
+        assertEquals("ANALYSIS_QUEUE_FULL", exception.getCode());
+        assertEquals(1, updates.refunds.get());
+        assertEquals(9L, updates.refundedId);
+        assertEquals("ANALYSIS_QUEUE_FULL", updates.reason);
+    }
+
     private AnalysisHistory pendingHistory() {
         AnalysisHistory history = new AnalysisHistory();
         ReflectionTestUtils.setField(history, "id", 9L);
@@ -119,7 +135,7 @@ class AiAnalysisServiceSubmitGuardTests {
         // admit() 已被完全覆盖，父类依赖一律不使用；第二、三个参数为
         // AnalysisSubmissionLogRepository 与 AnalysisSubmissionRefundRepository。
         private RecordingGuard() {
-            super(null, null, null, null, null, null, 2, 10, 10);
+            super(null, null, null, null, null, null, 2, 10, 10, java.time.Clock.systemDefaultZone());
         }
 
         @Override
@@ -137,10 +153,30 @@ class AiAnalysisServiceSubmitGuardTests {
 
     private static final class RecordingExecutor implements TaskExecutor {
         private final AtomicInteger calls = new AtomicInteger();
+        private boolean reject;
 
         @Override
         public void execute(Runnable task) {
             calls.incrementAndGet();
+            if (reject) throw new org.springframework.core.task.TaskRejectedException("full");
+        }
+    }
+
+    private static final class RecordingUpdates extends AnalysisHistoryUpdateService {
+        private final AtomicInteger refunds = new AtomicInteger();
+        private Long refundedId;
+        private String reason;
+
+        private RecordingUpdates() {
+            super(null, null);
+        }
+
+        @Override
+        public boolean failIfPendingAndRefund(Long id, String summary, String reason) {
+            refunds.incrementAndGet();
+            refundedId = id;
+            this.reason = reason;
+            return true;
         }
     }
 

@@ -10,6 +10,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import com.arthur.jdragresume.collect.BossPageBudgetConfig;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @WebMvcTest(controllers = FetchMetadataGuardWiringTests.BrandNewAuthEndpoint.class)
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, SecurityProblemSupport.class, JwtService.class,
+        BossPageBudgetConfig.class,
         FetchMetadataGuardWiringTests.BrandNewAuthEndpoint.class, FetchMetadataGuardWiringTests.Fakes.class})
 @TestPropertySource(properties = {
         "app.jwt.secret=test-secret-for-fetch-metadata-wiring-0123456789",

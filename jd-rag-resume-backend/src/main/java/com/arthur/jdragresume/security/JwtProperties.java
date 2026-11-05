@@ -2,6 +2,8 @@ package com.arthur.jdragresume.security;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Max;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -12,7 +14,10 @@ import java.nio.charset.StandardCharsets;
 public class JwtProperties {
     @NotBlank(message = "JWT secret must be configured")
     private String secret;
+    @Positive(message = "access token expiration must be positive")
+    @Max(value = 1440, message = "access token expiration must not exceed 1440 minutes")
     private long expirationMinutes;
+    @Positive(message = "refresh token expiration must be positive")
     private long refreshExpirationDays;
     private boolean refreshCookieSecure;
 

@@ -49,7 +49,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/**",
-                                "/api/ai/status",
                                 "/actuator/health",
                                 "/actuator/health/**"
                         ).permitAll()
@@ -72,8 +71,10 @@ public class SecurityConfig {
     @Bean
     public FilterRegistrationBean<FetchMetadataGuard> fetchMetadataGuard(
             @Value("${app.security.trusted-origins}") List<String> trustedOrigins,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            JwtProperties jwtProperties
     ) {
+        CookieSecurity.validateTrustedOrigins(jwtProperties.isRefreshCookieSecure(), trustedOrigins);
         FilterRegistrationBean<FetchMetadataGuard> registration =
                 new FilterRegistrationBean<>(new FetchMetadataGuard(trustedOrigins, objectMapper));
         registration.addUrlPatterns("/api/auth/*");
