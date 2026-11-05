@@ -8,6 +8,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,45 +55,86 @@ class LogSafeTests {
     }
 
     /**
-     * Classes on the path to the model may only log exceptions through {@link LogSafe#describe}: passing the
-     * exception object prints its message and stack, and getMessage() can carry resume text or contact details.
+     * Exceptions are never logged as objects or messages. Keep this map empty unless a specific
+     * production file genuinely requires an exemption; each entry must state the review reason.
      */
+    private static final Map<String, String> LOG_EXCEPTION_ALLOWLIST = Map.of();
+
     @Test
-    void modelPathClassesNeverLogExceptionObjectsOrMessages() throws IOException {
-        Path root = Path.of("src/main/java/com/arthur/jdragresume");
-        List<String> files = List.of("agent/AgentLoop.java", "agent/AgentChatService.java",
-                "agent/OpenAiCompatibleAgentModel.java", "agent/ShortTermMemory.java",
-                "ai/AiClient.java", "service/AiAnalysisWorker.java");
-        Pattern logCall = Pattern.compile("\\blog\\.(?:trace|debug|info|warn|error)\\((.*?)\\);", Pattern.DOTALL);
-        Pattern catchVar = Pattern.compile("catch\\s*\\([^)]*?\\s(\\w+)\\s*\\)");
+    void allProductionClassesNeverLogExceptionObjectsOrMessages() throws IOException {
+        Path root = Path.of("src/main");
         List<String> violations = new ArrayList<>();
-        for (String file : files) {
-            String source = Files.readString(root.resolve(file));
-            List<String> caught = new ArrayList<>();
-            Matcher vars = catchVar.matcher(source);
-            while (vars.find()) caught.add(vars.group(1));
-            Matcher calls = logCall.matcher(source);
-            while (calls.find()) {
-                String args = calls.group(1).replaceAll("LogSafe\\.describe\\(\\w+\\)", "SAFE");
-                if (args.contains("getMessage") || args.contains("getLocalizedMessage")
-                        || args.contains("printStackTrace")) {
-                    violations.add(file + ": " + calls.group().strip());
+        try (var files = Files.walk(root)) {
+            for (Path file : files.filter(Files::isRegularFile)
+                    .filter(path -> path.toString().endsWith(".java")).toList()) {
+                String relative = root.relativize(file).toString().replace('\\', '/');
+                if (LOG_EXCEPTION_ALLOWLIST.containsKey(relative)) {
+                    assertFalse(LOG_EXCEPTION_ALLOWLIST.get(relative).isBlank(),
+                            "Whitelist entries require an explicit reason: " + relative);
                     continue;
                 }
-                for (String arg : args.split(",")) {
-                    if (caught.contains(arg.strip())) violations.add(file + ": " + calls.group().strip());
-                }
+                violations.addAll(unsafeLogCalls(relative, Files.readString(file)));
             }
         }
         assertEquals(List.of(), violations);
     }
 
     @Test
-    void scanCatchesTheWritingItForbids() {
-        Pattern logCall = Pattern.compile("\\blog\\.(?:trace|debug|info|warn|error)\\((.*?)\\);", Pattern.DOTALL);
-        Matcher matcher = logCall.matcher("log.error(\"failed {}\", id,\n        ex);");
-        assertTrue(matcher.find());
-        assertTrue(List.of(matcher.group(1).split(",")).stream().map(String::strip).anyMatch("ex"::equals));
+    void scanCatchesDirectThrowableArgumentsAndExceptionMessages() {
+        String bad = """
+                class Example {
+                    void run() {
+                        try { throw new RuntimeException(); }
+                        catch (RuntimeException ex) {
+                            log.error("failed {}", ex);
+                            log.warn("detail {}", ex.getMessage());
+                        }
+                    }
+                }
+                """;
+        assertEquals(2, unsafeLogCalls("Example.java", bad).size());
+
+        String safe = """
+                class Example {
+                    void run() {
+                        try { throw new RuntimeException(); }
+                        catch (RuntimeException ex) {
+                            log.error("failed {}", LogSafe.describe(ex));
+                        }
+                    }
+                }
+                """;
+        assertEquals(List.of(), unsafeLogCalls("Example.java", safe));
+    }
+
+    private static List<String> unsafeLogCalls(String file, String source) {
+        Pattern logCall = Pattern.compile(
+                "\\b(?:log|logger)\\.(?:trace|debug|info|warn|error)\\((.*?)\\);",
+                Pattern.DOTALL);
+        // Include caught exceptions and Throwable/Exception-typed method parameters.
+        Pattern throwableDeclaration = Pattern.compile(
+                "\\b(?:Throwable|\\w*Exception|\\w*Error)\\s+(\\w+)\\b");
+        Set<String> throwableNames = new HashSet<>();
+        Matcher declarations = throwableDeclaration.matcher(source);
+        while (declarations.find()) throwableNames.add(declarations.group(1));
+
+        List<String> violations = new ArrayList<>();
+        Matcher calls = logCall.matcher(source);
+        while (calls.find()) {
+            String args = calls.group(1).replaceAll(
+                    "LogSafe\\.describe\\(\\s*\\w+\\s*\\)", "SAFE");
+            boolean unsafe = args.contains(".getMessage()") || args.contains(".getLocalizedMessage()")
+                    || args.contains(".printStackTrace()");
+            for (String name : throwableNames) {
+                if (List.of(args.split(",")).stream().map(String::strip).anyMatch(name::equals)
+                        || Pattern.compile("\\+\\s*" + Pattern.quote(name) + "\\b|\\b"
+                                + Pattern.quote(name) + "\\s*\\+").matcher(args).find()) {
+                    unsafe = true;
+                }
+            }
+            if (unsafe) violations.add(file + ": " + calls.group().strip());
+        }
+        return violations;
     }
 
     private static BusinessException failInOwnCode() {
