@@ -35,6 +35,119 @@ class ConversationStoreTests {
     }
 
     @Test
+    void orphanToolResultInExpiredConversationDoesNotBlockReads() {
+        assertExpiredMalformed(java.util.List.of(
+                AgentMessage.user("过期"), AgentMessage.tool("orphan", "{}")));
+    }
+
+    @Test
+    void duplicateToolCallIdsInExpiredConversationDoNotBlockReads() {
+        assertExpiredMalformed(java.util.List.of(
+                AgentMessage.user("过期"),
+                AgentMessage.assistant(null, java.util.List.of(
+                        AgentMessage.ToolCall.of("duplicate", "get_resume", "{}"),
+                        AgentMessage.ToolCall.of("duplicate", "get_resume", "{}")))));
+    }
+
+    private void assertExpiredMalformed(java.util.List<AgentMessage> transcript) {
+        long id = expiredConversation(transcript);
+        var detail = assertDoesNotThrow(() -> store.detail(1, id, 0));
+        assertEquals("FAILED", detail.conversation().state());
+        assertNull(detail.conversation().activeRun());
+        assertEquals(transcript, store.messages(id), "unrecoverable transcripts must be preserved");
+        assertTrue(detail.events().stream().anyMatch(e -> "error".equals(e.type())));
+        assertTrue(detail.events().stream().anyMatch(e -> "done".equals(e.type())
+                && "FAILED".equals(e.data().path("state").asText())));
+    }
+
+    @Test
+    void recoverExpiredContinuesAfterOneConversationCannotBeDecoded() {
+        long corrupted = expiredConversation(java.util.List.of(AgentMessage.user("过期")));
+        jdbc.update("UPDATE agent_conversation_message SET payload=? WHERE conversation_id=? AND position=0",
+                "{broken json", corrupted);
+        long valid = expiredConversation(java.util.List.of(AgentMessage.user("过期")));
+
+        assertDoesNotThrow(store::recoverExpired);
+
+        assertEquals("FAILED", jdbc.queryForObject("SELECT state FROM agent_conversation WHERE id=?",
+                String.class, valid), "recoverExpired must finish the healthy row itself");
+        assertNull(jdbc.queryForObject("SELECT active_run FROM agent_conversation WHERE id=?",
+                String.class, valid));
+        assertEquals("FAILED", store.detail(1, valid, 0).conversation().state());
+        assertNotNull(jdbc.queryForObject("SELECT active_run FROM agent_conversation WHERE id=?",
+                String.class, corrupted), "unreadable row remains available for later diagnostics");
+    }
+
+    private long expiredConversation(java.util.List<AgentMessage> transcript) {
+        long id = store.create(1).conversation().id();
+        var policy = new TranscriptPolicy(new AgentProperties());
+        var run = store.accept(1, id, "过期", null, null, 90000,
+                messages -> policy.normalize(messages, null));
+        store.checkpoint(run, transcript, null);
+        jdbc.update("UPDATE agent_conversation SET run_expires_at=? WHERE id=?",
+                System.currentTimeMillis() - 1000, id);
+        return id;
+    }
+
+    @Test
+    void interruptRepairsInterruptedMiddleBatchBeforeNextAssistantAndNextTurn() {
+        long id = store.create(1).conversation().id();
+        var policy = new TranscriptPolicy(new AgentProperties());
+        var run = store.accept(1, id, "查两条", null, null, 90000,
+                messages -> policy.normalize(messages, null));
+        store.checkpoint(run, java.util.List.of(
+                AgentMessage.user("查两条"),
+                AgentMessage.assistant(null, java.util.List.of(
+                        AgentMessage.ToolCall.of("c1", "get_resume", "{}"),
+                        AgentMessage.ToolCall.of("c2", "get_resume", "{}"))),
+                AgentMessage.tool("c1", "{}"),
+                AgentMessage.assistant("处理到一半中断", null)
+        ), null);
+
+        store.fail(run, "AGENT_INTERRUPTED", "服务执行已中断，可以继续提问");
+
+        var persisted = store.messages(id);
+        assertEquals(java.util.List.of("user", "assistant", "tool:c1", "tool:c2", "assistant"),
+                persisted.stream().map(item -> AgentMessage.TOOL.equals(item.role())
+                        ? "tool:" + item.toolCallId() : item.role()).toList());
+        var next = assertDoesNotThrow(() -> store.accept(1, id, "继续", null, null, 90000,
+                messages -> policy.normalize(messages, null)));
+        assertEquals("继续", next.input().messages().getLast().content());
+    }
+
+    @Test
+    void interruptRepairsAllTypicalUnpairedToolCallShapes() {
+        var policy = new TranscriptPolicy(new AgentProperties());
+        var first = AgentMessage.assistant(null, java.util.List.of(
+                AgentMessage.ToolCall.of("c1", "get_resume", "{}"),
+                AgentMessage.ToolCall.of("c2", "get_resume", "{}")));
+        var second = AgentMessage.assistant(null, java.util.List.of(
+                AgentMessage.ToolCall.of("c3", "get_resume", "{}"),
+                AgentMessage.ToolCall.of("c4", "get_resume", "{}")));
+        var user = AgentMessage.user("查");
+        var result1 = AgentMessage.tool("c1", "{}");
+        var result4 = AgentMessage.tool("c4", "{}");
+        var later = AgentMessage.assistant("处理过程中断", null);
+        var shapes = java.util.List.of(
+                java.util.List.of(user, first, result1),
+                java.util.List.of(user, first, result1, later),
+                java.util.List.of(user, first, result1, second, result4, later)
+        );
+
+        for (int index = 0; index < shapes.size(); index++) {
+            long id = store.create(1).conversation().id();
+            var run = store.accept(1, id, "查", null, null, 90000,
+                    messages -> policy.normalize(messages, null));
+            store.checkpoint(run, shapes.get(index), null);
+            store.fail(run, "AGENT_INTERRUPTED", "服务执行已中断");
+            var nextTurn = new java.util.ArrayList<>(store.messages(id));
+            nextTurn.add(AgentMessage.user("继续"));
+            int caseIndex = index;
+            assertDoesNotThrow(() -> policy.normalize(nextTurn, null), "shape " + caseIndex);
+        }
+    }
+
+    @Test
     void modelReceivesRedactedCopiesButDatabaseTranscriptAndEventsKeepOriginals() throws Exception {
         String raw = "13812345678 arthur@example.com";
         var mapper = ConversationStore.JSON;

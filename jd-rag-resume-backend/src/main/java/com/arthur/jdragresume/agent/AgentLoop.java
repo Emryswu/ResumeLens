@@ -1208,21 +1208,11 @@ public class AgentLoop {
     /** A new message may only follow a fully paired tool round; ids may repeat in later rounds. */
     private static Map<String, AgentMessage.ToolCall> outstandingCalls(List<AgentMessage> transcript) {
         Map<String, AgentMessage.ToolCall> open = new LinkedHashMap<>();
-        for (AgentMessage item : transcript) {
-            if (AgentMessage.TOOL.equals(item.role())) {
-                if (open.remove(item.toolCallId()) == null) {
-                    throw new IllegalStateException("tool result has no outstanding call");
-                }
-            } else {
-                if (!open.isEmpty()) throw new IllegalStateException("message follows unanswered tool calls");
-                if (item.hasToolCalls()) {
-                    for (AgentMessage.ToolCall call : item.toolCalls()) {
-                        if (open.putIfAbsent(call.id(), call) != null) {
-                            throw new IllegalStateException("duplicate tool call id in a batch");
-                        }
-                    }
-                }
+        for (var missing : ToolCallPairs.unpaired(transcript)) {
+            if (missing.insertBefore() != transcript.size()) {
+                throw new IllegalStateException("message follows unanswered tool calls");
             }
+            open.put(missing.call().id(), missing.call());
         }
         return open;
     }
