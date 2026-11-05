@@ -45,7 +45,7 @@ class ConversationStoreTests {
                 AgentMessage.assistant(null, java.util.List.of(
                         AgentMessage.ToolCall.of("c1", "get_resume", "{}"),
                         AgentMessage.ToolCall.of("c2", "get_resume", "{}"))),
-                AgentMessage.tool("c1", "{\\"ok\\":true}"),
+                AgentMessage.tool("c1", "{}"),
                 AgentMessage.assistant("处理到一半中断", null)
         ), null);
 
