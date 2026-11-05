@@ -140,6 +140,53 @@ class SearchConditionLayeringTests {
     }
 
     @Test
+    void explicitUnlimitedDirectionSearchStartsARealBrowserTaskFromAnEmptySession() {
+        stored.set(JobSearchContext.empty());
+        AtomicInteger modelCalls = new AtomicInteger();
+        AgentModel model = (system, messages, tools, timeout) -> switch (modelCalls.getAndIncrement()) {
+            case 0 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("plan", AgentPlan.TOOL,
+                    "{\"steps\":[{\"tool\":\"get_resume\",\"purpose\":\"读简历\"},"
+                            + "{\"tool\":\"get_job_search_preferences\",\"purpose\":\"读条件\"},"
+                            + "{\"tool\":\"collect_boss_jobs\",\"purpose\":\"不限方向泛搜\"}]}"));
+            case 1 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("resume", "get_resume", "{\"resumeId\":3}"));
+            case 2 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("preferences", "get_job_search_preferences", "{}"));
+            case 3 -> AgentModel.Reply.call(AgentMessage.ToolCall.of("broad", JobSearchWorkflow.TOOL,
+                    "{\"city\":\"深圳\",\"broadSearch\":true}"));
+            default -> AgentModel.Reply.answer("完成");
+        };
+        var actualCollector = new com.arthur.jdragresume.agent.tool.CollectBossJobsTool(
+                new com.arthur.jdragresume.collect.BrowserExtensionJobCollector(),
+                mock(com.arthur.jdragresume.service.JobDescriptionService.class),
+                mock(com.arthur.jdragresume.collect.JobCollectionHistory.class));
+        var registry = new AgentToolRegistry(List.of(
+                basicTool("get_resume", Map.of("resumeId", 3, "text", "Java Spring Boot")),
+                basicTool("get_job_search_preferences", Map.of("configured", true)), actualCollector));
+        var tasks = new ArrayList<AgentLoop.BrowserTaskEvent>();
+        AgentEventSink sink = new AgentEventSink() {
+            @Override public void emit(String name, Object payload) {
+                if ("browser_task_required".equals(name)) tasks.add((AgentLoop.BrowserTaskEvent) payload);
+            }
+            @Override public void checkpoint(List<AgentMessage> messages, String summary) { }
+        };
+        AgentProperties properties = new AgentProperties();
+        var loop = new AgentLoop(model, registry, mapper, properties, System::currentTimeMillis,
+                new BrowserTaskRegistry(), store, userId -> student);
+        AgentLoop.Outcome paused = loop.run(new TranscriptPolicy(properties).normalize(
+                List.of(AgentMessage.user("找深圳所有方向的岗位，不限技术方向")), null),
+                null, context(), sink, () -> false);
+
+        assertEquals(AgentLoop.State.AWAITING_BROWSER, paused.state());
+        assertEquals(1, tasks.size());
+        Map<String, Object> command = tasks.getFirst().command();
+        assertEquals("", command.get("keyword"));
+        assertEquals("不限", command.get("experience"));
+        assertEquals(true, command.get("broadSearch"));
+        assertEquals(3, TurnUsage.of(paused.transcript(), mapper).toolSteps(),
+                "the first two tools finished and the delegated collection holds its step");
+        assertEquals(0, PlanProgress.of(paused.transcript(), mapper, registry).replans());
+    }
+
+    @Test
     void theRuleOnlyAppliesToKnownStudentsLookingForInternships() {
         student = null;
         runTurn("找实习", "{\"keyword\":\"Java\",\"city\":\"深圳\",\"jobType\":\"实习\",\"experience\":\"不限\"}");
