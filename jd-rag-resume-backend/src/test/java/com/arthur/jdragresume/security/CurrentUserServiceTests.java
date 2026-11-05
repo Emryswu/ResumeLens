@@ -44,6 +44,11 @@ class CurrentUserServiceTests {
                 List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))
         ));
         assertThrows(IllegalStateException.class, new CurrentUserService(repository)::getCurrentUser);
+        SecurityContextHolder.getContext().setAuthentication(new AnonymousAuthenticationToken(
+                "anonymous", new JwtUserPrincipal(7L, "anonymousUser"),
+                List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))
+        ));
+        assertThrows(IllegalStateException.class, new CurrentUserService(repository)::getCurrentUser);
     }
 
     @Test
