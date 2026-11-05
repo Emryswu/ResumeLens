@@ -35,6 +35,64 @@ class ConversationStoreTests {
     }
 
     @Test
+    void interruptRepairsInterruptedMiddleBatchBeforeNextAssistantAndNextTurn() {
+        long id = store.create(1).conversation().id();
+        var policy = new TranscriptPolicy(new AgentProperties());
+        var run = store.accept(1, id, "查两条", null, null, 90000,
+                messages -> policy.normalize(messages, null));
+        store.checkpoint(run, java.util.List.of(
+                AgentMessage.user("查两条"),
+                AgentMessage.assistant(null, java.util.List.of(
+                        AgentMessage.ToolCall.of("c1", "get_resume", "{}"),
+                        AgentMessage.ToolCall.of("c2", "get_resume", "{}"))),
+                AgentMessage.tool("c1", "{\\"ok\\":true}"),
+                AgentMessage.assistant("处理到一半中断", null)
+        ), null);
+
+        store.fail(run, "AGENT_INTERRUPTED", "服务执行已中断，可以继续提问");
+
+        var persisted = store.messages(id);
+        assertEquals(java.util.List.of("user", "assistant", "tool:c1", "tool:c2", "assistant"),
+                persisted.stream().map(item -> AgentMessage.TOOL.equals(item.role())
+                        ? "tool:" + item.toolCallId() : item.role()).toList());
+        var next = assertDoesNotThrow(() -> store.accept(1, id, "继续", null, null, 90000,
+                messages -> policy.normalize(messages, null)));
+        assertEquals("继续", next.input().messages().getLast().content());
+    }
+
+    @Test
+    void interruptRepairsAllTypicalUnpairedToolCallShapes() {
+        var policy = new TranscriptPolicy(new AgentProperties());
+        var first = AgentMessage.assistant(null, java.util.List.of(
+                AgentMessage.ToolCall.of("c1", "get_resume", "{}"),
+                AgentMessage.ToolCall.of("c2", "get_resume", "{}")));
+        var second = AgentMessage.assistant(null, java.util.List.of(
+                AgentMessage.ToolCall.of("c3", "get_resume", "{}"),
+                AgentMessage.ToolCall.of("c4", "get_resume", "{}")));
+        var user = AgentMessage.user("查");
+        var result1 = AgentMessage.tool("c1", "{}");
+        var result4 = AgentMessage.tool("c4", "{}");
+        var later = AgentMessage.assistant("处理过程中断", null);
+        var shapes = java.util.List.of(
+                java.util.List.of(user, first, result1),
+                java.util.List.of(user, first, result1, later),
+                java.util.List.of(user, first, result1, second, result4, later)
+        );
+
+        for (int index = 0; index < shapes.size(); index++) {
+            long id = store.create(1).conversation().id();
+            var run = store.accept(1, id, "查", null, null, 90000,
+                    messages -> policy.normalize(messages, null));
+            store.checkpoint(run, shapes.get(index), null);
+            store.fail(run, "AGENT_INTERRUPTED", "服务执行已中断");
+            var nextTurn = new java.util.ArrayList<>(store.messages(id));
+            nextTurn.add(AgentMessage.user("继续"));
+            int caseIndex = index;
+            assertDoesNotThrow(() -> policy.normalize(nextTurn, null), "shape " + caseIndex);
+        }
+    }
+
+    @Test
     void modelReceivesRedactedCopiesButDatabaseTranscriptAndEventsKeepOriginals() throws Exception {
         String raw = "13812345678 arthur@example.com";
         var mapper = ConversationStore.JSON;
