@@ -58,7 +58,7 @@ public class GlobalExceptionHandler {
             default -> HttpStatus.BAD_REQUEST;
         };
         return ResponseEntity.status(status)
-                .body(ApiResponse.error(ex.getCode(), status == HttpStatus.BAD_REQUEST ? INVALID_REQUEST : ex.getMessage()));
+                .body(ApiResponse.error(ex.getCode(), ex.getMessage()));
     }
 
     @ExceptionHandler(BadCredentialsException.class)
