@@ -53,3 +53,14 @@ test("the BOSS banner keeps a Chinese summary and return button after completion
   assert.equal(banner.querySelector("a").href, "http://127.0.0.1:3000/assistant");
   dom.window.close();
 });
+
+test("unexpected server browser phases cannot render inherited Object methods", () => {
+  for (const phase of ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf"]) {
+    const html = renderToStaticMarkup(React.createElement(exports.BrowserTaskCard, {
+      task: { action: "collectBossJobs", command: { keyword: "Java" }, expiresAt: 0 },
+      progress: { phase }, active: true, running: true,
+      onCancel: () => {}, onContinue: () => {},
+    }));
+    assert.match(html, /正在联系浏览器/, phase);
+  }
+});
