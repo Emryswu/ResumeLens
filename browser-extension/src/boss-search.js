@@ -58,10 +58,13 @@
     if (!TASK_ID_PATTERN.test(taskId)) return invalid("taskId 只能包含字母、数字、下划线和短横线，最长 100 个字符");
     const keyword = typeof value.keyword === "string" ? value.keyword.replace(/\s+/g, " ").trim() : "";
     const experience = value.experience === undefined ? "不限" : value.experience;
+    if (value.broadSearch !== undefined && typeof value.broadSearch !== "boolean") {
+      return invalid("broadSearch 必须是布尔值");
+    }
     if (typeof experience !== "string" || !Object.prototype.hasOwnProperty.call(EXPERIENCE_CODES, experience)) {
       return invalid("experience 必须是 BOSS 网页支持的工作经验选项");
     }
-    if ((!keyword && experience === "不限") || keyword.length > LIMITS.keywordMaxChars) {
+    if ((!keyword && experience === "不限" && value.broadSearch !== true) || keyword.length > LIMITS.keywordMaxChars) {
       return invalid(`请指定岗位关键词或工作经验筛选；关键词不超过 ${LIMITS.keywordMaxChars} 个字符`);
     }
     const city = typeof value.city === "string" ? value.city.trim() : "";
@@ -77,6 +80,7 @@
     if (value.pageAllowance !== undefined && (!Number.isInteger(value.pageAllowance) || value.pageAllowance < 1 || value.pageAllowance > maxPages)) return invalid("pageAllowance 超出本次页数");
     if (value.budgetDate !== undefined && (typeof value.budgetDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value.budgetDate))) return invalid("budgetDate 格式不正确");
     return { ok: true, command: Object.freeze({ taskId, keyword, city, maxPages, experience, conversationId,
+      ...(value.broadSearch === true ? { broadSearch: true } : {}),
       ...(value.pageAllowance !== undefined ? { pageAllowance: value.pageAllowance } : {}),
       ...(value.budgetDate !== undefined ? { budgetDate: value.budgetDate } : {}) }) };
   }
