@@ -67,6 +67,8 @@ class AiStatusAuthenticationTests {
                     AppUserRepository.class.getClassLoader(), new Class<?>[]{AppUserRepository.class},
                     (proxy, method, args) -> switch (method.getName()) {
                         case "findByUsername" -> "alice".equals(args[0]) ? Optional.of(USER) : Optional.empty();
+                        // JWT authentication may resolve the user by its signed id instead of the username.
+                        case "findById" -> USER.getId().equals(args[0]) ? Optional.of(USER) : Optional.empty();
                         case "toString" -> "FakeAppUserRepository";
                         case "hashCode" -> System.identityHashCode(proxy);
                         case "equals" -> proxy == args[0];
