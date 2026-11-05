@@ -1,9 +1,16 @@
 package com.arthur.jdragresume.exception;
 
 import com.arthur.jdragresume.common.ApiResponse;
+import com.arthur.jdragresume.common.LogSafe;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.bind.ServletRequestBindingException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.http.ResponseEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +30,7 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final String INVALID_REQUEST = "invalid request";
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException ex) {
@@ -49,7 +57,7 @@ public class GlobalExceptionHandler {
             default -> HttpStatus.BAD_REQUEST;
         };
         return ResponseEntity.status(status)
-                .body(ApiResponse.error(ex.getCode(), ex.getMessage()));
+                .body(ApiResponse.error(ex.getCode(), status == HttpStatus.BAD_REQUEST ? INVALID_REQUEST : ex.getMessage()));
     }
 
     @ExceptionHandler(BadCredentialsException.class)
@@ -71,29 +79,54 @@ public class GlobalExceptionHandler {
             errors.put(fieldError.getField(), fieldError.getDefaultMessage());
         }
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error("VALIDATION_ERROR", "request validation failed", errors));
+                .body(ApiResponse.error("VALIDATION_ERROR", INVALID_REQUEST, errors));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(ConstraintViolationException ex) {
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error("VALIDATION_ERROR", ex.getMessage()));
+                .body(ApiResponse.error("VALIDATION_ERROR", INVALID_REQUEST));
     }
 
     @ExceptionHandler({
             HttpMessageNotReadableException.class,
             MethodArgumentTypeMismatchException.class,
-            IllegalArgumentException.class
+            ServletRequestBindingException.class,
+            HandlerMethodValidationException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception ex) {
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error("BAD_REQUEST", ex.getMessage()));
+                .body(ApiResponse.error("BAD_REQUEST", INVALID_REQUEST));
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(ApiResponse.error("UNSUPPORTED_MEDIA_TYPE", INVALID_REQUEST));
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotAcceptable(HttpMediaTypeNotAcceptableException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE)
+                .body(ApiResponse.error("NOT_ACCEPTABLE", INVALID_REQUEST));
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUploadTooLarge(MaxUploadSizeExceededException ex) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ApiResponse.error("UPLOAD_TOO_LARGE", INVALID_REQUEST));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error("NOT_FOUND", INVALID_REQUEST));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiResponse<Void>> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
         return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
-                .body(ApiResponse.error("METHOD_NOT_ALLOWED", ex.getMessage()));
+                .body(ApiResponse.error("METHOD_NOT_ALLOWED", INVALID_REQUEST));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -116,7 +149,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnhandled(Exception ex) {
-        log.error("Unhandled server exception", ex);
+        log.error("Unhandled server exception {}", LogSafe.describe(ex));
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("INTERNAL_ERROR", "unexpected server error"));
     }

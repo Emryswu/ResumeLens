@@ -334,7 +334,7 @@ public class JobDescriptionService {
     private String normalizeSourcePlatform(String value) {
         String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
         if (normalized.isBlank() || normalized.length() > 32) {
-            throw new IllegalArgumentException("sourcePlatform must contain 1 to 32 characters");
+            throw new BusinessException("VALIDATION_ERROR", "sourcePlatform must contain 1 to 32 characters");
         }
         return normalized;
     }
@@ -342,7 +342,7 @@ public class JobDescriptionService {
     private String normalizeSourceJobId(String value) {
         String normalized = value == null ? "" : value.trim();
         if (normalized.isBlank() || normalized.length() > 160) {
-            throw new IllegalArgumentException("sourceJobId must contain 1 to 160 characters");
+            throw new BusinessException("VALIDATION_ERROR", "sourceJobId must contain 1 to 160 characters");
         }
         return normalized;
     }
