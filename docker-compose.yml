@@ -22,7 +22,9 @@ services:
       context: ./jd-rag-resume-backend
     environment:
       TZ: Asia/Shanghai
-      TRUSTED_PROXIES: ${BACKEND_TRUSTED_PROXIES:-}
+      # Only the frontend container may stamp X-BFF-Client-IP. Keep this in step with
+      # frontend.networks.default.ipv4_address; ComposeTrustedProxyTests checks the defaults.
+      TRUSTED_PROXIES: ${BACKEND_TRUSTED_PROXIES:-172.29.88.10}
       DB_URL: jdbc:mysql://mysql:3306/jd_rag_resume?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
       DB_USERNAME: jd_app
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in compose.env}
@@ -67,9 +69,22 @@ services:
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
     ports:
       - "127.0.0.1:3000:3000"
+    networks:
+      default:
+        # Pinned so the backend can trust exactly this peer; a Docker-assigned address
+        # cannot be listed in advance and every user would share the BFF's rate-limit bucket.
+        ipv4_address: ${FRONTEND_IP:-172.29.88.10}
     depends_on:
       backend:
         condition: service_healthy
+
+networks:
+  default:
+    ipam:
+      config:
+        # Change all three together if this range collides with a local network:
+        # RESUMELENS_SUBNET, FRONTEND_IP and BACKEND_TRUSTED_PROXIES.
+        - subnet: ${RESUMELENS_SUBNET:-172.29.88.0/24}
 
 volumes:
   mysql-9-data:

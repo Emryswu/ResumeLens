@@ -4,6 +4,8 @@ import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -11,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 @Component
 final class ClientIpResolver {
+    private static final Logger log = LoggerFactory.getLogger(ClientIpResolver.class);
     static final String BFF_CLIENT_IP_HEADER = "X-BFF-Client-IP";
     private final Set<String> trustedProxies;
 
@@ -21,6 +24,12 @@ final class ClientIpResolver {
                     if (ip == null) throw new IllegalArgumentException("TRUSTED_PROXIES must contain IP addresses");
                     return ip;
                 }).collect(Collectors.toUnmodifiableSet());
+        if (trustedProxies.isEmpty()) {
+            // Not fatal: running the backend directly (dev, tests) has no BFF to trust. Behind a BFF it
+            // means every user is rate-limited as the BFF's single address.
+            log.warn("TRUSTED_PROXIES is empty: X-BFF-Client-IP is ignored and requests relayed by a BFF "
+                    + "share that BFF's IP rate-limit bucket. Set it to the BFF's address when deploying.");
+        }
     }
 
     String resolve(HttpServletRequest request) {
