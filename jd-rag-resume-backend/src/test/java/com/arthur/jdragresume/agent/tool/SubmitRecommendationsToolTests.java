@@ -67,6 +67,17 @@ class SubmitRecommendationsToolTests {
     }
 
     @Test
+    void jdContactDetailsAcceptQuotesFromTheRedactedModelView() throws Exception {
+        String original = "负责 Java 后端接口开发，联系电话 13812345678，投递邮箱 hr@example.com；实习至少3个月，每周5天";
+        String visible = "负责 Java 后端接口开发，联系电话 [手机号]，投递邮箱 [邮箱]";
+        when(jobs.findById(81L)).thenReturn(job(81, "FULL", original, ""));
+        var result = (SubmitRecommendationsTool.Result) tool.execute(proposals(item(81, visible)), context);
+        assertTrue(result.accepted(), result.rejected().toString());
+        assertEquals(visible, result.recommendations().getFirst().evidence());
+        assertEquals(original, jobs.findById(81L).description());
+    }
+
+    @Test
     void previouslyVerifiedFullJobPassesWithoutTurnLocalVerifiedIdsAndUsesUnclippedOriginal() throws Exception {
         String lateEvidence = "参与 Java 后端 API 开发";
         when(jobs.findById(8L)).thenReturn(job(8, "FULL", "说明文字".repeat(1500) + lateEvidence,

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { AppShell } from "../components/AppShell";
 import { BrandCtaCard } from "../components/BrandArt";
+import { ChoiceMenu } from "../components/ChoiceMenu";
 import { LoginPage, type AuthForm, type AuthMode } from "../components/LoginPage";
 import { EmptyState, ErrorState, LoadingState, RetryButton, Skeleton } from "../components/StateBlock";
 import { MatchReport } from "../components/MatchReport";
@@ -1335,18 +1336,21 @@ export default function Home() {
         <section className="job-library" id="jobs" hidden={pageView !== "jobs" || workspaceFailed}>
           <div className="library-toolbar">
             <div className="library-filters">
-              <label className="filter-field"><span><ArrowDownWideNarrow size={15} aria-hidden="true" />排序</span>
-                <select aria-label="职位排序" value={jobSort} onChange={(event) => {
-                  const next = event.target.value as JobSort;
-                  setJobSort(next);
-                  if (next === "score" || next === "analyzed") void loadAllJobsForRanking();
-                }} disabled={jobsLoadingMore}>
-                  <option value="semantic">按与当前简历的语义相关度</option>
-                  <option value="score">按已分析匹配分</option>
-                  <option value="analyzed">按最近分析</option>
-                  <option value="recent">按最近保存</option>
-                </select>
-              </label>
+              <div className="filter-field"><span><ArrowDownWideNarrow size={15} aria-hidden="true" />排序</span>
+                <ChoiceMenu<JobSort> label="职位排序" value={jobSort} disabled={jobsLoadingMore}
+                  options={[
+                    { value: "semantic", label: "按与当前简历的语义相关度", description: "优先查看与当前简历最接近的岗位" },
+                    { value: "score", label: "按已分析匹配分", description: "优先查看完整分析得分较高的岗位" },
+                    { value: "analyzed", label: "按最近分析", description: "优先查看刚完成分析的岗位" },
+                    { value: "recent", label: "按最近保存", description: "优先查看新加入职位库的岗位" },
+                  ]}
+                  onChange={(next) => {
+                    setJobSort(next);
+                    if (next === "score" || next === "analyzed") void loadAllJobsForRanking();
+                  }}>
+                  {({ semantic: "按语义相关度", score: "按匹配分", analyzed: "按最近分析", recent: "按最近保存" } as Record<JobSort, string>)[jobSort]}
+                </ChoiceMenu>
+              </div>
               <label className="filter-check">
                 <input type="checkbox" checked={jobFilter === "unanalyzed"} disabled={jobsLoadingMore} onChange={(event) => {
                   const next = event.target.checked ? "unanalyzed" : "all";
@@ -1356,25 +1360,33 @@ export default function Home() {
                 仅看未分析
               </label>
               <div className="filter-topn">
-                <select aria-label="精析数量" value={topMatchCount} onChange={(event) => setTopMatchCount(Number(event.target.value))}>
-                  <option value={3}>前 3 个</option>
-                  <option value={5}>前 5 个</option>
-                  <option value={10}>前 10 个</option>
-                </select>
+                <ChoiceMenu label="精析数量" value={String(topMatchCount)}
+                  options={[
+                    { value: "3", label: "前 3 个", description: "精析语义排名前三的岗位" },
+                    { value: "5", label: "前 5 个", description: "精析语义排名前五的岗位" },
+                    { value: "10", label: "前 10 个", description: "精析语义排名前十的岗位" },
+                  ]}
+                  onChange={(value) => setTopMatchCount(Number(value))}>
+                  前 {topMatchCount} 个
+                </ChoiceMenu>
                 <button className="ghost" type="button" disabled={!!busy || !selectedResumeId} onClick={() => void runTopMatchesAnalysis()} title="把语义相关度最高的几个岗位逐个做完整分析">
                   <Sparkles size={15} aria-hidden="true" />{busy === "top-analysis" ? "逐个精析中…" : "精析"}
                 </button>
               </div>
             </div>
-            <label className="library-resume">
+            <div className="library-resume">
               <span className="library-resume-icon" aria-hidden="true"><FileText size={20} /></span>
-              <span className="library-resume-copy"><small>当前用于匹配</small>
-                <select aria-label="当前用于匹配的简历" value={selectedResumeId} disabled={!!busy} onChange={(event) => chooseResume(event.target.value ? Number(event.target.value) : "")}>
-                  <option value="">请选择简历</option>
-                  {resumes.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-                </select>
-              </span>
-            </label>
+              <div className="library-resume-copy"><small>当前用于匹配</small>
+                <ChoiceMenu label="当前用于匹配的简历" value={String(selectedResumeId)} disabled={!!busy}
+                  options={[
+                    { value: "", label: "请选择简历", description: "尚未选择用于匹配的简历" },
+                    ...resumes.map((item) => ({ value: String(item.id), label: item.title, description: "使用这份简历进行岗位匹配" })),
+                  ]}
+                  onChange={(value) => chooseResume(value ? Number(value) : "")}>
+                  {resumes.find((item) => item.id === selectedResumeId)?.title ?? "请选择简历"}
+                </ChoiceMenu>
+              </div>
+            </div>
           </div>
           <div className="library-head">
             <h2>全部岗位<em>{effectiveJobsTotal}</em></h2>
@@ -1505,11 +1517,13 @@ export default function Home() {
           <div className="history-panel">
             {!workspaceLoading && history.length > 0 && (
               <div className="history-filters">
-                <label className="history-select"><CalendarDays size={16} aria-hidden="true" />
-                  <select aria-label="时间范围" value={historyRange} onChange={(event) => setHistoryRange(event.target.value as TimeRange)}>
-                    {TIME_RANGES.map((range) => <option key={range.value} value={range.value}>{range.label}</option>)}
-                  </select>
-                </label>
+                <div className="history-select"><CalendarDays size={16} aria-hidden="true" />
+                  <ChoiceMenu<TimeRange> label="时间范围" value={historyRange}
+                    options={TIME_RANGES.map((range) => ({ value: range.value, label: range.label, description: "按所选时间范围筛选已保存的分析" }))}
+                    onChange={setHistoryRange}>
+                    {TIME_RANGES.find((range) => range.value === historyRange)?.label ?? "全部时间"}
+                  </ChoiceMenu>
+                </div>
                 <button type="button" className="ghost" aria-pressed={historySavedOnly} onClick={() => setHistorySavedOnly((value) => !value)}><Bookmark size={16} aria-hidden="true" />仅看已收藏岗位</button>
                 <small>{historyRange === "all" && !historySavedOnly ? `${effectiveHistoryTotal} 条记录` : `筛选出 ${visibleHistory.length} 条（已加载的记录中）`}</small>
               </div>

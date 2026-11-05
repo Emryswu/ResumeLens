@@ -49,7 +49,7 @@ public class SubmitRecommendationsTool implements AgentTool {
 
     @Override public String description() {
         return "正式推荐岗位前必须调用此工具提交 recommendations 数组，传当前简历 resumeId，每项包含 jobId、reason、evidence 和至少 1 条 resumeEvidence：{quote, supports}。"
-                + "evidence 至少 8 个字符，来自 FULL JD 正文或任职要求（允许空白格式不同），不能只引用职位标题。"
+                + "evidence 至少 8 个字符，来自模型可见的 FULL JD 正文或任职要求（联系方式已打码，允许空白或全半角标点不同），不能只引用职位标题。"
                 + "quote 必须逐字摘自 get_resume 的简历原文（仅忽略空白与全半角标点），去空白后 "
                 + ResumeEvidenceValidator.MIN_QUOTE_CHARS + "～" + ResumeEvidenceValidator.MAX_QUOTE_CHARS
                 + " 字符；supports 写对应的 JD 要求。引用被拒时调用 get_resume 重读同一简历，修正后重提被拒条目。"
@@ -64,7 +64,7 @@ public class SubmitRecommendationsTool implements AgentTool {
                 true, 5, ToolSchema.object()
                         .integer("jobId", "入库岗位 id", true, 1, Long.MAX_VALUE)
                         .string("reason", "为什么推荐该岗位（中文）", true, 240)
-                        .string("evidence", "从 FULL JD 原文逐字复制的证据片段", true, 300)
+                        .string("evidence", "从模型可见的 FULL JD 复制的证据片段", true, 300)
                         .objectArray("resumeEvidence", "至少 1 条简历原文及对应 JD 要求", false, 3, ToolSchema.object()
                                 .string("quote", "简历原文片段，长度按归一化后检查", true, 1000)
                                 .string("supports", "这条引用对应的 JD 要求", true, 300)));
@@ -100,7 +100,7 @@ public class SubmitRecommendationsTool implements AgentTool {
                 rejected.add(new Rejected(id, label, "缺少推荐理由"));
                 continue;
             }
-            if (normalize(evidence).length() < 8) {
+            if (EvidenceQuoteValidator.normalize(evidence).length() < 8) {
                 rejected.add(new Rejected(id, label, "JD 证据片段至少需要 8 个字符"));
                 continue;
             }
@@ -129,14 +129,14 @@ public class SubmitRecommendationsTool implements AgentTool {
                         + " 天），下一步调用 verify_boss_job({\"jobId\":" + id + "}) 重新核实，再重提这条"));
                 continue;
             }
-            String original = normalize((job.description() == null ? "" : job.description()) + "\n"
-                    + (job.requirements() == null ? "" : job.requirements()));
-            String normalizedEvidence = normalize(evidence);
-            if (normalize(job.title()).contains(normalizedEvidence)) {
+            String original = (job.description() == null ? "" : job.description()) + "\n"
+                    + (job.requirements() == null ? "" : job.requirements());
+            String normalizedEvidence = EvidenceQuoteValidator.normalize(evidence);
+            if (EvidenceQuoteValidator.normalize(job.title()).contains(normalizedEvidence)) {
                 rejected.add(new Rejected(id, label, "引用的只是职位标题，缺少 JD 正文证据"));
                 continue;
             }
-            if (!original.contains(normalizedEvidence)) {
+            if (!EvidenceQuoteValidator.contains(original, evidence)) {
                 rejected.add(new Rejected(id, label, "引用片段不在已入库的 JD 原文中"));
                 continue;
             }
@@ -170,10 +170,6 @@ public class SubmitRecommendationsTool implements AgentTool {
             evidence.add(new ResumeEvidence(item.get("quote").asText(), item.get("supports").asText()));
         }
         return List.copyOf(evidence);
-    }
-
-    private static String normalize(String value) {
-        return value.strip().replaceAll("\\s+", " ");
     }
 
     @Override public int resultMaxChars(int configuredLimit) {
