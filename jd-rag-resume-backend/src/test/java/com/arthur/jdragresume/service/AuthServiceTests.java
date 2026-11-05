@@ -68,7 +68,7 @@ class AuthServiceTests {
                 passwordEncoder,
                 jwtService,
                 jwtProperties,
-                new RefreshTokenService(refreshTokenRepository, jwtProperties)
+                new RefreshTokenService(refreshTokenRepository, jwtProperties, java.time.Clock.systemUTC())
         );
     }
 

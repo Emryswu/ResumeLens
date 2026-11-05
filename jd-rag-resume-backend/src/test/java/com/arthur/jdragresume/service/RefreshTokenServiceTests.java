@@ -12,7 +12,10 @@ import org.springframework.data.domain.Pageable;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class RefreshTokenServiceTests {
     private RepositoryState repositoryState;
     private RefreshTokenService refreshTokenService;
+    private final Clock clock = Clock.fixed(Instant.parse("2026-11-05T08:00:00Z"), ZoneOffset.UTC);
 
     @BeforeEach
     void setUp() {
@@ -36,7 +40,7 @@ class RefreshTokenServiceTests {
         );
         JwtProperties properties = new JwtProperties();
         properties.setRefreshExpirationDays(7);
-        refreshTokenService = new RefreshTokenService(repository, properties);
+        refreshTokenService = new RefreshTokenService(repository, properties, clock);
     }
 
     @Test
@@ -49,7 +53,7 @@ class RefreshTokenServiceTests {
 
         assertNotEquals(issued.value(), current.getTokenHash());
         assertEquals(64, current.getTokenHash().length());
-        assertNotNull(current.getExpiresAt());
+        assertEquals(LocalDateTime.of(2026, 11, 12, 8, 0), current.getExpiresAt());
 
         repositoryState.saved.clear();
         repositoryState.found = Optional.of(current);

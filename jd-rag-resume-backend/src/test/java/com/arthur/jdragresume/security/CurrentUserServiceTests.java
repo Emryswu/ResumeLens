@@ -6,6 +6,7 @@ import com.arthur.jdragresume.repository.AppUserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -14,6 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -42,6 +44,25 @@ class CurrentUserServiceTests {
                 List.of(new SimpleGrantedAuthority("ROLE_ANONYMOUS"))
         ));
         assertThrows(IllegalStateException.class, new CurrentUserService(repository)::getCurrentUser);
+    }
+
+    @Test
+    void jwtPrincipalResolvesUserByIdWithoutUsernameLookup() {
+        AppUser user = new AppUser();
+        user.setUsername("alice");
+        AppUserRepository repository = (AppUserRepository) Proxy.newProxyInstance(
+                AppUserRepository.class.getClassLoader(),
+                new Class<?>[]{AppUserRepository.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "findById" -> Long.valueOf(5L).equals(args[0]) ? Optional.of(user) : Optional.empty();
+                    default -> throw new AssertionError("Only lookup by ID is allowed: " + method.getName());
+                }
+        );
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                new JwtUserPrincipal(5L, "ALICE"), null,
+                List.of(new SimpleGrantedAuthority("ROLE_USER"))
+        ));
+        assertSame(user, new CurrentUserService(repository).getCurrentUser());
     }
 
     @Test
