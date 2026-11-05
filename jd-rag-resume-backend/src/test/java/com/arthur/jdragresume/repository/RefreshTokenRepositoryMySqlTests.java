@@ -11,6 +11,7 @@ import com.arthur.jdragresume.service.ContentFingerprints;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.persistence.EntityManager;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.PageRequest;
@@ -68,6 +69,8 @@ class RefreshTokenRepositoryMySqlTests {
     private AnalysisHistoryRepository analysisHistoryRepository;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private EntityManager entityManager;
 
     private AppUser user;
 
@@ -198,6 +201,23 @@ class RefreshTokenRepositoryMySqlTests {
         );
 
         assertEquals(List.of("user_id", "resume_id", "job_description_id", "id"), columns);
+    }
+
+    @Test
+    void revokeActiveForUserRevokesOnlyThatUsersLiveTokens() {
+        LocalDateTime now = LocalDateTime.of(2026, 11, 5, 16, 0);
+        RefreshToken active = saveToken("password-reset", now.plusDays(7), null);
+        RefreshToken previouslyRevoked = saveToken("previous", now.plusDays(7), now.minusDays(1));
+
+        int affected = refreshTokenRepository.revokeActiveForUser(user.getId(), now, "PASSWORD_CHANGED");
+        assertEquals(1, affected);
+        entityManager.clear();
+
+        RefreshToken changed = refreshTokenRepository.findById(active.getId()).orElseThrow();
+        assertEquals(now, changed.getRevokedAt());
+        assertEquals("PASSWORD_CHANGED", changed.getReplacedByHash());
+        assertEquals(now.minusDays(1),
+                refreshTokenRepository.findById(previouslyRevoked.getId()).orElseThrow().getRevokedAt());
     }
 
     private RefreshToken saveToken(String label, LocalDateTime expiresAt, LocalDateTime revokedAt) {
