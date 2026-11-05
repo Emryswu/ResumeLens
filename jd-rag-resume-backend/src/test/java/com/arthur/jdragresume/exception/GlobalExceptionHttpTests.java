@@ -115,7 +115,7 @@ class GlobalExceptionHttpTests {
     void businessValidationErrorsAreAlsoSafe() throws Exception {
         var response = mvc.perform(get("/test/validation")).andReturn().getResponse();
         assertEquals(400, response.getStatus());
-        assertEquals(SAFE_MESSAGE, mapper.readTree(response.getContentAsString()).path("message").asText());
+        assertEquals("请先上传一份简历", mapper.readTree(response.getContentAsString()).path("message").asText());
         assertTrue(logs.list.stream().noneMatch(event -> event.getLevel().isGreaterOrEqual(Level.ERROR)));
     }
 
@@ -137,7 +137,7 @@ class GlobalExceptionHttpTests {
     static class FailureController {
         @GetMapping("/test/validation")
         void validation() {
-            throw new BusinessException("VALIDATION_ERROR", "java.lang.MethodArgument invalid");
+            throw new BusinessException("VALIDATION_ERROR", "请先上传一份简历");
         }
 
         @GetMapping("/test/internal-argument")
