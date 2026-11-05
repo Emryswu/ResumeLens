@@ -81,6 +81,7 @@ CI（`ci.yml`）对每个指向 main 的 PR 跑以下全部检查。
 
 - 跨页面要保留的状态不得只放组件 state。
 - Agent transcript 以服务端为准，不接收客户端提交的历史。
+- 模型或服务端控制的字符串不得直接当普通对象的键查表；使用 Map、无原型字典（Object.create(null)），或通过 Object.hasOwn 校验自有属性后再取值。
 
 - 前端禁止直接使用浏览器原生 select 等表单控件样式，统一使用项目自定义组件；选择菜单复用 `ChoiceMenu`，保持主题样式与键盘交互一致。
 - 样式沿用 `app/workspace.css` 里的变量，图标用 `lucide-react`，不另起一套风格。`tests/icon-glyphs.test.ts` 禁止用 Unicode 字符充当图标。

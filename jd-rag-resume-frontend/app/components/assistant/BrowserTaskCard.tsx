@@ -6,7 +6,8 @@ import type { AgentBrowserTask, BrowserTaskOutcome, BrowserTaskProgress } from "
 import { collectionLog, type CollectionActivity } from "../../collection-log";
 import type { AgentTurn } from "../../agent-stream";
 
-const PHASES: Record<string, (progress: BrowserTaskProgress) => string> = {
+const PHASES: Record<string, (progress: BrowserTaskProgress) => string> = Object.assign(
+  Object.create(null) as Record<string, (progress: BrowserTaskProgress) => string>, {
   connecting: () => "正在连接独立浏览器",
   opening: () => "正在打开 BOSS 搜索页",
   reading: (progress) => `正在读取第 ${progress.page ?? 1} 页`,
@@ -14,7 +15,7 @@ const PHASES: Record<string, (progress: BrowserTaskProgress) => string> = {
   scrolling: (progress) => `正在加载第 ${progress.page ?? 2} 页`,
   read: (progress) => `已读完第 ${progress.page ?? 1} 页`,
   verifying: () => "正在核实完整职位描述",
-};
+});
 
 /** A task the assistant handed to the browser extension. Only the active, unfinished card can be cancelled. */
 export function BrowserTaskCard({ task, progress, facts, outcome, active, running: collecting, onCancel, onContinue }: {
@@ -40,7 +41,7 @@ export function BrowserTaskCard({ task, progress, facts, outcome, active, runnin
   const city = String(task.command.city ?? "");
   const experience = String(task.command.experience ?? "不限");
   const pages = Number(task.command.maxPages ?? 1);
-  const phase = progress ? PHASES[progress.phase]?.(progress) : null;
+  const phase = progress && Object.hasOwn(PHASES, progress.phase) ? PHASES[progress.phase](progress) : null;
   const log = detailTask ? [] : collectionLog(facts ?? progress ?? {});
   const inProgress = !facts && progress != null && !progress.finishReason && !progress.stopReason;
   return (

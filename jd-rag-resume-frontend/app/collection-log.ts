@@ -35,8 +35,10 @@ export type CollectionActivity = {
 
 export function collectionReason(activity: CollectionActivity): string | null {
   const message = activity.stopReason
-    ? STOP_MESSAGES[activity.stopReason as keyof typeof STOP_MESSAGES]
-    : FINISH_MESSAGES[activity.finishReason as keyof typeof FINISH_MESSAGES];
+    ? (Object.hasOwn(STOP_MESSAGES, activity.stopReason)
+      ? STOP_MESSAGES[activity.stopReason as keyof typeof STOP_MESSAGES] : null)
+    : activity.finishReason && Object.hasOwn(FINISH_MESSAGES, activity.finishReason)
+      ? FINISH_MESSAGES[activity.finishReason as keyof typeof FINISH_MESSAGES] : null;
   if (!message) return null;
   return activity.pagesRead === 1 && activity.finishReason === "NO_MORE_RESULTS"
     ? `${message}；可能未登录 BOSS，只能看到第一页` : message;

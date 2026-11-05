@@ -11,17 +11,18 @@ export type ReportItem = {
   source: "MODEL" | "RULE";
 };
 
-export const CATEGORY_LABELS: Record<ReportCategory, string> = {
+export const CATEGORY_LABELS: Record<ReportCategory, string> = Object.assign(
+  Object.create(null) as Record<ReportCategory, string>, {
   TECH_STACK: "技术栈",
   PROJECT: "项目经验",
   ENGINEERING: "工程实践",
   DOMAIN: "业务领域",
   COLLABORATION: "协作沟通",
   GENERAL: "综合",
-};
+});
 
 export function normalizeCategory(value: unknown): ReportCategory {
-  return typeof value === "string" && value in CATEGORY_LABELS ? value as ReportCategory : "GENERAL";
+  return typeof value === "string" && Object.hasOwn(CATEGORY_LABELS, value) ? value as ReportCategory : "GENERAL";
 }
 
 const CITATION = /\[chunk-(\d+)]/g;
