@@ -88,7 +88,7 @@ public class BrowserExtensionJobCollector implements JobCollector {
         if (!EXPERIENCES.contains(request.experience())) {
             throw invalidRequest("experience 必须是 BOSS 网页支持的工作经验选项：" + String.join("、", EXPERIENCES));
         }
-        if ((request.keyword().isEmpty() && "不限".equals(request.experience())) || request.keyword().length() > KEYWORD_MAX_CHARS) {
+        if ((request.keyword().isEmpty() && "不限".equals(request.experience()) && !request.broadSearch()) || request.keyword().length() > KEYWORD_MAX_CHARS) {
             throw invalidRequest("请指定岗位关键词或工作经验筛选；keyword 不超过 " + KEYWORD_MAX_CHARS + " 个字符");
         }
         if (!CITIES.contains(request.city())) {
@@ -102,6 +102,7 @@ public class BrowserExtensionJobCollector implements JobCollector {
         command.put("city", request.city());
         command.put("maxPages", request.maxPages());
         command.put("experience", request.experience());
+        if (request.broadSearch()) command.put("broadSearch", true);
         return new Delegated(EXECUTOR, ACTION, command);
     }
 
@@ -175,7 +176,8 @@ public class BrowserExtensionJobCollector implements JobCollector {
                 command.path("keyword").asText(""),
                 command.path("city").asText(""),
                 command.path("maxPages").isIntegralNumber() ? command.path("maxPages").asInt() : -1,
-                command.path("experience").asText("不限"));
+                command.path("experience").asText("不限"),
+                command.path("broadSearch").asBoolean(false));
         if (!reported.equals(request)) {
             throw invalidReport("report is for a different search");
         }
