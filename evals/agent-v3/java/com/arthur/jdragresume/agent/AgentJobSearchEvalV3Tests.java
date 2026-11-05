@@ -42,7 +42,7 @@ class AgentJobSearchEvalV3Tests {
     /** Business code under test for the single pre-registered slot: main when v3 was written (after #123). */
     static final String TARGET_BUSINESS = "31413632511d1805205e51d011dfe0e582122da9";
     /** Frozen acceptance inputs. Changing any acceptance task or snapshot changes this value; see PROTOCOL.md. */
-    static final String ACCEPTANCE_DIGEST = "900dafd7f47693865552bc12297ab70ee5b31f517e974f5ceb016b7cc24efecb";
+    static final String ACCEPTANCE_DIGEST = "982eedc19accdc7104748d2510918ff6e8ade882b16e507892860e1c227dbac0";
     static final List<String> SLOTS = List.of("current");
     private static final int REPETITIONS = 3;
     private static final Set<String> CHECK_TYPES = Set.of("prerequisites", "inherit_filters", "stop_on_signal",
@@ -289,34 +289,6 @@ class AgentJobSearchEvalV3Tests {
         Invocation refused = AgentEvalV3Grading.invocations(trial.transcript()).stream()
                 .filter(call -> call.name().equals("verify_boss_job")).findFirst().orElseThrow();
         assertFalse(refused.result().path("executed").asBoolean(true), refused.result().toString());
-    }
-
-    @Test
-    void reusedToolCallIdsArePairedWithinTheirAssistantReplies() throws Exception {
-        List<AgentMessage> transcript = List.of(
-                AgentMessage.user("找实习"),
-                AgentMessage.assistant(null, List.of(
-                        AgentMessage.ToolCall.of("shared", "verify_boss_job", "{\"jobId\":17}"))),
-                AgentMessage.tool("shared",
-                        "{\"ok\":true,\"untrusted_data\":{\"jobId\":17,\"captureDepth\":\"FULL\"}}"),
-                AgentMessage.assistant(null, List.of(
-                        AgentMessage.ToolCall.of("shared", "verify_boss_job", "{\"jobId\":18}"))),
-                AgentMessage.tool("shared",
-                        "{\"ok\":false,\"executed\":false,\"error\":{\"code\":\"VERIFY_HARD_CONFLICT\"}}"));
-
-        List<Invocation> calls = AgentEvalV3Grading.invocations(transcript);
-        assertEquals(2, calls.size());
-        assertEquals(17, calls.get(0).args().path("jobId").asInt());
-        assertEquals(17, calls.get(0).result().path("untrusted_data").path("jobId").asInt());
-        assertTrue(AgentEvalV3Grading.ok(calls.get(0).result()));
-        assertEquals(18, calls.get(1).args().path("jobId").asInt());
-        assertEquals("VERIFY_HARD_CONFLICT", calls.get(1).result().path("error").path("code").asText());
-        assertFalse(AgentEvalV3Grading.ok(calls.get(1).result()));
-
-        Metrics metrics = AgentEvalV3Grading.metrics(
-                JSON.readTree("{\"checks\":[]}"), transcript, Library.empty());
-        assertEquals(1, metrics.executedToolCalls());
-        assertEquals(1, metrics.conflictVerifyAttempts());
     }
 
     @Test

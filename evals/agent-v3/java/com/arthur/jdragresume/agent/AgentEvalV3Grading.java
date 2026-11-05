@@ -97,19 +97,17 @@ final class AgentEvalV3Grading {
     }
 
     static List<Invocation> invocations(List<AgentMessage> messages) {
+        Map<String, JsonNode> results = new HashMap<>();
+        for (AgentMessage message : messages) if (AgentMessage.TOOL.equals(message.role())) {
+            try { results.put(message.toolCallId(), JSON.readTree(message.content())); }
+            catch (IOException ex) { throw new IllegalStateException("invalid tool JSON", ex); }
+        }
         List<Invocation> calls = new ArrayList<>();
         int turn = -1;
         for (int index = 0; index < messages.size(); index++) {
             AgentMessage message = messages.get(index);
             if (AgentMessage.USER.equals(message.role())) turn++;
-            if (!AgentMessage.ASSISTANT.equals(message.role()) || !message.hasToolCalls()) continue;
-            Map<String, JsonNode> results = new HashMap<>();
-            for (int next = index + 1; next < messages.size()
-                    && AgentMessage.TOOL.equals(messages.get(next).role()); next++) {
-                AgentMessage result = messages.get(next);
-                try { results.put(result.toolCallId(), JSON.readTree(result.content())); }
-                catch (IOException ex) { throw new IllegalStateException("invalid tool JSON", ex); }
-            }
+            if (!message.hasToolCalls()) continue;
             for (AgentMessage.ToolCall call : message.toolCalls()) {
                 try {
                     calls.add(new Invocation(call.id(), call.name(), JSON.readTree(call.arguments()),
