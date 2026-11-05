@@ -1,5 +1,6 @@
 package com.arthur.jdragresume.agent;
 
+import com.arthur.jdragresume.common.LogSafe;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -8,6 +9,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -25,6 +28,7 @@ import org.springframework.context.event.EventListener;
 /** Short row transactions serialize conversation changes; no transaction spans a model or network call. */
 @Service
 public class ConversationStore {
+    private static final Logger log = LoggerFactory.getLogger(ConversationStore.class);
     static final ObjectMapper JSON = new ObjectMapper();
     final JdbcTemplate jdbc;
     final TransactionTemplate transactions;
@@ -90,7 +94,9 @@ public class ConversationStore {
                 (rs, n) -> new long[]{rs.getLong(1), rs.getLong(2)}, System.currentTimeMillis());
         for (long[] row : expired) {
             try { locked(row[0], row[1], header -> null); }
-            catch (ResourceNotFoundException ignored) { /* Concurrent deletion after recovery is valid. */ }
+            catch (Exception ex) {
+                log.warn("failed to reclaim expired conversation {}: {}", row[1], LogSafe.describe(ex));
+            }
         }
     }
 
@@ -224,15 +230,20 @@ public class ConversationStore {
         long userId = jdbc.queryForObject("SELECT user_id FROM agent_conversation WHERE id=?", Long.class, row.id());
         var run = new Run(userId, row.id(), row.currentTurn(), row.activeRun(), null, null, 0);
         List<AgentMessage> messages = new ArrayList<>(messages(row.id()));
-        var unpaired = ToolCallPairs.unpaired(messages);
-        // Work backwards: inserting missing results cannot shift earlier insertion positions.
-        for (int i = unpaired.size() - 1; i >= 0; i--) {
-            var missing = unpaired.get(i);
-            var call = missing.call();
-            messages.add(missing.insertBefore(),
-                    AgentMessage.tool(call.id(), ToolEnvelope.error(call.name(), code, message)));
+        try {
+            var unpaired = ToolCallPairs.unpaired(messages);
+            // Work backwards: inserting missing results cannot shift earlier insertion positions.
+            for (int i = unpaired.size() - 1; i >= 0; i--) {
+                var missing = unpaired.get(i);
+                var call = missing.call();
+                messages.add(missing.insertBefore(),
+                        AgentMessage.tool(call.id(), ToolEnvelope.error(call.name(), code, message)));
+            }
+            replaceMessages(row.id(), messages);
+        } catch (IllegalStateException ex) {
+            // Keep the stored transcript as-is, but still release the expired run.
+            log.warn("invalid tool-call pairing in conversation {}: {}", row.id(), LogSafe.describe(ex));
         }
-        replaceMessages(row.id(), messages);
         append(run, "error", Map.of("code", code, "message", message));
         append(run, "done", Map.of("state", "FAILED", "steps", 0));
         jdbc.update("UPDATE agent_conversation SET state='FAILED',active_run=NULL,run_expires_at=NULL,browser_task=NULL,browser_arguments=NULL WHERE id=?", row.id());

@@ -35,6 +35,61 @@ class ConversationStoreTests {
     }
 
     @Test
+    void orphanToolResultInExpiredConversationDoesNotBlockReads() {
+        assertExpiredMalformed(java.util.List.of(
+                AgentMessage.user("过期"), AgentMessage.tool("orphan", "{}")));
+    }
+
+    @Test
+    void duplicateToolCallIdsInExpiredConversationDoNotBlockReads() {
+        assertExpiredMalformed(java.util.List.of(
+                AgentMessage.user("过期"),
+                AgentMessage.assistant(null, java.util.List.of(
+                        AgentMessage.ToolCall.of("duplicate", "get_resume", "{}"),
+                        AgentMessage.ToolCall.of("duplicate", "get_resume", "{}")))));
+    }
+
+    private void assertExpiredMalformed(java.util.List<AgentMessage> transcript) {
+        long id = expiredConversation(transcript);
+        var detail = assertDoesNotThrow(() -> store.detail(1, id, 0));
+        assertEquals("FAILED", detail.conversation().state());
+        assertNull(detail.conversation().activeRun());
+        assertEquals(transcript, store.messages(id), "unrecoverable transcripts must be preserved");
+        assertTrue(detail.events().stream().anyMatch(e -> "error".equals(e.type())));
+        assertTrue(detail.events().stream().anyMatch(e -> "done".equals(e.type())
+                && "FAILED".equals(e.data().path("state").asText())));
+    }
+
+    @Test
+    void recoverExpiredContinuesAfterOneConversationCannotBeDecoded() {
+        long corrupted = expiredConversation(java.util.List.of(AgentMessage.user("过期")));
+        jdbc.update("UPDATE agent_conversation_message SET payload=? WHERE conversation_id=? AND position=0",
+                "{broken json", corrupted);
+        long valid = expiredConversation(java.util.List.of(AgentMessage.user("过期")));
+
+        assertDoesNotThrow(store::recoverExpired);
+
+        assertEquals("FAILED", jdbc.queryForObject("SELECT state FROM agent_conversation WHERE id=?",
+                String.class, valid), "recoverExpired must finish the healthy row itself");
+        assertNull(jdbc.queryForObject("SELECT active_run FROM agent_conversation WHERE id=?",
+                String.class, valid));
+        assertEquals("FAILED", store.detail(1, valid, 0).conversation().state());
+        assertNotNull(jdbc.queryForObject("SELECT active_run FROM agent_conversation WHERE id=?",
+                String.class, corrupted), "unreadable row remains available for later diagnostics");
+    }
+
+    private long expiredConversation(java.util.List<AgentMessage> transcript) {
+        long id = store.create(1).conversation().id();
+        var policy = new TranscriptPolicy(new AgentProperties());
+        var run = store.accept(1, id, "过期", null, null, 90000,
+                messages -> policy.normalize(messages, null));
+        store.checkpoint(run, transcript, null);
+        jdbc.update("UPDATE agent_conversation SET run_expires_at=? WHERE id=?",
+                System.currentTimeMillis() - 1000, id);
+        return id;
+    }
+
+    @Test
     void interruptRepairsInterruptedMiddleBatchBeforeNextAssistantAndNextTurn() {
         long id = store.create(1).conversation().id();
         var policy = new TranscriptPolicy(new AgentProperties());
