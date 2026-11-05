@@ -66,8 +66,9 @@ class BusinessExceptionMessageTests {
                 }
                 if (c == '"') quoted = true;
                 else if (c == '(') depth++;
-                else if (c == ')' && --depth == 0) break;
-                else if (c == ')' ) depth++;
+                else if (c == ')') {
+                    if (--depth == 0) break;
+                }
                 else if (c == ',' && depth == 1 && comma < 0) comma = end;
             }
             if (comma < 0 || depth != 0) continue;
