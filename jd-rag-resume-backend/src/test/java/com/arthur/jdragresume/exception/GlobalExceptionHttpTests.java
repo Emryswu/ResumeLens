@@ -51,7 +51,7 @@ class GlobalExceptionHttpTests {
         ResumeService resumes = mock(ResumeService.class);
         doThrow(new MaxUploadSizeExceededException(1024))
                 .when(resumes).upload(any(MultipartFile.class), nullable(String.class), eq("Arthur"),
-                        nullable(String.class), nullable(String.class), nullable(String.class));
+                        nullable(String.class), nullable(String.class));
         mvc = MockMvcBuilders.standaloneSetup(
                         new ResumeController(resumes),
                         new JobDescriptionController(mock(JobDescriptionService.class),

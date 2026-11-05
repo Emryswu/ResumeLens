@@ -197,7 +197,7 @@ class AnalysisHistoryControllerTests {
         private BusinessException failure;
 
         private RecordingAiService() {
-            super(null, null, null, null, null);
+            super(null, null, null, null, null, null);
         }
 
         @Override

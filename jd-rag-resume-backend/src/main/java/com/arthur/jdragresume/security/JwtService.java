@@ -4,6 +4,7 @@ import com.arthur.jdragresume.entity.AppUser;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -26,6 +27,12 @@ public class JwtService {
     private final Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
     private final Base64.Decoder decoder = Base64.getUrlDecoder();
 
+    /** Convenience for unit tests; Spring always selects the Clock-injected constructor below. */
+    public JwtService(JwtProperties jwtProperties, ObjectMapper objectMapper) {
+        this(jwtProperties, objectMapper, Clock.systemDefaultZone());
+    }
+
+    @Autowired
     public JwtService(JwtProperties jwtProperties, ObjectMapper objectMapper, Clock clock) {
         this.jwtProperties = jwtProperties;
         this.objectMapper = objectMapper;
