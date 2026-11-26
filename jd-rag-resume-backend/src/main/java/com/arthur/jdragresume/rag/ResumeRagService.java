@@ -36,7 +36,7 @@ public class ResumeRagService {
     private final RagProperties properties;
     private final ObjectMapper objectMapper;
     private final ResumeIndexStore resumeIndexStore;
-    private final LuceneVectorIndex vectorIndex;
+    private final ResumeVectorStore vectorIndex;
     private final Object[] indexLocks = createIndexLocks(64);
 
     public ResumeRagService(
@@ -46,7 +46,7 @@ public class ResumeRagService {
             RagProperties properties,
             ObjectMapper objectMapper,
             ResumeIndexStore resumeIndexStore,
-            LuceneVectorIndex vectorIndex
+            ResumeVectorStore vectorIndex
     ) {
         this.embeddingModel = embeddingModel;
         this.resumeChunkRepository = resumeChunkRepository;

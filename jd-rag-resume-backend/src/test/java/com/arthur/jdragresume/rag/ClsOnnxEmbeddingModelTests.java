@@ -4,12 +4,22 @@ import ai.djl.huggingface.tokenizers.HuggingFaceTokenizer;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.embedding.Embedding;
+import org.springframework.ai.embedding.EmbeddingRequest;
+import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -116,5 +126,83 @@ class ClsOnnxEmbeddingModelTests {
 
         verify(session).close();
         assertThrows(Exception.class, () -> tokenizer.encode("hello"));
+    }
+
+    @Test
+    void bulkheadLimitsConcurrentInferenceAndReleasesPermitsCleanly() throws Exception {
+        AtomicInteger active = new AtomicInteger();
+        AtomicInteger maxObserved = new AtomicInteger();
+        ClsOnnxEmbeddingModel model = new ClsOnnxEmbeddingModel(
+                "classpath:tok", "classpath:model", "a".repeat(64), "b".repeat(64),
+                "last_hidden_state", Map.of(), 3, 2, 5_000L, 1) {
+            @Override
+            EmbeddingResponse runInference(List<String> texts) {
+                int current = active.incrementAndGet();
+                maxObserved.accumulateAndGet(current, Math::max);
+                try {
+                    Thread.sleep(60);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    active.decrementAndGet();
+                }
+                return new EmbeddingResponse(List.of(new Embedding(new float[]{1.0f, 0.0f, 0.0f}, 0)));
+            }
+        };
+
+        ExecutorService pool = Executors.newFixedThreadPool(6);
+        try {
+            List<Future<float[]>> futures = new ArrayList<>();
+            for (int i = 0; i < 6; i++) {
+                futures.add(pool.submit(() -> model.embed("text")));
+            }
+            for (Future<float[]> future : futures) {
+                assertEquals(3, future.get(5, TimeUnit.SECONDS).length);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertTrue(maxObserved.get() <= 2, "concurrent ONNX executions must stay <= 2, got " + maxObserved.get());
+        assertEquals(2, model.availableConcurrencyPermits());
+    }
+
+    @Test
+    void bulkheadTimeoutFailsFastWithoutLeakingPermits() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        ClsOnnxEmbeddingModel model = new ClsOnnxEmbeddingModel(
+                "classpath:tok", "classpath:model", "a".repeat(64), "b".repeat(64),
+                "last_hidden_state", Map.of(), 3, 1, 50L, 1) {
+            @Override
+            EmbeddingResponse runInference(List<String> texts) {
+                entered.countDown();
+                try {
+                    release.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+                return new EmbeddingResponse(List.of(new Embedding(new float[]{1.0f, 0.0f, 0.0f}, 0)));
+            }
+        };
+
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try {
+            Future<float[]> holder = pool.submit(() -> model.embed("first"));
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            assertEquals(0, model.availableConcurrencyPermits());
+
+            IllegalStateException timeout = assertThrows(IllegalStateException.class,
+                    () -> model.call(new EmbeddingRequest(List.of("second"), null)));
+            assertTrue(timeout.getMessage().contains("bulkhead saturated"));
+            assertEquals(0, model.availableConcurrencyPermits());
+
+            release.countDown();
+            holder.get(5, TimeUnit.SECONDS);
+            assertEquals(1, model.availableConcurrencyPermits());
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
     }
 }

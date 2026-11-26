@@ -143,7 +143,7 @@ public class ConversationStore {
             jdbc.update("UPDATE agent_conversation SET state='RUNNING',current_turn=?,active_run=?,run_expires_at=?,title=?,updated_at=? WHERE id=?",
                     turnId, runId, acceptedAt + timeoutMs + LEASE_GRACE_MS, question != null && row.eventSequence() == 0
                             ? question.substring(0, Math.min(120, question.length())) : row.title(), Timestamp.from(Instant.now()), id);
-            replaceMessages(id, messages);
+            syncMessages(id, messages);
             Event acceptedEvent;
             if (question != null) acceptedEvent = append(provisionalRun, "ask", Map.of("question", question));
             else if (approval != null) acceptedEvent = append(provisionalRun, "decide", Map.of("toolCallId", approval.toolCallId(), "approved", approval.approved()));
@@ -159,29 +159,58 @@ public class ConversationStore {
         }, id);
     }
 
-    private void replaceMessages(long id, List<AgentMessage> messages) {
-        jdbc.update("DELETE FROM agent_conversation_message WHERE conversation_id=?", id);
-        if (messages.isEmpty()) {
+    /**
+     * Delta-syncs persisted conversation messages by finding the longest unchanged prefix.
+     * Normal append-only turns perform zero DELETEs and batch-insert only newly added rows.
+     */
+    private void syncMessages(long id, List<AgentMessage> messages) {
+        List<StoredMessage> existing = jdbc.query(
+                "SELECT position, payload FROM agent_conversation_message WHERE conversation_id=? ORDER BY position",
+                (rs, n) -> new StoredMessage(rs.getInt(1), rs.getString(2)),
+                id
+        );
+        List<String> nextPayloads = new ArrayList<>(messages.size());
+        for (AgentMessage message : messages) {
+            nextPayloads.add(json(message));
+        }
+
+        int commonPrefix = 0;
+        int overlap = Math.min(existing.size(), nextPayloads.size());
+        while (commonPrefix < overlap
+                && existing.get(commonPrefix).position() == commonPrefix
+                && existing.get(commonPrefix).payload().equals(nextPayloads.get(commonPrefix))) {
+            commonPrefix++;
+        }
+
+        if (commonPrefix < existing.size()) {
+            jdbc.update("DELETE FROM agent_conversation_message WHERE conversation_id=? AND position>=?", id, commonPrefix);
+        }
+        if (commonPrefix >= nextPayloads.size()) {
             return;
         }
+        int start = commonPrefix;
+        int appendCount = nextPayloads.size() - start;
         jdbc.batchUpdate("INSERT INTO agent_conversation_message VALUES(?,?,?)", new BatchPreparedStatementSetter() {
             @Override
             public void setValues(PreparedStatement ps, int i) throws SQLException {
+                int position = start + i;
                 ps.setLong(1, id);
-                ps.setInt(2, i);
-                ps.setString(3, json(messages.get(i)));
+                ps.setInt(2, position);
+                ps.setString(3, nextPayloads.get(position));
             }
 
             @Override
             public int getBatchSize() {
-                return messages.size();
+                return appendCount;
             }
         });
     }
 
+    private record StoredMessage(int position, String payload) {}
+
     public void checkpoint(Run run, List<AgentMessage> messages, String summary) {
         owned(run, row -> {
-            replaceMessages(run.conversationId(), messages);
+            syncMessages(run.conversationId(), messages);
             jdbc.update("UPDATE agent_conversation SET summary=? WHERE id=?", summary, run.conversationId());
             return null;
         });
@@ -274,7 +303,7 @@ public class ConversationStore {
                 messages.add(missing.insertBefore(),
                         AgentMessage.tool(call.id(), ToolEnvelope.error(call.name(), code, message)));
             }
-            replaceMessages(row.id(), messages);
+            syncMessages(row.id(), messages);
         } catch (IllegalStateException ex) {
             // Keep the stored transcript as-is, but still release the expired run.
             log.warn("invalid tool-call pairing in conversation {}: {}", row.id(), LogSafe.describe(ex));

@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -139,6 +140,30 @@ class LuceneVectorIndexTests {
             }
             pool.shutdownNow();
             assertTrue(failures.isEmpty(), () -> "Unexpected concurrent errors: " + failures);
+        }
+    }
+
+    @Test
+    void retainOnlyPurgesOrphanDocumentsWhilePreservingActiveResumes() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        try (LuceneVectorIndex index = new LuceneVectorIndex(mapper, tempDir.toString())) {
+            index.replace(10L, List.of(chunk(0, "h10", new float[]{1, 0, 0}, mapper)));
+            index.replace(20L, List.of(chunk(0, "h20", new float[]{0, 1, 0}, mapper)));
+            index.replace(30L, List.of(chunk(0, "h30", new float[]{0, 0, 1}, mapper)));
+
+            int removed = index.retainOnly(Set.of(10L, 30L));
+            assertEquals(1, removed);
+            assertTrue(index.isCurrent(10L, "h10", 1));
+            assertFalse(index.isCurrent(20L, "h20", 1));
+            assertTrue(index.search(20L, List.of(new float[]{0, 1, 0}), 3).isEmpty());
+            assertTrue(index.isCurrent(30L, "h30", 1));
+
+            // Repeated reconciliation with the same active set must not recount soft-deleted terms.
+            assertEquals(0, index.retainOnly(Set.of(10L, 30L)));
+
+            assertEquals(2, index.retainOnly(Set.of()));
+            assertFalse(index.isCurrent(10L, "h10", 1));
+            assertFalse(index.isCurrent(30L, "h30", 1));
         }
     }
 

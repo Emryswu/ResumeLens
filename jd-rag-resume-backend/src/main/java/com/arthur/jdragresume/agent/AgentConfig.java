@@ -6,6 +6,7 @@ import com.arthur.jdragresume.ai.AiProperties;
 import com.arthur.jdragresume.service.JobSearchPreferencesService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,6 +16,8 @@ import org.springframework.security.task.DelegatingSecurityContextAsyncTaskExecu
 
 @Configuration
 public class AgentConfig {
+    private volatile BoundedVirtualThreadTaskExecutor virtualTaskExecutor;
+
     /** The registry's names bound the tool tag; a name the model invents is folded into one value. */
     @Bean
     public AgentMetrics agentMetrics(MeterRegistry registry, AgentToolRegistry tools) {
@@ -74,12 +77,37 @@ public class AgentConfig {
 
     /**
      * Every service resolves the user from SecurityContextHolder, a ThreadLocal that a pool
-     * thread does not have. The wrapper captures the submitting request's context object at
-     * execute() time and installs it around the task; the request thread later clearing its
+     * or virtual thread does not have. The wrapper captures the submitting request's context object
+     * at execute() time and installs it around the task; the request thread later clearing its
      * own ThreadLocal does not touch the captured object.
      */
     @Bean(name = "agentTaskExecutor")
-    public TaskExecutor agentTaskExecutor(@Qualifier("agentThreadPool") ThreadPoolTaskExecutor agentThreadPool) {
+    public TaskExecutor agentTaskExecutor(
+            AgentProperties properties,
+            @Qualifier("agentThreadPool") ThreadPoolTaskExecutor agentThreadPool
+    ) {
+        if (properties.isVirtualThreadsEnabled()) {
+            BoundedVirtualThreadTaskExecutor virtualExecutor = new BoundedVirtualThreadTaskExecutor(
+                    "agent-vt-",
+                    properties.getMaxConcurrentTurns(),
+                    properties.getMaxQueuedTurns()
+            );
+            this.virtualTaskExecutor = virtualExecutor;
+            return new DelegatingSecurityContextAsyncTaskExecutor(virtualExecutor);
+        }
+        return agentTaskExecutor(agentThreadPool);
+    }
+
+    /** Preserved overload for unit tests and direct platform-pool wiring. */
+    public TaskExecutor agentTaskExecutor(ThreadPoolTaskExecutor agentThreadPool) {
         return new DelegatingSecurityContextAsyncTaskExecutor(agentThreadPool);
+    }
+
+    @PreDestroy
+    public void shutdownVirtualExecutor() {
+        BoundedVirtualThreadTaskExecutor executor = this.virtualTaskExecutor;
+        if (executor != null) {
+            executor.destroy();
+        }
     }
 }

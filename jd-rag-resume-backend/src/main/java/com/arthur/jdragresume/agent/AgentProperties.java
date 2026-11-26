@@ -56,6 +56,11 @@ public class AgentProperties {
      */
     @Min(1)
     private int verifiedJdMaxAgeDays = 7;
+    private boolean virtualThreadsEnabled = true;
+    @Min(1)
+    private int maxConcurrentTurns = 16;
+    @Min(0)
+    private int maxQueuedTurns = 32;
 
     public int getMaxPlanningSteps() { return maxPlanningSteps; }
     public void setMaxPlanningSteps(int value) { maxPlanningSteps = value; }
@@ -178,5 +183,29 @@ public class AgentProperties {
 
     public void setWindowMinutes(long windowMinutes) {
         this.windowMinutes = windowMinutes;
+    }
+
+    public boolean isVirtualThreadsEnabled() {
+        return virtualThreadsEnabled;
+    }
+
+    public void setVirtualThreadsEnabled(boolean virtualThreadsEnabled) {
+        this.virtualThreadsEnabled = virtualThreadsEnabled;
+    }
+
+    public int getMaxConcurrentTurns() {
+        return maxConcurrentTurns;
+    }
+
+    public void setMaxConcurrentTurns(int maxConcurrentTurns) {
+        this.maxConcurrentTurns = maxConcurrentTurns;
+    }
+
+    public int getMaxQueuedTurns() {
+        return maxQueuedTurns;
+    }
+
+    public void setMaxQueuedTurns(int maxQueuedTurns) {
+        this.maxQueuedTurns = maxQueuedTurns;
     }
 }

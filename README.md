@@ -353,7 +353,8 @@ sequenceDiagram
 - **不可信数据**：职位正文可能来自网页抓取。所有工具结果都放在 `untrusted_data` 字段里，system prompt 明确说明这部分是数据，不是指令。真正兜底的是上面的确认闸。
 - **`search_resume_evidence` 只接受「简历 × JD」**：0.72 阈值是在 JD 查询上校准的，自由文本查询超出了校准范围，所以不开放。
 - **对话由服务端持有**：transcript、摘要、搜索条件和每个 SSE 事件都落在 `agent_conversation` / `agent_conversation_event`（V15 起），请求只带 `conversationId` 和**恰好一个**新输入（问题、确认或浏览器回报），请求体里的 `messages` / `summary` 字段会被忽略，所以客户端伪造不了历史。一个会话同时只能有一次运行；会话停在确认卡或浏览器任务上时，新问题会被拒绝，必须先回答挂起的那一步。刷新页面或换一个标签页，前端用 `GET /api/agent/conversations/{id}?after=<sequence>` 把事件续读回来，运行中的轮次照样能接上。续跑请求不往 transcript 写 user 消息，当前轮不会被截断。
-- **身份与线程**：service 都从 `SecurityContextHolder` 取当前用户，所以 agent 线程池外包了一层 `DelegatingSecurityContextAsyncTaskExecutor`。SSE 结束时会有一次 ASYNC 回程，JWT 过滤器（`OncePerRequestFilter`）不会处理它，所以过滤器认证成功后会把 context 存进请求级的 `RequestAttributeSecurityContextRepository`，回程从那里恢复身份并照常鉴权，不需要对 ASYNC 放行；否则回程是匿名的，会往已经提交的响应里写 401。这两处都做过红绿自证。
+- **身份与线程**：service 都从 `SecurityContextHolder` 取当前用户，默认开启 Java 21 虚拟线程（`BoundedVirtualThreadTaskExecutor` + `app.agent.virtual-threads-enabled=true`）承载高阻塞模型/轮询 I/O，受 `maxConcurrentTurns` / `maxQueuedTurns` 有界背压保护，并外包一层 `DelegatingSecurityContextAsyncTaskExecutor` 透传身份；可按开关回退平台线程池。SSE 结束时会有一次 ASYNC 回程，JWT 过滤器（`OncePerRequestFilter`）不会处理它，所以过滤器认证成功后会把 context 存进请求级的 `RequestAttributeSecurityContextRepository`，回程从那里恢复身份并照常鉴权，不需要对 ASYNC 放行；否则回程是匿名的，会往已经提交的响应里写 401。这两处都做过红绿自证。
+- **推理舱壁与无状态水平扩展**：ONNX 推理通过 `ClsOnnxEmbeddingModel` 信号量舱壁与 `onnxIntraOpThreads` 隔离 CPU 峰值；限流支持 `app.rate-limit.mode=memory|jdbc` 双模（`jdbc` 模式基于 `rate_limit_buckets`/`rate_limit_entries` 实现纯 MySQL 跨实例共享滑窗）；本地 Lucene 索引抽象为 `ResumeVectorStore` 并由 `LuceneVectorReconciler` 启动/定时对账清理跨实例删除遗留的孤儿向量；上传文件存储抽象为 `ResumeFileStorage`（默认 `LocalResumeFileStorage`）；`ConversationStore` 的 `syncMessages` 基于最长公共前缀增量追加对话消息，消除常规步进的全量删除重插写放大。
 - **止损**：每人 10 分钟最多 20 轮（先限流再入队，队列满返回 503；对话记录不合法、模型未配置在限流之前就拒绝，不消耗配额）；`SseEmitter` 超时 120 秒（Tomcat 默认的 30 秒短于单轮预算），单轮 90 秒预算和它从同一时刻算起，排队时间也计入；客户端断开后不再继续调用模型。
 - **mock 模式**：`AI_MOCK_ENABLED=true` 时由脚本模型按固定流程出牌，驱动的是**真实的**循环、工具和确认闸，回答里会标注「演示模式」，可以离线完整演示。
 
@@ -578,7 +579,8 @@ node --experimental-strip-types --test tests/report-export.test.ts
 | `app.jwt.expiration-minutes` | 默认 15 |
 | `app.jwt.refresh-cookie-secure` | 默认 `false`，保证本地 HTTP 可登录；HTTPS 请设 `true` |
 | `ai.*` / 环境变量 | LLM 或 mock |
-| `app.rag.*` | 分块、Top-K、语义阈值、关键词重排、模型 URI、Lucene 目录 |
+| `app.rag.*` | 分块、Top-K、语义阈值、关键词重排、模型 URI、Lucene 目录与对账周期、ONNX 并发舱壁与算子线程 |
+| `app.rate-limit.*` | 限流后端模式（`memory` 默认 / `jdbc` MySQL 跨实例共享滑窗）与过期清理间隔 |
 | `app.analysis.pending-timeout-minutes` | 卡住的 PENDING 回收阈值 |
 | `app.analysis.max-pending-per-user` | 默认 2 |
 | `app.analysis.max-submits-per-window` | 默认 10 次 / 10 分钟 |
@@ -586,7 +588,7 @@ node --experimental-strip-types --test tests/report-export.test.ts
 | `app.upload.max-resumes-per-user` | 默认 30 |
 | `app.upload.max-stored-bytes-per-user` | 默认 200MB |
 | `app.job-description.max-per-user` | 默认 200 |
-| `app.agent.*` | 助手单轮工具步数（12）与常规模型调用数（12）、重规划次数（2）、单轮预算（90s）、SSE 超时（120s）、每人每 10 分钟 20 轮、浏览器任务等待（180s）、JD 核实时效（7 天） |
+| `app.agent.*` | 助手单轮工具步数（12）与常规模型调用数（12）、重规划次数（2）、单轮预算（90s）、SSE 超时（120s）、每人每 10 分钟 20 轮、浏览器任务等待（180s）、JD 核实时效（7 天）、虚拟线程及并发/队列上限（16/32） |
 
 **安全提示**：当前配置面向本地演示；公开仓库前请移除真实密钥，改用环境变量或外部配置。请保持后端只对 BFF 和受控服务开放。Node BFF 从 TCP 对端识别客户端；前置代理须覆盖 XFF，或在链尾追加真实对端。前端的 `TRUSTED_PROXIES` 填这些代理的固定 IP（逗号分隔），BFF 从右往左找到首个不可信地址并覆盖 `X-BFF-Client-IP`。后端的 `TRUSTED_PROXIES` 只填直连 BFF 的固定 IP。Compose 已把内部网络固定为 `172.29.88.0/24`、前端容器固定为 `172.29.88.10`，后端默认只信任这个地址，开箱即按真实客户端 IP 限流；网段与本机冲突时，在 `compose.env` 里同时改 `RESUMELENS_SUBNET`、`FRONTEND_IP`、`BACKEND_TRUSTED_PROXIES`。不用 Compose 自行部署时，后端 `TRUSTED_PROXIES` 若留空，启动日志会告警：此时经 BFF 的所有请求会落进同一个 IP 桶。
 

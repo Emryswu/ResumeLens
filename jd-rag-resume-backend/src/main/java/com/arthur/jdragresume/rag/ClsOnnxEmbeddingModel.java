@@ -28,6 +28,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -37,6 +39,8 @@ import java.util.stream.Collectors;
  * Official GTE multilingual usage takes {@code last_hidden_state[:, 0]} (CLS) and L2-normalizes.
  */
 public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, DisposableBean {
+    private static final long DEFAULT_ACQUIRE_TIMEOUT_MS = 30_000L;
+
     private final String tokenizerUri;
     private final String modelUri;
     private final String tokenizerSha256;
@@ -44,6 +48,10 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
     private final String modelOutputName;
     private final Map<String, String> tokenizerOptions;
     private final int embeddingDimensions;
+    private final int maxConcurrentEmbeddings;
+    private final long acquireTimeoutMs;
+    private final int onnxIntraOpThreads;
+    private final Semaphore inferenceBulkhead;
 
     private HuggingFaceTokenizer tokenizer;
     private OrtEnvironment environment;
@@ -60,6 +68,32 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
             Map<String, String> tokenizerOptions,
             int embeddingDimensions
     ) {
+        this(
+                tokenizerUri,
+                modelUri,
+                tokenizerSha256,
+                modelSha256,
+                modelOutputName,
+                tokenizerOptions,
+                embeddingDimensions,
+                defaultMaxConcurrentEmbeddings(),
+                DEFAULT_ACQUIRE_TIMEOUT_MS,
+                0
+        );
+    }
+
+    public ClsOnnxEmbeddingModel(
+            String tokenizerUri,
+            String modelUri,
+            String tokenizerSha256,
+            String modelSha256,
+            String modelOutputName,
+            Map<String, String> tokenizerOptions,
+            int embeddingDimensions,
+            int maxConcurrentEmbeddings,
+            long acquireTimeoutMs,
+            int onnxIntraOpThreads
+    ) {
         this.tokenizerUri = tokenizerUri;
         this.modelUri = modelUri;
         this.tokenizerSha256 = tokenizerSha256;
@@ -67,6 +101,16 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
         this.modelOutputName = modelOutputName;
         this.tokenizerOptions = tokenizerOptions == null ? Map.of() : Map.copyOf(tokenizerOptions);
         this.embeddingDimensions = embeddingDimensions;
+        this.maxConcurrentEmbeddings = maxConcurrentEmbeddings > 0
+                ? maxConcurrentEmbeddings
+                : defaultMaxConcurrentEmbeddings();
+        this.acquireTimeoutMs = Math.max(0L, acquireTimeoutMs);
+        this.onnxIntraOpThreads = Math.max(0, onnxIntraOpThreads);
+        this.inferenceBulkhead = new Semaphore(this.maxConcurrentEmbeddings, true);
+    }
+
+    static int defaultMaxConcurrentEmbeddings() {
+        return Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
     }
 
     @Override
@@ -89,6 +133,9 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
         verifySha256("ONNX model", modelBytes, modelSha256);
         this.environment = OrtEnvironment.getEnvironment();
         try (OrtSession.SessionOptions sessionOptions = new OrtSession.SessionOptions()) {
+            if (onnxIntraOpThreads > 0) {
+                sessionOptions.setIntraOpNumThreads(onnxIntraOpThreads);
+            }
             this.session = environment.createSession(modelBytes, sessionOptions);
         }
         this.modelInputNames = session.getInputNames();
@@ -155,50 +202,75 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
         if (texts == null || texts.isEmpty()) {
             return new EmbeddingResponse(List.of());
         }
+        boolean acquired = false;
         try {
-            Encoding[] encodings = tokenizer.batchEncode(texts);
-            long[][] inputIds = new long[encodings.length][];
-            long[][] attentionMask = new long[encodings.length][];
-            long[][] tokenTypeIds = new long[encodings.length][];
-            for (int i = 0; i < encodings.length; i++) {
-                inputIds[i] = encodings[i].getIds();
-                attentionMask[i] = encodings[i].getAttentionMask();
-                tokenTypeIds[i] = encodings[i].getTypeIds();
+            acquired = inferenceBulkhead.tryAcquire(acquireTimeoutMs, TimeUnit.MILLISECONDS);
+            if (!acquired) {
+                throw new IllegalStateException(
+                        "ONNX embedding concurrency bulkhead saturated after " + acquireTimeoutMs + " ms");
             }
-
-            try (
-                    OnnxTensor inputIdsTensor = OnnxTensor.createTensor(environment, inputIds);
-                    OnnxTensor attentionMaskTensor = OnnxTensor.createTensor(environment, attentionMask);
-                    OnnxTensor tokenTypeIdsTensor = OnnxTensor.createTensor(environment, tokenTypeIds)
-            ) {
-                Map<String, OnnxTensor> feeds = new LinkedHashMap<>();
-                feeds.put("input_ids", inputIdsTensor);
-                feeds.put("attention_mask", attentionMaskTensor);
-                feeds.put("token_type_ids", tokenTypeIdsTensor);
-                feeds = feeds.entrySet().stream()
-                        .filter(entry -> modelInputNames.contains(entry.getKey()))
-                        .collect(Collectors.toMap(
-                                Map.Entry::getKey,
-                                Map.Entry::getValue,
-                                (left, right) -> left,
-                                LinkedHashMap::new
-                        ));
-
-                try (OrtSession.Result results = session.run(feeds)) {
-                    OnnxValue hidden = results.get(modelOutputName)
-                            .orElseThrow(() -> new IllegalStateException("missing ONNX output: " + modelOutputName));
-                    Object value = hidden.getValue();
-                    List<float[]> embeddings = extractClsEmbeddings(value);
-                    List<Embedding> data = new ArrayList<>(embeddings.size());
-                    for (int i = 0; i < embeddings.size(); i++) {
-                        data.add(new Embedding(embeddings.get(i), i));
-                    }
-                    return new EmbeddingResponse(data);
-                }
-            }
+            return runInference(texts);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for ONNX embedding permit", ex);
         } catch (OrtException ex) {
             throw new IllegalStateException("ONNX CLS embedding failed", ex);
+        } finally {
+            if (acquired) {
+                inferenceBulkhead.release();
+            }
         }
+    }
+
+    EmbeddingResponse runInference(List<String> texts) throws OrtException {
+        Encoding[] encodings = tokenizer.batchEncode(texts);
+        long[][] inputIds = new long[encodings.length][];
+        long[][] attentionMask = new long[encodings.length][];
+        long[][] tokenTypeIds = new long[encodings.length][];
+        for (int i = 0; i < encodings.length; i++) {
+            inputIds[i] = encodings[i].getIds();
+            attentionMask[i] = encodings[i].getAttentionMask();
+            tokenTypeIds[i] = encodings[i].getTypeIds();
+        }
+
+        try (
+                OnnxTensor inputIdsTensor = OnnxTensor.createTensor(environment, inputIds);
+                OnnxTensor attentionMaskTensor = OnnxTensor.createTensor(environment, attentionMask);
+                OnnxTensor tokenTypeIdsTensor = OnnxTensor.createTensor(environment, tokenTypeIds)
+        ) {
+            Map<String, OnnxTensor> feeds = new LinkedHashMap<>();
+            feeds.put("input_ids", inputIdsTensor);
+            feeds.put("attention_mask", attentionMaskTensor);
+            feeds.put("token_type_ids", tokenTypeIdsTensor);
+            feeds = feeds.entrySet().stream()
+                    .filter(entry -> modelInputNames.contains(entry.getKey()))
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            Map.Entry::getValue,
+                            (left, right) -> left,
+                            LinkedHashMap::new
+                    ));
+
+            try (OrtSession.Result results = session.run(feeds)) {
+                OnnxValue hidden = results.get(modelOutputName)
+                        .orElseThrow(() -> new IllegalStateException("missing ONNX output: " + modelOutputName));
+                Object value = hidden.getValue();
+                List<float[]> embeddings = extractClsEmbeddings(value);
+                List<Embedding> data = new ArrayList<>(embeddings.size());
+                for (int i = 0; i < embeddings.size(); i++) {
+                    data.add(new Embedding(embeddings.get(i), i));
+                }
+                return new EmbeddingResponse(data);
+            }
+        }
+    }
+
+    int availableConcurrencyPermits() {
+        return inferenceBulkhead.availablePermits();
+    }
+
+    int maxConcurrentEmbeddings() {
+        return maxConcurrentEmbeddings;
     }
 
     @Override

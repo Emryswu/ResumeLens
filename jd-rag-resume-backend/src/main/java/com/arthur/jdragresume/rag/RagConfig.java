@@ -27,7 +27,10 @@ public class RagConfig {
                         "modelMaxLength", String.valueOf(properties.getMaxLength()),
                         "maxLength", String.valueOf(properties.getMaxLength())
                 ),
-                properties.getEmbeddingDimensions()
+                properties.getEmbeddingDimensions(),
+                properties.effectiveMaxConcurrentEmbeddings(),
+                properties.getEmbeddingAcquireTimeoutMs(),
+                properties.getOnnxIntraOpThreads()
         );
     }
 }
