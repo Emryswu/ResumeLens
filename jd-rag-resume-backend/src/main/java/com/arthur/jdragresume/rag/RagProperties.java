@@ -46,6 +46,11 @@ public class RagProperties {
     private String embeddingTokenizerSha256 = "3a56def25aa40facc030ea8b0b87f3688e4b3c39eb8b45d5702b3a1300fe2a20";
     private String embeddingModelSha256 = "ab2bd164ebd8ca9003dc49a981b611e849b5d326f504c8873ba76e07fa6c0082";
     private String queryPrefix = "Represent this sentence for searching relevant passages:";
+    /** 0 means auto-size as max(2, availableProcessors / 2). */
+    private int maxConcurrentEmbeddings = 0;
+    private int embeddingAcquireTimeoutMs = 30_000;
+    /** 0 leaves ONNX Runtime's default intra-op thread setting untouched. */
+    private int onnxIntraOpThreads = 0;
 
     public int getChunkSize() {
         return chunkSize;
@@ -205,5 +210,35 @@ public class RagProperties {
 
     public void setQueryPrefix(String queryPrefix) {
         this.queryPrefix = queryPrefix;
+    }
+
+    public int getMaxConcurrentEmbeddings() {
+        return maxConcurrentEmbeddings;
+    }
+
+    public void setMaxConcurrentEmbeddings(int maxConcurrentEmbeddings) {
+        this.maxConcurrentEmbeddings = maxConcurrentEmbeddings;
+    }
+
+    public int effectiveMaxConcurrentEmbeddings() {
+        return maxConcurrentEmbeddings > 0
+                ? maxConcurrentEmbeddings
+                : Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
+    }
+
+    public int getEmbeddingAcquireTimeoutMs() {
+        return embeddingAcquireTimeoutMs;
+    }
+
+    public void setEmbeddingAcquireTimeoutMs(int embeddingAcquireTimeoutMs) {
+        this.embeddingAcquireTimeoutMs = embeddingAcquireTimeoutMs;
+    }
+
+    public int getOnnxIntraOpThreads() {
+        return onnxIntraOpThreads;
+    }
+
+    public void setOnnxIntraOpThreads(int onnxIntraOpThreads) {
+        this.onnxIntraOpThreads = onnxIntraOpThreads;
     }
 }

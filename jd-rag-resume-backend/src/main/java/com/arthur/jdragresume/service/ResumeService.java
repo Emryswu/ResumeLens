@@ -14,7 +14,7 @@ import com.arthur.jdragresume.repository.AnalysisHistoryRepository;
 import com.arthur.jdragresume.repository.AppUserRepository;
 import com.arthur.jdragresume.repository.ResumeRepository;
 import com.arthur.jdragresume.repository.ResumeChunkRepository;
-import com.arthur.jdragresume.rag.LuceneVectorIndex;
+import com.arthur.jdragresume.rag.ResumeVectorStore;
 import com.arthur.jdragresume.security.CurrentUserService;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -30,12 +30,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,8 +47,8 @@ public class ResumeService {
     private final CurrentUserService currentUserService;
     private final AppUserRepository appUserRepository;
     private final ResumeTextExtractor resumeTextExtractor;
-    private final Path resumeUploadDir;
-    private final LuceneVectorIndex vectorIndex;
+    private final ResumeFileStorage resumeFileStorage;
+    private final ResumeVectorStore vectorIndex;
     private final SemanticEmbeddingService semanticEmbeddingService;
     private final AnalysisHistoryRepository analysisHistoryRepository;
     private final TransactionTemplate transactionTemplate;
@@ -67,8 +64,8 @@ public class ResumeService {
             CurrentUserService currentUserService,
             AppUserRepository appUserRepository,
             ResumeTextExtractor resumeTextExtractor,
-            @Value("${app.upload.resume-dir:uploads/resumes}") String resumeUploadDir,
-            LuceneVectorIndex vectorIndex,
+            String resumeUploadDir,
+            ResumeVectorStore vectorIndex,
             SemanticEmbeddingService semanticEmbeddingService,
             AnalysisHistoryRepository analysisHistoryRepository
     ) {
@@ -87,6 +84,34 @@ public class ResumeService {
         );
     }
 
+    public ResumeService(
+            ResumeRepository resumeRepository,
+            ResumeChunkRepository resumeChunkRepository,
+            CurrentUserService currentUserService,
+            AppUserRepository appUserRepository,
+            ResumeTextExtractor resumeTextExtractor,
+            String resumeUploadDir,
+            ResumeVectorStore vectorIndex,
+            SemanticEmbeddingService semanticEmbeddingService,
+            AnalysisHistoryRepository analysisHistoryRepository,
+            PlatformTransactionManager transactionManager,
+            Validator requestValidator
+    ) {
+        this(
+                resumeRepository,
+                resumeChunkRepository,
+                currentUserService,
+                appUserRepository,
+                resumeTextExtractor,
+                new LocalResumeFileStorage(resumeUploadDir),
+                vectorIndex,
+                semanticEmbeddingService,
+                analysisHistoryRepository,
+                transactionManager,
+                requestValidator
+        );
+    }
+
     @Autowired
     public ResumeService(
             ResumeRepository resumeRepository,
@@ -94,8 +119,8 @@ public class ResumeService {
             CurrentUserService currentUserService,
             AppUserRepository appUserRepository,
             ResumeTextExtractor resumeTextExtractor,
-            @Value("${app.upload.resume-dir:uploads/resumes}") String resumeUploadDir,
-            LuceneVectorIndex vectorIndex,
+            ResumeFileStorage resumeFileStorage,
+            ResumeVectorStore vectorIndex,
             SemanticEmbeddingService semanticEmbeddingService,
             AnalysisHistoryRepository analysisHistoryRepository,
             PlatformTransactionManager transactionManager,
@@ -106,7 +131,7 @@ public class ResumeService {
         this.currentUserService = currentUserService;
         this.appUserRepository = appUserRepository;
         this.resumeTextExtractor = resumeTextExtractor;
-        this.resumeUploadDir = Path.of(resumeUploadDir);
+        this.resumeFileStorage = resumeFileStorage;
         this.vectorIndex = vectorIndex;
         this.semanticEmbeddingService = semanticEmbeddingService;
         this.analysisHistoryRepository = analysisHistoryRepository;
@@ -207,32 +232,26 @@ public class ResumeService {
             AppUser user = lockUser(precheckUser.getId());
             enforceResumeCount(user);
             enforceStoredBytes(user, file.getSize());
-            Path userDir = resumeUploadDir.resolve(user.getId().toString());
-            String storedName = UUID.randomUUID() + "." + extension;
-            Path storedPath = userDir.resolve(storedName);
-
-            boolean stored = false;
+            String storedLocation = null;
             try {
-                Files.createDirectories(userDir);
-                file.transferTo(storedPath);
-                stored = true;
+                storedLocation = resumeFileStorage.store(user.getId(), extension, file);
                 // save() 的 INSERT 可能推迟到事务提交 flush 时执行，回滚同步器保证文件不残留。
-                deleteFileOnRollback(storedPath);
+                deleteFileOnRollback(storedLocation);
 
                 resume.setUser(user);
-                resume.setStoredFilePath(storedPath.toString());
+                resume.setStoredFilePath(storedLocation);
                 return ResumeResponse.from(resumeRepository.save(resume));
             } catch (BusinessException ex) {
-                if (stored) {
-                    deleteFile(storedPath);
+                if (storedLocation != null) {
+                    resumeFileStorage.delete(storedLocation);
                 }
                 throw ex;
             } catch (Exception ex) {
-                if (stored) {
-                    deleteFile(storedPath);
+                if (storedLocation != null) {
+                    resumeFileStorage.delete(storedLocation);
                 }
                 // 原始异常此前被整个吞掉：磁盘满、权限不足、路径不可写在日志里毫无痕迹
-                log.error("Failed to store resume file for user {} at {}: {}", user.getId(), storedPath, LogSafe.describe(ex));
+                log.error("Failed to store resume file for user {} at {}: {}", user.getId(), storedLocation, LogSafe.describe(ex));
                 throw new BusinessException("FILE_SAVE_FAILED", "failed to save resume file");
             }
         });
@@ -279,11 +298,11 @@ public class ResumeService {
                     "an analysis using this resume is still running, please wait for it to finish"
             );
         }
-        Path storedFile = safeStoredFile(resume.getStoredFilePath());
+        String storedFilePath = resume.getStoredFilePath();
         resumeChunkRepository.deleteByResumeId(id);
         resumeRepository.delete(resume);
         afterCommit(() -> {
-            deleteFile(storedFile);
+            resumeFileStorage.delete(storedFilePath);
             deleteVectorIndex(id);
         });
     }
@@ -405,29 +424,7 @@ public class ResumeService {
         return value == null || value.trim().isEmpty();
     }
 
-    private Path safeStoredFile(String storedFilePath) {
-        if (isBlank(storedFilePath)) {
-            return null;
-        }
-        Path uploadRoot = resumeUploadDir.toAbsolutePath().normalize();
-        Path storedFile = Path.of(storedFilePath).toAbsolutePath().normalize();
-        if (!storedFile.startsWith(uploadRoot)) {
-            log.warn("Refusing to delete resume file outside upload root: {}", storedFile);
-            return null;
-        }
-        return storedFile;
-    }
-
-    private void deleteFile(Path storedFile) {
-        if (storedFile == null) return;
-        try {
-            Files.deleteIfExists(storedFile);
-        } catch (Exception ex) {
-            log.error("Database row was deleted but resume file cleanup failed: {}: {}", storedFile, LogSafe.describe(ex));
-        }
-    }
-
-    private void deleteFileOnRollback(Path storedFile) {
+    private void deleteFileOnRollback(String storedLocation) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             return;
         }
@@ -435,7 +432,7 @@ public class ResumeService {
             @Override
             public void afterCompletion(int status) {
                 if (status == TransactionSynchronization.STATUS_ROLLED_BACK) {
-                    deleteFile(storedFile);
+                    resumeFileStorage.delete(storedLocation);
                 }
             }
         });
