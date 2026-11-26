@@ -15,17 +15,33 @@ export async function createCollectorService({ token, dataDir, chromium, browser
   const owners = await fileStore(join(dataDir, "task-owners.json"));
   const runners = new Map();
   const browsers = [];
+  let closing;
   async function runnerFor(userId) {
-    if (!runners.has(userId)) runners.set(userId, (async () => {
-      const storage = await fileStore(join(dataDir, "state", `${userId}.json`));
-      const browser = await browserFactory({ chromium, profileDir: userProfileDir(dataDir, userId) });
-      browsers.push(browser);
-      const runner = runnerModule.create({ browser, storage, daily: storage,
-        random: Math.random, now: Date.now, epoch: randomUUID(), sleep,
+    if (!runners.has(userId)) {
+      let pending;
+      pending = (async () => {
+        const storage = await fileStore(join(dataDir, "state", `${userId}.json`));
+        const browser = await browserFactory({ chromium, profileDir: userProfileDir(dataDir, userId) });
+        try {
+          const runner = runnerModule.create({ browser, storage, daily: storage,
+            random: Math.random, now: Date.now, epoch: randomUUID(), sleep,
+          });
+          await runner.recoverStaleTasks();
+          browsers.push(browser);
+          return runner;
+        } catch (error) {
+          try { await browser.close(); }
+          catch (closeError) {
+            throw new AggregateError([error, closeError], `${error.message}; browser cleanup failed: ${closeError.message}`);
+          }
+          throw error;
+        }
+      })().catch((error) => {
+        if (runners.get(userId) === pending) runners.delete(userId);
+        throw error;
       });
-      await runner.recoverStaleTasks();
-      return runner;
-    })());
+      runners.set(userId, pending);
+    }
     return runners.get(userId);
   }
   const server = http.createServer(async (req, res) => {
@@ -36,8 +52,24 @@ export async function createCollectorService({ token, dataDir, chromium, browser
       if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) return send(401, { error: "unauthorized" });
       if (req.method === "POST" && req.url === "/tasks") {
         if (!req.headers["content-type"]?.startsWith("application/json")) return send(415, { error: "JSON required" });
-        let body = "";
-        for await (const chunk of req) { body += chunk; if (body.length > 8192) return send(413, { error: "request too large" }); }
+        const chunks = [];
+        let totalBytes = 0;
+        let tooLarge = false;
+        for await (const chunk of req.iterator({ destroyOnReturn: false })) {
+          const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          totalBytes += Buffer.byteLength(buf);
+          if (totalBytes > 8192) {
+            tooLarge = true;
+            break;
+          }
+          chunks.push(buf);
+        }
+        if (tooLarge) {
+          res.writeHead(413, { "Content-Type": "application/json", Connection: "close" });
+          res.end(JSON.stringify({ error: "request too large" }), () => req.destroy());
+          return;
+        }
+        const body = Buffer.concat(chunks, totalBytes).toString("utf8");
         let command;
         try { command = JSON.parse(body); } catch { return send(400, { error: "invalid JSON" }); }
         if (!Number.isSafeInteger(command.userId) || command.userId < 1 || typeof command.conversationId !== "string") return send(400, { error: "invalid owner" });
@@ -65,7 +97,14 @@ export async function createCollectorService({ token, dataDir, chromium, browser
       return send(500, { error: "collector request failed" });
     }
   });
-  return { server, async close() { await Promise.all(browsers.map((browser) => browser.close())); await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); } };
+  return {
+    server,
+    close() {
+      closing ??= new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
+        .finally(() => Promise.all(browsers.map((browser) => browser.close())));
+      return closing;
+    },
+  };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

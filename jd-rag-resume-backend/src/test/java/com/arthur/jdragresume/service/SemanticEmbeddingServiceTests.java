@@ -42,6 +42,32 @@ class SemanticEmbeddingServiceTests {
     }
 
     @Test
+    void jobCacheTracksActualModelInputAndRebuildsLegacyEntries() {
+        SemanticEmbeddingService service = SemanticEmbeddingTestSupport.service(
+                text -> text.contains("Go")
+                        ? new float[]{1.0f, 0.0f, 0.0f}
+                        : new float[]{0.0f, 1.0f, 0.0f},
+                3
+        );
+        JobDescription job = job("Backend developer", "go coding experience");
+        service.refresh(job);
+        String businessFingerprint = ContentFingerprints.job(job);
+
+        job.setDescription("Go coding experience");
+        assertEquals(businessFingerprint, ContentFingerprints.job(job));
+        assertFalse(service.isCurrent(job), "A case-only input change must invalidate the model cache");
+
+        job.setSemanticEmbeddingFingerprint(businessFingerprint);
+        assertFalse(service.isCurrent(job), "The legacy fingerprint cannot verify model input");
+        service.refresh(job);
+        assertTrue(service.isCurrent(job));
+        assertArrayEquals(new float[]{1.0f, 0.0f, 0.0f},
+                SemanticEmbeddingService.decode(job.getSemanticEmbedding()));
+        job.setCompanyName("New company");
+        assertTrue(service.isCurrent(job), "Company is outside the model input");
+    }
+
+    @Test
     void floatVectorBinaryEncodingRoundTripsWithoutJsonExpansion() {
         float[] vector = {0.25f, -0.5f, 1.0f};
         byte[] bytes = SemanticEmbeddingService.encode(vector);

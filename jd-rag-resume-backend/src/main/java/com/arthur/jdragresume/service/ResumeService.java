@@ -18,19 +18,25 @@ import com.arthur.jdragresume.rag.LuceneVectorIndex;
 import com.arthur.jdragresume.security.CurrentUserService;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
+import jakarta.validation.ValidatorFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +44,6 @@ import org.slf4j.LoggerFactory;
 public class ResumeService {
     private static final Logger log = LoggerFactory.getLogger(ResumeService.class);
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "doc", "docx", "txt", "md");
-    private static final Validator REQUEST_VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
 
     private final ResumeRepository resumeRepository;
     private final ResumeChunkRepository resumeChunkRepository;
@@ -49,6 +54,8 @@ public class ResumeService {
     private final LuceneVectorIndex vectorIndex;
     private final SemanticEmbeddingService semanticEmbeddingService;
     private final AnalysisHistoryRepository analysisHistoryRepository;
+    private final TransactionTemplate transactionTemplate;
+    private final Validator requestValidator;
     @Value("${app.upload.max-resumes-per-user:30}")
     private int maxResumesPerUser = 30;
     @Value("${app.upload.max-stored-bytes-per-user:209715200}")
@@ -65,6 +72,35 @@ public class ResumeService {
             SemanticEmbeddingService semanticEmbeddingService,
             AnalysisHistoryRepository analysisHistoryRepository
     ) {
+        this(
+                resumeRepository,
+                resumeChunkRepository,
+                currentUserService,
+                appUserRepository,
+                resumeTextExtractor,
+                resumeUploadDir,
+                vectorIndex,
+                semanticEmbeddingService,
+                analysisHistoryRepository,
+                null,
+                null
+        );
+    }
+
+    @Autowired
+    public ResumeService(
+            ResumeRepository resumeRepository,
+            ResumeChunkRepository resumeChunkRepository,
+            CurrentUserService currentUserService,
+            AppUserRepository appUserRepository,
+            ResumeTextExtractor resumeTextExtractor,
+            @Value("${app.upload.resume-dir:uploads/resumes}") String resumeUploadDir,
+            LuceneVectorIndex vectorIndex,
+            SemanticEmbeddingService semanticEmbeddingService,
+            AnalysisHistoryRepository analysisHistoryRepository,
+            PlatformTransactionManager transactionManager,
+            Validator requestValidator
+    ) {
         this.resumeRepository = resumeRepository;
         this.resumeChunkRepository = resumeChunkRepository;
         this.currentUserService = currentUserService;
@@ -74,6 +110,8 @@ public class ResumeService {
         this.vectorIndex = vectorIndex;
         this.semanticEmbeddingService = semanticEmbeddingService;
         this.analysisHistoryRepository = analysisHistoryRepository;
+        this.transactionTemplate = transactionManager == null ? null : new TransactionTemplate(transactionManager);
+        this.requestValidator = requestValidator != null ? requestValidator : DefaultValidatorHolder.VALIDATOR;
     }
 
     @Transactional(readOnly = true)
@@ -109,18 +147,20 @@ public class ResumeService {
         return ResumeResponse.from(getEntityForCurrentUser(id));
     }
 
-    @Transactional
     public ResumeResponse create(ResumeRequest request) {
-        AppUser user = lockCurrentUser();
-        enforceResumeCount(user);
+        AppUser precheckUser = currentUserService.getCurrentUser();
+        enforceResumeCount(precheckUser);
         Resume resume = new Resume();
-        resume.setUser(user);
         applyRequest(resume, request);
         semanticEmbeddingService.refresh(resume);
-        return ResumeResponse.from(resumeRepository.save(resume));
+        return inTransaction(() -> {
+            AppUser user = lockUser(precheckUser.getId());
+            enforceResumeCount(user);
+            resume.setUser(user);
+            return ResumeResponse.from(resumeRepository.save(resume));
+        });
     }
 
-    @Transactional
     public ResumeResponse upload(
             MultipartFile file,
             String title,
@@ -145,60 +185,84 @@ public class ResumeService {
             throw new BusinessException("UNSUPPORTED_FILE_TYPE", "only PDF, DOC, DOCX, TXT and MD files are supported");
         }
 
+        AppUser precheckUser = currentUserService.getCurrentUser();
+        enforceResumeCount(precheckUser);
+        enforceStoredBytes(precheckUser, file.getSize());
+
         String parsedRawText = limitRawText(resumeTextExtractor.extract(file));
         ResumeRequest request = new ResumeRequest(
                 isBlank(title) ? truncate(originalFileName, 120) : title.trim(),
                 candidateName, phone, email, parsedRawText);
         validateRequest(request);
-        AppUser user = lockCurrentUser();
-        enforceResumeCount(user);
-        enforceStoredBytes(user, file.getSize());
-        Path userDir = resumeUploadDir.resolve(user.getId().toString());
-        String storedName = UUID.randomUUID() + "." + extension;
-        Path storedPath = userDir.resolve(storedName);
 
-        boolean stored = false;
-        try {
-            Files.createDirectories(userDir);
-            file.transferTo(storedPath);
-            stored = true;
-            // 本方法是 @Transactional：save() 的 INSERT 可能推迟到方法返回后由代理 flush，
-            // 那时 catch 已经错过了，回滚只撤销数据库行、文件却留在磁盘上。
-            deleteFileOnRollback(storedPath);
+        Resume resume = new Resume();
+        applyRequest(resume, request);
+        resume.setOriginalFileName(originalFileName);
+        resume.setContentType(contentType);
+        resume.setFileExtension(extension);
+        resume.setFileSize(file.getSize());
+        semanticEmbeddingService.refresh(resume);
 
-            Resume resume = new Resume();
-            resume.setUser(user);
-            applyRequest(resume, request);
-            resume.setOriginalFileName(originalFileName);
-            resume.setContentType(contentType);
-            resume.setFileExtension(extension);
-            resume.setStoredFilePath(storedPath.toString());
-            resume.setFileSize(file.getSize());
-            semanticEmbeddingService.refresh(resume);
-            return ResumeResponse.from(resumeRepository.save(resume));
-        } catch (BusinessException ex) {
-            if (stored) {
-                deleteFile(storedPath);
+        return inTransaction(() -> {
+            AppUser user = lockUser(precheckUser.getId());
+            enforceResumeCount(user);
+            enforceStoredBytes(user, file.getSize());
+            Path userDir = resumeUploadDir.resolve(user.getId().toString());
+            String storedName = UUID.randomUUID() + "." + extension;
+            Path storedPath = userDir.resolve(storedName);
+
+            boolean stored = false;
+            try {
+                Files.createDirectories(userDir);
+                file.transferTo(storedPath);
+                stored = true;
+                // save() 的 INSERT 可能推迟到事务提交 flush 时执行，回滚同步器保证文件不残留。
+                deleteFileOnRollback(storedPath);
+
+                resume.setUser(user);
+                resume.setStoredFilePath(storedPath.toString());
+                return ResumeResponse.from(resumeRepository.save(resume));
+            } catch (BusinessException ex) {
+                if (stored) {
+                    deleteFile(storedPath);
+                }
+                throw ex;
+            } catch (Exception ex) {
+                if (stored) {
+                    deleteFile(storedPath);
+                }
+                // 原始异常此前被整个吞掉：磁盘满、权限不足、路径不可写在日志里毫无痕迹
+                log.error("Failed to store resume file for user {} at {}: {}", user.getId(), storedPath, LogSafe.describe(ex));
+                throw new BusinessException("FILE_SAVE_FAILED", "failed to save resume file");
             }
-            throw ex;
-        } catch (Exception ex) {
-            if (stored) {
-                deleteFile(storedPath);
-            }
-            // 原始异常此前被整个吞掉：磁盘满、权限不足、路径不可写在日志里毫无痕迹
-            log.error("Failed to store resume file for user {} at {}: {}", user.getId(), storedPath, LogSafe.describe(ex));
-            throw new BusinessException("FILE_SAVE_FAILED", "failed to save resume file");
-        }
+        });
     }
 
-    @Transactional
     public ResumeResponse update(Long id, ResumeRequest request) {
-        AppUser user = lockCurrentUser();
-        Resume resume = getEntityForUser(id, user.getId());
-        applyRequest(resume, request);
-        semanticEmbeddingService.refresh(resume);
-        resumeChunkRepository.deleteByResumeId(id);
-        return ResumeResponse.from(resumeRepository.save(resume));
+        AppUser precheckUser = currentUserService.getCurrentUser();
+        Resume existing = getEntityForUser(id, precheckUser.getId());
+        Resume computed = new Resume();
+        applyRequest(computed, request);
+        computed.setSemanticEmbedding(existing.getSemanticEmbedding());
+        computed.setSemanticEmbeddingFingerprint(existing.getSemanticEmbeddingFingerprint());
+        computed.setSemanticEmbeddingModelKey(existing.getSemanticEmbeddingModelKey());
+        if (!semanticEmbeddingService.isCurrent(computed)) {
+            semanticEmbeddingService.refresh(computed);
+        }
+        return inTransaction(() -> {
+            AppUser user = lockCurrentUser();
+            Resume resume = getEntityForUser(id, user.getId());
+            boolean rawTextChanged = !Objects.equals(resume.getRawText(), computed.getRawText());
+            applyRequest(resume, request);
+            resume.setSemanticEmbedding(computed.getSemanticEmbedding());
+            resume.setSemanticEmbeddingFingerprint(computed.getSemanticEmbeddingFingerprint());
+            resume.setSemanticEmbeddingModelKey(computed.getSemanticEmbeddingModelKey());
+            if (rawTextChanged) {
+                resumeChunkRepository.deleteByResumeId(id);
+            }
+            // Retrieval checks the Lucene source hash and replaces the old index when it rebuilds the chunks.
+            return ResumeResponse.from(resumeRepository.save(resume));
+        });
     }
 
     @Transactional
@@ -207,7 +271,7 @@ public class ResumeService {
         Resume resume = getEntityForUser(id, user.getId());
         // analysis_history 对 resume 挂着 ON DELETE CASCADE（V3 迁移）：删掉简历会连带
         // 删掉 PENDING 记录，而 worker 仍在调用模型，于是「进行中」计数凭空减少，
-            // 用户可以继续提交，绕过并发上限。lockCurrentUser() 与 AnalysisSubmitGuard
+        // 用户可以继续提交，绕过并发上限。lockCurrentUser() 与 AnalysisSubmitGuard
         // 用的是同一把用户行锁，因此「检查」与「删除」之间插不进新的分析。
         if (analysisHistoryRepository.existsByResume_IdAndStatus(id, AnalysisStatus.PENDING)) {
             throw new BusinessException(
@@ -220,11 +284,7 @@ public class ResumeService {
         resumeRepository.delete(resume);
         afterCommit(() -> {
             deleteFile(storedFile);
-            try {
-                vectorIndex.delete(id);
-            } catch (Exception ex) {
-                log.error("Database row was deleted but vector index cleanup failed for resume {}: {}", id, LogSafe.describe(ex));
-            }
+            deleteVectorIndex(id);
         });
     }
 
@@ -248,8 +308,11 @@ public class ResumeService {
     }
 
     private AppUser lockCurrentUser() {
-        AppUser user = currentUserService.getCurrentUser();
-        return appUserRepository.findByIdForUpdate(user.getId())
+        return lockUser(currentUserService.getCurrentUser().getId());
+    }
+
+    private AppUser lockUser(Long userId) {
+        return appUserRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new IllegalStateException("current user no longer exists"));
     }
 
@@ -273,11 +336,38 @@ public class ResumeService {
     }
 
     private void validateRequest(ResumeRequest request) {
-        var violations = REQUEST_VALIDATOR.validate(request);
+        var violations = requestValidator.validate(request);
         if (!violations.isEmpty()) {
             var violation = violations.iterator().next();
             throw new BusinessException("VALIDATION_ERROR",
                     "简历字段 " + violation.getPropertyPath() + " 格式或长度不符合要求");
+        }
+    }
+
+    private <T> T inTransaction(Supplier<T> action) {
+        if (transactionTemplate == null) {
+            return action.get();
+        }
+        return transactionTemplate.execute(status -> action.get());
+    }
+
+    private void deleteVectorIndex(Long id) {
+        if (vectorIndex == null) {
+            return;
+        }
+        try {
+            vectorIndex.delete(id);
+        } catch (Exception ex) {
+            log.error("Database change succeeded but vector index cleanup failed for resume {}: {}", id, LogSafe.describe(ex));
+        }
+    }
+
+    private static final class DefaultValidatorHolder {
+        private static final ValidatorFactory FACTORY = Validation.buildDefaultValidatorFactory();
+        private static final Validator VALIDATOR = FACTORY.getValidator();
+
+        static {
+            Runtime.getRuntime().addShutdownHook(new Thread(FACTORY::close, "resume-validator-factory-shutdown"));
         }
     }
 

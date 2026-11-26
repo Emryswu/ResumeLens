@@ -1,7 +1,11 @@
 package com.arthur.jdragresume.mapper;
 
 import com.arthur.jdragresume.dto.JobListItem;
+import com.arthur.jdragresume.dto.job.JobDescriptionBulkImportRequest;
+import com.arthur.jdragresume.dto.job.JobDescriptionRequest;
 import com.arthur.jdragresume.entity.AppUser;
+import com.arthur.jdragresume.entity.JobDescription;
+import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.agent.tool.AgentToolContext;
 import com.arthur.jdragresume.agent.tool.CollectBossJobsTool;
 import com.arthur.jdragresume.agent.tool.DeferrableTool;
@@ -11,10 +15,12 @@ import com.arthur.jdragresume.collect.CollectionResult;
 import com.arthur.jdragresume.collect.JobCollectionHistory;
 import com.arthur.jdragresume.collect.JobCollector;
 import com.arthur.jdragresume.security.CurrentUserService;
+import com.arthur.jdragresume.security.JwtUserPrincipal;
 import com.arthur.jdragresume.service.JobDescriptionService;
 import com.arthur.jdragresume.service.SemanticEmbeddingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.arthur.jdragresume.repository.AppUserRepository;
+import com.arthur.jdragresume.repository.JobDescriptionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mybatis.spring.boot.autoconfigure.MybatisAutoConfiguration;
@@ -25,8 +31,13 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -34,10 +45,16 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -166,7 +183,68 @@ class JobDescriptionMapperMySqlTests {
     }
 
     @Autowired
-    private com.arthur.jdragresume.repository.JobDescriptionRepository jobs;
+    private JobDescriptionRepository jobs;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentImportsCompetingForTheLastSlotSaveOnlyOneJob() throws Exception {
+        CountDownLatch firstInserted = new CountDownLatch(1);
+        CountDownLatch secondAboutToLock = new CountDownLatch(1);
+        AtomicInteger lockAttempts = new AtomicInteger();
+        AppUserRepository lockObservedUsers = mock(AppUserRepository.class);
+        when(lockObservedUsers.findByIdForUpdate(owner.getId())).thenAnswer(invocation -> {
+            if (lockAttempts.incrementAndGet() == 2) {
+                secondAboutToLock.countDown();
+            }
+            return appUserRepository.findByIdForUpdate(owner.getId());
+        });
+        JobDescriptionRepository insertObservedJobs = mock(JobDescriptionRepository.class);
+        when(insertObservedJobs.countByUserId(owner.getId()))
+                .thenAnswer(invocation -> jobs.countByUserId(owner.getId()));
+        when(insertObservedJobs.save(any(JobDescription.class))).thenAnswer(invocation -> {
+            JobDescription saved = jobs.save(invocation.<JobDescription>getArgument(0));
+            if (firstInserted.getCount() != 0) {
+                firstInserted.countDown();
+                assertTrue(secondAboutToLock.await(10, TimeUnit.SECONDS), "second import did not reach the user lock");
+            }
+            return saved;
+        });
+        var service = new JobDescriptionService(insertObservedJobs, new CurrentUserService(appUserRepository),
+                lockObservedUsers, mock(SemanticEmbeddingService.class), null, 1,
+                Clock.systemDefaultZone(), transactionManager);
+        var request = new JobDescriptionBulkImportRequest(List.of(
+                new JobDescriptionRequest("Backend developer", "Example", null, null, "Java", null)));
+        Callable<String> importAsOwner = () -> {
+            var principal = new JwtUserPrincipal(owner.getId(), owner.getUsername());
+            SecurityContextHolder.getContext().setAuthentication(
+                    new UsernamePasswordAuthenticationToken(principal, null, List.of()));
+            try {
+                service.bulkImport(request);
+                return "saved";
+            } catch (BusinessException exception) {
+                return exception.getCode();
+            } finally {
+                SecurityContextHolder.clearContext();
+            }
+        };
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(importAsOwner);
+            try {
+                assertTrue(firstInserted.await(10, TimeUnit.SECONDS), "first import did not insert the job");
+                var second = executor.submit(importAsOwner);
+                assertEquals("saved", first.get(10, TimeUnit.SECONDS));
+                String outcome = second.get(10, TimeUnit.SECONDS);
+                assertEquals(1L, jobs.countByUserId(owner.getId()));
+                assertEquals("JOB_DESCRIPTION_QUOTA_EXCEEDED", outcome);
+            } finally {
+                secondAboutToLock.countDown();
+            }
+        }
+    }
 
     @Test
     void agentEmploymentTypeSearchAndCountsAreScopedToTheCurrentUser() {

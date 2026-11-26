@@ -19,10 +19,13 @@ import com.arthur.jdragresume.repository.AppUserRepository;
 import com.arthur.jdragresume.repository.JobDescriptionRepository;
 import com.arthur.jdragresume.security.CurrentUserService;
 import com.arthur.jdragresume.common.PageRequests;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
@@ -31,6 +34,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 @Service
 public class JobDescriptionService {
@@ -41,6 +45,7 @@ public class JobDescriptionService {
     private final AnalysisHistoryRepository analysisHistoryRepository;
     private final int maxJobDescriptionsPerUser;
     private final Clock clock;
+    private final TransactionTemplate transactionTemplate;
 
     public JobDescriptionService(
             JobDescriptionRepository jobDescriptionRepository,
@@ -51,6 +56,29 @@ public class JobDescriptionService {
             @Value("${app.job-description.max-per-user:200}") int maxJobDescriptionsPerUser,
             Clock clock
     ) {
+        this(
+                jobDescriptionRepository,
+                currentUserService,
+                appUserRepository,
+                semanticEmbeddingService,
+                analysisHistoryRepository,
+                maxJobDescriptionsPerUser,
+                clock,
+                null
+        );
+    }
+
+    @Autowired
+    public JobDescriptionService(
+            JobDescriptionRepository jobDescriptionRepository,
+            CurrentUserService currentUserService,
+            AppUserRepository appUserRepository,
+            SemanticEmbeddingService semanticEmbeddingService,
+            AnalysisHistoryRepository analysisHistoryRepository,
+            @Value("${app.job-description.max-per-user:200}") int maxJobDescriptionsPerUser,
+            Clock clock,
+            PlatformTransactionManager transactionManager
+    ) {
         this.jobDescriptionRepository = jobDescriptionRepository;
         this.currentUserService = currentUserService;
         this.appUserRepository = appUserRepository;
@@ -58,6 +86,7 @@ public class JobDescriptionService {
         this.analysisHistoryRepository = analysisHistoryRepository;
         this.maxJobDescriptionsPerUser = Math.max(1, maxJobDescriptionsPerUser);
         this.clock = clock;
+        this.transactionTemplate = transactionManager == null ? null : new TransactionTemplate(transactionManager);
     }
 
     @Transactional(readOnly = true)
@@ -99,36 +128,42 @@ public class JobDescriptionService {
         return JobDescriptionResponse.from(getEntityForCurrentUser(id));
     }
 
-    @Transactional
     public JobDescriptionResponse create(JobDescriptionRequest request) {
-        AppUser user = lockCurrentUser();
-        enforceJobDescriptionCount(user, 1);
+        AppUser precheckUser = currentUserService.getCurrentUser();
+        enforceJobDescriptionCount(precheckUser, 1);
         JobDescription jobDescription = new JobDescription();
-        jobDescription.setUser(user);
         applyRequest(jobDescription, request);
         jobDescription.setContentFingerprint(ContentFingerprints.job(jobDescription));
         semanticEmbeddingService.refresh(jobDescription);
-        return JobDescriptionResponse.from(jobDescriptionRepository.save(jobDescription));
+        return inTransaction(() -> {
+            AppUser user = lockUser(precheckUser.getId());
+            enforceJobDescriptionCount(user, 1);
+            jobDescription.setUser(user);
+            return JobDescriptionResponse.from(jobDescriptionRepository.save(jobDescription));
+        });
     }
 
-    @Transactional
     public List<JobDescriptionResponse> bulkImport(JobDescriptionBulkImportRequest request) {
-        AppUser user = lockCurrentUser();
-        enforceJobDescriptionCount(user, request.items().size());
+        AppUser precheckUser = currentUserService.getCurrentUser();
+        enforceJobDescriptionCount(precheckUser, request.items().size());
         List<JobDescription> jobs = request.items().stream()
                 .map(item -> {
                     JobDescription jobDescription = new JobDescription();
-                    jobDescription.setUser(user);
                     applyRequest(jobDescription, item);
                     jobDescription.setContentFingerprint(ContentFingerprints.job(jobDescription));
                     return jobDescription;
                 })
                 .toList();
         semanticEmbeddingService.refreshJobs(jobs);
-        return jobs.stream()
-                .map(jobDescriptionRepository::save)
-                .map(JobDescriptionResponse::from)
-                .toList();
+        return inTransaction(() -> {
+            AppUser user = lockUser(precheckUser.getId());
+            enforceJobDescriptionCount(user, jobs.size());
+            jobs.forEach(job -> job.setUser(user));
+            return jobs.stream()
+                    .map(jobDescriptionRepository::save)
+                    .map(JobDescriptionResponse::from)
+                    .toList();
+        });
     }
 
     @Transactional(readOnly = true)
@@ -251,14 +286,28 @@ public class JobDescriptionService {
         return new ListingCaptureResult(saved, notSaved, notSaved > 0, maxJobDescriptionsPerUser);
     }
 
-    @Transactional
     public JobDescriptionResponse update(Long id, JobDescriptionRequest request) {
-        AppUser user = lockCurrentUser();
-        JobDescription jobDescription = getEntityForUser(id, user.getId());
-        applyRequest(jobDescription, request);
-        jobDescription.setContentFingerprint(ContentFingerprints.job(jobDescription));
-        semanticEmbeddingService.refresh(jobDescription);
-        return JobDescriptionResponse.from(jobDescriptionRepository.save(jobDescription));
+        AppUser precheckUser = currentUserService.getCurrentUser();
+        JobDescription existing = getEntityForUser(id, precheckUser.getId());
+        JobDescription computed = new JobDescription();
+        applyRequest(computed, request);
+        String fingerprint = ContentFingerprints.job(computed);
+        computed.setSemanticEmbedding(existing.getSemanticEmbedding());
+        computed.setSemanticEmbeddingFingerprint(existing.getSemanticEmbeddingFingerprint());
+        computed.setSemanticEmbeddingModelKey(existing.getSemanticEmbeddingModelKey());
+        if (!semanticEmbeddingService.isCurrent(computed)) {
+            semanticEmbeddingService.refresh(computed);
+        }
+        return inTransaction(() -> {
+            AppUser user = lockCurrentUser();
+            JobDescription jobDescription = getEntityForUser(id, user.getId());
+            applyRequest(jobDescription, request);
+            jobDescription.setContentFingerprint(fingerprint);
+            jobDescription.setSemanticEmbedding(computed.getSemanticEmbedding());
+            jobDescription.setSemanticEmbeddingFingerprint(computed.getSemanticEmbeddingFingerprint());
+            jobDescription.setSemanticEmbeddingModelKey(computed.getSemanticEmbeddingModelKey());
+            return JobDescriptionResponse.from(jobDescriptionRepository.save(jobDescription));
+        });
     }
 
     @Transactional
@@ -283,8 +332,11 @@ public class JobDescriptionService {
      * 会各自读到配额用尽前的旧计数，双双通过校验后把上限顶穿。
      */
     private AppUser lockCurrentUser() {
-        AppUser user = currentUserService.getCurrentUser();
-        return appUserRepository.findByIdForUpdate(user.getId())
+        return lockUser(currentUserService.getCurrentUser().getId());
+    }
+
+    private AppUser lockUser(Long userId) {
+        return appUserRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new IllegalStateException("current user no longer exists"));
     }
 
@@ -351,6 +403,13 @@ public class JobDescriptionService {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private <T> T inTransaction(Supplier<T> action) {
+        if (transactionTemplate == null) {
+            return action.get();
+        }
+        return transactionTemplate.execute(status -> action.get());
     }
 
     private String normalizeKeyword(String keyword) {

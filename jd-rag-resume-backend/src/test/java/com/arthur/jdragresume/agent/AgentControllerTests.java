@@ -97,6 +97,18 @@ class AgentControllerTests extends ConversationStoreTests {
         queued.getFirst().run();
     }
 
+    @Test void questionWhileAwaitingConfirmationReturns409AgentApprovalMismatch() throws Exception {
+        long id = store.create(1).conversation().id();
+        var policy = new TranscriptPolicy(properties);
+        var run = store.accept(1, id, "发起分析", null, null, 90000, messages -> policy.normalize(messages, null));
+        store.emit(run, "done", java.util.Map.of("state", "AWAITING_CONFIRMATION", "steps", 1));
+
+        mvc.perform(post("/api/agent/chat").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"conversationId\":" + id + ",\"question\":\"改问别的\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("code").value("AGENT_APPROVAL_MISMATCH"));
+    }
+
     @Test void fullAccessIsSwitchedPerConversationByItsOwner() throws Exception {
         long id = store.create(1).conversation().id();
         long bob = store.create(2).conversation().id();

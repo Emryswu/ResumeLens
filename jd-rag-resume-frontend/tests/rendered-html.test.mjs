@@ -74,3 +74,43 @@ test("production BFF enforces limits and IP trust on the raw HTTP connection", {
   }
   assert.deepEqual(calls, ["127.0.0.1", "127.0.0.1"]);
 });
+
+test("production BFF propagates client disconnect as AbortSignal to upstream", { timeout: 30_000 }, async (t) => {
+  let upstreamClosed;
+  const upstreamClosedPromise = new Promise(resolve => { upstreamClosed = resolve; });
+  let upstreamStarted;
+  const upstreamStartedPromise = new Promise(resolve => { upstreamStarted = resolve; });
+  const upstream = createServer((req, res) => {
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    res.flushHeaders();
+    upstreamStarted();
+    req.on("close", () => upstreamClosed(true));
+  });
+  upstream.listen(0, "127.0.0.1");
+  await once(upstream, "listening");
+  t.after(() => { upstream.closeAllConnections(); upstream.close(); });
+  const child = spawn(process.execPath, ["--experimental-strip-types", "scripts/start.mjs", "--port", "0", "--hostname", "127.0.0.1"], {
+    env: { ...process.env, TRUSTED_PROXIES: "", BACKEND_API_URL: `http://127.0.0.1:${upstream.address().port}` },
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  t.after(() => child.kill());
+  let port;
+  for await (const line of createInterface({ input: child.stdout })) {
+    const ready = /Production server running at http:\/\/127\.0\.0\.1:(\d+)/.exec(line);
+    if (ready) { port = Number(ready[1]); break; }
+  }
+  assert.ok(port, "production server started");
+
+  const clientReq = request({ host: "127.0.0.1", port, path: "/api/backend/api/agent/chat", method: "POST" }, res => {
+    res.on("error", () => {});
+  });
+  clientReq.on("error", () => {});
+  clientReq.end("{}");
+  await upstreamStartedPromise;
+  clientReq.destroy();
+  const closed = await Promise.race([
+    upstreamClosedPromise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("upstream request did not abort")), 5000)),
+  ]);
+  assert.equal(closed, true);
+});

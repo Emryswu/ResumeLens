@@ -10,7 +10,6 @@ import com.arthur.jdragresume.exception.ToolNotStartedException;
 import com.arthur.jdragresume.service.JobDescriptionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
 import java.util.Map;
@@ -106,7 +105,6 @@ public class VerifyBossJobTool implements DeferrableTool {
     }
 
     @Override
-    @Transactional
     public Object resume(JsonNode arguments, JsonNode report, AgentToolContext context) {
         if (report == null || !report.isObject()) throw invalidReport();
         JobDescriptionResponse job = jobs.findById(arguments.get("jobId").asLong());

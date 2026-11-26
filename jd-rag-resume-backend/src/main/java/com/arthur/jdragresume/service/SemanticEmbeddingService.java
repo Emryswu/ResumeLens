@@ -62,11 +62,12 @@ public class SemanticEmbeddingService {
         if (jobs.isEmpty()) {
             return;
         }
-        List<float[]> embeddings = embedTexts(jobs.stream().map(this::jobText).toList());
+        List<String> inputs = jobs.stream().map(this::jobText).toList();
+        List<float[]> embeddings = embedTexts(inputs);
         for (int index = 0; index < jobs.size(); index++) {
             JobDescription job = jobs.get(index);
             job.setSemanticEmbedding(encode(embeddings.get(index)));
-            job.setSemanticEmbeddingFingerprint(ContentFingerprints.job(job));
+            job.setSemanticEmbeddingFingerprint(sha256(inputs.get(index)));
             job.setSemanticEmbeddingModelKey(modelKey);
         }
     }
@@ -84,7 +85,7 @@ public class SemanticEmbeddingService {
         return cacheMatches(
                 job.getSemanticEmbedding(),
                 job.getSemanticEmbeddingFingerprint(),
-                ContentFingerprints.job(job),
+                sha256(jobText(job)),
                 job.getSemanticEmbeddingModelKey()
         );
     }

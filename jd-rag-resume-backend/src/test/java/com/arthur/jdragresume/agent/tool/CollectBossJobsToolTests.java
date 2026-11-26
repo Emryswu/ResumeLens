@@ -205,6 +205,14 @@ class CollectBossJobsToolTests {
         assertTrue(order.indexOf("jobs") < order.indexOf("jobIds"), "ToolEnvelope trims the first list it finds");
     }
 
+    @Test
+    void beginAndResumeDoNotHoldDatabaseTransactionsAcrossExternalCollection() throws Exception {
+        assertFalse(CollectBossJobsTool.class.getMethod("begin", JsonNode.class, AgentToolContext.class)
+                .isAnnotationPresent(org.springframework.transaction.annotation.Transactional.class));
+        assertFalse(CollectBossJobsTool.class.getMethod("resume", JsonNode.class, JsonNode.class, AgentToolContext.class)
+                .isAnnotationPresent(org.springframework.transaction.annotation.Transactional.class));
+    }
+
     private JsonNode arguments() {
         return objectMapper.createObjectNode().put("keyword", "Java").put("city", "深圳");
     }

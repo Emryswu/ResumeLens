@@ -10,13 +10,15 @@
 
 | 层 | 技术 |
 |----|------|
-| 后端 | Java 21+ / Spring Boot 3.5 / Spring Security JWT / Spring Data JPA / Flyway / MySQL |
+| 后端 | Java 21+ / Spring Boot 3.5 / Spring Security JWT / Spring Data JPA / MyBatis / Flyway / MySQL |
 | 解析 | Apache Tika（PDF / DOC / DOCX / TXT） |
 | 向量 | 本地 ONNX：`Alibaba-NLP/gte-multilingual-base-int8`（CLS pooling，768 维） |
 | 检索 | Lucene 向量索引 + 语义阈值 + 关键词 boost + 双 Query |
 | 生成 | OpenAI 兼容 Chat Completions（推荐 DeepSeek；支持 mock） |
+| 采集 | 浏览器扩展（Chrome MV3）/ Patchright 独立采集服务 |
 | 前端 | Next.js 16（vinext）/ React 19 / TypeScript / lucide-react / 本地思源宋体（Noto Serif SC） |
-| 交付 | Docker Compose（MySQL + API + Web）/ Actuator Health |
+| 交付与观测 | Docker Compose（MySQL + API + Web）/ Actuator Health / Micrometer / Prometheus |
+| 测试 | JUnit 5 + Testcontainers（MySQL）/ Playwright / Node Test Runner |
 
 ---
 
@@ -162,8 +164,11 @@
 │   ├── app/report-export.ts       # 报告 Markdown / PDF 导出
 │   ├── public/brand/              # 水墨横幅、插画、标语与卡片背景
 │   ├── public/fonts/              # 自托管中文字体与许可证
-│   └── app/api/backend/[...path]/ # 开发代理 → :8080
-└── browser-extension/             # Chrome MV3 · BOSS JD 抓取与岗位库入口
+│   └── app/api/backend/[...path]/ # BFF 代理 → :8080
+├── browser-extension/             # Chrome MV3 · BOSS JD 抓取与岗位库入口
+├── collector-service/             # Patchright 独立浏览器采集服务
+├── evals/                         # Agent 离线评测集与回放基线
+└── experiments/                   # 检索阈值扫描、RAG 消融与 holdout 实验
 ```
 
 本地运行还可能包含 `mysql-9.7.0-winx64/`、`data/` 等**本机数据库文件**，请勿提交到 GitHub。

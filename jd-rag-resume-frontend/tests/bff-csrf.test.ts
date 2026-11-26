@@ -165,3 +165,61 @@ for (const declared of [true, false]) {
     else assert.equal(cancelled, true);
   });
 }
+
+test("forwards request abort signal to upstream fetch and maps abort to 499", async () => {
+  const originalFetch = globalThis.fetch;
+  const controller = new AbortController();
+  let observedSignal: AbortSignal | undefined;
+  globalThis.fetch = ((_url: string | URL | Request, init?: RequestInit) => {
+    observedSignal = init?.signal ?? undefined;
+    return new Promise((_resolve, reject) => {
+      observedSignal?.addEventListener("abort", () => {
+        const err = new Error("aborted");
+        err.name = "AbortError";
+        reject(err);
+      });
+      controller.abort();
+    });
+  }) as typeof fetch;
+  try {
+    const request = new Request("http://localhost:3000/api/backend/api/agent/chat", {
+      method: "POST",
+      headers: { "sec-fetch-site": "same-origin", origin: "http://localhost:3000" },
+      body: "{}",
+      signal: controller.signal,
+    });
+    const response = await POST(request, { params: Promise.resolve({ path: ["api", "agent", "chat"] }), peer: "127.0.0.1" });
+    assert.equal(observedSignal?.aborted, true);
+    assert.equal(response.status, 499);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("rewrites and preserves multiple set-cookie headers via getSetCookie", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    const headers = new Headers();
+    headers.append("set-cookie", "jd-rag-refresh=abc; Path=/api/auth; HttpOnly; SameSite=Lax");
+    headers.append("set-cookie", "jd-rag-csrf=xyz; Expires=Thu, 01 Jan 2099 00:00:00 GMT; Path=/api/auth");
+    return new Response("{}", { status: 200, headers });
+  }) as typeof fetch;
+  try {
+    const request = new Request("https://resume.example.com/api/backend/api/auth/login", {
+      method: "POST",
+      headers: { "sec-fetch-site": "same-origin", origin: "https://resume.example.com" },
+      body: "{}",
+    });
+    const response = await POST(request, { params: Promise.resolve({ path: ["api", "auth", "login"] }), peer: "127.0.0.1" });
+    assert.equal(response.status, 200);
+    const cookies = response.headers.getSetCookie();
+    assert.equal(cookies.length, 2);
+    assert.match(cookies[0], /Path=\/api\/backend\/api\/auth/);
+    assert.match(cookies[0], /; Secure$/);
+    assert.match(cookies[1], /Expires=Thu, 01 Jan 2099 00:00:00 GMT/);
+    assert.match(cookies[1], /Path=\/api\/backend\/api\/auth/);
+    assert.match(cookies[1], /; Secure$/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
