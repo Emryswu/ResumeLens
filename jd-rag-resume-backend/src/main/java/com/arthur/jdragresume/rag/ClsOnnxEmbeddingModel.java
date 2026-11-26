@@ -123,6 +123,13 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
         } catch (OrtException ignored) {
             // best effort
         }
+        try {
+            if (tokenizer != null) {
+                tokenizer.close();
+            }
+        } catch (Exception ignored) {
+            // best effort
+        }
     }
 
     @Override

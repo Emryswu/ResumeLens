@@ -3,7 +3,6 @@ package com.arthur.jdragresume.agent.tool;
 import com.arthur.jdragresume.agent.JobSearchStopPolicy;
 import com.arthur.jdragresume.collect.CollectRequest;
 import com.arthur.jdragresume.collect.JobCollectionHistory;
-import org.springframework.transaction.annotation.Transactional;
 import com.arthur.jdragresume.collect.CollectionResult;
 import com.arthur.jdragresume.collect.JobCollector;
 import com.arthur.jdragresume.dto.job.JobCaptureRequest;
@@ -75,7 +74,6 @@ public class CollectBossJobsTool implements DeferrableTool {
     }
 
     @Override
-    @Transactional
     public Begin begin(JsonNode arguments, AgentToolContext context) {
         CollectRequest request = request(arguments);
         JobCollector.Start start = collector.start(request, context.collection());
@@ -86,7 +84,6 @@ public class CollectBossJobsTool implements DeferrableTool {
     }
 
     @Override
-    @Transactional
     public Object resume(JsonNode arguments, JsonNode report, AgentToolContext context) {
         CollectRequest request = request(arguments);
         return save(request, collector.complete(request, report, context.collection()));

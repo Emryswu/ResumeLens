@@ -8,7 +8,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
@@ -18,12 +17,16 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.SearcherFactory;
+import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,53 +45,75 @@ public class LuceneVectorIndex implements AutoCloseable {
     private final ObjectMapper objectMapper;
     private final Directory directory;
     private final IndexWriter writer;
+    private final SearcherManager searcherManager;
+    private final Object writeLock = new Object();
 
+    @Autowired
     public LuceneVectorIndex(
             ObjectMapper objectMapper,
             @Value("${app.rag.lucene-index-dir:data/lucene/resume-vectors}") String indexDir
     ) throws IOException {
-        this.objectMapper = objectMapper;
-        Path path = Path.of(indexDir).toAbsolutePath().normalize();
-        Files.createDirectories(path);
-        this.directory = FSDirectory.open(path);
-        this.writer = new IndexWriter(directory, new IndexWriterConfig());
+        this(objectMapper, Path.of(indexDir).toAbsolutePath().normalize(), null);
     }
 
-    public synchronized boolean isCurrent(Long resumeId, String sourceHash, int expectedChunks) throws IOException {
-        writer.commit();
-        try (DirectoryReader reader = DirectoryReader.open(writer)) {
+    LuceneVectorIndex(ObjectMapper objectMapper, Path path, SearcherFactory searcherFactory) throws IOException {
+        this.objectMapper = objectMapper;
+        Files.createDirectories(path);
+        this.directory = FSDirectory.open(path);
+        IndexWriter openedWriter = null;
+        try {
+            openedWriter = new IndexWriter(directory, new IndexWriterConfig());
+            this.searcherManager = new SearcherManager(openedWriter, searcherFactory);
+            this.writer = openedWriter;
+        } catch (IOException | RuntimeException | Error failure) {
+            try (directory; Closeable rollback = openedWriter == null ? null : openedWriter::rollback) {
+                throw failure;
+            }
+        }
+    }
+
+    public boolean isCurrent(Long resumeId, String sourceHash, int expectedChunks) throws IOException {
+        IndexSearcher searcher = searcherManager.acquire();
+        try {
             BooleanQuery query = new BooleanQuery.Builder()
                     .add(new TermQuery(new Term(RESUME_ID, resumeId.toString())), BooleanClause.Occur.MUST)
                     .add(new TermQuery(new Term(SOURCE_HASH, sourceHash)), BooleanClause.Occur.MUST)
                     .build();
-            return new IndexSearcher(reader).count(query) == expectedChunks;
+            return searcher.count(query) == expectedChunks;
+        } finally {
+            searcherManager.release(searcher);
         }
     }
 
-    public synchronized void replace(Long resumeId, List<ResumeChunk> chunks) throws IOException {
-        writer.deleteDocuments(new Term(RESUME_ID, resumeId.toString()));
-        for (ResumeChunk chunk : chunks) {
-            float[] vector = objectMapper.readValue(chunk.getEmbedding(), float[].class);
-            Document document = new Document();
-            document.add(new StringField(RESUME_ID, resumeId.toString(), Field.Store.NO));
-            document.add(new StringField(SOURCE_HASH, chunk.getSourceHash(), Field.Store.NO));
-            document.add(new StoredField(CHUNK_INDEX, chunk.getChunkIndex()));
-            document.add(new KnnFloatVectorField(VECTOR, vector, VectorSimilarityFunction.COSINE));
-            writer.addDocument(document);
+    public void replace(Long resumeId, List<ResumeChunk> chunks) throws IOException {
+        synchronized (writeLock) {
+            writer.deleteDocuments(new Term(RESUME_ID, resumeId.toString()));
+            for (ResumeChunk chunk : chunks) {
+                float[] vector = objectMapper.readValue(chunk.getEmbedding(), float[].class);
+                Document document = new Document();
+                document.add(new StringField(RESUME_ID, resumeId.toString(), Field.Store.NO));
+                document.add(new StringField(SOURCE_HASH, chunk.getSourceHash(), Field.Store.NO));
+                document.add(new StoredField(CHUNK_INDEX, chunk.getChunkIndex()));
+                document.add(new KnnFloatVectorField(VECTOR, vector, VectorSimilarityFunction.COSINE));
+                writer.addDocument(document);
+            }
+            writer.commit();
+            searcherManager.maybeRefreshBlocking();
         }
-        writer.commit();
     }
 
-    public synchronized void delete(Long resumeId) throws IOException {
-        writer.deleteDocuments(new Term(RESUME_ID, resumeId.toString()));
-        writer.commit();
+    public void delete(Long resumeId) throws IOException {
+        synchronized (writeLock) {
+            writer.deleteDocuments(new Term(RESUME_ID, resumeId.toString()));
+            writer.commit();
+            searcherManager.maybeRefreshBlocking();
+        }
     }
 
-    public synchronized List<VectorHit> search(Long resumeId, List<float[]> queries, int limit) throws IOException {
-        writer.commit();
+    public List<VectorHit> search(Long resumeId, List<float[]> queries, int limit) throws IOException {
         Map<Integer, Float> bestScores = new LinkedHashMap<>();
-        try (DirectoryReader reader = DirectoryReader.open(writer)) {
-            IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = searcherManager.acquire();
+        try {
             TermQuery filter = new TermQuery(new Term(RESUME_ID, resumeId.toString()));
             for (float[] query : queries) {
                 ScoreDoc[] hits = searcher.search(new KnnFloatVectorQuery(VECTOR, query, limit, filter), limit).scoreDocs;
@@ -97,6 +122,8 @@ public class LuceneVectorIndex implements AutoCloseable {
                     bestScores.merge(chunkIndex, hit.score, Math::max);
                 }
             }
+        } finally {
+            searcherManager.release(searcher);
         }
         List<VectorHit> result = new ArrayList<>();
         bestScores.forEach((index, score) -> result.add(new VectorHit(index, score)));
@@ -106,9 +133,12 @@ public class LuceneVectorIndex implements AutoCloseable {
 
     @PreDestroy
     @Override
-    public synchronized void close() throws IOException {
-        writer.close();
-        directory.close();
+    public void close() throws IOException {
+        synchronized (writeLock) {
+            try (directory; writer; searcherManager) {
+                // Close in reverse order: searcherManager -> writer -> directory.
+            }
+        }
     }
 
     public record VectorHit(int chunkIndex, float score) {}

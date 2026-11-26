@@ -64,6 +64,12 @@ class VerifyBossJobToolTests {
     }
 
     @Test
+    void resumeDoesNotHoldDatabaseTransactionAcrossExternalVerification() throws Exception {
+        assertFalse(VerifyBossJobTool.class.getMethod("resume", JsonNode.class, JsonNode.class, AgentToolContext.class)
+                .isAnnotationPresent(org.springframework.transaction.annotation.Transactional.class));
+    }
+
+    @Test
     void aListingDelegatesToTheUsersChromeWithBoundIdentity() {
         when(jobs.findById(17L)).thenReturn(job("LISTING"));
         assertNull(tool.beforeBudget(arguments()));

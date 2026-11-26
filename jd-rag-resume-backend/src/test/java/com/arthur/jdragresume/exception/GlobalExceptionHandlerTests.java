@@ -46,6 +46,16 @@ class GlobalExceptionHandlerTests {
     }
 
     @Test
+    void mapsAgentApprovalMismatchTo409() {
+        assertEquals(
+                HttpStatus.CONFLICT,
+                handler.handleBusiness(
+                        new BusinessException("AGENT_APPROVAL_MISMATCH", "answer the pending action first")
+                ).getStatusCode()
+        );
+    }
+
+    @Test
     void accountConflictMatchesTheUniqueConstraintPath() {
         // 串行注册走应用层查重，并发注册走 uk_app_user_username / uk_app_user_email，
         // 是同一件事的两条路径，状态码必须一致

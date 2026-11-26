@@ -146,15 +146,29 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
   if (body === null) return Response.json({ success: false, code: "PAYLOAD_TOO_LARGE" }, { status: 413 });
 
   try {
-    const upstream = await fetch(target, { method: request.method, headers, body, redirect: "manual" });
+    const upstream = await fetch(target, {
+      method: request.method,
+      headers,
+      body,
+      signal: request.signal,
+      redirect: "manual",
+    });
     const responseHeaders = new Headers(upstream.headers);
     ["content-length", "content-encoding", "connection"].forEach((name) => responseHeaders.delete(name));
-    const setCookie = responseHeaders.get("set-cookie");
-    if (setCookie) {
-      responseHeaders.set("set-cookie", rewriteUpstreamCookie(setCookie, incoming));
+    const setCookies = typeof upstream.headers.getSetCookie === "function"
+      ? upstream.headers.getSetCookie()
+      : (responseHeaders.get("set-cookie") ? [responseHeaders.get("set-cookie")!] : []);
+    if (setCookies.length > 0) {
+      responseHeaders.delete("set-cookie");
+      for (const cookie of setCookies) {
+        responseHeaders.append("set-cookie", rewriteUpstreamCookie(cookie, incoming));
+      }
     }
     return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
-  } catch {
+  } catch (error) {
+    if (request.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+      return new Response(null, { status: 499 });
+    }
     return Response.json({ success: false, code: "BACKEND_UNAVAILABLE", message: "后端未启动，请先启动 8080 服务", data: null }, { status: 503 });
   }
 }

@@ -1,13 +1,23 @@
 package com.arthur.jdragresume.rag;
 
+import ai.djl.huggingface.tokenizers.HuggingFaceTokenizer;
+import ai.onnxruntime.OrtException;
+import ai.onnxruntime.OrtSession;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class ClsOnnxEmbeddingModelTests {
     @Test
@@ -75,5 +85,36 @@ class ClsOnnxEmbeddingModelTests {
                 ));
 
         assertTrue(exception.getMessage().contains("SHA256 mismatch"));
+    }
+
+    @Test
+    void destroyClosesSessionAndTokenizerEvenIfSessionCloseFails() throws Exception {
+        ClsOnnxEmbeddingModel model = new ClsOnnxEmbeddingModel(
+                "classpath:tok", "classpath:model", "a".repeat(64), "b".repeat(64), "last_hidden_state", Map.of(), 768);
+        OrtSession session = mock(OrtSession.class);
+        String minimalTokenizerJson = """
+                {
+                  "version": "1.0",
+                  "model": {
+                    "type": "WordPiece",
+                    "unk_token": "[UNK]",
+                    "continuing_subword_prefix": "##",
+                    "max_input_chars_per_word": 100,
+                    "vocab": {"[UNK]": 0, "[CLS]": 1, "[SEP]": 2, "hello": 3}
+                  }
+                }
+                """;
+        HuggingFaceTokenizer tokenizer = HuggingFaceTokenizer.newInstance(
+                new ByteArrayInputStream(minimalTokenizerJson.getBytes(StandardCharsets.UTF_8)), Map.of());
+        doThrow(new OrtException("close failed")).when(session).close();
+        ReflectionTestUtils.setField(model, "session", session);
+        ReflectionTestUtils.setField(model, "tokenizer", tokenizer);
+
+        assertEquals(3L, tokenizer.encode("hello").getIds()[0]);
+
+        model.destroy();
+
+        verify(session).close();
+        assertThrows(Exception.class, () -> tokenizer.encode("hello"));
     }
 }

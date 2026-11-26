@@ -6,6 +6,7 @@ import com.arthur.jdragresume.exception.ResourceNotFoundException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.stereotype.Service;
@@ -14,10 +15,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.ArrayList;
 import java.util.Map;
@@ -29,6 +34,8 @@ import org.springframework.context.event.EventListener;
 @Service
 public class ConversationStore {
     private static final Logger log = LoggerFactory.getLogger(ConversationStore.class);
+    /** Extra grace beyond the turn budget so timeout handling can checkpoint and emit its terminal event before lease expiry. */
+    static final long LEASE_GRACE_MS = 5_000L;
     static final ObjectMapper JSON = new ObjectMapper();
     final JdbcTemplate jdbc;
     final TransactionTemplate transactions;
@@ -58,11 +65,25 @@ public class ConversationStore {
         return detail(userId, key.getKey().longValue(), 0);
     }
 
+    public Header header(long userId, long id) {
+        return locked(userId, id, row -> row);
+    }
+
     public Detail detail(long userId, long id, long after) {
         return locked(userId, id, row -> {
             var events = events(id);
             return new Detail(row, ConversationTurns.project(events), events.stream().filter(event -> event.sequence() > after).toList());
         });
+    }
+
+    public List<Event> eventsAfter(long userId, long id, long after) {
+        return locked(userId, id, row -> eventsAfter(id, after));
+    }
+
+    public Optional<Event> latestEvent(long userId, long id) {
+        return locked(userId, id, row -> jdbc.query(
+                "SELECT * FROM agent_conversation_event WHERE conversation_id=? ORDER BY sequence DESC LIMIT 1",
+                (rs, n) -> event(rs), id).stream().findFirst());
     }
 
     public void delete(long userId, long id) {
@@ -118,15 +139,16 @@ public class ConversationStore {
             String turnId = question != null ? UUID.randomUUID().toString() : row.currentTurn();
             String summary = jdbc.queryForObject("SELECT summary FROM agent_conversation WHERE id=?", String.class, id);
             long acceptedAt = System.currentTimeMillis();
-            var run = new Run(userId, id, turnId, runId, normalized, summary, acceptedAt);
+            var provisionalRun = new Run(userId, id, turnId, runId, normalized, summary, acceptedAt);
             jdbc.update("UPDATE agent_conversation SET state='RUNNING',current_turn=?,active_run=?,run_expires_at=?,title=?,updated_at=? WHERE id=?",
-                    turnId, runId, acceptedAt + timeoutMs + 5000, question != null && row.eventSequence() == 0
+                    turnId, runId, acceptedAt + timeoutMs + LEASE_GRACE_MS, question != null && row.eventSequence() == 0
                             ? question.substring(0, Math.min(120, question.length())) : row.title(), Timestamp.from(Instant.now()), id);
             replaceMessages(id, messages);
-            if (question != null) append(run, "ask", Map.of("question", question));
-            else if (approval != null) append(run, "decide", Map.of("toolCallId", approval.toolCallId(), "approved", approval.approved()));
-            else append(run, "browser_report", Map.of("outcome", browser.outcome()));
-            return run;
+            Event acceptedEvent;
+            if (question != null) acceptedEvent = append(provisionalRun, "ask", Map.of("question", question));
+            else if (approval != null) acceptedEvent = append(provisionalRun, "decide", Map.of("toolCallId", approval.toolCallId(), "approved", approval.approved()));
+            else acceptedEvent = append(provisionalRun, "browser_report", Map.of("outcome", browser.outcome()));
+            return new Run(userId, id, turnId, runId, normalized, summary, acceptedAt, acceptedEvent);
         });
     }
 
@@ -139,9 +161,22 @@ public class ConversationStore {
 
     private void replaceMessages(long id, List<AgentMessage> messages) {
         jdbc.update("DELETE FROM agent_conversation_message WHERE conversation_id=?", id);
-        for (int i = 0; i < messages.size(); i++) {
-            jdbc.update("INSERT INTO agent_conversation_message VALUES(?,?,?)", id, i, json(messages.get(i)));
+        if (messages.isEmpty()) {
+            return;
         }
+        jdbc.batchUpdate("INSERT INTO agent_conversation_message VALUES(?,?,?)", new BatchPreparedStatementSetter() {
+            @Override
+            public void setValues(PreparedStatement ps, int i) throws SQLException {
+                ps.setLong(1, id);
+                ps.setInt(2, i);
+                ps.setString(3, json(messages.get(i)));
+            }
+
+            @Override
+            public int getBatchSize() {
+                return messages.size();
+            }
+        });
     }
 
     public void checkpoint(Run run, List<AgentMessage> messages, String summary) {
@@ -272,12 +307,25 @@ public class ConversationStore {
         });
     }
 
-    public record Run(long userId, long conversationId, String turnId, String runId, TranscriptPolicy.Normalized input, String summary, long acceptedAt) {}
+    public record Run(long userId, long conversationId, String turnId, String runId, TranscriptPolicy.Normalized input, String summary, long acceptedAt, Event acceptedEvent) {
+        public Run(long userId, long conversationId, String turnId, String runId, TranscriptPolicy.Normalized input, String summary, long acceptedAt) {
+            this(userId, conversationId, turnId, runId, input, summary, acceptedAt, null);
+        }
+    }
 
     List<Event> events(long id) {
-        return jdbc.query("SELECT * FROM agent_conversation_event WHERE conversation_id=? ORDER BY sequence", (rs, n) ->
-                new Event(rs.getLong("sequence"), rs.getString("turn_id"), rs.getString("run_id"), rs.getString("type"),
-                        read(rs.getString("payload")), rs.getTimestamp("created_at").toInstant().toString()), id);
+        return jdbc.query("SELECT * FROM agent_conversation_event WHERE conversation_id=? ORDER BY sequence",
+                (rs, n) -> event(rs), id);
+    }
+
+    List<Event> eventsAfter(long id, long after) {
+        return jdbc.query("SELECT * FROM agent_conversation_event WHERE conversation_id=? AND sequence>? ORDER BY sequence",
+                (rs, n) -> event(rs), id, after);
+    }
+
+    private Event event(ResultSet rs) throws SQLException {
+        return new Event(rs.getLong("sequence"), rs.getString("turn_id"), rs.getString("run_id"), rs.getString("type"),
+                read(rs.getString("payload")), rs.getTimestamp("created_at").toInstant().toString());
     }
 
     private Header header(java.sql.ResultSet rs) throws java.sql.SQLException {

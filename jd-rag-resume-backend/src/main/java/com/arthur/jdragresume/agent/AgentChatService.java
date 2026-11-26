@@ -90,7 +90,7 @@ public class AgentChatService {
                            ReasoningEffort reasoningEffort, com.arthur.jdragresume.collect.CollectorMode collectorMode) {
         AppUser user = currentUserService.getCurrentUser();
         // Resolve ownership before model/quota checks, including for writes and pending-action reports.
-        conversations.detail(user.getId(), conversationId, 0);
+        conversations.header(user.getId(), conversationId);
         int inputs = (question != null ? 1 : 0) + (approval != null ? 1 : 0) + (browserReport != null ? 1 : 0);
         if (inputs != 1 || question != null && question.isBlank()) {
             throw new BusinessException("AGENT_INVALID_INPUT", "send exactly one question, approval or browser result");
@@ -153,8 +153,12 @@ public class AgentChatService {
         });
         try {
             // The accepted input is an event too, so live and restored turns have identical inputs.
-            var events = conversations.detail(run.userId(), run.conversationId(), 0).events();
-            send(emitter, disconnected, events.getLast());
+            ConversationStore.Event acceptedEvent = run.acceptedEvent() != null
+                    ? run.acceptedEvent()
+                    : conversations.latestEvent(run.userId(), run.conversationId()).orElse(null);
+            if (acceptedEvent != null) {
+                send(emitter, disconnected, acceptedEvent);
+            }
             String question = run.input().messages().stream().filter(message -> AgentMessage.USER.equals(message.role()))
                     .reduce((first, second) -> second).orElseThrow().content();
             var memories = memoryService.rememberAndRecall(question, approval == null && browserReport == null);

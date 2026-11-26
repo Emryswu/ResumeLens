@@ -22,7 +22,6 @@ import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JobDescriptionServiceQuotaTests {
     private static final int MAX_PER_USER = 200;
@@ -55,7 +54,10 @@ class JobDescriptionServiceQuotaTests {
         AppUserRepository appUserRepository = proxy(AppUserRepository.class, (ignored, method, args) -> {
             state.calls.add(method.getName());
             return switch (method.getName()) {
-                case "findByIdForUpdate" -> Optional.of(user);
+                case "findByIdForUpdate" -> {
+                    state.onUserLock.run();
+                    yield Optional.of(user);
+                }
                 case "toString" -> "AppUserRepositoryTestDouble";
                 default -> throw new UnsupportedOperationException(method.getName());
             };
@@ -109,14 +111,23 @@ class JobDescriptionServiceQuotaTests {
     }
 
     @Test
-    void locksUserRowBeforeCounting() {
-        state.existingCount = 0L;
+    void bulkImportPrechecksThenRechecksUnderUserLockBeforeSaving() {
         service.bulkImport(bulkRequest(1));
-        // 先锁用户行再计数，否则两个并发 /import 会各自读到旧计数、双双通过校验
-        assertTrue(
-                state.calls.indexOf("findByIdForUpdate") < state.calls.indexOf("countByUserId"),
-                "expected findByIdForUpdate before countByUserId, got " + state.calls
-        );
+        assertEquals(List.of("getCurrentUser", "countByUserId", "findByIdForUpdate", "countByUserId", "save"),
+                state.calls);
+    }
+
+    @Test
+    void bulkImportDoesNotSaveWhenQuotaFillsBeforeUserLockIsAcquired() {
+        state.existingCount = MAX_PER_USER - 2L;
+        state.onUserLock = () -> state.existingCount = MAX_PER_USER - 1L;
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> service.bulkImport(bulkRequest(2)));
+
+        assertEquals("JOB_DESCRIPTION_QUOTA_EXCEEDED", exception.getCode());
+        assertEquals(List.of("getCurrentUser", "countByUserId", "findByIdForUpdate", "countByUserId"), state.calls);
+        assertEquals(0, state.savedCount);
     }
 
     @Test
@@ -180,7 +191,7 @@ class JobDescriptionServiceQuotaTests {
         );
     }
 
-    private static CurrentUserService currentUser(AppUser user) {
+    private CurrentUserService currentUser(AppUser user) {
         return new CurrentUserService(
                 proxy(AppUserRepository.class, (ignored, method, args) -> {
                     throw new UnsupportedOperationException(method.getName());
@@ -188,6 +199,7 @@ class JobDescriptionServiceQuotaTests {
         ) {
             @Override
             public AppUser getCurrentUser() {
+                state.calls.add("getCurrentUser");
                 return user;
             }
         };
@@ -200,6 +212,7 @@ class JobDescriptionServiceQuotaTests {
 
     private static final class RepositoryState {
         private final List<String> calls = new ArrayList<>();
+        private Runnable onUserLock = () -> {};
         private long existingCount;
         private long savedCount;
     }

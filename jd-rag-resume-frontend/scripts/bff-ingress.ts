@@ -9,7 +9,7 @@ const handlers = new Map(Object.entries({
   HEAD: route.GET,
 }));
 
-function webRequest(req: IncomingMessage) {
+function webRequest(req: IncomingMessage, signal: AbortSignal) {
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
     if (Array.isArray(value)) value.forEach(item => headers.append(name, item));
@@ -17,7 +17,7 @@ function webRequest(req: IncomingMessage) {
   }
   const https = req.socket instanceof TLSSocket || (trustProxy && headers.get("x-forwarded-proto")?.split(",")[0].trim() === "https");
   const url = new URL(req.url!, `${https ? "https" : "http"}://${resolveHost(req, "localhost")}`);
-  const init: RequestInit & { duplex?: "half" } = { method: req.method, headers };
+  const init: RequestInit & { duplex?: "half" } = { method: req.method, headers, signal };
   if (req.method !== "GET" && req.method !== "HEAD") {
     // Cancelling an oversized upload must leave the socket writable for the 413.
     const body = Readable.from(req.iterator({ destroyOnReturn: false }), { objectMode: false });
@@ -39,15 +39,24 @@ export async function serveBff(req: IncomingMessage, res: ServerResponse, next: 
     return;
   }
   const path = pathname.slice(prefix.length).split("/");
-  const response = await handler(webRequest(req), {
-    params: Promise.resolve({ path }),
-    peer: req.socket.remoteAddress,
-  });
-  // Navigation can close an SSE connection while the backend is opening the response.
-  if (res.destroyed) {
-    await response.body?.cancel();
-    return;
+  const abortController = new AbortController();
+  const abortOnClose = () => {
+    if (!res.writableEnded) abortController.abort();
+  };
+  res.on("close", abortOnClose);
+  try {
+    const response = await handler(webRequest(req, abortController.signal), {
+      params: Promise.resolve({ path }),
+      peer: req.socket.remoteAddress,
+    });
+    // Navigation can close an SSE connection while the backend is opening the response.
+    if (res.destroyed) {
+      await response.body?.cancel();
+      return;
+    }
+    if (response.status === 413) res.shouldKeepAlive = false;
+    await sendWebResponse(response, req, res, false);
+  } finally {
+    res.off("close", abortOnClose);
   }
-  if (response.status === 413) res.shouldKeepAlive = false;
-  await sendWebResponse(response, req, res, false);
 }
