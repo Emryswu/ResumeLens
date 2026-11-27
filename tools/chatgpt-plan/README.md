@@ -21,7 +21,7 @@ $env:APP_CHATGPT_OWNER_ID = Read-Host "本机 ResumeLens 登录用户的数字 I
 $env:APP_CHATGPT_PYTHON = (Resolve-Path .venv-chatgpt\Scripts\python.exe).Path
 ```
 
-使用原有后端启动方式（工作目录为 jd-rag-resume-backend，且 AI_MOCK_ENABLED=false）。后端必须绑定 IPv4 loopback；不要使用端口转发、反向代理对外提供该模式。前端 `.env.local` 设置 `NEXT_PUBLIC_LOCAL_CHATGPT_SETTINGS=true` 后重启前端。打开 AI 助手输入框旁原有「模型与思考档位」菜单，点击「使用 ChatGPT 登录」，在本地授权页发起官方登录。授权成功后回到 AI 助手，刷新可用模型，点击 GPT 模型即可切换聊天与默认开发评测模型；选择原模型会切回 API Key。订阅接口使用默认思考配置，完整分析报告暂时仍使用原来的后端 API Key 模型。网页不会读取 OAuth token 或 ChatGPT 聊天记录。
+使用原有后端启动方式（工作目录为 jd-rag-resume-backend，且 AI_MOCK_ENABLED=false）。后端必须绑定 IPv4 loopback；不要使用端口转发、反向代理对外提供该模式。前端 `.env.local` 设置 `NEXT_PUBLIC_LOCAL_CHATGPT_SETTINGS=true` 后重启前端。打开 AI 助手输入框旁原有「模型与思考档位」菜单，点击「使用 ChatGPT 登录」，在本地授权页发起官方登录。授权成功后回到 AI 助手，刷新可用模型，点击 GPT 模型即可切换聊天与默认开发评测模型；选择原模型会切回 API Key。支持的 GPT 模型可在分档滑杆选择 low、medium、high、xhigh、max，或恢复由模型决定的默认档位；未识别的订阅模型继续使用默认值。完整分析报告暂时仍使用原来的后端 API Key 模型。网页不会读取 OAuth token 或 ChatGPT 聊天记录。
 
 另开一个 PowerShell，在仓库根目录执行：
 
@@ -50,7 +50,7 @@ cd ..
 - 凭据记录保存在用户主目录 `.resumelens-chatgpt/session.enc`，Fernet 密钥在操作系统凭据库中；要求 Windows Credential Manager、macOS Keychain、Linux Secret Service/KWallet 等安全后端，缺少安全后端时显式失败。不要把令牌写进 .env、源码、聊天、日志或 CI。
 - Java 子进程内部取得 access token，接近过期自动刷新、串行保存旋转的 refresh token；登出撤销可续期会话并清理本地 tokens（保留登记）。也可以在 ChatGPT Settings 中断开授权。
 - 请求固定发往 `https://api.openai.com/v1/responses`，不使用原 API Key、AI_BASE_URL 或非官方中转。额度与 ChatGPT plan usage 共用；不会在额度耗尽时自动切换到付费 API。
-- 官方预览不支持部分 Responses 参数，因此模型输出预算/推理强度与旧 DeepSeek 调用并非完全等价；目前采用账号支持的模型及默认推理配置，完整模型/工具兼容性需实际登录验证。
+- 官方预览不支持部分 Responses 参数，因此模型输出预算/推理强度与旧 DeepSeek 调用并非完全等价；聊天可传递显式 reasoning.effort（开发集评测仍使用模型默认档位）；账号实际支持的档位与工具兼容性需本机真实授权验证。
 
 仍可在服务未运行时使用 `login`、`models`、`select-model <slug>`、`logout` 命令行入口。网页中的「断开 ChatGPT」也可撤销本机授权。
 

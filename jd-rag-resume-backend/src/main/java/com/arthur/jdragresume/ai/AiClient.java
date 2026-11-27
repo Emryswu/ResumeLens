@@ -116,11 +116,18 @@ public class AiClient {
         validateConfig();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", aiProperties.getModel());
-        if (effort == ReasoningEffort.OFF) {
+        if (chatGptPlanClient != null) {
+            if (effort != ReasoningEffort.DEFAULT && effort != ReasoningEffort.OFF) {
+                body.put("reasoning_effort", effort.providerValue());
+            }
+        } else if (effort == ReasoningEffort.OFF) {
             body.put("temperature", 0.2);
             body.put("thinking", Map.of("type", "disabled"));
             body.put("max_tokens", 1500);
         } else {
+            if (effort == ReasoningEffort.DEFAULT || effort == ReasoningEffort.MEDIUM || effort == ReasoningEffort.XHIGH) {
+                throw new BusinessException("AI_REQUEST_FAILED", "Unsupported reasoning effort for the API Key model");
+            }
             body.put("thinking", Map.of("type", "enabled"));
             body.put("reasoning_effort", effort.providerValue());
             // Reasoning and the answer share this budget; the old 1500 limit could exhaust it before a tool call.
