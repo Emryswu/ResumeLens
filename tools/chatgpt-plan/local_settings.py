@@ -11,15 +11,10 @@ HOST = "127.0.0.1"
 PORT = 8765
 
 
-def page(profile, models, csrf, message="", error=False):
+def page(profile, csrf, message="", error=False):
     connected = bool(profile.get("access_token") and
                      "chatgpt.tokens.use.direct" in profile.get("scopes", []))
     identity = escape(str(profile.get("email") or "已绑定的 ChatGPT 账号"))
-    current = profile.get("selected_model")
-    options = "".join(
-        '<option value="' + escape(model["slug"], quote=True) + '"' +
-        (" selected" if model["slug"] == current else "") + ">" +
-        escape(model["display_name"]) + "</option>" for model in models)
     hidden = '<input type="hidden" name="csrf" value="' + escape(csrf, quote=True) + '">'
     def action(path, label):
         return f'<form method="post" action="/{path}">{hidden}<button>{label}</button></form>'
@@ -27,13 +22,6 @@ def page(profile, models, csrf, message="", error=False):
     controls = action("login", "重新授权" if connected else "使用 ChatGPT 登录")
     if connected:
         controls += action("logout", "断开 ChatGPT")
-    picker = ""
-    if connected and models:
-        picker = (f'<form method="post" action="/model">{hidden}'
-                  '<label for="model">开发评测模型</label>'
-                  '<select id="model" name="model" required>'
-                  '<option value="">请选择模型</option>' + options +
-                  '</select><button>保存模型</button></form>')
     notice = f'<p role="status" class="{"error" if error else "notice"}">{escape(message)}</p>' if message else ""
     return f"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -49,9 +37,10 @@ a{{color:#285c43}} .error{{color:#a12525}} .notice{{color:#285c43}}
 <body><main><small>ResumeLens / 本地开发</small><h1>ChatGPT 订阅授权</h1>
 <p>当前状态：{account}</p>
 <p>用自己的 ChatGPT 订阅运行本地 Agent 开发集评测。登录将在官方浏览器页面完成，返回这里查看授权结果。不会读取聊天记录。</p>
-{notice}{controls}{picker}
+{notice}{controls}
+<p>授权成功后，请返回 ResumeLens 输入框旁的模型与思考档位菜单选择模型。</p>
 <p><a href="https://chatgpt.com/settings/usage" target="_blank" rel="noopener noreferrer">查看 ChatGPT 额度与授权</a></p>
-<small>仅本机操作系统用户使用。原有网页 API Key 模式不变；模型设置用于本地评测。</small>
+<small>仅本机操作系统用户使用；订阅仅供明确配置的 ResumeLens 本地账号。</small>
 </main></body></html>"""
 
 
@@ -80,17 +69,14 @@ def settings_server(plan, port=PORT):
             self.wfile.write(encoded)
 
         def settings(self, message="", error=False):
-            profile, models = {}, []
+            profile = {}
             try:
                 with FileLock(str(plan.ROOT / "session.lock"), timeout=30):
                     profile = plan.load() or {}
-                    if profile.get("access_token") and plan.PLAN_SCOPE in profile.get("scopes", []):
-                        models = plan.available_models()
-                        profile = plan.load()
             except Exception:
                 message = message or "无法读取账号或模型，请重新授权后再试。"
                 error = True
-            self.respond(200, page(profile, models, csrf, message, error))
+            self.respond(200, page(profile, csrf, message, error))
 
         def do_GET(self):
             if not self.safe_host():
@@ -102,7 +88,7 @@ def settings_server(plan, port=PORT):
 
         def do_POST(self):
             # Explicit same-origin form submission prevents a public website
-            # from signing in, revoking credentials or changing the local model.
+            # from signing in or revoking credentials.
             if (not self.safe_host() or self.headers.get("Origin") != origin or
                     self.headers.get_content_type() != "application/x-www-form-urlencoded"):
                 self.respond(403, "Forbidden")
@@ -130,9 +116,6 @@ def settings_server(plan, port=PORT):
                     elif self.path == "/logout":
                         plan.logout()
                         message = "本机授权已清理。"
-                    elif self.path == "/model" and "model" in fields:
-                        plan.select_model(fields["model"][0])
-                        message = "评测模型已保存。"
                     else:
                         self.respond(404, "Not found")
                         return
