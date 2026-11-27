@@ -25,11 +25,13 @@ class LocalChatGptDevEvalTests {
         Assumptions.assumeTrue("true".equals(System.getenv("RUN_CHATGPT_DEV_EVAL")),
                 "No live ChatGPT requests by default");
         String python = required("CHATGPT_PLAN_PYTHON");
-        String modelId = required("AI_MODEL");
         Path helper = Path.of("..", "tools", "chatgpt-plan", "chatgpt_plan.py").toAbsolutePath().normalize();
+        String override = System.getenv("CHATGPT_DEV_MODEL");
+        String modelId = override == null || override.isBlank()
+                ? helperOutput(python, helper, "selected-model") : override;
         AiProperties properties = new AiProperties();
         properties.setModel(modelId);
-        var client = AiClient.forLocalChatGpt(properties, JSON, () -> token(python, helper));
+        var client = AiClient.forLocalChatGpt(properties, JSON, () -> helperOutput(python, helper, "token"));
         var model = new OpenAiCompatibleAgentModel(client);
         var group = AgentEvalV3.group("dev");
         String taskId = System.getenv("CHATGPT_DEV_TASK");
@@ -70,23 +72,23 @@ class LocalChatGptDevEvalTests {
         return value;
     }
 
-    private static String token(String python, Path helper) {
+    private static String helperOutput(String python, Path helper, String command) {
         Process process = null;
         try {
-            process = new ProcessBuilder(python, helper.toString(), "token")
+            process = new ProcessBuilder(python, helper.toString(), command)
                     .redirectError(ProcessBuilder.Redirect.DISCARD)
                     .start();
             if (!process.waitFor(45, TimeUnit.SECONDS)) {
                 throw new BusinessException("AI_AUTH_FAILED", "Local ChatGPT authorization helper timed out");
             }
             if (process.exitValue() != 0) {
-                throw new BusinessException("AI_AUTH_FAILED", "Run the local ChatGPT login helper again");
+                throw new BusinessException("AI_AUTH_FAILED", "Authorize ChatGPT and select a model in local settings");
             }
-            String token = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            if (token.isBlank() || token.chars().anyMatch(Character::isWhitespace)) {
+            String value = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            if (value.isBlank() || value.chars().anyMatch(Character::isWhitespace)) {
                 throw new BusinessException("AI_AUTH_FAILED", "Invalid response from local authorization helper");
             }
-            return token;
+            return value;
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new BusinessException("AI_REQUEST_INTERRUPTED", "Local ChatGPT authorization interrupted");
