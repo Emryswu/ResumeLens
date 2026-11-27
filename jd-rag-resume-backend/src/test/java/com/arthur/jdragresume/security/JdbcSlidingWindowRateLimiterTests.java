@@ -113,6 +113,43 @@ class JdbcSlidingWindowRateLimiterTests {
         assertNotEquals(k1, k2);
     }
 
+    @Test
+    void admissionAndReleaseUseRequiresNewTransactionsSoOuterRollbackCannotEraseCounts() {
+        AtomicLong now = new AtomicLong(1_000_000L);
+        Map<String, Long> buckets = new HashMap<>();
+        List<Entry> entries = new ArrayList<>();
+        JdbcTemplate jdbc = mockJdbc(buckets, entries, new AtomicLong());
+        List<Integer> propagations = new ArrayList<>();
+        PlatformTransactionManager recordingTx = new PlatformTransactionManager() {
+            @Override
+            public TransactionStatus getTransaction(TransactionDefinition definition) {
+                propagations.add(definition.getPropagationBehavior());
+                return new SimpleTransactionStatus();
+            }
+
+            @Override
+            public void commit(TransactionStatus status) { }
+
+            @Override
+            public void rollback(TransactionStatus status) { }
+        };
+        JdbcSlidingWindowRateLimiter limiter = new JdbcSlidingWindowRateLimiter(jdbc, recordingTx, now::get, 100, 0);
+        Key key = new Key("profile-password", null, "user:7");
+
+        assertTrue(limiter.tryAcquire(key, 1, 10_000L));
+        assertFalse(limiter.tryAcquire(key, 1, 10_000L));
+        limiter.release(key);
+
+        assertEquals(
+                List.of(
+                        TransactionDefinition.PROPAGATION_REQUIRES_NEW,
+                        TransactionDefinition.PROPAGATION_REQUIRES_NEW,
+                        TransactionDefinition.PROPAGATION_REQUIRES_NEW
+                ),
+                propagations
+        );
+    }
+
     @SuppressWarnings("unchecked")
     private static JdbcTemplate mockJdbc(Map<String, Long> buckets, List<Entry> entries, AtomicLong ids) {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);

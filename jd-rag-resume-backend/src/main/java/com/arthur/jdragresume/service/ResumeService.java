@@ -33,7 +33,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -142,7 +141,7 @@ public class ResumeService {
     @Transactional(readOnly = true)
     public PageResponse<ResumeResponse> findAll(int page, int size, String keyword) {
         AppUser user = currentUserService.getCurrentUser();
-        String safeKeyword = normalizeKeyword(keyword);
+        String safeKeyword = UserOwnedServiceSupport.normalizeKeyword(keyword);
         var pageRequest = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return PageResponse.from(resumeRepository
                 .findByUserIdAndTitleContainingIgnoreCaseOrUserIdAndCandidateNameContainingIgnoreCase(
@@ -159,7 +158,7 @@ public class ResumeService {
     @Transactional(readOnly = true)
     public PageResponse<ResumeResponse> findAllForAgent(int page, int size, String keyword) {
         AppUser user = currentUserService.getCurrentUser();
-        String safeKeyword = normalizeKeyword(keyword);
+        String safeKeyword = UserOwnedServiceSupport.normalizeKeyword(keyword);
         var pageable = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt", "id"));
         return PageResponse.from(resumeRepository
                 .findByUserIdAndTitleContainingIgnoreCaseOrUserIdAndCandidateNameContainingIgnoreCase(
@@ -178,8 +177,8 @@ public class ResumeService {
         Resume resume = new Resume();
         applyRequest(resume, request);
         semanticEmbeddingService.refresh(resume);
-        return inTransaction(() -> {
-            AppUser user = lockUser(precheckUser.getId());
+        return UserOwnedServiceSupport.inTransaction(transactionTemplate, () -> {
+            AppUser user = UserOwnedServiceSupport.lockUser(appUserRepository, precheckUser.getId());
             enforceResumeCount(user);
             resume.setUser(user);
             return ResumeResponse.from(resumeRepository.save(resume));
@@ -193,10 +192,18 @@ public class ResumeService {
             String phone,
             String email
     ) {
+        UploadMetadata meta = validateUploadMetadata(file);
+        AppUser precheckUser = currentUserService.getCurrentUser();
+        enforceUploadQuota(precheckUser, file.getSize());
+
+        Resume resume = buildUploadedResume(file, meta, title, candidateName, phone, email);
+        return persistUploadedResume(precheckUser.getId(), meta.extension(), file, resume);
+    }
+
+    private UploadMetadata validateUploadMetadata(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException("EMPTY_FILE", "resume file must not be empty");
         }
-
         String originalFileName = file.getOriginalFilename() == null ? "resume" : file.getOriginalFilename();
         if (originalFileName.length() > 255) {
             throw new BusinessException("VALIDATION_ERROR", "originalFileName 不能超过 255 个字符");
@@ -209,29 +216,43 @@ public class ResumeService {
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new BusinessException("UNSUPPORTED_FILE_TYPE", "only PDF, DOC, DOCX, TXT and MD files are supported");
         }
+        return new UploadMetadata(originalFileName, contentType, extension);
+    }
 
-        AppUser precheckUser = currentUserService.getCurrentUser();
-        enforceResumeCount(precheckUser);
-        enforceStoredBytes(precheckUser, file.getSize());
-
+    private Resume buildUploadedResume(
+            MultipartFile file,
+            UploadMetadata meta,
+            String title,
+            String candidateName,
+            String phone,
+            String email
+    ) {
         String parsedRawText = limitRawText(resumeTextExtractor.extract(file));
-        ResumeRequest request = new ResumeRequest(
-                isBlank(title) ? truncate(originalFileName, 120) : title.trim(),
-                candidateName, phone, email, parsedRawText);
+        String resolvedTitle = UserOwnedServiceSupport.isBlank(title)
+                ? UserOwnedServiceSupport.truncate(meta.originalFileName(), 120)
+                : title.trim();
+        ResumeRequest request = new ResumeRequest(resolvedTitle, candidateName, phone, email, parsedRawText);
         validateRequest(request);
 
         Resume resume = new Resume();
         applyRequest(resume, request);
-        resume.setOriginalFileName(originalFileName);
-        resume.setContentType(contentType);
-        resume.setFileExtension(extension);
+        resume.setOriginalFileName(meta.originalFileName());
+        resume.setContentType(meta.contentType());
+        resume.setFileExtension(meta.extension());
         resume.setFileSize(file.getSize());
         semanticEmbeddingService.refresh(resume);
+        return resume;
+    }
 
-        return inTransaction(() -> {
-            AppUser user = lockUser(precheckUser.getId());
-            enforceResumeCount(user);
-            enforceStoredBytes(user, file.getSize());
+    private ResumeResponse persistUploadedResume(
+            Long userId,
+            String extension,
+            MultipartFile file,
+            Resume resume
+    ) {
+        return UserOwnedServiceSupport.inTransaction(transactionTemplate, () -> {
+            AppUser user = UserOwnedServiceSupport.lockUser(appUserRepository, userId);
+            enforceUploadQuota(user, file.getSize());
             String storedLocation = null;
             try {
                 storedLocation = resumeFileStorage.store(user.getId(), extension, file);
@@ -257,31 +278,46 @@ public class ResumeService {
         });
     }
 
+    private void enforceUploadQuota(AppUser user, long incomingBytes) {
+        enforceResumeCount(user);
+        enforceStoredBytes(user, incomingBytes);
+    }
+
     public ResumeResponse update(Long id, ResumeRequest request) {
         AppUser precheckUser = currentUserService.getCurrentUser();
         Resume existing = getEntityForUser(id, precheckUser.getId());
-        Resume computed = new Resume();
-        applyRequest(computed, request);
-        computed.setSemanticEmbedding(existing.getSemanticEmbedding());
-        computed.setSemanticEmbeddingFingerprint(existing.getSemanticEmbeddingFingerprint());
-        computed.setSemanticEmbeddingModelKey(existing.getSemanticEmbeddingModelKey());
-        if (!semanticEmbeddingService.isCurrent(computed)) {
-            semanticEmbeddingService.refresh(computed);
-        }
-        return inTransaction(() -> {
+        Resume computed = prepareComputedResume(request, existing);
+        return UserOwnedServiceSupport.inTransaction(transactionTemplate, () -> {
             AppUser user = lockCurrentUser();
             Resume resume = getEntityForUser(id, user.getId());
             boolean rawTextChanged = !Objects.equals(resume.getRawText(), computed.getRawText());
             applyRequest(resume, request);
-            resume.setSemanticEmbedding(computed.getSemanticEmbedding());
-            resume.setSemanticEmbeddingFingerprint(computed.getSemanticEmbeddingFingerprint());
-            resume.setSemanticEmbeddingModelKey(computed.getSemanticEmbeddingModelKey());
+            copySemanticEmbedding(resume, computed);
             if (rawTextChanged) {
                 resumeChunkRepository.deleteByResumeId(id);
             }
             // Retrieval checks the Lucene source hash and replaces the old index when it rebuilds the chunks.
             return ResumeResponse.from(resumeRepository.save(resume));
         });
+    }
+
+    private Resume prepareComputedResume(ResumeRequest request, Resume existing) {
+        Resume computed = new Resume();
+        applyRequest(computed, request);
+        copySemanticEmbedding(computed, existing);
+        if (!semanticEmbeddingService.isCurrent(computed)) {
+            semanticEmbeddingService.refresh(computed);
+        }
+        return computed;
+    }
+
+    private static void copySemanticEmbedding(Resume target, Resume source) {
+        target.setSemanticEmbedding(source.getSemanticEmbedding());
+        target.setSemanticEmbeddingFingerprint(source.getSemanticEmbeddingFingerprint());
+        target.setSemanticEmbeddingModelKey(source.getSemanticEmbeddingModelKey());
+    }
+
+    private record UploadMetadata(String originalFileName, String contentType, String extension) {
     }
 
     @Transactional
@@ -327,12 +363,7 @@ public class ResumeService {
     }
 
     private AppUser lockCurrentUser() {
-        return lockUser(currentUserService.getCurrentUser().getId());
-    }
-
-    private AppUser lockUser(Long userId) {
-        return appUserRepository.findByIdForUpdate(userId)
-                .orElseThrow(() -> new IllegalStateException("current user no longer exists"));
+        return UserOwnedServiceSupport.lockUser(appUserRepository, currentUserService.getCurrentUser().getId());
     }
 
     private void enforceResumeCount(AppUser user) {
@@ -361,13 +392,6 @@ public class ResumeService {
             throw new BusinessException("VALIDATION_ERROR",
                     "简历字段 " + violation.getPropertyPath() + " 格式或长度不符合要求");
         }
-    }
-
-    private <T> T inTransaction(Supplier<T> action) {
-        if (transactionTemplate == null) {
-            return action.get();
-        }
-        return transactionTemplate.execute(status -> action.get());
     }
 
     private void deleteVectorIndex(Long id) {
@@ -400,28 +424,12 @@ public class ResumeService {
         return rawText;
     }
 
-    private String truncate(String value, int maxLength) {
-        if (value == null) {
-            return "";
-        }
-        String trimmed = value.trim();
-        return trimmed.length() <= maxLength ? trimmed : trimmed.substring(0, maxLength);
-    }
-
     private String extractExtension(String filename) {
         int dotIndex = filename.lastIndexOf('.');
         if (dotIndex < 0 || dotIndex == filename.length() - 1) {
             throw new BusinessException("MISSING_FILE_EXTENSION", "resume file extension is required");
         }
         return filename.substring(dotIndex + 1).toLowerCase(Locale.ROOT);
-    }
-
-    private String normalizeKeyword(String keyword) {
-        return keyword == null ? "" : keyword.trim();
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.trim().isEmpty();
     }
 
     private void deleteFileOnRollback(String storedLocation) {

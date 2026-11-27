@@ -49,6 +49,29 @@ public class AnalysisResultParser {
      * never resume text, so it can go into the server log.
      */
     ParsedAnalysis parseWithAudit(String text, Set<Integer> keptChunkIndexes) {
+        JsonNode root = parseRootObject(text);
+        BigDecimal score = validateAndParseScore(root);
+        Set<Integer> allowed = keptChunkIndexes == null ? Set.of() : Set.copyOf(keptChunkIndexes);
+
+        StrengthAudit strengths = auditStrengths(root.path("strengths"), allowed);
+        GapAudit gaps = auditGaps(root.path("missingSkills"), allowed);
+
+        CitationAudit audit = new CitationAudit(
+                strengths.total(),
+                strengths.total() - strengths.acceptedItems().size(),
+                strengths.citedOutsideKept(),
+                strengths.uncited(),
+                strengths.malformed(),
+                strengths.shapes(),
+                gaps.citationsDropped()
+        );
+        if (strengths.total() > 0 && strengths.acceptedItems().isEmpty()) {
+            throw new CitationRejectedException(audit);
+        }
+        return new ParsedAnalysis(buildAnalysisResult(root, score, strengths, gaps, audit), audit);
+    }
+
+    private JsonNode parseRootObject(String text) {
         if (text == null || text.isBlank()) {
             throw new ResponseParseException(ParseFailure.EMPTY_RESPONSE);
         }
@@ -68,6 +91,10 @@ public class AnalysisResultParser {
         if (root == null || !root.isObject()) {
             throw new ResponseParseException(ParseFailure.NOT_AN_OBJECT);
         }
+        return root;
+    }
+
+    private BigDecimal validateAndParseScore(JsonNode root) {
         BigDecimal score = parseScore(root.path("matchScore"));
         requireFindings(root, "strengths");
         requireFindings(root, "missingSkills");
@@ -77,25 +104,21 @@ public class AnalysisResultParser {
         }
         requireOptionalTextOrStringArray(root, "improvementSuggestions");
         requireOptionalTextOrStringArray(root, "interviewQuestions");
-        Set<Integer> allowed = keptChunkIndexes == null ? Set.of() : Set.copyOf(keptChunkIndexes);
+        return score;
+    }
 
+    private static StrengthAudit auditStrengths(JsonNode strengthsNode, Set<Integer> allowed) {
         List<ReportItem> acceptedItems = new ArrayList<>();
         List<String> acceptedLines = new ArrayList<>();
         Set<Integer> citedOutsideKept = new TreeSet<>();
+        Set<String> shapes = new TreeSet<>();
         int total = 0;
         int uncited = 0;
         int malformed = 0;
-        Set<String> shapes = new TreeSet<>();
-        for (Candidate candidate : candidates(root.path("strengths"))) {
+        for (Candidate candidate : candidates(strengthsNode)) {
             total++;
             boolean found = !candidate.chunks().isEmpty();
-            boolean outside = false;
-            for (int chunk : candidate.chunks()) {
-                if (!allowed.contains(chunk)) {
-                    outside = true;
-                    citedOutsideKept.add(chunk);
-                }
-            }
+            boolean outside = collectOutsideChunks(candidate.chunks(), allowed, citedOutsideKept);
             boolean broken = candidate.broken() || candidate.isBlank();
             if (!found) {
                 uncited++;
@@ -110,40 +133,82 @@ public class AnalysisResultParser {
                 acceptedLines.add(candidate.legacyLine());
             }
         }
+        return new StrengthAudit(acceptedItems, acceptedLines, total, uncited, malformed, citedOutsideKept, shapes);
+    }
 
+    private static boolean collectOutsideChunks(
+            List<Integer> chunks,
+            Set<Integer> allowed,
+            Set<Integer> citedOutsideKept
+    ) {
+        boolean outside = false;
+        for (int chunk : chunks) {
+            if (!allowed.contains(chunk)) {
+                outside = true;
+                citedOutsideKept.add(chunk);
+            }
+        }
+        return outside;
+    }
+
+    private static GapAudit auditGaps(JsonNode gapsNode, Set<Integer> allowed) {
         // A gap describes what the resume does not show, so it may cite nothing. A citation that does not hold is
         // removed from the gap; the gap itself stays.
         List<ReportItem> gapItems = new ArrayList<>();
         List<String> gapLines = new ArrayList<>();
-        int gapCitationsDropped = 0;
-        for (Candidate candidate : candidates(root.path("missingSkills"))) {
+        int citationsDropped = 0;
+        for (Candidate candidate : candidates(gapsNode)) {
             if (candidate.isBlank()) {
                 continue;
             }
             List<Integer> valid = candidate.chunks().stream().filter(allowed::contains).toList();
             int dropped = candidate.chunks().size() - valid.size() + (candidate.broken() ? 1 : 0);
-            gapCitationsDropped += dropped;
+            citationsDropped += dropped;
             ReportItem item = candidate.toItem(valid);
             gapItems.add(item);
             gapLines.add(dropped == 0 ? candidate.legacyLine() : item.legacyLine());
         }
+        return new GapAudit(gapItems, gapLines, citationsDropped);
+    }
 
-        CitationAudit audit = new CitationAudit(total, total - acceptedItems.size(), citedOutsideKept, uncited,
-                malformed, shapes, gapCitationsDropped);
-        if (total > 0 && acceptedItems.isEmpty()) {
-            throw new CitationRejectedException(audit);
-        }
+    private AiAnalysisResult buildAnalysisResult(
+            JsonNode root,
+            BigDecimal score,
+            StrengthAudit strengths,
+            GapAudit gaps,
+            CitationAudit audit
+    ) {
         // Old-style string replies that passed whole keep their exact text, separators included.
         JsonNode strengthsNode = root.path("strengths");
         String strengthsText = strengthsNode.isTextual() && audit.dropped() == 0
-                ? strengthsNode.asText() : String.join("\n", acceptedLines);
+                ? strengthsNode.asText() : String.join("\n", strengths.acceptedLines());
         JsonNode gapsNode = root.path("missingSkills");
-        String gapsText = gapsNode.isTextual() && gapCitationsDropped == 0
-                ? gapsNode.asText() : String.join("\n", gapLines);
-        AiAnalysisResult result = new AiAnalysisResult(score, strengthsText, gapsText,
-                normalize(root.path("improvementSuggestions")), normalize(root.path("interviewQuestions")),
-                normalize(root.path("summary")), acceptedItems, gapItems);
-        return new ParsedAnalysis(result, audit);
+        String gapsText = gapsNode.isTextual() && gaps.citationsDropped() == 0
+                ? gapsNode.asText() : String.join("\n", gaps.gapLines());
+        return new AiAnalysisResult(
+                score,
+                strengthsText,
+                gapsText,
+                normalize(root.path("improvementSuggestions")),
+                normalize(root.path("interviewQuestions")),
+                normalize(root.path("summary")),
+                strengths.acceptedItems(),
+                gaps.gapItems()
+        );
+    }
+
+    private record StrengthAudit(
+            List<ReportItem> acceptedItems,
+            List<String> acceptedLines,
+            int total,
+            int uncited,
+            int malformed,
+            Set<Integer> citedOutsideKept,
+            Set<String> shapes
+    ) {
+    }
+
+    private record GapAudit(List<ReportItem> gapItems, List<String> gapLines, int citationsDropped) {
     }
 
     /**
@@ -181,22 +246,25 @@ public class AnalysisResultParser {
             throw new ResponseParseException(ParseFailure.INVALID_FIELDS);
         }
         for (JsonNode item : node) {
-            if (item.isTextual()) {
-                continue;
+            if (!item.isTextual()) {
+                validateFindingObject(item);
             }
-            if (!item.isObject()) {
+        }
+    }
+
+    private static void validateFindingObject(JsonNode item) {
+        if (!item.isObject()) {
+            throw new ResponseParseException(ParseFailure.INVALID_FIELDS);
+        }
+        for (String key : List.of("title", "detail", "category")) {
+            JsonNode value = item.path(key);
+            if (!value.isMissingNode() && !value.isTextual()) {
                 throw new ResponseParseException(ParseFailure.INVALID_FIELDS);
             }
-            for (String key : List.of("title", "detail", "category")) {
-                JsonNode value = item.path(key);
-                if (!value.isMissingNode() && !value.isTextual()) {
-                    throw new ResponseParseException(ParseFailure.INVALID_FIELDS);
-                }
-            }
-            JsonNode chunks = item.path("chunks");
-            if (!chunks.isMissingNode() && !chunks.isArray() && !chunks.isTextual() && !chunks.isIntegralNumber()) {
-                throw new ResponseParseException(ParseFailure.INVALID_FIELDS);
-            }
+        }
+        JsonNode chunks = item.path("chunks");
+        if (!chunks.isMissingNode() && !chunks.isArray() && !chunks.isTextual() && !chunks.isIntegralNumber()) {
+            throw new ResponseParseException(ParseFailure.INVALID_FIELDS);
         }
     }
 
@@ -245,22 +313,8 @@ public class AnalysisResultParser {
 
     private static Candidate fromObject(JsonNode element) {
         List<Integer> chunks = new ArrayList<>();
-        boolean broken = false;
         JsonNode refs = element.path("chunks");
-        List<JsonNode> refList = new ArrayList<>();
-        if (refs.isArray()) {
-            refs.forEach(refList::add);
-        } else if (!refs.isMissingNode() && !refs.isNull()) {
-            refList.add(refs);
-        }
-        for (JsonNode ref : refList) {
-            Integer index = chunkRef(ref);
-            if (index == null) {
-                broken = true;
-            } else {
-                chunks.add(index);
-            }
-        }
+        boolean broken = collectChunkRefs(refs, chunks);
         // Tokens the model also wrote into the text count as citations and leave the visible text.
         String rawTitle = text(element.path("title"));
         String rawDetail = text(element.path("detail"));
@@ -270,6 +324,23 @@ public class AnalysisResultParser {
         return new Candidate(title.strip(), detail.strip(), distinct(chunks), broken,
                 ReportCategory.fromCode(text(element.path("category"))), null,
                 rawTitle + " " + rawDetail + " " + refs);
+    }
+
+    private static boolean collectChunkRefs(JsonNode refs, List<Integer> chunks) {
+        if (refs.isMissingNode() || refs.isNull()) {
+            return false;
+        }
+        boolean broken = false;
+        Iterable<JsonNode> items = refs.isArray() ? refs : List.of(refs);
+        for (JsonNode ref : items) {
+            Integer index = chunkRef(ref);
+            if (index == null) {
+                broken = true;
+            } else {
+                chunks.add(index);
+            }
+        }
+        return broken;
     }
 
     private static final Pattern CHUNK_REF_PATTERN = Pattern.compile("^\\[?(?:chunk-?)?(\\d+)]?$",

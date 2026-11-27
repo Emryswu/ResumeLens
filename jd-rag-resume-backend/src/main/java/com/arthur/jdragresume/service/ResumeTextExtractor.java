@@ -17,8 +17,10 @@ import org.springframework.web.multipart.MultipartFile;
 import org.xml.sax.ContentHandler;
 import org.xml.sax.SAXException;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Set;
@@ -82,12 +84,19 @@ public class ResumeTextExtractor {
     }
 
     private String readPlainText(MultipartFile file) throws IOException {
-        byte[] bytes = file.getBytes();
-        String text = new String(bytes, StandardCharsets.UTF_8);
-        if (text.length() > MAX_RAW_TEXT_CHARS) {
-            throw tooLong();
+        StringBuilder text = new StringBuilder();
+        char[] buffer = new char[4096];
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
+            int read;
+            while ((read = reader.read(buffer)) != -1) {
+                if (text.length() + read > MAX_RAW_TEXT_CHARS) {
+                    throw tooLong();
+                }
+                text.append(buffer, 0, read);
+            }
         }
-        return text;
+        return text.toString();
     }
 
     private String parseWithTika(MultipartFile file) throws IOException, SAXException, TikaException {
