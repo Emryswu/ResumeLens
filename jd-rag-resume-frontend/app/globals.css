@@ -402,6 +402,9 @@ a.secondary {
 .choice-menu .choice-menu-option[aria-selected="true"] { background: #e7f2e9; color: var(--mint-dark); }
 .choice-menu .choice-menu-trigger:focus-visible { outline: 2px solid var(--mint-dark); outline-offset: 3px; }
 .choice-menu-extra { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.choice-menu-section-label { display: block; padding: 8px 12px 4px; color: var(--muted); font-size: var(--text-meta); font-weight: 600; }
+.choice-menu-extra > .choice-menu-option-description { display: block; padding: 8px 12px; }
+.choice-menu .choice-menu-option[aria-pressed="true"] { background: #e7f2e9; color: var(--mint-dark); }
 .choice-menu .choice-menu-switch { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; padding: 11px 12px; border: 0; border-radius: 11px; background: transparent; color: var(--ink); text-align: left; font-size: var(--text-body); box-shadow: none; }
 .choice-menu .choice-menu-switch:hover, .choice-menu .choice-menu-switch:focus-visible { background: #f0f5f0; outline: none; }
 .choice-menu-switch-track { position: relative; flex: 0 0 auto; width: 36px; height: 20px; border-radius: 999px; background: var(--line); transition: background .15s; }
