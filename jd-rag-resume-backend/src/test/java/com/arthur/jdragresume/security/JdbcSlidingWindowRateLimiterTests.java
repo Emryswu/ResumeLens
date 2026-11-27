@@ -81,6 +81,28 @@ class JdbcSlidingWindowRateLimiterTests {
     }
 
     @Test
+    void rejectsNewBucketsAtCapacityButExistingBucketsContinueAndCleanupRestoresAdmission() {
+        AtomicLong now = new AtomicLong(1_000_000L);
+        Map<String, Long> buckets = new HashMap<>();
+        List<Entry> entries = new ArrayList<>();
+        JdbcTemplate jdbc = mockJdbc(buckets, entries, new AtomicLong());
+        JdbcSlidingWindowRateLimiter a = new JdbcSlidingWindowRateLimiter(jdbc, NOOP_TX, now::get, 100, 2);
+        JdbcSlidingWindowRateLimiter b = new JdbcSlidingWindowRateLimiter(jdbc, NOOP_TX, now::get, 100, 2);
+        Key first = new Key("login", "192.0.2.1", "alice");
+        Key second = new Key("login", "192.0.2.2", "bob");
+        Key third = new Key("login", "192.0.2.3", "charlie");
+        assertTrue(a.tryAcquire(first, 3, 1_000));
+        assertTrue(b.tryAcquire(second, 3, 1_000));
+        assertFalse(b.tryAcquire(third, 3, 1_000));
+        assertEquals(2, buckets.size());
+        assertTrue(b.tryAcquire(first, 3, 1_000));
+        now.addAndGet(1_001);
+        assertEquals(3, a.cleanupExpired());
+        assertTrue(buckets.isEmpty());
+        assertTrue(b.tryAcquire(third, 3, 1_000));
+    }
+
+    @Test
     void encodeKeyBoundsLengthAndSeparatesComponentsWithoutCollision() {
         String hugeSubject = "a".repeat(5_000);
         String longKey = JdbcSlidingWindowRateLimiter.encodeKey(new Key("login", "192.0.2.1", hugeSubject));
@@ -94,14 +116,39 @@ class JdbcSlidingWindowRateLimiterTests {
     @SuppressWarnings("unchecked")
     private static JdbcTemplate mockJdbc(Map<String, Long> buckets, List<Entry> entries, AtomicLong ids) {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
-        when(jdbc.update(contains("INSERT INTO rate_limit_buckets"), anyString(), anyLong()))
+        Map<String, String> tokens = new HashMap<>();
+        AtomicLong capacity = new AtomicLong();
+        when(jdbc.update(contains("INSERT INTO rate_limit_buckets"), anyString(), anyLong(), anyString()))
                 .thenAnswer(inv -> {
                     String key = inv.getArgument(1);
                     long ts = inv.getArgument(2);
-                    return buckets.putIfAbsent(key, ts) == null ? 1 : 0;
+                    if (buckets.putIfAbsent(key, ts) == null) {
+                        tokens.put(key, inv.getArgument(3));
+                        return 1;
+                    }
+                    return 0;
                 });
-        when(jdbc.queryForObject(contains("SELECT bucket_key FROM rate_limit_buckets"), eq(String.class), anyString()))
-                .thenAnswer(inv -> inv.getArgument(2));
+        when(jdbc.queryForObject(contains("SELECT creation_token FROM rate_limit_buckets"), eq(String.class), anyString()))
+                .thenAnswer(inv -> tokens.get(inv.getArgument(2)));
+        when(jdbc.update(contains("tracked_buckets = tracked_buckets + 1"), anyInt()))
+                .thenAnswer(inv -> {
+                    int max = inv.getArgument(1);
+                    if (capacity.get() >= max) return 0;
+                    capacity.incrementAndGet();
+                    return 1;
+                });
+        when(jdbc.update(contains("tracked_buckets = tracked_buckets - 1")))
+                .thenAnswer(inv -> { capacity.decrementAndGet(); return 1; });
+        when(jdbc.update(eq("DELETE FROM rate_limit_buckets WHERE bucket_key = ?"), anyString()))
+                .thenAnswer(inv -> {
+                    String key = inv.getArgument(1);
+                    tokens.remove(key);
+                    return buckets.remove(key) != null ? 1 : 0;
+                });
+        when(jdbc.query(contains("WHERE NOT EXISTS (SELECT 1 FROM rate_limit_entries"), any(RowMapper.class), anyInt()))
+                .thenAnswer(inv -> buckets.keySet().stream()
+                        .filter(key -> entries.stream().noneMatch(entry -> entry.bucketKey().equals(key)))
+                        .limit((Integer) inv.getArgument(2)).toList());
         when(jdbc.update(contains("DELETE FROM rate_limit_entries WHERE bucket_key = ? AND hit_at_ms <="),
                 anyString(), anyLong())).thenAnswer(inv -> {
             String key = inv.getArgument(1);

@@ -17,6 +17,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.LongSupplier;
 
 /**
@@ -31,6 +32,7 @@ public class JdbcSlidingWindowRateLimiter extends SlidingWindowRateLimiter {
     private final TransactionTemplate transactions;
     private final LongSupplier clock;
     private final int cleanupBatchSize;
+    private final int maxTrackedBuckets;
 
     public JdbcSlidingWindowRateLimiter(JdbcTemplate jdbc, PlatformTransactionManager transactionManager) {
         this(jdbc, transactionManager, System::currentTimeMillis, 1000);
@@ -42,11 +44,22 @@ public class JdbcSlidingWindowRateLimiter extends SlidingWindowRateLimiter {
             LongSupplier clock,
             int cleanupBatchSize
     ) {
+        this(jdbc, transactionManager, clock, cleanupBatchSize, 100_000);
+    }
+
+    public JdbcSlidingWindowRateLimiter(
+            JdbcTemplate jdbc,
+            PlatformTransactionManager transactionManager,
+            LongSupplier clock,
+            int cleanupBatchSize,
+            int maxTrackedBuckets
+    ) {
         super(clock);
         this.jdbc = jdbc;
         this.transactions = new TransactionTemplate(transactionManager);
         this.clock = clock;
         this.cleanupBatchSize = Math.max(10, cleanupBatchSize);
+        this.maxTrackedBuckets = maxTrackedBuckets;
     }
 
     @Override
@@ -60,14 +73,28 @@ public class JdbcSlidingWindowRateLimiter extends SlidingWindowRateLimiter {
         long expiresAt = now + safeWindowMs;
         String bucketKey = encodeKey(key);
 
+        String creationToken = UUID.randomUUID().toString();
         Boolean acquired = transactions.execute(status -> {
             jdbc.update(
-                    "INSERT INTO rate_limit_buckets(bucket_key, updated_at_ms) VALUES (?, ?) "
+                    "INSERT INTO rate_limit_buckets(bucket_key, updated_at_ms, creation_token) VALUES (?, ?, ?) "
                             + "ON DUPLICATE KEY UPDATE bucket_key = bucket_key",
-                    bucketKey, now);
-            jdbc.queryForObject(
-                    "SELECT bucket_key FROM rate_limit_buckets WHERE bucket_key = ? FOR UPDATE",
+                    bucketKey, now, creationToken);
+            String storedToken = jdbc.queryForObject(
+                    "SELECT creation_token FROM rate_limit_buckets WHERE bucket_key = ? FOR UPDATE",
                     String.class, bucketKey);
+            // An explicit creation token avoids relying on the driver's affected-row
+            // mode for distinguishing a new insert from an unchanged duplicate.
+            if (creationToken.equals(storedToken)) {
+                int reserved = jdbc.update(
+                        "UPDATE rate_limit_capacity SET tracked_buckets = tracked_buckets + 1 "
+                                + "WHERE id = 1 AND tracked_buckets < ?", maxTrackedBuckets);
+                if (reserved == 0) {
+                    // No entries exist for this newly inserted bucket. Undo the
+                    // insert without rolling back a caller's enclosing transaction.
+                    jdbc.update("DELETE FROM rate_limit_buckets WHERE bucket_key = ?", bucketKey);
+                    return Boolean.FALSE;
+                }
+            }
             jdbc.update(
                     "DELETE FROM rate_limit_entries WHERE bucket_key = ? AND hit_at_ms <= ?",
                     bucketKey, windowStart);
@@ -112,23 +139,29 @@ public class JdbcSlidingWindowRateLimiter extends SlidingWindowRateLimiter {
         int deletedEntries = jdbc.update(
                 "DELETE FROM rate_limit_entries WHERE expires_at_ms <= ? LIMIT ?",
                 now, cleanupBatchSize);
-        long idleCutoff = now - 86_400_000L;
+        // Reclaim empty anchors promptly, rather than retaining them for a full
+        // day and unnecessarily keeping the shared capacity exhausted.
         List<String> staleBuckets = jdbc.query(
-                "SELECT bucket_key FROM rate_limit_buckets WHERE updated_at_ms <= ? LIMIT ?",
-                (rs, n) -> rs.getString(1), idleCutoff, cleanupBatchSize);
+                "SELECT b.bucket_key FROM rate_limit_buckets b "
+                        + "WHERE NOT EXISTS (SELECT 1 FROM rate_limit_entries e WHERE e.bucket_key = b.bucket_key) "
+                        + "ORDER BY b.updated_at_ms LIMIT ?",
+                (rs, n) -> rs.getString(1), cleanupBatchSize);
         for (String bucketKey : staleBuckets) {
             transactions.executeWithoutResult(status -> {
                 List<String> locked = jdbc.query(
-                        "SELECT bucket_key FROM rate_limit_buckets WHERE bucket_key = ? AND updated_at_ms <= ? FOR UPDATE",
-                        (rs, n) -> rs.getString(1), bucketKey, idleCutoff);
+                        "SELECT bucket_key FROM rate_limit_buckets WHERE bucket_key = ? FOR UPDATE",
+                        (rs, n) -> rs.getString(1), bucketKey);
                 if (locked.isEmpty()) {
                     return;
                 }
-                Integer remaining = jdbc.queryForObject(
-                        "SELECT COUNT(*) FROM rate_limit_entries WHERE bucket_key = ?",
-                        Integer.class, bucketKey);
-                if (remaining == null || remaining == 0) {
+                // Locking current read: the initial candidate scan may be stale.
+                List<Long> remaining = jdbc.query(
+                        "SELECT id FROM rate_limit_entries WHERE bucket_key = ? LIMIT 1 FOR UPDATE",
+                        (rs, n) -> rs.getLong(1), bucketKey);
+                if (remaining.isEmpty()) {
                     jdbc.update("DELETE FROM rate_limit_buckets WHERE bucket_key = ?", bucketKey);
+                    // Same lock order as admission: bucket first, capacity second.
+                    jdbc.update("UPDATE rate_limit_capacity SET tracked_buckets = tracked_buckets - 1 WHERE id = 1");
                 }
             });
         }
@@ -165,7 +198,8 @@ public class JdbcSlidingWindowRateLimiter extends SlidingWindowRateLimiter {
                 RateLimitProperties properties
         ) {
             JdbcSlidingWindowRateLimiter limiter = new JdbcSlidingWindowRateLimiter(
-                    jdbc, transactionManager, System::currentTimeMillis, properties.getCleanupBatchSize());
+                    jdbc, transactionManager, System::currentTimeMillis, properties.getCleanupBatchSize(),
+                    properties.getMaxTrackedBuckets());
             this.activeLimiter = limiter;
             return limiter;
         }

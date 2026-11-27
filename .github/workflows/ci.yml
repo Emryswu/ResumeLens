@@ -113,6 +113,14 @@ jobs:
         working-directory: jd-rag-resume-backend
         run: ./mvnw -B --no-transfer-progress verify
 
+      - name: 确认 MySQL 限流容量并发回归已执行
+        shell: bash
+        run: |
+          report="jd-rag-resume-backend/target/surefire-reports/TEST-com.arthur.jdragresume.security.JdbcSlidingWindowRateLimiterMySqlTests.xml"
+          test -f "$report"
+          grep -Eq '<testsuite [^>]*tests="[1-9][0-9]*"' "$report"
+          if grep -q '<skipped' "$report"; then exit 1; fi
+
       # 失败时同样上传，否则排查 CI 红灯只能靠日志里被截断的堆栈
       - name: 上传测试报告
         if: always()
