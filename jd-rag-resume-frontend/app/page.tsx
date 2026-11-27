@@ -283,7 +283,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
 
   function ask(question: string) {
     const text = question.trim();
-    if (snapshot.loading || snapshot.error || !text || state.busy || state.pending || state.pendingBrowser) return;
+    if (chatGpt.saving || snapshot.loading || snapshot.error || !text || state.busy || state.pending || state.pendingBrowser) return;
     setDraft("");
     void send(nextRequest(state, { question: text }));
   }
@@ -291,7 +291,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   /** A manual retry asks again only after reconciliation with server state. */
   function retry() {
     const request = retryRequest(state);
-    if (request) void send(request.body);
+    if (request && !chatGpt.saving) void send(request.body);
   }
 
   function decide(approved: boolean) {
@@ -467,9 +467,9 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
                 window.localStorage.setItem(REASONING_EFFORT_KEY, effort);
                 setReasoningEffort(effort);
               }}
-              extra={chatGpt.enabled || chatGpt.selected ? <>
+              extra={chatGpt.enabled || chatGpt.selected || (process.env.NEXT_PUBLIC_LOCAL_CHATGPT_SETTINGS === "true" && chatGpt.error) ? <>
                 <span className="choice-menu-option-description">模型</span>
-                <button className="choice-menu-option" type="button" onClick={() => chatGpt.choose("")}
+                <button className="choice-menu-option" type="button" onClick={() => void chatGpt.choose("")}
                   disabled={modelLocked} aria-pressed={!chatGpt.selected}>{baseModel} · API Key</button>
                 {chatGpt.models.map((model) => (
                   <button key={model.slug} className="choice-menu-option" type="button"
@@ -488,7 +488,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
               <span className="choice-menu-separator" aria-hidden="true">·</span>
               <span>{effortLabel}</span>
             </ChoiceMenu>
-            <button className="assistant-send" aria-label="发送" title={state.busy ? "处理中" : "发送"} disabled={inputLocked || !draft.trim()}>
+            <button className="assistant-send" aria-label="发送" title={state.busy ? "处理中" : "发送"} disabled={inputLocked || chatGpt.saving || !draft.trim()}>
               {state.busy
                 ? <LoaderCircle className="spin" size={20} aria-hidden="true" />
                 : <ArrowUp size={20} strokeWidth={2.25} aria-hidden="true" />}
