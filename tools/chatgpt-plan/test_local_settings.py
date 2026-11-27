@@ -59,18 +59,15 @@ class LocalSettingsTests(unittest.TestCase):
         self.assertIn("&lt;script&gt;bad&lt;/script&gt;", body)
         self.assertNotIn("secret-access", body)
         self.assertNotIn("secret-refresh", body)
-        self.assertIn('value="gpt-test" selected', body)
+        self.assertNotIn('<select', body)
+        self.assertIn('模型与思考档位菜单', body)
 
-    def test_model_selection_requires_same_origin_and_csrf(self):
+    def test_login_requires_same_origin_and_csrf(self):
         _, body, _ = self.request("GET")
         csrf = re.search(r'name="csrf" value="([^"]+)"', body).group(1)
-        fields = {"csrf": csrf, "model": "gpt-test"}
-        self.assertEqual(403, self.request("POST", "/model", fields, "https://example.org")[0])
-        self.assertEqual(403, self.request("POST", "/model", {"csrf": "wrong", "model": "gpt-test"},
-                                           self.origin)[0])
-        self.plan.select_model.assert_not_called()
-        self.assertEqual(200, self.request("POST", "/model", fields, self.origin)[0])
-        self.plan.select_model.assert_called_once_with("gpt-test")
+        self.assertEqual(403, self.request("POST", "/login", {"csrf": csrf}, "https://example.org")[0])
+        self.assertEqual(403, self.request("POST", "/login", {"csrf": "wrong"}, self.origin)[0])
+        self.plan.sign_in.assert_not_called()
 
     def test_login_logout_and_dns_rebinding(self):
         self.assertEqual(403, self.request("GET", host="example.org")[0])
