@@ -36,6 +36,11 @@ export function AppShell({ children, title, subtitle, actions, activeView, back,
           {back && <Link className="app-back" href={back.href}><ArrowLeft size={16} aria-hidden="true" />{back.label}</Link>}
           <div className="app-account">
             <BackendStatus />
+            {process.env.NEXT_PUBLIC_LOCAL_CHATGPT_SETTINGS === "true" && user && (
+              <a className="ghost" href="http://127.0.0.1:8765/" target="_blank" rel="noopener noreferrer">
+                ChatGPT 订阅设置
+              </a>
+            )}
             {name && <span className="account-name" title={name}>{name}</span>}
             <button className="ghost" type="button" onClick={onLogout}>退出</button>
           </div>
