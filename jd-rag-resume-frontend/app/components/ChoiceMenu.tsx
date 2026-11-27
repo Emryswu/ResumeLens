@@ -74,7 +74,7 @@ export function ChoiceMenu<T extends string>({ label, value, options, disabled, 
       event.preventDefault();
       choose(options[activeIndex].value);
     } else if (event.key === "Tab") {
-      const next = event.shiftKey ? null : extraRef.current?.querySelector<HTMLElement>("button:not(:disabled)");
+      const next = event.shiftKey ? null : extraRef.current?.querySelector<HTMLElement>("input:not(:disabled), button:not(:disabled)");
       if (next) {
         event.preventDefault();
         next.focus();
@@ -92,8 +92,8 @@ export function ChoiceMenu<T extends string>({ label, value, options, disabled, 
       event.stopPropagation();
       close();
     } else if (event.key === "Tab") {
-      const buttons = Array.from(extraRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
-      const focused = buttons.indexOf(event.target as HTMLButtonElement);
+      const buttons = Array.from(extraRef.current?.querySelectorAll<HTMLElement>("input:not(:disabled), button:not(:disabled)") ?? []);
+      const focused = buttons.indexOf(event.target as HTMLElement);
       if (event.shiftKey && focused === 0) {
         event.preventDefault();
         itemRefs.current[activeIndex]?.focus();
