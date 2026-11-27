@@ -188,7 +188,7 @@ class AiClientTests {
     }
 
     @ParameterizedTest
-    @EnumSource(ReasoningEffort.class)
+    @EnumSource(value = ReasoningEffort.class, names = {"OFF", "LOW", "HIGH", "MAX"})
     void chosenEffortReachesTheProviderAndKeepsEarlierReasoning(ReasoningEffort effort) throws Exception {
         AtomicReference<String> requestBody = new AtomicReference<>();
         startServer(exchange -> {
@@ -209,6 +209,21 @@ class AiClientTests {
             assertEquals(effort.providerValue(), body.path("reasoning_effort").asText());
         }
         assertEquals("", AgentMessage.assistant("old non-thinking reply", null).toProviderMessage().get("reasoning_content"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ReasoningEffort.class, names = {"DEFAULT", "MEDIUM", "XHIGH"})
+    void apiKeyModelRejectsSubscriptionOnlyEffort(ReasoningEffort effort) throws Exception {
+        java.util.concurrent.atomic.AtomicBoolean called = new java.util.concurrent.atomic.AtomicBoolean();
+        startServer(exchange -> {
+            called.set(true);
+            respond(exchange, 200, "{\"choices\":[{\"message\":{\"content\":\"done\"}}]}");
+        });
+        BusinessException error = assertThrows(BusinessException.class, () ->
+                new AiClient(properties(), objectMapper).chatWithTools(
+                        List.of(Map.of("role", "user", "content", "hi")), List.of(), Duration.ofSeconds(5), effort));
+        assertEquals("AI_REQUEST_FAILED", error.getCode());
+        assertFalse(called.get());
     }
 
     @Test

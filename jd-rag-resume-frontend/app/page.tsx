@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ArrowUp, Brain, CircleAlert, FlaskConical, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Plus, Sparkles, Upload } from "lucide-react";
+import { RotateCcw, ArrowUp, Brain, CircleAlert, FlaskConical, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Plus, Sparkles, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
@@ -32,7 +32,7 @@ import { COLLECTOR_OPTIONS, collectorStorageKey, readCollectorModes, type Collec
 import { assistantInput, FULL_ACCESS } from "./full-access";
 import { analysisPollTimeoutMs, pollAnalysisUntilSettled } from "./analysis-poll";
 import { runtimeModeLabel } from "./runtime-mode";
-import { modelDisplayName, REASONING_OPTIONS } from "./agent-model-display";
+import { modelDisplayName, reasoningOptions, subscriptionEffort, REASONING_OPTIONS } from "./agent-model-display";
 import { saveSampleData, submitAnalysis } from "./sample-data";
 import { signInRequest } from "./sign-in";
 import { legacyWorkspaceUrl, workspaceHref, PREFERENCES_PATH } from "./workspace-nav";
@@ -50,6 +50,45 @@ import {
 } from "./lib/api";
 
 import { useConversation } from "./components/ConversationProvider";
+
+function EffortSlider({ model, options, value, resetValue, onChange }: {
+  model: string;
+  options: typeof REASONING_OPTIONS;
+  value: ReasoningEffort;
+  resetValue: ReasoningEffort;
+  onChange: (value: ReasoningEffort) => void;
+}) {
+  const index = options.findIndex((option) => option.value === value);
+  // Provider default is not a numbered effort; show a neutral thumb until the user chooses.
+  const sliderIndex = index < 0 ? Math.max(0, options.findIndex((option) => option.value === "medium")) : index;
+  const progress = options.length > 1 ? sliderIndex / (options.length - 1) * 100 : 0;
+  const fill = index < 0 ? "0%" : progress === 100 ? "100%" : `calc(${progress}% + ${15 - 30 * progress / 100}px)`;
+  return (
+    <div className="effort-slider">
+      <div className="effort-slider-heading">
+        <strong>{index < 0 ? "默认" : options[index].label}</strong>
+        <span>{model}</span>
+      </div>
+      {options.length > 1 ? <>
+        <div className={`effort-slider-track${index < 0 ? " effort-slider-default" : ""}`}>
+          <div className="effort-slider-rail" aria-hidden="true">
+            <div className="effort-slider-fill" style={{ width: fill }} />
+            <div className="effort-slider-marks">{options.map((option) => <span key={option.value} />)}</div>
+          </div>
+          <input type="range" min={0} max={options.length - 1} step={1} value={sliderIndex}
+            aria-label="选择推理强度" aria-valuetext={index < 0 ? "默认（由模型决定）" : options[index].label + " " + options[index].description}
+            onInput={(event) => onChange(options[Number(event.currentTarget.value)].value)}
+            onChange={(event) => onChange(options[Number(event.currentTarget.value)].value)}
+            onPointerUp={(event) => { if (index < 0) onChange(options[Number(event.currentTarget.value)].value); }} />
+        </div>
+        <div className="effort-slider-endpoints"><span>{options[0].label}</span><span>{options[options.length - 1].label}</span></div>
+        <button type="button" className="effort-slider-reset" aria-label="恢复默认思考档位" onClick={() => onChange(resetValue)}>
+          <RotateCcw size={16} aria-hidden="true" />
+        </button>
+      </> : <p className="choice-menu-option-description">由订阅模型决定</p>}
+    </div>
+  );
+}
 
 const EXAMPLES = [
   "我最新那份简历最适合投哪几个职位？",
@@ -149,6 +188,8 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   const [draft, setDraft] = useState("");
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>(() =>
     typeof window === "undefined" ? "high" : savedReasoningEffort(window.localStorage.getItem(REASONING_EFFORT_KEY)));
+  const [gptEffort, setGptEffort] = useState<string | null>(() => typeof window === "undefined" ? null : window.localStorage.getItem("resumelens-chatgpt-reasoning-effort"));
+  const selectedEffort = chatGpt.selected ? subscriptionEffort(chatGpt.selected, gptEffort) : reasoningEffort;
   const [collectorModes, setCollectorModes] = useState<Record<number, CollectorMode>>(() => typeof window === "undefined"
     ? {} : readCollectorModes(window.localStorage.getItem(collectorStorageKey(user.id))));
   const conversationId = snapshot.detail?.conversation.id;
@@ -227,7 +268,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     }
   }, [state.turns, sampleRun, aiStatus]);
 
-  const send = useCallback((body: ReturnType<typeof nextRequest>) => session.send(body, reasoningEffort, collectorMode, chatGpt.selected || undefined), [session, reasoningEffort, collectorMode, chatGpt.selected]);
+  const send = useCallback((body: ReturnType<typeof nextRequest>) => session.send(body, selectedEffort, collectorMode, chatGpt.selected || undefined), [session, selectedEffort, collectorMode, chatGpt.selected]);
   /** The task this page is running; {@code auto} when it started it without a click (完全访问). */
   const [browserRunning, setBrowserRunning] = useState<{ taskId: string; auto: boolean } | null>(null);
 
@@ -319,7 +360,8 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   const baseModel = modelDisplayName(aiStatus?.model);
   const displayModel = chatGpt.selected ? chatGpt.models.find((model) => model.slug === chatGpt.selected)?.name ?? chatGpt.selected : baseModel;
   const modelLocked = inputLocked || !!state.pending || !!state.pendingBrowser || chatGpt.saving;
-  const effortLabel = chatGpt.selected ? "默认" : REASONING_OPTIONS.find((option) => option.value === reasoningEffort)!.label;
+  const effortOptions = reasoningOptions(chatGpt.selected);
+  const effortLabel = effortOptions.find((option) => option.value === selectedEffort)?.label ?? "默认";
   const hasModelPicker = chatGpt.enabled || !!chatGpt.selected
     || (process.env.NEXT_PUBLIC_LOCAL_CHATGPT_SETTINGS === "true" && !!chatGpt.error);
   const modelOptions = [
@@ -330,8 +372,13 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     modelOptions.push({ value: chatGpt.selected, label: displayModel, description: "ChatGPT · 当前不可用，请重新授权" });
   }
   function changeEffort(effort: ReasoningEffort) {
-    window.localStorage.setItem(REASONING_EFFORT_KEY, effort);
-    setReasoningEffort(effort);
+    if (chatGpt.selected) {
+      window.localStorage.setItem("resumelens-chatgpt-reasoning-effort", effort);
+      setGptEffort(effort);
+    } else {
+      window.localStorage.setItem(REASONING_EFFORT_KEY, effort);
+      setReasoningEffort(effort);
+    }
   }
 
   return (
@@ -473,24 +520,13 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
               <Plus size={17} aria-hidden="true" />
               {fullAccess && <span className="full-access-badge">{FULL_ACCESS.label}</span>}
             </ChoiceMenu>
-            {hasModelPicker ? (
-              <ChoiceMenu label={`模型与思考档位：${displayModel}，${effortLabel}`}
-                value={chatGpt.selected} options={modelOptions} disabled={modelLocked}
-                onChange={(slug) => { if (slug !== chatGpt.selected) void chatGpt.choose(slug); }}
-                extra={<>
-                  <span className="choice-menu-section-label">思考档位</span>
-                  {chatGpt.selected ? (
-                    <span className="choice-menu-option-description">默认 · 由订阅模型决定</span>
-                  ) : REASONING_OPTIONS.map((option) => (
-                    <button key={option.value} className="choice-menu-option" type="button"
-                      aria-pressed={reasoningEffort === option.value} onClick={() => changeEffort(option.value)}>
-                      <span className="choice-menu-option-copy">
-                        <span className="choice-menu-option-label">{option.label}</span>
-                        <span className="choice-menu-option-description">{option.description}</span>
-                      </span>
-                      {reasoningEffort === option.value && <Check size={17} aria-hidden="true" />}
-                    </button>
-                  ))}
+            <ChoiceMenu label={`模型与思考档位：${displayModel}，${effortLabel}`}
+              value={chatGpt.selected} options={modelOptions} disabled={modelLocked}
+              onChange={(slug) => { if (slug !== chatGpt.selected) void chatGpt.choose(slug); }}
+              extra={<>
+                <EffortSlider model={displayModel} options={effortOptions} value={selectedEffort}
+                  onChange={changeEffort} resetValue={chatGpt.selected ? "default" : "high"} />
+                {hasModelPicker && <>
                   <span className="choice-menu-section-label">账号</span>
                   {(chatGpt.enabled || chatGpt.error) && <button className="choice-menu-option" type="button"
                     onClick={() => window.open("http://127.0.0.1:8765/", "_blank", "noopener,noreferrer")}>
@@ -498,21 +534,13 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
                   </button>}
                   <button className="choice-menu-option" type="button" onClick={() => void chatGpt.refresh()}>刷新可用模型</button>
                   {chatGpt.error && <span className="choice-menu-option-description" role="alert">{chatGpt.error}</span>}
-                </>}>
-                <Brain size={16} aria-hidden="true" />
-                <span>{displayModel}</span>
-                <span className="choice-menu-separator" aria-hidden="true">·</span>
-                <span>{effortLabel}</span>
-              </ChoiceMenu>
-            ) : (
-              <ChoiceMenu label={`模型与思考档位：${displayModel}，${effortLabel}`}
-                value={reasoningEffort} options={REASONING_OPTIONS} disabled={modelLocked} onChange={changeEffort}>
-                <Brain size={16} aria-hidden="true" />
-                <span>{displayModel}</span>
-                <span className="choice-menu-separator" aria-hidden="true">·</span>
-                <span>{effortLabel}</span>
-              </ChoiceMenu>
-            )}
+                </>}
+              </>}>
+              <Brain size={16} aria-hidden="true" />
+              <span>{displayModel}</span>
+              <span className="choice-menu-separator" aria-hidden="true">·</span>
+              <span>{effortLabel}</span>
+            </ChoiceMenu>
             <button className="assistant-send" aria-label="发送" title={state.busy ? "处理中" : "发送"} disabled={inputLocked || chatGpt.saving || !draft.trim()}>
               {state.busy
                 ? <LoaderCircle className="spin" size={20} aria-hidden="true" />

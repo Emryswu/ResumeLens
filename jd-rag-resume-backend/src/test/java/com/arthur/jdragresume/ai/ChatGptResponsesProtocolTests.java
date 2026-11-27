@@ -39,6 +39,7 @@ class ChatGptResponsesProtocolTests {
         assertThat(request.has("max_output_tokens")).isFalse();
         assertThat(request.has("max_tokens")).isFalse();
         assertThat(request.has("temperature")).isFalse();
+        assertThat(request.has("reasoning")).isFalse();
         assertThat(request.path("input").get(0).path("role").asText()).isEqualTo("developer");
         assertThat(request.path("input").get(2).path("type").asText()).isEqualTo("function_call");
         assertThat(request.path("input").get(2).path("call_id").asText()).isEqualTo("call_1");
@@ -46,6 +47,17 @@ class ChatGptResponsesProtocolTests {
         assertThat(request.path("input").get(3).path("call_id").asText()).isEqualTo("call_1");
         assertThat(request.path("tools").get(0).path("type").asText()).isEqualTo("namespace");
         assertThat(request.path("tools").get(0).path("tools").get(0).path("name").asText()).isEqualTo("list_jobs");
+    }
+
+    @Test
+    void forwardsEachExplicitReasoningEffort() {
+        for (String effort : java.util.List.of("low", "medium", "high", "xhigh", "max")) {
+            var chat = mapper.createObjectNode().put("model", "gpt-6.2-sol").put("reasoning_effort", effort);
+            chat.putArray("messages").addObject().put("role", "user").put("content", "test");
+            JsonNode request = protocol.request(chat);
+            assertThat(request.path("reasoning").path("effort").asText()).isEqualTo(effort);
+            assertThat(request.has("reasoning_effort")).isFalse();
+        }
     }
 
     @Test

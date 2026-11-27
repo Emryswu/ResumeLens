@@ -15,7 +15,7 @@ export type AgentMessage = {
   reasoning_content?: string | null;
 };
 
-export type ReasoningEffort = "off" | "low" | "high" | "max";
+export type ReasoningEffort = "default" | "off" | "low" | "medium" | "high" | "xhigh" | "max";
 export const REASONING_EFFORT_KEY = "resumelens-agent-reasoning-effort";
 
 /** Stored preferences are external input; an absent or stale value uses the product default. */

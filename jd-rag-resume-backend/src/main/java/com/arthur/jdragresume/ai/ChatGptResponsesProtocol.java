@@ -28,6 +28,9 @@ final class ChatGptResponsesProtocol {
         body.set("model", chat.get("model"));
         body.put("store", false);
         body.put("stream", true);
+        if (chat.has("reasoning_effort")) {
+            body.putObject("reasoning").set("effort", chat.get("reasoning_effort"));
+        }
         ArrayNode input = body.putArray("input");
         for (JsonNode message : chat.path("messages")) {
             String role = message.path("role").asText();

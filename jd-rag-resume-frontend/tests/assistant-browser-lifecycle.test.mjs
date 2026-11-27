@@ -51,7 +51,7 @@ async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk 
     apiRequest: async (url, options) => {
       if (url === "/api/ai/chatgpt/models") return {
         enabled: localChatGpt, connected: localChatGpt,
-        models: localChatGpt ? [{ slug: "gpt-test", name: "GPT Test" }] : [],
+        models: localChatGpt ? [{ slug: "gpt-6.2-sol", name: "GPT-6.2 Sol" }] : [],
       };
       if (url === "/api/ai/chatgpt/model" && options?.method === "PUT") {
         modelUpdates.push(JSON.parse(options.body));
@@ -246,12 +246,14 @@ test("thinking restores the previous selection and persists a change for the nex
   assert.ok(trigger);
   assert.match(trigger.textContent, /低/);
   await act(async () => { trigger.click(); });
-  const options = [...page.dom.window.document.querySelectorAll('[role="option"]')];
-  assert.deepEqual(options.map((option) => option.querySelector('.choice-menu-option-label').textContent), ["低", "高", "最高"]);
-  assert.equal(options[0].getAttribute("aria-selected"), "true");
+  const slider = page.dom.window.document.querySelector('input[type="range"]');
+  assert.equal(slider.value, "0");
+  assert.equal(slider.max, "2");
   await act(async () => {
-    options[2].click();
+    slider.value = "2";
+    slider.dispatchEvent(new page.dom.window.Event("input", { bubbles: true }));
   });
+  await act(async () => { trigger.click(); });
   assert.equal(page.dom.window.localStorage.getItem("resumelens-agent-reasoning-effort"), "max");
   await page.click("我最新那份简历");
   assert.equal(page.requests[0].body.reasoningEffort, "max");
@@ -264,13 +266,24 @@ test("the subscription model menu uses the real hook and forwards the selected m
   await act(async () => { trigger.click(); });
   const options = [...doc.querySelectorAll('[role="option"]')];
   assert.deepEqual(options.map((option) => option.querySelector(".choice-menu-option-label").textContent),
-    ["DeepSeek Flash", "GPT Test"]);
+    ["DeepSeek Flash", "GPT-6.2 Sol"]);
   await act(async () => { options[1].click(); });
-  assert.deepEqual(page.modelUpdates, [{ slug: "gpt-test" }]);
-  assert.equal(page.dom.window.localStorage.getItem("resumelens-chatgpt-model:1"), "gpt-test");
-  assert.match(trigger.textContent, /GPT Test/);
+  assert.deepEqual(page.modelUpdates, [{ slug: "gpt-6.2-sol" }]);
+  assert.equal(page.dom.window.localStorage.getItem("resumelens-chatgpt-model:1"), "gpt-6.2-sol");
+  assert.match(trigger.textContent, /GPT-6.2 Sol/);
+  await act(async () => { trigger.click(); });
+  const slider = doc.querySelector('input[type="range"]');
+  assert.equal(slider.max, "4");
+  assert.equal(slider.getAttribute("aria-valuetext"), "默认（由模型决定）");
+  await act(async () => {
+    slider.value = "4";
+    slider.dispatchEvent(new page.dom.window.Event("input", { bubbles: true }));
+  });
+  assert.equal(slider.getAttribute("aria-valuetext"), "最高 Max");
+  await act(async () => { trigger.click(); });
   await page.click("我最新那份简历");
-  assert.equal(page.requests[0].body.chatGptModel, "gpt-test");
+  assert.equal(page.requests[0].body.chatGptModel, "gpt-6.2-sol");
+  assert.equal(page.requests[0].body.reasoningEffort, "max");
 });
 
 test("Escape and outside pointer presses close the menu without changing the effort", async (t) => {
@@ -292,23 +305,21 @@ test("Escape and outside pointer presses close the menu without changing the eff
   assert.equal(page.requests.length, 0);
 });
 
-test("arrow keys move focus and Enter selects an effort without submitting the form", async (t) => {
+test("Tab focuses the slider and Escape closes without submitting the form", async (t) => {
   const page = await mount(t, { autoAsk: false });
   const doc = page.dom.window.document;
   const trigger = doc.querySelector('button[aria-label^="模型与思考档位"]');
-  assert.ok(trigger);
   await act(async () => { trigger.click(); });
-  const options = [...doc.querySelectorAll('[role="option"]')];
-  assert.equal(doc.activeElement, options[1]);
-  const key = async (value) => act(async () => {
-    doc.activeElement.dispatchEvent(new page.dom.window.KeyboardEvent("keydown", { key: value, bubbles: true, cancelable: true }));
+  const slider = doc.querySelector('input[type="range"]');
+  await act(async () => {
+    doc.activeElement.dispatchEvent(new page.dom.window.KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true }));
   });
-  await key("ArrowUp");
-  assert.equal(doc.activeElement, options[0]);
-  await key("ArrowDown");
-  await key("ArrowDown");
-  assert.equal(doc.activeElement, options[2]);
-  await key("Enter");
+  assert.equal(doc.activeElement, slider);
+  await act(async () => {
+    slider.value = "2";
+    slider.dispatchEvent(new page.dom.window.Event("input", { bubbles: true }));
+    slider.dispatchEvent(new page.dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+  });
   assert.equal(doc.querySelector('[role="listbox"]'), null);
   assert.equal(doc.activeElement, trigger);
   assert.equal(page.requests.length, 0);

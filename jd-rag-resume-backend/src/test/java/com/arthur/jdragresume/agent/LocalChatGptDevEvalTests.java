@@ -32,7 +32,10 @@ class LocalChatGptDevEvalTests {
         AiProperties properties = new AiProperties();
         properties.setModel(modelId);
         var client = AiClient.forLocalChatGpt(properties, JSON, () -> helperOutput(python, helper, "token"));
-        var model = new OpenAiCompatibleAgentModel(client);
+        var delegate = new OpenAiCompatibleAgentModel(client);
+        // Keep the existing development-eval provider default independent of interactive chat preferences.
+        AgentModel model = (system, transcript, tools, timeout) -> delegate.next(system, transcript, tools, timeout,
+                com.arthur.jdragresume.ai.ReasoningEffort.DEFAULT);
         var group = AgentEvalV3.group("dev");
         String taskId = System.getenv("CHATGPT_DEV_TASK");
         if (taskId != null) group.task(taskId); // fail before inference if the requested task does not exist
