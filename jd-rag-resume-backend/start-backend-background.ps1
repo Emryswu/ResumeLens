@@ -152,7 +152,51 @@ if ([string]::IsNullOrWhiteSpace($env:AI_MODEL)) {
 if ([string]::IsNullOrWhiteSpace($env:AI_MOCK_ENABLED)) {
     $env:AI_MOCK_ENABLED = 'false'
 }
-if ($env:AI_MOCK_ENABLED -ne 'true' -and [string]::IsNullOrWhiteSpace($env:AI_API_KEY)) {
+$localChatGpt = $env:SERVER_ADDRESS -eq '127.0.0.1' -and $env:APP_CHATGPT_OWNER_ID -match '^[1-9][0-9]*
+    $secureKey = Read-Host 'Enter DeepSeek API Key' -AsSecureString
+    $env:AI_API_KEY = [Net.NetworkCredential]::new('', $secureKey).Password
+    if ([string]::IsNullOrWhiteSpace($env:AI_API_KEY)) {
+        throw 'DeepSeek API Key cannot be empty'
+    }
+}
+
+New-Item -ItemType Directory -Force -Path (Split-Path -Parent $StdoutLog) | Out-Null
+
+$pathValue = [Environment]::GetEnvironmentVariable('Path', 'Process')
+if ([string]::IsNullOrWhiteSpace($pathValue)) {
+    $pathValue = [Environment]::GetEnvironmentVariable('PATH', 'Process')
+}
+[Environment]::SetEnvironmentVariable('PATH', $null, 'Process')
+[Environment]::SetEnvironmentVariable('Path', $pathValue, 'Process')
+
+$process = Start-Process `
+    -FilePath $JavaExecutable `
+    -ArgumentList @('-jar', $JarPath) `
+    -WorkingDirectory $PSScriptRoot `
+    -RedirectStandardOutput $StdoutLog `
+    -RedirectStandardError $StderrLog `
+    -WindowStyle Hidden `
+    -PassThru
+
+$deadline = [DateTime]::UtcNow.AddSeconds($MaxWaitSeconds)
+while ([DateTime]::UtcNow -lt $deadline) {
+    if (Test-PortOpen -TargetPort $Port) {
+        Write-Host "Backend is ready on port $Port. PID: $($process.Id)"
+        exit 0
+    }
+
+    if ($process.HasExited) {
+        Write-Error "Backend process exited before port $Port became ready. ExitCode: $($process.ExitCode). Logs: $StdoutLog, $StderrLog"
+        exit 1
+    }
+
+    Start-Sleep -Milliseconds 500
+}
+
+Write-Error "Timed out after $MaxWaitSeconds seconds waiting for port $Port. PID: $($process.Id). Logs: $StdoutLog, $StderrLog"
+exit 1
+ -and -not [string]::IsNullOrWhiteSpace($env:APP_CHATGPT_PYTHON)
+if ($env:AI_MOCK_ENABLED -ne 'true' -and -not $localChatGpt -and [string]::IsNullOrWhiteSpace($env:AI_API_KEY)) {
     $secureKey = Read-Host 'Enter DeepSeek API Key' -AsSecureString
     $env:AI_API_KEY = [Net.NetworkCredential]::new('', $secureKey).Password
     if ([string]::IsNullOrWhiteSpace($env:AI_API_KEY)) {
