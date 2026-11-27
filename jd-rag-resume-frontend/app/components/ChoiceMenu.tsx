@@ -91,11 +91,15 @@ export function ChoiceMenu<T extends string>({ label, value, options, disabled, 
       event.preventDefault();
       event.stopPropagation();
       close();
-    } else if (event.key === "Tab" && event.shiftKey) {
-      event.preventDefault();
-      itemRefs.current[activeIndex]?.focus();
     } else if (event.key === "Tab") {
-      close();
+      const buttons = Array.from(extraRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []);
+      const focused = buttons.indexOf(event.target as HTMLButtonElement);
+      if (event.shiftKey && focused === 0) {
+        event.preventDefault();
+        itemRefs.current[activeIndex]?.focus();
+      } else if (!event.shiftKey && focused === buttons.length - 1) {
+        close();
+      }
     }
   }
 
