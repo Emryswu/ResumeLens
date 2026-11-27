@@ -1,6 +1,6 @@
 # 本地 ChatGPT 订阅额度（开发者预览）
 
-适用于开源项目的本地单人开发与评测。使用官方 Sign in with ChatGPT 动态注册，用户本人授权；不读取 Codex 的登录文件，不需要 DeepSeek API Key，不向第三方地址发送 OAuth 凭据。不支持远程共享或多人托管。原有 Web 应用的 API Key 配置不变，本入口只供本地开发评测。
+适用于开源项目的本地单人开发与评测。使用官方 Sign in with ChatGPT 动态注册，用户本人授权；不读取 Codex 的登录文件，不需要 DeepSeek API Key，不向第三方地址发送 OAuth 凭据。不支持远程共享或多人托管。原有 API Key 路由不变，订阅接入本地 AI 助手和开发评测。
 
 ## Windows：网页登录（推荐）
 
@@ -13,7 +13,15 @@ $python = (Resolve-Path .venv-chatgpt\Scripts\python.exe).Path
 & $python tools/chatgpt-plan/chatgpt_plan.py web
 ```
 
-保持上述本地设置服务运行。在浏览器打开 http://127.0.0.1:8765/，或者在前端 `.env.local` 设置 `NEXT_PUBLIC_LOCAL_CHATGPT_SETTINGS=true` 后重启前端，点击 ResumeLens 右上角的「ChatGPT 订阅设置」。在设置页点击「使用 ChatGPT 登录」，官方授权页将在系统浏览器打开；同意权限后回到设置页选择并保存模型。网页不会读取 OAuth token 或 ChatGPT 聊天记录。授权只用于当前操作系统用户的本地开发评测，不用于共享 Web 后端。
+保持上述本地设置服务运行。在启动 Spring Boot 后端的 PowerShell 中设置：
+
+```powershell
+$env:SERVER_ADDRESS = "127.0.0.1"
+$env:APP_CHATGPT_OWNER_ID = Read-Host "本机 ResumeLens 登录用户的数字 ID（从当前用户接口返回的 id 获取）"
+$env:APP_CHATGPT_PYTHON = (Resolve-Path .venv-chatgpt\Scripts\python.exe).Path
+```
+
+使用原有后端启动方式（工作目录为 jd-rag-resume-backend，且 AI_MOCK_ENABLED=false）。后端必须绑定 IPv4 loopback；不要使用端口转发、反向代理对外提供该模式。前端 `.env.local` 设置 `NEXT_PUBLIC_LOCAL_CHATGPT_SETTINGS=true` 后重启前端。打开 AI 助手输入框旁原有「模型与思考档位」菜单，点击「使用 ChatGPT 登录」，在本地授权页发起官方登录。授权成功后回到 AI 助手，刷新可用模型，点击 GPT 模型即可切换聊天与默认开发评测模型；选择原模型会切回 API Key。订阅接口使用默认思考配置，完整分析报告暂时仍使用原来的后端 API Key 模型。网页不会读取 OAuth token 或 ChatGPT 聊天记录。
 
 另开一个 PowerShell，在仓库根目录执行：
 
@@ -44,7 +52,7 @@ cd ..
 - 请求固定发往 `https://api.openai.com/v1/responses`，不使用原 API Key、AI_BASE_URL 或非官方中转。额度与 ChatGPT plan usage 共用；不会在额度耗尽时自动切换到付费 API。
 - 官方预览不支持部分 Responses 参数，因此模型输出预算/推理强度与旧 DeepSeek 调用并非完全等价；目前采用账号支持的模型及默认推理配置，完整模型/工具兼容性需实际登录验证。
 
-仍可在服务未运行时使用 `login`、`models`、`logout` 命令行入口。网页中的「断开 ChatGPT」也可撤销本机授权。
+仍可在服务未运行时使用 `login`、`models`、`select-model <slug>`、`logout` 命令行入口。网页中的「断开 ChatGPT」也可撤销本机授权。
 
 ## 离线测试
 
