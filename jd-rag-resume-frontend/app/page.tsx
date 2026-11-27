@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Brain, CircleAlert, FlaskConical, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Plus, Sparkles, Upload } from "lucide-react";
+import { Check, ArrowUp, Brain, CircleAlert, FlaskConical, LoaderCircle, MessageCircleQuestion, MessageSquarePlus, Plus, Sparkles, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, KeyboardEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
@@ -320,7 +320,19 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
   const displayModel = chatGpt.selected ? chatGpt.models.find((model) => model.slug === chatGpt.selected)?.name ?? chatGpt.selected : baseModel;
   const modelLocked = inputLocked || !!state.pending || !!state.pendingBrowser || chatGpt.saving;
   const effortLabel = chatGpt.selected ? "默认" : REASONING_OPTIONS.find((option) => option.value === reasoningEffort)!.label;
-  const effortOptions = chatGpt.selected ? [{ value: reasoningEffort, label: "默认", description: "ChatGPT 订阅模型使用服务端默认思考配置" }] : REASONING_OPTIONS;
+  const hasModelPicker = chatGpt.enabled || !!chatGpt.selected
+    || (process.env.NEXT_PUBLIC_LOCAL_CHATGPT_SETTINGS === "true" && !!chatGpt.error);
+  const modelOptions = [
+    { value: "", label: baseModel, description: "API Key · 单独计费" },
+    ...chatGpt.models.map((model) => ({ value: model.slug, label: model.name, description: "ChatGPT · 订阅额度" })),
+  ];
+  if (chatGpt.selected && !modelOptions.some((model) => model.value === chatGpt.selected)) {
+    modelOptions.push({ value: chatGpt.selected, label: displayModel, description: "ChatGPT · 当前不可用，请重新授权" });
+  }
+  function changeEffort(effort: ReasoningEffort) {
+    window.localStorage.setItem(REASONING_EFFORT_KEY, effort);
+    setReasoningEffort(effort);
+  }
 
   return (
     <AppShell title="AI 求职助手" activeView="assistant" user={user} onLogout={() => { session.clear(); logout(); }}>
@@ -461,33 +473,46 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
               <Plus size={17} aria-hidden="true" />
               {fullAccess && <span className="full-access-badge">{FULL_ACCESS.label}</span>}
             </ChoiceMenu>
-            <ChoiceMenu label={`模型与思考档位：${displayModel}，${effortLabel}`}
-              value={reasoningEffort} options={effortOptions} disabled={modelLocked}
-              onChange={(effort) => {
-                window.localStorage.setItem(REASONING_EFFORT_KEY, effort);
-                setReasoningEffort(effort);
-              }}
-              extra={chatGpt.enabled || chatGpt.selected || (process.env.NEXT_PUBLIC_LOCAL_CHATGPT_SETTINGS === "true" && chatGpt.error) ? <>
-                <span className="choice-menu-option-description">模型</span>
-                <button className="choice-menu-option" type="button" onClick={() => void chatGpt.choose("")}
-                  disabled={modelLocked} aria-pressed={!chatGpt.selected}>{baseModel} · API Key</button>
-                {chatGpt.models.map((model) => (
-                  <button key={model.slug} className="choice-menu-option" type="button"
-                    aria-pressed={chatGpt.selected === model.slug} disabled={modelLocked}
-                    onClick={() => void chatGpt.choose(model.slug)}>{model.name} · ChatGPT</button>
-                ))}
-                {chatGpt.enabled && <button className="choice-menu-option" type="button"
-                  onClick={() => window.open("http://127.0.0.1:8765/", "_blank", "noopener,noreferrer")}>
-                  {chatGpt.connected ? "管理 ChatGPT 授权" : "使用 ChatGPT 登录"}
-                </button>}
-                <button className="choice-menu-option" type="button" onClick={() => void chatGpt.refresh()}>刷新可用模型</button>
-                {chatGpt.error && <span className="choice-menu-option-description" role="alert">{chatGpt.error}</span>}
-              </> : undefined}>
-              <Brain size={16} aria-hidden="true" />
-              <span>{displayModel}</span>
-              <span className="choice-menu-separator" aria-hidden="true">·</span>
-              <span>{effortLabel}</span>
-            </ChoiceMenu>
+            {hasModelPicker ? (
+              <ChoiceMenu label={`模型与思考档位：${displayModel}，${effortLabel}`}
+                value={chatGpt.selected} options={modelOptions} disabled={modelLocked}
+                onChange={(slug) => { if (slug !== chatGpt.selected) void chatGpt.choose(slug); }}
+                extra={<>
+                  <span className="choice-menu-section-label">思考档位</span>
+                  {chatGpt.selected ? (
+                    <span className="choice-menu-option-description">默认 · 由订阅模型决定</span>
+                  ) : REASONING_OPTIONS.map((option) => (
+                    <button key={option.value} className="choice-menu-option" type="button"
+                      aria-pressed={reasoningEffort === option.value} onClick={() => changeEffort(option.value)}>
+                      <span className="choice-menu-option-copy">
+                        <span className="choice-menu-option-label">{option.label}</span>
+                        <span className="choice-menu-option-description">{option.description}</span>
+                      </span>
+                      {reasoningEffort === option.value && <Check size={17} aria-hidden="true" />}
+                    </button>
+                  ))}
+                  <span className="choice-menu-section-label">账号</span>
+                  {(chatGpt.enabled || chatGpt.error) && <button className="choice-menu-option" type="button"
+                    onClick={() => window.open("http://127.0.0.1:8765/", "_blank", "noopener,noreferrer")}>
+                    {chatGpt.connected ? "管理 ChatGPT 授权" : "使用 ChatGPT 登录"}
+                  </button>}
+                  <button className="choice-menu-option" type="button" onClick={() => void chatGpt.refresh()}>刷新可用模型</button>
+                  {chatGpt.error && <span className="choice-menu-option-description" role="alert">{chatGpt.error}</span>}
+                </>}>
+                <Brain size={16} aria-hidden="true" />
+                <span>{displayModel}</span>
+                <span className="choice-menu-separator" aria-hidden="true">·</span>
+                <span>{effortLabel}</span>
+              </ChoiceMenu>
+            ) : (
+              <ChoiceMenu label={`模型与思考档位：${displayModel}，${effortLabel}`}
+                value={reasoningEffort} options={REASONING_OPTIONS} disabled={modelLocked} onChange={changeEffort}>
+                <Brain size={16} aria-hidden="true" />
+                <span>{displayModel}</span>
+                <span className="choice-menu-separator" aria-hidden="true">·</span>
+                <span>{effortLabel}</span>
+              </ChoiceMenu>
+            )}
             <button className="assistant-send" aria-label="发送" title={state.busy ? "处理中" : "发送"} disabled={inputLocked || chatGpt.saving || !draft.trim()}>
               {state.busy
                 ? <LoaderCircle className="spin" size={20} aria-hidden="true" />
