@@ -45,6 +45,10 @@ public class AgentController {
                 ? null
                 : new TranscriptPolicy.BrowserReport(request.browserResult().toolCallId(), request.browserResult().taskId(),
                 request.browserResult().outcome(), request.browserResult().report());
+        if (request.chatGptModel() != null) {
+            return agentChatService.chat(request.conversationId(), request.question(), approval, browserResult,
+                    request.includeTrace(), request.reasoningEffort(), request.collectorMode(), request.chatGptModel());
+        }
         return agentChatService.chat(request.conversationId(), request.question(), approval, browserResult, request.includeTrace(),
                 request.reasoningEffort(), request.collectorMode());
     }
@@ -57,7 +61,8 @@ public class AgentController {
             @Valid BrowserResultRequest browserResult,
             boolean includeTrace,
             ReasoningEffort reasoningEffort,
-            com.arthur.jdragresume.collect.CollectorMode collectorMode
+            com.arthur.jdragresume.collect.CollectorMode collectorMode,
+            @Size(max = 128) String chatGptModel
     ) {
         public ChatRequest {
             reasoningEffort = reasoningEffort == null ? ReasoningEffort.HIGH : reasoningEffort;
