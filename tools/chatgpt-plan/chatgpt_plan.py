@@ -7,9 +7,9 @@ import json
 import os
 from pathlib import Path
 import secrets
-import subprocess
 import sys
 import time
+import tempfile
 import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -20,6 +20,7 @@ from urllib.request import Request, build_opener, HTTPRedirectHandler
 import jwt
 import keyring
 from filelock import FileLock
+from cryptography.fernet import Fernet
 
 ISSUER = "https://auth.openai.com"
 AUTH = ISSUER + "/api/accounts/authorize"
@@ -55,20 +56,54 @@ def request_json(url, fields=None, access=None):
         raise RuntimeError(f"OpenAI request failed (HTTP {error.code})") from None
 
 
+def vault_cipher(create=False):
+    # Windows Credential Manager has small per-entry limits. Keep only the
+    # encryption key in the OS vault, and store the encrypted record on disk.
+    key = keyring.get_password(SERVICE, ACCOUNT)
+    if not key:
+        if not create:
+            raise RuntimeError("Local credential vault key is missing")
+        key = Fernet.generate_key().decode("ascii")
+        keyring.set_password(SERVICE, ACCOUNT, key)
+    return Fernet(key.encode("ascii"))
+
+
 def load():
-    raw = keyring.get_password(SERVICE, ACCOUNT)
-    return json.loads(raw) if raw else None
+    path = ROOT / "session.enc"
+    if not path.exists():
+        return None
+    return json.loads(vault_cipher().decrypt(path.read_bytes()))
 
 
 def save(profile):
-    keyring.set_password(SERVICE, ACCOUNT, json.dumps(profile))
+    path = ROOT / "session.enc"
+    encrypted = vault_cipher(create=not path.exists()).encrypt(json.dumps(profile).encode("utf-8"))
+    fd, tmp = tempfile.mkstemp(dir=ROOT, prefix="session-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as file:
+            file.write(encrypted)
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
 
 
 def host_id():
     # Not a credential, but persist it before opening the browser.
     path = ROOT / "host-id"
     if not path.exists():
-        path.write_text("urn:uuid:" + str(uuid.uuid4()), encoding="ascii")
+        fd, tmp = tempfile.mkstemp(dir=ROOT, prefix="host-")
+        try:
+            with os.fdopen(fd, "w", encoding="ascii") as file:
+                file.write("urn:uuid:" + str(uuid.uuid4()))
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(tmp, path)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
     return path.read_text(encoding="ascii").strip()
 
 
@@ -128,7 +163,7 @@ def sign_in():
                 self.send_error(404)
                 return
             if any(len(v) != 1 for v in values.values()) or not hmac.compare_digest(
-                    values.get("state", [""])[0], state):
+                    values.get("state", [""])[0].encode("utf-8"), state.encode("ascii")):
                 self.send_error(400, "Invalid authorization state")
                 return
             result.update({k: v[0] for k, v in values.items()})
