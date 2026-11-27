@@ -55,10 +55,8 @@ a{{color:#285c43}} .error{{color:#a12525}} .notice{{color:#285c43}}
 </main></body></html>"""
 
 
-def serve(plan):
+def settings_server(plan, port=PORT):
     csrf = secrets.token_urlsafe(32)
-    authority = f"{HOST}:{PORT}"
-    origin = "http://" + authority
 
     class Settings(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -143,6 +141,13 @@ def serve(plan):
                 return
             self.settings(message)
 
-    with HTTPServer((HOST, PORT), Settings) as server:
-        print("ResumeLens ChatGPT settings: " + origin, flush=True)
+    server = HTTPServer((HOST, port), Settings)
+    authority = f"{HOST}:{server.server_port}"
+    origin = "http://" + authority
+    return server
+
+
+def serve(plan):
+    with settings_server(plan) as server:
+        print(f"ResumeLens ChatGPT settings: http://{HOST}:{server.server_port}", flush=True)
         server.serve_forever()
