@@ -75,13 +75,24 @@ export function BrowserTaskCard({ task, progress, facts, outcome, active, runnin
   );
 }
 
+function parseCommandArguments(raw: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 /** A turn can collect several batches before verifying details; keep every completed batch visible. */
 export function CompletedCollectionCards({ turn }: { turn: AgentTurn }) {
   return turn.steps.filter((step) => step.tool === "collect_boss_jobs" && step.ok && step.facts
     && step.toolCallId !== turn.browserTask?.toolCallId).map((step) => (
     <BrowserTaskCard key={step.toolCallId} task={{ toolCallId: step.toolCallId, tool: step.tool,
       taskId: step.toolCallId, executor: "browser-extension", action: "collectBossJobs",
-      command: JSON.parse(step.arguments), expiresAt: 0, timeoutSeconds: 0 }}
+      command: parseCommandArguments(step.arguments), expiresAt: 0, timeoutSeconds: 0 }}
       facts={step.facts!} outcome="completed" active={false} running={false} onCancel={() => {}} onContinue={() => {}} />
   ));
 }

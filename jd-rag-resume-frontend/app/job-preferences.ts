@@ -38,6 +38,31 @@ export function toPreferenceDraft(value: JobPreferences): PreferenceDraft {
   };
 }
 
+export type ChoiceOption = {
+  value: string;
+  label: string;
+  description: string;
+};
+
+export const EDUCATION_OPTIONS: readonly ChoiceOption[] = [
+  { value: "", label: "暂未填写", description: "遇到学历门槛时保留未知" },
+  { value: "1", label: "专科", description: "已取得或就读专科学历" },
+  { value: "2", label: "本科", description: "已取得或就读本科学历" },
+  { value: "3", label: "硕士", description: "已取得或就读硕士学历" },
+  { value: "4", label: "博士", description: "已取得或就读博士学历" },
+];
+
+export const STUDENT_OPTIONS: readonly ChoiceOption[] = [
+  { value: "", label: "暂未填写", description: "不会根据简历猜测" },
+  { value: "yes", label: "在校生", description: "目前仍在学校就读" },
+  { value: "no", label: "已离校", description: "目前没有在校就读" },
+];
+
+/** Resolves an option label without prototype-chain lookup when reading server-supplied values. */
+export function choiceLabel(options: readonly ChoiceOption[], value: string, fallback = "暂未填写"): string {
+  return options.find((option) => option.value === value)?.label ?? fallback;
+}
+
 export function preferencePayload(draft: PreferenceDraft) {
   return {
     availableMonths: draft.months === "" ? null : Number(draft.months),

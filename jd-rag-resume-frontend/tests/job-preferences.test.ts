@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { preferencePayload, toPreferenceDraft } from "../app/job-preferences.ts";
+import { choiceLabel, EDUCATION_OPTIONS, preferencePayload, STUDENT_OPTIONS, toPreferenceDraft } from "../app/job-preferences.ts";
 
 test("missing fields remain null; district remains a preference by default", () => {
   const draft = toPreferenceDraft({
@@ -27,4 +27,13 @@ test("saves explicit availability and normalizes district whitespace", () => {
     preferredDistrict: "深圳龙岗区", districtRequired: true,
     educationLevel: 2, expectedGraduationDate: "2027-06-30", workExperienceYears: 0, currentlyStudent: true,
   });
+});
+
+test("choiceLabel resolves known values and ignores unknown or prototype keys", () => {
+  assert.equal(choiceLabel(EDUCATION_OPTIONS, "2"), "本科");
+  assert.equal(choiceLabel(STUDENT_OPTIONS, "yes"), "在校生");
+  for (const key of ["99", "constructor", "__proto__", "toString", "valueOf"]) {
+    assert.equal(choiceLabel(EDUCATION_OPTIONS, key), "暂未填写", key);
+    assert.equal(choiceLabel(STUDENT_OPTIONS, key), "暂未填写", key);
+  }
 });

@@ -237,6 +237,14 @@ export function logoutSession(): Promise<void> {
   return logoutPromise;
 }
 
+function apiErrorFromPayload(response: Response, payload: ApiEnvelope<unknown> | null): ApiError {
+  return new ApiError(
+    payload?.code || `HTTP_${response.status}`,
+    payload?.message || `请求失败（${response.status}）`,
+    response.status,
+  );
+}
+
 export async function apiRequest<T>(
   path: string,
   init: RequestInit = {},
@@ -250,11 +258,7 @@ export async function apiRequest<T>(
   }
   const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
   if (!response.ok || !payload?.success) {
-    throw new ApiError(
-      payload?.code || `HTTP_${response.status}`,
-      payload?.message || `请求失败（${response.status}）`,
-      response.status,
-    );
+    throw apiErrorFromPayload(response, payload);
   }
   return payload.data;
 }
@@ -274,11 +278,7 @@ export async function apiStream(
   const response = await authorizedFetch(path, { method: "POST", headers, body: JSON.stringify(body), signal });
   if (!response.ok || !response.body) {
     const payload = (await response.json().catch(() => null)) as ApiEnvelope<unknown> | null;
-    throw new ApiError(
-      payload?.code || `HTTP_${response.status}`,
-      payload?.message || `请求失败（${response.status}）`,
-      response.status,
-    );
+    throw apiErrorFromPayload(response, payload);
   }
   return response.body;
 }

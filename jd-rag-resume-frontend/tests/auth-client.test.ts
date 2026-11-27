@@ -5,6 +5,7 @@ import {
   AUTH_EXPIRED_EVENT,
   AUTH_SESSION_CHANGED_CODE,
   apiRequest,
+  apiStream,
   clearAuthSession,
   getAuthSessionId,
   isAuthSessionChangedError,
@@ -463,4 +464,21 @@ test("workspace load must not commit after the captured login session changes", 
   assert.notEqual(getAuthSessionId(), captured);
   // The current session is healthy; only the abandoned load is discarded.
   assert.equal(isAuthSessionCurrent(getAuthSessionId()), true);
+});
+
+test("apiStream surfaces ApiError from JSON envelopes and non-JSON error responses", async () => {
+  globalThis.fetch = async () => Response.json(
+    { success: false, code: "AGENT_BUSY", message: "助手正忙", data: null },
+    { status: 429 },
+  );
+  await assert.rejects(
+    () => apiStream("/api/agent/chat", { question: "hi" }),
+    (reason) => reason instanceof ApiError && reason.code === "AGENT_BUSY" && reason.message === "助手正忙" && reason.status === 429,
+  );
+
+  globalThis.fetch = async () => new Response("bad gateway", { status: 502 });
+  await assert.rejects(
+    () => apiStream("/api/agent/chat", { question: "hi" }),
+    (reason) => reason instanceof ApiError && reason.code === "HTTP_502" && reason.status === 502,
+  );
 });
