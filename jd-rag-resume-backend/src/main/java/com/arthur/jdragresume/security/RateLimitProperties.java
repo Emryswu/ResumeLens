@@ -19,6 +19,9 @@ public class RateLimitProperties {
     @Min(10)
     private int cleanupBatchSize = 1000;
 
+    @Min(1)
+    private int maxTrackedBuckets = 100_000;
+
     public String getMode() {
         return mode;
     }
@@ -33,6 +36,14 @@ public class RateLimitProperties {
 
     public void setCleanupIntervalMs(long cleanupIntervalMs) {
         this.cleanupIntervalMs = cleanupIntervalMs;
+    }
+
+    public int getMaxTrackedBuckets() {
+        return maxTrackedBuckets;
+    }
+
+    public void setMaxTrackedBuckets(int maxTrackedBuckets) {
+        this.maxTrackedBuckets = maxTrackedBuckets;
     }
 
     public int getCleanupBatchSize() {
