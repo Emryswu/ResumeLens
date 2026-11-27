@@ -29,7 +29,7 @@
   /** A failure the browser adapter reports with one of the stop codes above. */
   class CollectStop extends Error {
     constructor(code) {
-      super(STOP_MESSAGES[code] || code);
+      super(Object.hasOwn(STOP_MESSAGES, code) ? STOP_MESSAGES[code] : code);
       this.code = code;
     }
   }
@@ -163,7 +163,12 @@
     function subscribe(taskId, listener) {
       if (!listeners.has(taskId)) listeners.set(taskId, new Set());
       listeners.get(taskId).add(listener);
-      return () => listeners.get(taskId)?.delete(listener);
+      return () => {
+        const set = listeners.get(taskId);
+        if (!set) return;
+        set.delete(listener);
+        if (set.size === 0) listeners.delete(taskId);
+      };
     }
 
     /** Resolves when this worker's run of the task has finished; for tests and shutdown. */
@@ -175,6 +180,7 @@
       try {
         if (!(await browser.hasBossPermission())) throw new CollectStop("PERMISSION_REQUIRED");
         await paceDetail(state);
+        checkCancelled(state);
         if (command.mode === "detail") {
           if (!(await takeDailyPage(state))) throw new CollectStop("DAILY_LIMIT");
           await progress(state, "opening");
@@ -204,7 +210,7 @@
           state.sources.dom = 1;
           state.pagesRead = 1;
           await save(state);
-          return finish(state, "DETAIL_READ");
+          return await finish(state, "DETAIL_READ");
         }
         if (!(await takeDailyPage(state))) throw new CollectStop("DAILY_LIMIT");
         // Best effort: without the hook every page is simply read from the DOM.
@@ -223,34 +229,35 @@
         await progress(state, "reading", { page: 1 });
         let snapshot = await browser.readPage(tabId, "read", { waitMs: FIRST_READ_WAIT_MS });
         if (snapshot.state.kind === "blocked") throw new CollectStop(snapshot.state.code);
-        if (snapshot.state.kind === "empty") return finish(state, "NO_RESULTS");
+        if (snapshot.state.kind === "empty") return await finish(state, "NO_RESULTS");
         if (snapshot.state.kind !== "ready") throw new CollectStop("STRUCTURE_CHANGED");
         let cardCount = snapshot.state.cardCount;
         await merge(state, snapshot, 1);
 
         for (let page = 2; page <= command.maxPages; page += 1) {
-          if (state.jobs.length >= search.LIMITS.maxJobs) return finish(state, "MAX_JOBS");
+          if (state.jobs.length >= search.LIMITS.maxJobs) return await finish(state, "MAX_JOBS");
           const delayMs = search.pageDelayMs(random);
           await progress(state, "waiting", { page, delayMs });
           await sleep(delayMs);
           checkCancelled(state);
-          if (!(await takeDailyPage(state))) return finish(state, "DAILY_LIMIT");
+          if (!(await takeDailyPage(state))) return await finish(state, "DAILY_LIMIT");
           await progress(state, "scrolling", { page });
           snapshot = await browser.readPage(tabId, "scrollAndWait", { previousCount: cardCount, waitMs: SCROLL_WAIT_MS });
           if (snapshot.state.kind === "blocked") throw new CollectStop(snapshot.state.code);
           if (snapshot.state.kind !== "ready" || snapshot.state.cardCount <= cardCount) {
-            return finish(state, "NO_MORE_RESULTS");
+            return await finish(state, "NO_MORE_RESULTS");
           }
           cardCount = snapshot.state.cardCount;
           await merge(state, snapshot, page);
         }
-        return finish(state, state.jobs.length >= search.LIMITS.maxJobs ? "MAX_JOBS" : "MAX_PAGES");
+        return await finish(state, state.jobs.length >= search.LIMITS.maxJobs ? "MAX_JOBS" : "MAX_PAGES");
       } catch (reason) {
         // No retries: every stop goes straight back to the caller with what was read so far.
-        return stop(state, reason instanceof CollectStop ? reason.code : "INTERNAL_ERROR");
+        return await stop(state, reason instanceof CollectStop ? reason.code : "INTERNAL_ERROR");
       } finally {
         cancelled.delete(state.taskId);
         running.delete(state.taskId);
+        listeners.delete(state.taskId);
         await quietly(() => browser.disarmApiCapture());
       }
     }
@@ -321,7 +328,7 @@
     async function stop(state, code) {
       state.status = "stopped";
       state.stopReason = code;
-      state.stopMessage = STOP_MESSAGES[code] || STOP_MESSAGES.INTERNAL_ERROR;
+      state.stopMessage = Object.hasOwn(STOP_MESSAGES, code) ? STOP_MESSAGES[code] : STOP_MESSAGES.INTERNAL_ERROR;
       await save(state);
       await updateBanner(state);
       announce(state);
