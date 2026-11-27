@@ -172,33 +172,30 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
     @Override
     public void destroy() {
         closed = true;
-        int drained = 0;
-        boolean interrupted = false;
         try {
-            long deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(DESTROY_DRAIN_TIMEOUT_MS);
-            while (drained < maxConcurrentEmbeddings) {
-                long remainingNanos = deadlineNanos - System.nanoTime();
-                if (remainingNanos <= 0L) {
-                    break;
-                }
-                try {
-                    if (!inferenceBulkhead.tryAcquire(remainingNanos, TimeUnit.NANOSECONDS)) {
-                        break;
-                    }
-                    drained++;
-                } catch (InterruptedException ex) {
-                    interrupted = true;
-                    break;
-                }
+            if (inferenceBulkhead.tryAcquire(maxConcurrentEmbeddings, DESTROY_DRAIN_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                closeAfterDrain();
+                return;
             }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
+        // Do not free native resources while any inference still holds a permit.
+        // If draining times out or is interrupted, the last permit holder closes them.
+        closeIfIdle();
+    }
+
+    private void closeIfIdle() {
+        if (inferenceBulkhead.tryAcquire(maxConcurrentEmbeddings)) {
+            closeAfterDrain();
+        }
+    }
+
+    private void closeAfterDrain() {
+        try {
             closeResources();
         } finally {
-            if (drained > 0) {
-                inferenceBulkhead.release(drained);
-            }
-            if (interrupted) {
-                Thread.currentThread().interrupt();
-            }
+            inferenceBulkhead.release(maxConcurrentEmbeddings);
         }
     }
 
@@ -268,6 +265,9 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
         } finally {
             if (acquired) {
                 inferenceBulkhead.release();
+                if (closed) {
+                    closeIfIdle();
+                }
             }
         }
     }
