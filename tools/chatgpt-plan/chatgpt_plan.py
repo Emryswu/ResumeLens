@@ -266,8 +266,11 @@ def logout():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["login", "models", "logout", "token", "web", "selected-model"])
+    parser.add_argument("command", choices=["login", "models", "logout", "token", "web", "selected-model", "models-json", "select-model"])
+    parser.add_argument("model", nargs="?")
     args = parser.parse_args()
+    if (args.command == "select-model") != bool(args.model):
+        parser.error("select-model requires exactly one model slug")
     ROOT.mkdir(mode=0o700, exist_ok=True)
     # Serialize login, token refresh and logout across local JVMs.
     # Fail closed instead of using a plaintext alternative to the OS vault.
@@ -287,6 +290,15 @@ def main():
         elif args.command == "models":
             for model in available_models():
                 print(model["slug"] + "\t" + model["display_name"])
+        elif args.command == "models-json":
+            profile = load() or {}
+            if not profile.get("access_token") or PLAN_SCOPE not in profile.get("scopes", []):
+                print(json.dumps({"connected": False, "models": []}))
+            else:
+                print(json.dumps({"connected": True, "models": [
+                    {"slug": m["slug"], "name": m["display_name"]} for m in available_models()]}))
+        elif args.command == "select-model":
+            select_model(args.model)
         elif args.command == "selected-model":
             sys.stdout.write(selected_model())
         else:
