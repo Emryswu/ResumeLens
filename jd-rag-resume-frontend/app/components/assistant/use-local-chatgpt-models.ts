@@ -19,14 +19,14 @@ export function useLocalChatGptModels(userId: number) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const request = useRef(0);
-  const refresh = useCallback(async () => {
+  const invalidate = useCallback(() => { request.current++; }, []);
+  const refresh = useCallback(() => {
     const id = ++request.current;
-    try {
-      const next = await apiRequest<Catalog>("/api/ai/chatgpt/models");
+    return apiRequest<Catalog>("/api/ai/chatgpt/models").then((next) => {
       if (request.current === id) { setCatalog(next); setError(""); }
-    } catch (reason) {
+    }, (reason: unknown) => {
       if (request.current === id) setError(visibleApiErrorMessage(reason, "读取 ChatGPT 模型失败") ?? "");
-    }
+    });
   }, []);
   useEffect(() => {
     if (process.env.NEXT_PUBLIC_LOCAL_CHATGPT_SETTINGS !== "true" && !selected) return;
@@ -34,10 +34,10 @@ export function useLocalChatGptModels(userId: number) {
     const focus = () => void refresh();
     window.addEventListener("focus", focus);
     return () => {
-      request.current++;
+      invalidate();
       window.removeEventListener("focus", focus);
     };
-  }, [refresh, selected]);
+  }, [refresh, selected, invalidate]);
 
   async function choose(slug: string) {
     if (saving) return;
