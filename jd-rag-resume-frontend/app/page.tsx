@@ -7,6 +7,7 @@ import { FormEvent, KeyboardEvent, useCallback, useEffect, useEffectEvent, useRe
 import { AppShell } from "./components/AppShell";
 import { RetryButton } from "./components/StateBlock";
 import { ChoiceMenu } from "./components/ChoiceMenu";
+import { useLocalChatGptModels } from "./components/assistant/use-local-chatgpt-models";
 import { AgentMarkdown } from "./components/assistant/AgentMarkdown";
 import { RecommendationCards } from "./components/assistant/RecommendationCards";
 import { AnalysisCard } from "./components/assistant/AnalysisCard";
@@ -140,6 +141,7 @@ type SampleRun =
 function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout: () => void; aiStatus: AiStatus | null }) {
   const { session, snapshot } = useConversation(user.id);
   const state = snapshot.chat;
+  const chatGpt = useLocalChatGptModels(user.id);
   const dispatchProgress = session.progress;
   /** The turn whose process is open in the side panel. */
   const [processTurn, setProcessTurn] = useState<number | null>(null);
@@ -225,7 +227,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     }
   }, [state.turns, sampleRun, aiStatus]);
 
-  const send = useCallback((body: ReturnType<typeof nextRequest>) => session.send(body, reasoningEffort, collectorMode), [session, reasoningEffort, collectorMode]);
+  const send = useCallback((body: ReturnType<typeof nextRequest>) => session.send(body, reasoningEffort, collectorMode, chatGpt.selected || undefined), [session, reasoningEffort, collectorMode, chatGpt.selected]);
   /** The task this page is running; {@code auto} when it started it without a click (完全访问). */
   const [browserRunning, setBrowserRunning] = useState<{ taskId: string; auto: boolean } | null>(null);
 
@@ -314,8 +316,11 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
     autoRunningTaskId: browserRunning?.auto ? browserRunning.taskId : null });
   const inputLocked = input.sendLocked;
   const canRetry = retryRequest(state) != null;
-  const displayModel = modelDisplayName(aiStatus?.model);
-  const effortLabel = REASONING_OPTIONS.find((option) => option.value === reasoningEffort)!.label;
+  const baseModel = modelDisplayName(aiStatus?.model);
+  const displayModel = chatGpt.selected ? chatGpt.models.find((model) => model.slug === chatGpt.selected)?.name ?? chatGpt.selected : baseModel;
+  const modelLocked = inputLocked || !!state.pending || !!state.pendingBrowser || chatGpt.saving;
+  const effortLabel = chatGpt.selected ? "默认" : REASONING_OPTIONS.find((option) => option.value === reasoningEffort)!.label;
+  const effortOptions = chatGpt.selected ? [{ value: reasoningEffort, label: "默认", description: "ChatGPT 订阅模型使用服务端默认思考配置" }] : REASONING_OPTIONS;
 
   return (
     <AppShell title="AI 求职助手" activeView="assistant" user={user} onLogout={() => { session.clear(); logout(); }}>
@@ -326,7 +331,7 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
               ? "助手会自己调用工具查询你的简历与职位库；涉及消耗配额的操作会先请你确认。"
               : aiStatus.mockEnabled
                 ? "演示模式：由脚本模型按固定流程调用真实工具，未调用真实大模型。"
-                : `当前模型：${modelDisplayName(aiStatus.model)}。助手会自己调用工具；发起完整分析前会先请你确认。`}
+                : `当前助手模型：${displayModel}。助手会自己调用工具；完整分析仍使用后端配置模型，发起前会先请你确认。`}
           </p>
           <Link className="ghost" href={PREFERENCES_PATH}>我的求职条件</Link>
           <button
@@ -457,11 +462,27 @@ function Assistant({ user, onLogout: logout, aiStatus }: { user: User; onLogout:
               {fullAccess && <span className="full-access-badge">{FULL_ACCESS.label}</span>}
             </ChoiceMenu>
             <ChoiceMenu label={`模型与思考档位：${displayModel}，${effortLabel}`}
-              value={reasoningEffort} options={REASONING_OPTIONS} disabled={inputLocked}
+              value={reasoningEffort} options={effortOptions} disabled={modelLocked}
               onChange={(effort) => {
                 window.localStorage.setItem(REASONING_EFFORT_KEY, effort);
                 setReasoningEffort(effort);
-              }}>
+              }}
+              extra={chatGpt.enabled || chatGpt.selected ? <>
+                <span className="choice-menu-option-description">模型</span>
+                <button className="choice-menu-option" type="button" onClick={() => chatGpt.choose("")}
+                  disabled={modelLocked} aria-pressed={!chatGpt.selected}>{baseModel} · API Key</button>
+                {chatGpt.models.map((model) => (
+                  <button key={model.slug} className="choice-menu-option" type="button"
+                    aria-pressed={chatGpt.selected === model.slug} disabled={modelLocked}
+                    onClick={() => void chatGpt.choose(model.slug)}>{model.name} · ChatGPT</button>
+                ))}
+                {chatGpt.enabled && <button className="choice-menu-option" type="button"
+                  onClick={() => window.open("http://127.0.0.1:8765/", "_blank", "noopener,noreferrer")}>
+                  {chatGpt.connected ? "管理 ChatGPT 授权" : "使用 ChatGPT 登录"}
+                </button>}
+                <button className="choice-menu-option" type="button" onClick={() => void chatGpt.refresh()}>刷新可用模型</button>
+                {chatGpt.error && <span className="choice-menu-option-description" role="alert">{chatGpt.error}</span>}
+              </> : undefined}>
               <Brain size={16} aria-hidden="true" />
               <span>{displayModel}</span>
               <span className="choice-menu-separator" aria-hidden="true">·</span>
