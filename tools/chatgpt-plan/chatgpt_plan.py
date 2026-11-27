@@ -113,7 +113,7 @@ def token_claims(raw, client_id, nonce):
                         issuer=ISSUER, options={"require": ["iss", "aud", "exp", "sub"]})
     if not isinstance(claims["sub"], str) or not claims["sub"]:
         raise RuntimeError("Invalid account identity")
-    if nonce is not None and not hmac.compare_digest(str(claims.get("nonce", "")), nonce):
+    if nonce is not None and not hmac.compare_digest(str(claims.get("nonce", "")).encode("utf-8"), nonce.encode("ascii")):
         raise RuntimeError("ID token nonce mismatch")
     aud = claims["aud"]
     if isinstance(aud, list) and len(aud) > 1 and claims.get("azp") != client_id:
@@ -159,7 +159,7 @@ def sign_in():
         def do_GET(self):
             parsed = urlsplit(self.path)
             values = parse_qs(parsed.query, keep_blank_values=True)
-            if parsed.path != "/auth/callback":
+            if self.headers.get("Host") != f"127.0.0.1:{self.server.server_port}" or parsed.path != "/auth/callback":
                 self.send_error(404)
                 return
             if any(len(v) != 1 for v in values.values()) or not hmac.compare_digest(
@@ -170,8 +170,9 @@ def sign_in():
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Referrer-Policy", "no-referrer")
             self.end_headers()
-            self.wfile.write(b"Authorization returned. Check the ResumeLens terminal.")
+            self.wfile.write(b"Authorization returned. Return to the ResumeLens settings page or terminal to check the result.")
 
     with HTTPServer(("127.0.0.1", 0), Callback) as server:
         redirect = f"http://127.0.0.1:{server.server_port}/auth/callback"
@@ -180,6 +181,8 @@ def sign_in():
                   "scope": SCOPE, "resource": RESOURCE, "state": state, "nonce": nonce,
                   "code_challenge_method": "S256", "code_challenge": challenge}
         if previous:
+            if previous.get("id_token"):
+                params["id_token_hint"] = previous["id_token"]
             if previous.get("email"):
                 params["login_hint"] = previous["email"]
         else:
@@ -219,6 +222,27 @@ def access_token():
     return profile["access_token"]
 
 
+def available_models():
+    return [model for model in request_json(RESOURCE + "/models", access=access_token())["models"]
+            if model["visibility"] == "list"]
+
+
+def select_model(slug):
+    if not any(model["slug"] == slug for model in available_models()):
+        raise RuntimeError("Selected model is not available to this account")
+    save(dict(load(), selected_model=slug))
+
+
+def selected_model():
+    profile = load()
+    if not profile or not profile.get("selected_model"):
+        raise RuntimeError("Choose a model in ChatGPT settings first")
+    slug = profile["selected_model"]
+    if not any(model["slug"] == slug for model in available_models()):
+        raise RuntimeError("Previously selected model is no longer available")
+    return slug
+
+
 def logout():
     profile = load()
     if not profile:
@@ -242,7 +266,7 @@ def logout():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["login", "models", "logout", "token"])
+    parser.add_argument("command", choices=["login", "models", "logout", "token", "web", "selected-model"])
     args = parser.parse_args()
     ROOT.mkdir(mode=0o700, exist_ok=True)
     # Serialize login, token refresh and logout across local JVMs.
@@ -251,16 +275,20 @@ def main():
     if not backend.__class__.__module__.startswith(("keyring.backends.Windows", "keyring.backends.macOS",
                                                      "keyring.backends.SecretService", "keyring.backends.kwallet")):
         raise RuntimeError("A supported OS credential vault is required")
+    if args.command == "web":
+        from local_settings import serve
+        serve(sys.modules[__name__])
+        return
     with FileLock(str(ROOT / "session.lock"), timeout=200 if args.command == "login" else 30):
         if args.command == "login":
             sign_in()
         elif args.command == "logout":
             logout()
         elif args.command == "models":
-            models = request_json(RESOURCE + "/models", access=access_token())["models"]
-            for model in models:
-                if model["visibility"] == "list":
-                    print(model["slug"] + "\t" + model["display_name"])
+            for model in available_models():
+                print(model["slug"] + "\t" + model["display_name"])
+        elif args.command == "selected-model":
+            sys.stdout.write(selected_model())
         else:
             # Private IPC: Java captures stdout directly. Never invoke this command to display a token.
             if sys.stdout.isatty():
