@@ -85,6 +85,14 @@ class AgentControllerTests extends ConversationStoreTests {
         assertTrue(models.get() > 0);
     }
 
+    @Test void rejectsUnconfiguredSubscriptionInsteadOfUsingDefaultModel() throws Exception {
+        long id = store.create(1).conversation().id();
+        mvc.perform(post("/api/agent/chat").contentType(MediaType.APPLICATION_JSON).content(
+                "{\"conversationId\":"+id+",\"question\":\"你好\",\"chatGptModel\":\"gpt-test\"}"))
+                .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("code").value("AI_NOT_CONFIGURED"));
+        assertEquals(0, models.get());
+    }
+
     @Test void secondConcurrentTurnReturns409BeforeOpeningSse() throws Exception {
         executor = queued::add;
         rebuild();

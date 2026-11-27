@@ -25,7 +25,7 @@ const code = ts.transpileModule(source, {
 }).outputText;
 
 /** Mount the real page and reducer; replace network and extension I/O with controlled promises. */
-async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk = true, autoCollect = true, fullAccess = false } = {}) {
+async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk = true, autoCollect = true, fullAccess = false, localChatGpt = false } = {}) {
   const dom = new JSDOM('<div id="root"></div>', { url: "http://localhost:3000" });
   if (savedEffort != null) dom.window.localStorage.setItem("resumelens-agent-reasoning-effort", savedEffort);
   if (savedModes != null) dom.window.localStorage.setItem(collectorModes.collectorStorageKey(1), JSON.stringify(savedModes));
@@ -35,6 +35,8 @@ async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk 
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   dom.window.HTMLElement.prototype.scrollIntoView = function () {};
   const requests = [];
+  const modelUpdates = [];
+  const process = { env: { NEXT_PUBLIC_LOCAL_CHATGPT_SETTINGS: localChatGpt ? "true" : "false" } };
   let collections = 0;
   let collectionSignal;
   let finishCollection;
@@ -47,6 +49,14 @@ async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk 
   const api = {
     ApiError: class ApiError extends Error {},
     apiRequest: async (url, options) => {
+      if (url === "/api/ai/chatgpt/models") return {
+        enabled: localChatGpt, connected: localChatGpt,
+        models: localChatGpt ? [{ slug: "gpt-test", name: "GPT Test" }] : [],
+      };
+      if (url === "/api/ai/chatgpt/model" && options?.method === "PUT") {
+        modelUpdates.push(JSON.parse(options.body));
+        return;
+      }
       if (url === "/api/agent/conversations") {
         if (options?.method === "POST") { stored = wire.initialAgentChatState; header = { ...header, id: header.id + 1 }; return detail(); }
         return [header];
@@ -105,8 +115,20 @@ async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk 
       return require(id);
     },
   });
+  const localModelExports = {};
+  const localModelCode = ts.transpileModule(readFileSync(new URL("../app/components/assistant/use-local-chatgpt-models.ts", import.meta.url), "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  vm.runInNewContext(localModelCode, {
+    exports: localModelExports, window: dom.window, process,
+    require(id) {
+      if (id === "react") return require(id);
+      if (id === "../../lib/api") return api;
+      throw new Error(`Unexpected model hook import: ${id}`);
+    },
+  });
   vm.runInNewContext(code, {
-    exports, window: dom.window, AbortController,
+    exports, window: dom.window, AbortController, process,
     require(id) {
       if (id === "react" || id === "react/jsx-runtime") return require(id);
       if (id === "lucide-react") return new Proxy({}, { get: () => empty });
@@ -119,6 +141,7 @@ async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk 
       if (id.endsWith("/collector-mode")) return collectorModes;
       if (id.endsWith("/full-access")) return fullAccessModule;
       if (id.endsWith("/components/ChoiceMenu")) return choiceExports;
+      if (id.endsWith("/components/assistant/use-local-chatgpt-models")) return localModelExports;
       if (id.endsWith("/lib/api")) return api;
       if (id.endsWith("/extension-collect")) return {
         runExtensionCollect({ signal }) {
@@ -175,7 +198,7 @@ async function mount(t, { interrupted = false, savedEffort, savedModes, autoAsk 
     mounted = true;
     await act(async () => { root.render(React.createElement(exports.default)); });
   };
-  return { dom, requests, click, unmount, returnFromWorkspace, get collections() { return collections; }, get collectionSignal() { return collectionSignal; }, finish: (outcome) => act(async () => { finishCollection(outcome); }) };
+  return { dom, requests, modelUpdates, click, unmount, returnFromWorkspace, get collections() { return collections; }, get collectionSignal() { return collectionSignal; }, finish: (outcome) => act(async () => { finishCollection(outcome); }) };
 }
 
 
@@ -232,6 +255,22 @@ test("thinking restores the previous selection and persists a change for the nex
   assert.equal(page.dom.window.localStorage.getItem("resumelens-agent-reasoning-effort"), "max");
   await page.click("我最新那份简历");
   assert.equal(page.requests[0].body.reasoningEffort, "max");
+});
+
+test("the subscription model menu uses the real hook and forwards the selected model", async (t) => {
+  const page = await mount(t, { autoAsk: false, localChatGpt: true });
+  const doc = page.dom.window.document;
+  const trigger = doc.querySelector('button[aria-label^="模型与思考档位"]');
+  await act(async () => { trigger.click(); });
+  const options = [...doc.querySelectorAll('[role="option"]')];
+  assert.deepEqual(options.map((option) => option.querySelector(".choice-menu-option-label").textContent),
+    ["DeepSeek Flash", "GPT Test"]);
+  await act(async () => { options[1].click(); });
+  assert.deepEqual(page.modelUpdates, [{ slug: "gpt-test" }]);
+  assert.equal(page.dom.window.localStorage.getItem("resumelens-chatgpt-model:1"), "gpt-test");
+  assert.match(trigger.textContent, /GPT Test/);
+  await page.click("我最新那份简历");
+  assert.equal(page.requests[0].body.chatGptModel, "gpt-test");
 });
 
 test("Escape and outside pointer presses close the menu without changing the effort", async (t) => {

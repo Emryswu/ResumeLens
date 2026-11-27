@@ -181,6 +181,12 @@ public class AgentLoop {
         this.recommendationFormatter = new RecommendationSummaryFormatter(objectMapper);
     }
 
+    /** One immutable model per submitted run; do not mutate the shared loop. */
+    AgentLoop withModel(AgentModel selected) {
+        return new AgentLoop(selected, registry, objectMapper, properties, clock, browserTasks,
+                conversations, profile, verifyPriority);
+    }
+
     private JobSearchContext searchContext(AgentToolContext context) {
         return conversations == null || context.run() == null
                 ? JobSearchContext.empty() : conversations.searchContext(context.run());

@@ -22,6 +22,8 @@
 
 ---
 
+本地开发者预览：使用自己的 ChatGPT 订阅额度进行开发集 Agent 评测，见 [本地授权与评测说明](tools/chatgpt-plan/README.md)。原有 Web API Key 模式不变。
+
 ## 界面预览
 
 ### 新版工作台与报告

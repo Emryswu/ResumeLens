@@ -2,6 +2,9 @@ package com.arthur.jdragresume.agent;
 
 import com.arthur.jdragresume.controller.AgentController;
 import com.arthur.jdragresume.ai.ReasoningEffort;
+import com.arthur.jdragresume.ai.LocalChatGptModels;
+import com.arthur.jdragresume.ai.AiProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.repository.AppUserRepository;
 import com.arthur.jdragresume.security.JwtAuthenticationFilter;
@@ -100,6 +103,11 @@ class AgentAsyncDispatchSecurityTests {
                         case "equals" -> proxy == args[0];
                         default -> throw new UnsupportedOperationException(method.getName());
                     });
+        }
+
+        @Bean
+        LocalChatGptModels localChatGptModels(ObjectMapper mapper) {
+            return new LocalChatGptModels(mapper, new AiProperties(), 0, "", "unused.py", "");
         }
 
         @Bean

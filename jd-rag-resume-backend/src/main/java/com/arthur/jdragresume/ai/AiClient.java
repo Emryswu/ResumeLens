@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.util.function.Supplier;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -22,10 +24,24 @@ public class AiClient {
     private final AiProperties aiProperties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final ChatGptPlanClient chatGptPlanClient;
+    private final Supplier<String> localToken;
 
+    @Autowired
     public AiClient(AiProperties aiProperties, ObjectMapper objectMapper) {
+        this(aiProperties, objectMapper, null);
+    }
+
+    /** Explicit opt-in for a local, single-user developer process, not shared web credentials. */
+    public static AiClient forLocalChatGpt(AiProperties properties, ObjectMapper mapper, Supplier<String> token) {
+        return new AiClient(properties, mapper, java.util.Objects.requireNonNull(token));
+    }
+
+    private AiClient(AiProperties aiProperties, ObjectMapper objectMapper, Supplier<String> localToken) {
         this.aiProperties = aiProperties;
         this.objectMapper = objectMapper;
+        this.localToken = localToken;
+        this.chatGptPlanClient = localToken == null ? null : new ChatGptPlanClient(objectMapper, timeout());
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(timeout())
                 .build();
@@ -127,6 +143,15 @@ public class AiClient {
     }
 
     private JsonNode post(Map<String, Object> body, Duration requestTimeout) {
+        if (chatGptPlanClient != null) {
+            long started = System.nanoTime();
+            String token = localToken.get();
+            Duration remaining = requestTimeout.minusNanos(System.nanoTime() - started);
+            if (remaining.isZero() || remaining.isNegative()) {
+                throw new BusinessException("AI_TIMEOUT", "ChatGPT authorization exceeded request budget");
+            }
+            return chatGptPlanClient.complete(outboundBody(body), token, remaining);
+        }
         try {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(resolveChatCompletionsUrl()))
@@ -191,6 +216,12 @@ public class AiClient {
 
     /** Public so callers that stream can refuse up front instead of failing mid-stream. */
     public void validateConfig() {
+        if (chatGptPlanClient != null) {
+            if (isBlank(aiProperties.getModel())) {
+                throw new BusinessException("AI_NOT_CONFIGURED", "Select a model from the ChatGPT account catalog");
+            }
+            return;
+        }
         if (isBlank(aiProperties.getApiKey()) || isBlank(aiProperties.getBaseUrl()) || isBlank(aiProperties.getModel())) {
             throw new BusinessException("AI_NOT_CONFIGURED", "AI_API_KEY, AI_BASE_URL and AI_MODEL must be configured");
         }

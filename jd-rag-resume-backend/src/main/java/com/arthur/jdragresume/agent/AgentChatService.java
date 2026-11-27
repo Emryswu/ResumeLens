@@ -7,6 +7,7 @@ import com.arthur.jdragresume.agent.tool.DeferrableTool;
 import com.arthur.jdragresume.entity.AppUser;
 import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.ai.ReasoningEffort;
+import com.arthur.jdragresume.ai.LocalChatGptModels;
 import com.arthur.jdragresume.security.CurrentUserService;
 import com.arthur.jdragresume.security.SlidingWindowRateLimiter;
 import org.slf4j.Logger;
@@ -39,6 +40,12 @@ public class AgentChatService {
     private final BrowserTaskRegistry browserTasks;
     private final ConversationStore conversations;
     private final AgentMetrics metrics;
+    private LocalChatGptModels localChatGptModels;
+
+    @Autowired
+    void setLocalChatGptModels(LocalChatGptModels models) {
+        this.localChatGptModels = models;
+    }
 
     /** Without a registry the meters stay in memory; tests that build the service by hand use this. */
     public AgentChatService(
@@ -88,6 +95,13 @@ public class AgentChatService {
     public SseEmitter chat(long conversationId, String question, TranscriptPolicy.Approval approval,
                            TranscriptPolicy.BrowserReport browserReport, boolean includeTrace,
                            ReasoningEffort reasoningEffort, com.arthur.jdragresume.collect.CollectorMode collectorMode) {
+        return chat(conversationId, question, approval, browserReport, includeTrace, reasoningEffort, collectorMode, null);
+    }
+
+    public SseEmitter chat(long conversationId, String question, TranscriptPolicy.Approval approval,
+                           TranscriptPolicy.BrowserReport browserReport, boolean includeTrace,
+                           ReasoningEffort reasoningEffort, com.arthur.jdragresume.collect.CollectorMode collectorMode,
+                           String chatGptModel) {
         AppUser user = currentUserService.getCurrentUser();
         // Resolve ownership before model/quota checks, including for writes and pending-action reports.
         conversations.header(user.getId(), conversationId);
@@ -99,7 +113,16 @@ public class AgentChatService {
                 && browserReport.report().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length > properties.getMaxBrowserReportBytes()) {
             throw new BusinessException("PAYLOAD_TOO_LARGE", "browser result is too large");
         }
-        agentLoop.requireModelReady();
+        AgentLoop selectedLoop = agentLoop;
+        if (chatGptModel != null) {
+            if (localChatGptModels == null) {
+                throw new BusinessException("AI_NOT_CONFIGURED", "Local ChatGPT is not enabled");
+            }
+            selectedLoop = agentLoop.withModel(metrics.model(new OpenAiCompatibleAgentModel(
+                    localChatGptModels.client(user.getId(), chatGptModel))));
+        }
+        selectedLoop.requireModelReady();
+        AgentLoop turnLoop = selectedLoop;
         SlidingWindowRateLimiter.Key rateLimitKey = SlidingWindowRateLimiter.Key.agent(user.getId());
         if (!rateLimiter.tryAcquire(rateLimitKey, properties.getMaxTurnsPerWindow(),
                 properties.getWindowMinutes() * 60_000)) {
@@ -122,7 +145,7 @@ public class AgentChatService {
         emitter.onError(error -> disconnected.set(true));
         try {
             agentTaskExecutor.execute(() -> runTurn(emitter, disconnected, run, approval, browserReport,
-                    new AgentToolContext(user, run, collectorMode), includeTrace, reasoningEffort));
+                    new AgentToolContext(user, run, collectorMode), includeTrace, reasoningEffort, turnLoop));
         } catch (TaskRejectedException ex) {
             rateLimiter.release(rateLimitKey);
             conversations.fail(run, "AGENT_BUSY", "助手队列已满，本轮未执行");
@@ -145,7 +168,7 @@ public class AgentChatService {
 
     private void runTurn(SseEmitter emitter, AtomicBoolean disconnected, ConversationStore.Run run,
                          TranscriptPolicy.Approval approval, TranscriptPolicy.BrowserReport browserReport,
-                         AgentToolContext context, boolean includeTrace, ReasoningEffort reasoningEffort) {
+                         AgentToolContext context, boolean includeTrace, ReasoningEffort reasoningEffort, AgentLoop turnLoop) {
         // Metered outside the durable sink: the raw DoneEvent is observed before it is reduced for storage.
         AgentEventSink sink = metrics.sink(new AgentEventSink() {
             @Override public void checkpoint(List<AgentMessage> messages, String summary) {
@@ -173,7 +196,7 @@ public class AgentChatService {
             }
             String question = latestUserQuestion(run.input().messages());
             var memories = memoryService.rememberAndRecall(question, approval == null && browserReport == null);
-            agentLoop.run(run.input(), approval, context, sink, () -> !conversations.isCurrent(run), run.acceptedAt(),
+            turnLoop.run(run.input(), approval, context, sink, () -> !conversations.isCurrent(run), run.acceptedAt(),
                     new AgentLoop.TurnOptions(run.summary(), memories, includeTrace, browserReport, reasoningEffort));
         } catch (AgentEventSink.ClientGoneException ex) {
             log.info("agent run {} no longer owns its lease", run.runId());

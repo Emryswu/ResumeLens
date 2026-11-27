@@ -225,3 +225,19 @@ test("full access is switched on the server and the page shows the server's answ
   await client.select(1);
   assert.equal(client.getSnapshot().detail?.conversation.fullAccess, true, "reading the conversation again keeps it");
 });
+
+test("explicit ChatGPT model is sent to the backend", async (t) => {
+  let saved = detail();
+  let submitted: unknown;
+  const client = new ConversationSession({ request: async <T>(path: string) =>
+    (path.endsWith("conversations") ? [saved.conversation] : saved) as T,
+  stream: async (_path, body) => {
+    submitted = body;
+    saved = detail();
+    return new Response('event:done\ndata:{"state":"COMPLETED","steps":1,"transcript":[]}\n\n').body!;
+  }, current: () => true });
+  t.after(client.clear);
+  await client.open(1, 1);
+  await client.send({ question: "你好" }, "high", undefined, "gpt-test");
+  assert.deepEqual(submitted, { conversationId: 1, reasoningEffort: "high", question: "你好", chatGptModel: "gpt-test" });
+});
