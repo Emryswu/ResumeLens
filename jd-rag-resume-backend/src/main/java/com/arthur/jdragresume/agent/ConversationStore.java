@@ -6,6 +6,8 @@ import com.arthur.jdragresume.exception.ResourceNotFoundException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -20,6 +22,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -39,10 +42,21 @@ public class ConversationStore {
     static final ObjectMapper JSON = new ObjectMapper();
     final JdbcTemplate jdbc;
     final TransactionTemplate transactions;
+    private final Clock clock;
 
     public ConversationStore(JdbcTemplate jdbc, PlatformTransactionManager transactionManager) {
+        this(jdbc, transactionManager, Clock.systemUTC());
+    }
+
+    @Autowired
+    public ConversationStore(JdbcTemplate jdbc, PlatformTransactionManager transactionManager, ObjectProvider<Clock> clockProvider) {
+        this(jdbc, transactionManager, clockProvider.getIfAvailable(Clock::systemUTC));
+    }
+
+    public ConversationStore(JdbcTemplate jdbc, PlatformTransactionManager transactionManager, Clock clock) {
         this.jdbc = jdbc;
         this.transactions = new TransactionTemplate(transactionManager);
+        this.clock = clock == null ? Clock.systemUTC() : clock;
     }
 
     public List<Header> list(long userId) {
@@ -57,7 +71,7 @@ public class ConversationStore {
             var statement = connection.prepareStatement("INSERT INTO agent_conversation(user_id,title,created_at,updated_at) VALUES(?,?,?,?)", Statement.RETURN_GENERATED_KEYS);
             statement.setLong(1, userId);
             statement.setString(2, "新对话");
-            var now = Timestamp.from(Instant.now());
+            var now = Timestamp.from(clock.instant());
             statement.setTimestamp(3, now);
             statement.setTimestamp(4, now);
             return statement;
@@ -100,7 +114,7 @@ public class ConversationStore {
                     (rs, n) -> header(rs), id, userId);
             if (rows.isEmpty()) throw new ResourceNotFoundException("conversation", id);
             Header row = rows.getFirst();
-            if (row.activeRun() != null && row.runExpiresAt() <= System.currentTimeMillis()) {
+            if (row.activeRun() != null && row.runExpiresAt() <= clock.millis()) {
                 interrupt(row, "AGENT_INTERRUPTED", "服务执行已中断，可以继续提问");
                 row = jdbc.queryForObject("SELECT * FROM agent_conversation WHERE id=?", (rs, n) -> header(rs), id);
             }
@@ -112,7 +126,7 @@ public class ConversationStore {
     @EventListener(ApplicationReadyEvent.class)
     public void recoverExpired() {
         var expired = jdbc.query("SELECT user_id,id FROM agent_conversation WHERE active_run IS NOT NULL AND run_expires_at<=?",
-                (rs, n) -> new long[]{rs.getLong(1), rs.getLong(2)}, System.currentTimeMillis());
+                (rs, n) -> new long[]{rs.getLong(1), rs.getLong(2)}, clock.millis());
         for (long[] row : expired) {
             try { locked(row[0], row[1], header -> null); }
             catch (Exception ex) {
@@ -138,11 +152,12 @@ public class ConversationStore {
             String runId = UUID.randomUUID().toString();
             String turnId = question != null ? UUID.randomUUID().toString() : row.currentTurn();
             String summary = jdbc.queryForObject("SELECT summary FROM agent_conversation WHERE id=?", String.class, id);
-            long acceptedAt = System.currentTimeMillis();
+            Instant now = clock.instant();
+            long acceptedAt = now.toEpochMilli();
             var provisionalRun = new Run(userId, id, turnId, runId, normalized, summary, acceptedAt);
             jdbc.update("UPDATE agent_conversation SET state='RUNNING',current_turn=?,active_run=?,run_expires_at=?,title=?,updated_at=? WHERE id=?",
                     turnId, runId, acceptedAt + timeoutMs + LEASE_GRACE_MS, question != null && row.eventSequence() == 0
-                            ? question.substring(0, Math.min(120, question.length())) : row.title(), Timestamp.from(Instant.now()), id);
+                            ? question.substring(0, Math.min(120, question.length())) : row.title(), Timestamp.from(now), id);
             syncMessages(id, messages);
             Event acceptedEvent;
             if (question != null) acceptedEvent = append(provisionalRun, "ask", Map.of("question", question));
@@ -228,11 +243,13 @@ public class ConversationStore {
     }
 
     Event append(Run run, String type, Object payload) {
-        jdbc.update("UPDATE agent_conversation SET event_sequence=event_sequence+1,updated_at=? WHERE id=?", Timestamp.from(Instant.now()), run.conversationId());
+        Instant now = clock.instant();
+        Timestamp nowTimestamp = Timestamp.from(now);
+        jdbc.update("UPDATE agent_conversation SET event_sequence=event_sequence+1,updated_at=? WHERE id=?", nowTimestamp, run.conversationId());
         long sequence = jdbc.queryForObject("SELECT event_sequence FROM agent_conversation WHERE id=?", Long.class, run.conversationId());
-        String createdAt = Instant.now().toString();
+        String createdAt = now.toString();
         jdbc.update("INSERT INTO agent_conversation_event VALUES(?,?,?,?,?,?,?)", run.conversationId(), sequence, run.turnId(), run.runId(),
-                type, json(payload), Timestamp.from(Instant.parse(createdAt)));
+                type, json(payload), nowTimestamp);
         return new Event(sequence, run.turnId(), run.runId(), type, JSON.valueToTree(payload), createdAt);
     }
 
@@ -279,8 +296,11 @@ public class ConversationStore {
     }
 
     public boolean isCurrent(Run run) {
-        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT active_run=? AND run_expires_at>? FROM agent_conversation WHERE id=? AND user_id=?",
-                Boolean.class, run.runId(), System.currentTimeMillis(), run.conversationId(), run.userId()));
+        List<Boolean> rows = jdbc.query(
+                "SELECT active_run=? AND run_expires_at>? FROM agent_conversation WHERE id=? AND user_id=?",
+                (rs, n) -> rs.getBoolean(1),
+                run.runId(), clock.millis(), run.conversationId(), run.userId());
+        return !rows.isEmpty() && Boolean.TRUE.equals(rows.getFirst());
     }
 
     public void fail(Run run, String code, String message) {

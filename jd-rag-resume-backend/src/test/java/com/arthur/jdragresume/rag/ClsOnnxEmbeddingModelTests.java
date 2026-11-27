@@ -129,6 +129,112 @@ class ClsOnnxEmbeddingModelTests {
     }
 
     @Test
+    void destroyWaitsForInflightInferenceAndRejectsNewCalls() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        OrtSession session = mock(OrtSession.class);
+        ClsOnnxEmbeddingModel model = new ClsOnnxEmbeddingModel(
+                "classpath:tok", "classpath:model", "a".repeat(64), "b".repeat(64),
+                "last_hidden_state", Map.of(), 3, 1, 5_000L, 1) {
+            @Override
+            EmbeddingResponse runInference(List<String> texts) {
+                entered.countDown();
+                try {
+                    assertTrue(release.await(5, TimeUnit.SECONDS));
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                }
+                return new EmbeddingResponse(List.of(new Embedding(new float[]{1.0f, 0.0f, 0.0f}, 0)));
+            }
+        };
+        ReflectionTestUtils.setField(model, "session", session);
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<float[]> inflight = pool.submit(() -> model.embed("running"));
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+
+            Future<?> destroying = pool.submit(model::destroy);
+            // Give destroy() a moment to block on draining the inflight permit before releasing inference.
+            Thread.sleep(60);
+            verify(session, org.mockito.Mockito.never()).close();
+
+            release.countDown();
+            assertEquals(3, inflight.get(5, TimeUnit.SECONDS).length);
+            destroying.get(5, TimeUnit.SECONDS);
+            verify(session).close();
+
+            IllegalStateException afterClose = assertThrows(IllegalStateException.class,
+                    () -> model.embed("rejected"));
+            assertTrue(afterClose.getMessage().contains("closed"));
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    void destroyDefersClosingAfterDrainTimeout() throws Exception {
+        assertDeferredClose(false);
+    }
+
+    @Test
+    void interruptedDestroyDefersClosingAndPreservesInterrupt() throws Exception {
+        assertDeferredClose(true);
+    }
+
+    private void assertDeferredClose(boolean interruptDestroy) throws Exception {
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        OrtSession session = mock(OrtSession.class);
+        ClsOnnxEmbeddingModel model = new ClsOnnxEmbeddingModel(
+                "classpath:tok", "classpath:model", "a".repeat(64), "b".repeat(64),
+                "last_hidden_state", Map.of(), 3, 1, 5_000L, 1) {
+            @Override
+            EmbeddingResponse runInference(List<String> texts) {
+                entered.countDown();
+                try {
+                    assertTrue(release.await(20, TimeUnit.SECONDS));
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(ex);
+                }
+                return new EmbeddingResponse(List.of(new Embedding(new float[]{1.0f, 0.0f, 0.0f}, 0)));
+            }
+        };
+        ReflectionTestUtils.setField(model, "session", session);
+
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<float[]> inflight = pool.submit(() -> model.embed("running"));
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+
+            Future<Boolean> destroying = pool.submit(() -> {
+                if (interruptDestroy) {
+                    Thread.currentThread().interrupt();
+                }
+                model.destroy();
+                return Thread.currentThread().isInterrupted();
+            });
+
+            assertEquals(interruptDestroy, destroying.get(10, TimeUnit.SECONDS));
+            verify(session, org.mockito.Mockito.never()).close();
+            assertThrows(IllegalStateException.class, () -> model.embed("rejected"));
+
+            release.countDown();
+            assertEquals(3, inflight.get(5, TimeUnit.SECONDS).length);
+            verify(session).close();
+            assertEquals(1, model.availableConcurrencyPermits());
+
+            model.destroy();
+            verify(session).close();
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
     void bulkheadLimitsConcurrentInferenceAndReleasesPermitsCleanly() throws Exception {
         AtomicInteger active = new AtomicInteger();
         AtomicInteger maxObserved = new AtomicInteger();

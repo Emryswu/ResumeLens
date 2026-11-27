@@ -462,3 +462,38 @@ test("worker start-up removes a hook an interrupted task left registered", async
   await runner.recoverStaleTasks();
   assert.deepEqual(browser.calls, [["disarm"]]);
 });
+
+test("collect-status ignores prototype keys in stopReason and finishReason", () => {
+  const collectStatus = require("../src/collect-status.js");
+  for (const key of ["constructor", "__proto__", "toString", "valueOf"]) {
+    assert.equal(collectStatus.reasonText({ stopReason: key }), null, key);
+    assert.equal(collectStatus.reasonText({ finishReason: key }), null, key);
+  }
+  assert.equal(collectStatus.reasonText(null), null);
+});
+
+test("cancelling before opening a tab does not spend daily budget or open BOSS", async () => {
+  let releasePermission;
+  const browser = fakeBrowser({ steps: [ready(["a"])] });
+  browser.hasBossPermission = () => new Promise((resolve) => {
+    releasePermission = () => resolve(true);
+  });
+  const { runner, daily } = setup({ browser });
+  const events = [];
+  const unsubscribe = runner.subscribe(COMMAND.taskId, (event) => events.push(event));
+
+  const started = await runner.start(COMMAND);
+  assert.equal(started.ok, true);
+  await waitUntil(() => releasePermission);
+  await runner.cancel(COMMAND.taskId);
+  releasePermission();
+  await runner.whenSettled(COMMAND.taskId);
+
+  const task = await runner.status(COMMAND.taskId);
+  assert.equal(task.status, "stopped");
+  assert.equal(task.stopReason, "USER_CANCELLED");
+  assert.equal(await daily.get(`${collectRunner.DAILY_PREFIX}2026-10-22`), undefined);
+  assert.equal(browser.calls.some(([name]) => name === "open"), false);
+  assert.equal(events.at(-1)?.type, "result");
+  unsubscribe();
+});

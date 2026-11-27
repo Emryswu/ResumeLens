@@ -30,7 +30,10 @@
   const LOGIN_HINT = "可能未登录 BOSS，只能看到第一页";
 
   function reasonText(task) {
-    const message = task.stopReason ? STOP_MESSAGES[task.stopReason] : FINISH_MESSAGES[task.finishReason];
+    if (!task) return null;
+    const message = task.stopReason
+      ? (Object.hasOwn(STOP_MESSAGES, task.stopReason) ? STOP_MESSAGES[task.stopReason] : null)
+      : (task.finishReason && Object.hasOwn(FINISH_MESSAGES, task.finishReason) ? FINISH_MESSAGES[task.finishReason] : null);
     if (!message) return null;
     return task.pagesRead === 1 && task.finishReason === "NO_MORE_RESULTS"
       ? `${message}；${LOGIN_HINT}` : message;

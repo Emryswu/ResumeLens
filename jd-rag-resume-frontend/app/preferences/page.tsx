@@ -6,7 +6,15 @@ import { AppShell } from "../components/AppShell";
 import { ChoiceMenu } from "../components/ChoiceMenu";
 import { useSessionUser } from "../components/use-session-user";
 import { apiRequest, visibleApiErrorMessage } from "../lib/api";
-import { preferencePayload, toPreferenceDraft, type JobPreferences, type PreferenceDraft } from "../job-preferences";
+import {
+  choiceLabel,
+  EDUCATION_OPTIONS,
+  preferencePayload,
+  STUDENT_OPTIONS,
+  toPreferenceDraft,
+  type JobPreferences,
+  type PreferenceDraft,
+} from "../job-preferences";
 import { HOME_PATH } from "../workspace-nav";
 
 const BLANK: PreferenceDraft = {
@@ -91,15 +99,9 @@ export default function JobPreferencesPage() {
           <div className="preference-choice">
             <span>本人学历</span>
             <ChoiceMenu label="本人学历" value={draft.educationLevel} disabled={disabled}
-              options={[
-                { value: "", label: "暂未填写", description: "遇到学历门槛时保留未知" },
-                { value: "1", label: "专科", description: "已取得或就读专科学历" },
-                { value: "2", label: "本科", description: "已取得或就读本科学历" },
-                { value: "3", label: "硕士", description: "已取得或就读硕士学历" },
-                { value: "4", label: "博士", description: "已取得或就读博士学历" },
-              ]}
+              options={EDUCATION_OPTIONS}
               onChange={(value) => setDraft({ ...draft, educationLevel: value })}>
-              {({ "": "暂未填写", "1": "专科", "2": "本科", "3": "硕士", "4": "博士" } as Record<string, string>)[draft.educationLevel]}
+              {choiceLabel(EDUCATION_OPTIONS, draft.educationLevel)}
             </ChoiceMenu>
           </div>
           <label>预计毕业日期
@@ -116,13 +118,9 @@ export default function JobPreferencesPage() {
           <div className="preference-choice">
             <span>目前在校</span>
             <ChoiceMenu label="目前是否在校" value={draft.currentlyStudent} disabled={disabled}
-              options={[
-                { value: "", label: "暂未填写", description: "不会根据简历猜测" },
-                { value: "yes", label: "在校生", description: "目前仍在学校就读" },
-                { value: "no", label: "已离校", description: "目前没有在校就读" },
-              ]}
+              options={STUDENT_OPTIONS}
               onChange={(value) => setDraft({ ...draft, currentlyStudent: value })}>
-              {({ "": "暂未填写", yes: "在校生", no: "已离校" } as Record<string, string>)[draft.currentlyStudent]}
+              {choiceLabel(STUDENT_OPTIONS, draft.currentlyStudent)}
             </ChoiceMenu>
           </div>
         </div>

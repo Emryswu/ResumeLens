@@ -74,7 +74,7 @@
 
   function findCards(documentRef) {
     for (const selector of SELECTORS.card) {
-      const cards = queryAll(documentRef, selector);
+      const cards = base.safeQueryAll(documentRef, selector);
       if (cards.length > 0) return cards;
     }
     return [];
@@ -104,16 +104,16 @@
 
   function cardToJob(card, href) {
     const linkNode = first(card, SELECTORS.link);
-    const rawLink = attribute(linkNode, "href");
+    const rawLink = base.attribute(linkNode, "href");
     if (!rawLink) return null;
     return listingJob({
       detailUrl: absoluteUrl(rawLink, href),
-      title: text(first(card, SELECTORS.title)) || text(linkNode),
-      companyName: text(first(card, SELECTORS.company)),
-      location: text(first(card, SELECTORS.location)),
-      salary: text(first(card, SELECTORS.salary)),
+      title: base.nodeText(first(card, SELECTORS.title)) || base.nodeText(linkNode),
+      companyName: base.nodeText(first(card, SELECTORS.company)),
+      location: base.nodeText(first(card, SELECTORS.location)),
+      salary: base.nodeText(first(card, SELECTORS.salary)),
       tags: queryTexts(card, SELECTORS.tags),
-      welfare: text(first(card, SELECTORS.welfare)),
+      welfare: base.nodeText(first(card, SELECTORS.welfare)),
       captureSource: "dom",
     });
   }
@@ -142,7 +142,7 @@
       title,
       companyName,
       location,
-      employmentType: /实习/.test(`${title} ${requirements}`) ? "实习" : /兼职/.test(`${title} ${requirements}`) ? "兼职" : "全职",
+      employmentType: base.inferEmploymentType([requirements], title),
       salary,
       description: summaryDescription({ title, companyName, location, salary, requirements, welfare }),
       requirements,
@@ -167,7 +167,7 @@
   }
 
   function queryTexts(root, selectors) {
-    return selectors.flatMap((selector) => queryAll(root, selector).map(text));
+    return selectors.flatMap((selector) => base.safeQueryAll(root, selector).map(base.nodeText));
   }
 
   /** Short, readable, de-duplicated tags; obfuscated salary glyphs and long blurbs are dropped. */
@@ -186,7 +186,7 @@
   }
 
   function anyVisible(documentRef, selectors) {
-    return selectors.some((selector) => queryAll(documentRef, selector).some(isVisible));
+    return selectors.some((selector) => base.safeQueryAll(documentRef, selector).some(isVisible));
   }
 
   function isVisible(node) {
@@ -203,37 +203,10 @@
 
   function first(root, selectors) {
     for (const selector of selectors) {
-      const node = query(root, selector);
+      const node = base.safeQuery(root, selector);
       if (node) return node;
     }
     return null;
-  }
-
-  function query(root, selector) {
-    try {
-      return root && root.querySelector ? root.querySelector(selector) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  function queryAll(root, selector) {
-    try {
-      return root && root.querySelectorAll ? Array.from(root.querySelectorAll(selector)) : [];
-    } catch {
-      return [];
-    }
-  }
-
-  function text(node) {
-    if (!node) return "";
-    return base.normalizeText(typeof node.innerText === "string" ? node.innerText : node.textContent);
-  }
-
-  function attribute(node, name) {
-    if (!node) return "";
-    if (typeof node.getAttribute === "function") return String(node.getAttribute(name) || "");
-    return String(node[name] || "");
   }
 
   function bounded(value, maxLength) {

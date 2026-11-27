@@ -37,7 +37,10 @@ public class SlidingWindowRateLimiter {
         }
 
         String owner() {
-            return ip != null ? ip : subject;
+            if (ip != null) {
+                return ip;
+            }
+            return subject != null ? subject : "";
         }
     }
 
@@ -112,8 +115,7 @@ public class SlidingWindowRateLimiter {
         if (account == null) return;
         KeyWindow window = account.windows.get(key);
         if (window == null) return;
-        window.timestamps.removeLast();
-        if (window.timestamps.isEmpty()) {
+        if (window.timestamps.pollLast() == null || window.timestamps.isEmpty()) {
             bySize.remove(account);
             account.windows.remove(key);
             trackedKeys--;
@@ -140,7 +142,8 @@ public class SlidingWindowRateLimiter {
             boolean changed = false;
             while (windows.hasNext()) {
                 var window = windows.next();
-                if (window.timestamps.getLast() > now - window.windowMs) continue;
+                Long latest = window.timestamps.peekLast();
+                if (latest != null && latest > now - window.windowMs) continue;
                 if (!changed) bySize.remove(account); // Before its sort key changes.
                 changed = true;
                 windows.remove();

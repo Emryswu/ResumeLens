@@ -34,7 +34,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Locale;
-import java.util.function.Supplier;
 
 @Service
 public class JobDescriptionService {
@@ -92,7 +91,7 @@ public class JobDescriptionService {
     @Transactional(readOnly = true)
     public PageResponse<JobDescriptionResponse> findAll(int page, int size, String keyword) {
         AppUser user = currentUserService.getCurrentUser();
-        String safeKeyword = normalizeKeyword(keyword);
+        String safeKeyword = UserOwnedServiceSupport.normalizeKeyword(keyword);
         var pageRequest = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return PageResponse.from(jobDescriptionRepository
                 .findByUserIdAndTitleContainingIgnoreCaseOrUserIdAndCompanyNameContainingIgnoreCase(
@@ -109,8 +108,13 @@ public class JobDescriptionService {
     public PageResponse<JobDescriptionResponse> findAll(int page, int size, String keyword, String employmentType, String collectionExperience) {
         AppUser user = currentUserService.getCurrentUser();
         var pageable = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
-        return PageResponse.from(jobDescriptionRepository.searchForUser(user.getId(), normalizeKeyword(keyword),
-                normalizeKeyword(employmentType), normalizeKeyword(collectionExperience), pageable).map(JobDescriptionResponse::from));
+        return PageResponse.from(jobDescriptionRepository.searchForUser(
+                user.getId(),
+                UserOwnedServiceSupport.normalizeKeyword(keyword),
+                UserOwnedServiceSupport.normalizeKeyword(employmentType),
+                UserOwnedServiceSupport.normalizeKeyword(collectionExperience),
+                pageable
+        ).map(JobDescriptionResponse::from));
     }
 
     @Transactional(readOnly = true)
@@ -135,8 +139,8 @@ public class JobDescriptionService {
         applyRequest(jobDescription, request);
         jobDescription.setContentFingerprint(ContentFingerprints.job(jobDescription));
         semanticEmbeddingService.refresh(jobDescription);
-        return inTransaction(() -> {
-            AppUser user = lockUser(precheckUser.getId());
+        return UserOwnedServiceSupport.inTransaction(transactionTemplate, () -> {
+            AppUser user = UserOwnedServiceSupport.lockUser(appUserRepository, precheckUser.getId());
             enforceJobDescriptionCount(user, 1);
             jobDescription.setUser(user);
             return JobDescriptionResponse.from(jobDescriptionRepository.save(jobDescription));
@@ -155,8 +159,8 @@ public class JobDescriptionService {
                 })
                 .toList();
         semanticEmbeddingService.refreshJobs(jobs);
-        return inTransaction(() -> {
-            AppUser user = lockUser(precheckUser.getId());
+        return UserOwnedServiceSupport.inTransaction(transactionTemplate, () -> {
+            AppUser user = UserOwnedServiceSupport.lockUser(appUserRepository, precheckUser.getId());
             enforceJobDescriptionCount(user, jobs.size());
             jobs.forEach(job -> job.setUser(user));
             return jobs.stream()
@@ -195,28 +199,44 @@ public class JobDescriptionService {
         LocalDateTime now = LocalDateTime.now(clock);
 
         var existing = jobDescriptionRepository.findByUserIdAndSourcePlatformAndSourceJobId(
-                user.getId(),
-                sourcePlatform,
-                sourceJobId
-        );
+                user.getId(), sourcePlatform, sourceJobId);
         if (existing.isPresent()) {
-            JobDescription jobDescription = existing.get();
-            boolean contentChanged = !fingerprint.equals(jobDescription.getContentFingerprint());
-            if (contentChanged) {
-                applyCaptureRequest(jobDescription, request);
-                jobDescription.setContentFingerprint(fingerprint);
-                semanticEmbeddingService.refresh(jobDescription);
-            }
-            // A detail-page capture is the full posting, also when it replaces a list summary.
-            jobDescription.setCaptureDepth(CaptureDepth.FULL);
-            jobDescription.setFullVerifiedAt(LocalDateTime.now(clock));
-            jobDescription.setSourceUrl(request.sourceUrl().trim());
-            jobDescription.setLastSeenAt(now);
-            JobDescription saved = jobDescriptionRepository.save(jobDescription);
-            return new JobCaptureResponse(JobDescriptionResponse.from(saved), true, contentChanged);
+            return updateCapturedJob(existing.get(), request, fingerprint, now);
         }
 
         enforceJobDescriptionCount(user, 1);
+        return createCapturedJob(user, sourcePlatform, sourceJobId, request, fingerprint, now);
+    }
+
+    private JobCaptureResponse updateCapturedJob(
+            JobDescription jobDescription,
+            JobCaptureRequest request,
+            String fingerprint,
+            LocalDateTime now
+    ) {
+        boolean contentChanged = !fingerprint.equals(jobDescription.getContentFingerprint());
+        if (contentChanged) {
+            applyCaptureRequest(jobDescription, request);
+            jobDescription.setContentFingerprint(fingerprint);
+            semanticEmbeddingService.refresh(jobDescription);
+        }
+        // A detail-page capture is the full posting, also when it replaces a list summary.
+        jobDescription.setCaptureDepth(CaptureDepth.FULL);
+        jobDescription.setFullVerifiedAt(now);
+        jobDescription.setSourceUrl(request.sourceUrl().trim());
+        jobDescription.setLastSeenAt(now);
+        JobDescription saved = jobDescriptionRepository.save(jobDescription);
+        return new JobCaptureResponse(JobDescriptionResponse.from(saved), true, contentChanged);
+    }
+
+    private JobCaptureResponse createCapturedJob(
+            AppUser user,
+            String sourcePlatform,
+            String sourceJobId,
+            JobCaptureRequest request,
+            String fingerprint,
+            LocalDateTime now
+    ) {
         JobDescription jobDescription = new JobDescription();
         jobDescription.setUser(user);
         applyCaptureRequest(jobDescription, request);
@@ -225,7 +245,7 @@ public class JobDescriptionService {
         jobDescription.setSourceJobId(sourceJobId);
         jobDescription.setContentFingerprint(fingerprint);
         jobDescription.setLastSeenAt(now);
-        jobDescription.setFullVerifiedAt(LocalDateTime.now(clock));
+        jobDescription.setFullVerifiedAt(now);
         semanticEmbeddingService.refresh(jobDescription);
         JobDescription saved = jobDescriptionRepository.save(jobDescription);
         return new JobCaptureResponse(JobDescriptionResponse.from(saved), false, false);
@@ -255,27 +275,14 @@ public class JobDescriptionService {
             var existing = jobDescriptionRepository.findByUserIdAndSourcePlatformAndSourceJobId(
                     user.getId(), sourcePlatform, sourceJobId);
             if (existing.isPresent()) {
-                JobDescription jobDescription = existing.get();
-                jobDescription.setLastSeenAt(now);
-                jobDescription.setCollectionExperience(collectionExperience);
-                saved.add(new ListingCaptureResult.Saved(JobDescriptionResponse.from(jobDescriptionRepository.save(jobDescription)), true));
+                saved.add(refreshExistingListing(existing.get(), collectionExperience, now));
                 continue;
             }
             if (count >= maxJobDescriptionsPerUser) {
                 notSaved++;
                 continue;
             }
-            JobDescription jobDescription = new JobDescription();
-            jobDescription.setUser(user);
-            applyCaptureRequest(jobDescription, request);
-            jobDescription.setSourcePlatform(sourcePlatform);
-            jobDescription.setSourceUrl(request.sourceUrl().trim());
-            jobDescription.setSourceJobId(sourceJobId);
-            jobDescription.setContentFingerprint(ContentFingerprints.job(jobDescription));
-            jobDescription.setCaptureDepth(CaptureDepth.LISTING);
-            jobDescription.setCollectionExperience(collectionExperience);
-            jobDescription.setLastSeenAt(now);
-            created.add(jobDescription);
+            created.add(buildNewListing(user, sourcePlatform, sourceJobId, request, collectionExperience, now));
             count++;
         }
         // One batch embedding call for every new summary, as bulkImport does.
@@ -286,28 +293,66 @@ public class JobDescriptionService {
         return new ListingCaptureResult(saved, notSaved, notSaved > 0, maxJobDescriptionsPerUser);
     }
 
+    private ListingCaptureResult.Saved refreshExistingListing(
+            JobDescription jobDescription,
+            String collectionExperience,
+            LocalDateTime now
+    ) {
+        jobDescription.setLastSeenAt(now);
+        jobDescription.setCollectionExperience(collectionExperience);
+        return new ListingCaptureResult.Saved(JobDescriptionResponse.from(jobDescriptionRepository.save(jobDescription)), true);
+    }
+
+    private JobDescription buildNewListing(
+            AppUser user,
+            String sourcePlatform,
+            String sourceJobId,
+            JobCaptureRequest request,
+            String collectionExperience,
+            LocalDateTime now
+    ) {
+        JobDescription jobDescription = new JobDescription();
+        jobDescription.setUser(user);
+        applyCaptureRequest(jobDescription, request);
+        jobDescription.setSourcePlatform(sourcePlatform);
+        jobDescription.setSourceUrl(request.sourceUrl().trim());
+        jobDescription.setSourceJobId(sourceJobId);
+        jobDescription.setContentFingerprint(ContentFingerprints.job(jobDescription));
+        jobDescription.setCaptureDepth(CaptureDepth.LISTING);
+        jobDescription.setCollectionExperience(collectionExperience);
+        jobDescription.setLastSeenAt(now);
+        return jobDescription;
+    }
+
     public JobDescriptionResponse update(Long id, JobDescriptionRequest request) {
         AppUser precheckUser = currentUserService.getCurrentUser();
         JobDescription existing = getEntityForUser(id, precheckUser.getId());
-        JobDescription computed = new JobDescription();
-        applyRequest(computed, request);
-        String fingerprint = ContentFingerprints.job(computed);
-        computed.setSemanticEmbedding(existing.getSemanticEmbedding());
-        computed.setSemanticEmbeddingFingerprint(existing.getSemanticEmbeddingFingerprint());
-        computed.setSemanticEmbeddingModelKey(existing.getSemanticEmbeddingModelKey());
-        if (!semanticEmbeddingService.isCurrent(computed)) {
-            semanticEmbeddingService.refresh(computed);
-        }
-        return inTransaction(() -> {
+        JobDescription computed = prepareComputedJob(request, existing);
+        return UserOwnedServiceSupport.inTransaction(transactionTemplate, () -> {
             AppUser user = lockCurrentUser();
             JobDescription jobDescription = getEntityForUser(id, user.getId());
             applyRequest(jobDescription, request);
-            jobDescription.setContentFingerprint(fingerprint);
-            jobDescription.setSemanticEmbedding(computed.getSemanticEmbedding());
-            jobDescription.setSemanticEmbeddingFingerprint(computed.getSemanticEmbeddingFingerprint());
-            jobDescription.setSemanticEmbeddingModelKey(computed.getSemanticEmbeddingModelKey());
+            jobDescription.setContentFingerprint(computed.getContentFingerprint());
+            copySemanticEmbedding(jobDescription, computed);
             return JobDescriptionResponse.from(jobDescriptionRepository.save(jobDescription));
         });
+    }
+
+    private JobDescription prepareComputedJob(JobDescriptionRequest request, JobDescription existing) {
+        JobDescription computed = new JobDescription();
+        applyRequest(computed, request);
+        computed.setContentFingerprint(ContentFingerprints.job(computed));
+        copySemanticEmbedding(computed, existing);
+        if (!semanticEmbeddingService.isCurrent(computed)) {
+            semanticEmbeddingService.refresh(computed);
+        }
+        return computed;
+    }
+
+    private static void copySemanticEmbedding(JobDescription target, JobDescription source) {
+        target.setSemanticEmbedding(source.getSemanticEmbedding());
+        target.setSemanticEmbeddingFingerprint(source.getSemanticEmbeddingFingerprint());
+        target.setSemanticEmbeddingModelKey(source.getSemanticEmbeddingModelKey());
     }
 
     @Transactional
@@ -332,12 +377,7 @@ public class JobDescriptionService {
      * 会各自读到配额用尽前的旧计数，双双通过校验后把上限顶穿。
      */
     private AppUser lockCurrentUser() {
-        return lockUser(currentUserService.getCurrentUser().getId());
-    }
-
-    private AppUser lockUser(Long userId) {
-        return appUserRepository.findByIdForUpdate(userId)
-                .orElseThrow(() -> new IllegalStateException("current user no longer exists"));
+        return UserOwnedServiceSupport.lockUser(appUserRepository, currentUserService.getCurrentUser().getId());
     }
 
     /**
@@ -377,10 +417,10 @@ public class JobDescriptionService {
     private void applyCaptureRequest(JobDescription jobDescription, JobCaptureRequest request) {
         jobDescription.setTitle(request.title().trim());
         jobDescription.setCompanyName(request.companyName().trim());
-        jobDescription.setLocation(trimToNull(request.location()));
-        jobDescription.setEmploymentType(trimToNull(request.employmentType()));
+        jobDescription.setLocation(UserOwnedServiceSupport.trimToNull(request.location()));
+        jobDescription.setEmploymentType(UserOwnedServiceSupport.trimToNull(request.employmentType()));
         jobDescription.setDescription(request.description().trim());
-        jobDescription.setRequirements(trimToNull(request.requirements()));
+        jobDescription.setRequirements(UserOwnedServiceSupport.trimToNull(request.requirements()));
     }
 
     private String normalizeSourcePlatform(String value) {
@@ -397,22 +437,5 @@ public class JobDescriptionService {
             throw new BusinessException("VALIDATION_ERROR", "sourceJobId must contain 1 to 160 characters");
         }
         return normalized;
-    }
-
-    private String trimToNull(String value) {
-        if (value == null) return null;
-        String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
-    }
-
-    private <T> T inTransaction(Supplier<T> action) {
-        if (transactionTemplate == null) {
-            return action.get();
-        }
-        return transactionTemplate.execute(status -> action.get());
-    }
-
-    private String normalizeKeyword(String keyword) {
-        return keyword == null ? "" : keyword.trim();
     }
 }

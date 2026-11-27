@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
@@ -30,6 +31,7 @@ public class JdbcSlidingWindowRateLimiter extends SlidingWindowRateLimiter {
 
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
+    private final TransactionTemplate isolatedTransactions;
     private final LongSupplier clock;
     private final int cleanupBatchSize;
     private final int maxTrackedBuckets;
@@ -57,9 +59,13 @@ public class JdbcSlidingWindowRateLimiter extends SlidingWindowRateLimiter {
         super(clock);
         this.jdbc = jdbc;
         this.transactions = new TransactionTemplate(transactionManager);
+        // Rate-limit admission and release must survive an outer @Transactional rollback
+        // (e.g. wrong currentPassword in AppUserService.updateMe throwing BusinessException).
+        this.isolatedTransactions = new TransactionTemplate(transactionManager);
+        this.isolatedTransactions.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         this.clock = clock;
         this.cleanupBatchSize = Math.max(10, cleanupBatchSize);
-        this.maxTrackedBuckets = maxTrackedBuckets;
+        this.maxTrackedBuckets = Math.max(1, maxTrackedBuckets);
     }
 
     @Override
@@ -74,7 +80,7 @@ public class JdbcSlidingWindowRateLimiter extends SlidingWindowRateLimiter {
         String bucketKey = encodeKey(key);
 
         String creationToken = UUID.randomUUID().toString();
-        Boolean acquired = transactions.execute(status -> {
+        Boolean acquired = isolatedTransactions.execute(status -> {
             jdbc.update(
                     "INSERT INTO rate_limit_buckets(bucket_key, updated_at_ms, creation_token) VALUES (?, ?, ?) "
                             + "ON DUPLICATE KEY UPDATE bucket_key = bucket_key",
@@ -118,7 +124,7 @@ public class JdbcSlidingWindowRateLimiter extends SlidingWindowRateLimiter {
     @Override
     public void release(Key key) {
         String bucketKey = encodeKey(key);
-        transactions.executeWithoutResult(status -> {
+        isolatedTransactions.executeWithoutResult(status -> {
             List<String> locked = jdbc.query(
                     "SELECT bucket_key FROM rate_limit_buckets WHERE bucket_key = ? FOR UPDATE",
                     (rs, n) -> rs.getString(1), bucketKey);
@@ -161,7 +167,8 @@ public class JdbcSlidingWindowRateLimiter extends SlidingWindowRateLimiter {
                 if (remaining.isEmpty()) {
                     jdbc.update("DELETE FROM rate_limit_buckets WHERE bucket_key = ?", bucketKey);
                     // Same lock order as admission: bucket first, capacity second.
-                    jdbc.update("UPDATE rate_limit_capacity SET tracked_buckets = tracked_buckets - 1 WHERE id = 1");
+                    jdbc.update("UPDATE rate_limit_capacity SET tracked_buckets = tracked_buckets - 1 "
+                            + "WHERE id = 1 AND tracked_buckets > 0");
                 }
             });
         }

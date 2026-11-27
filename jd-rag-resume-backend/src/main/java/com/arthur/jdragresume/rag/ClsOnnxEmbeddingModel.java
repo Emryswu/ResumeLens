@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 /**
  * ONNX embedding model that uses CLS / first-token pooling.
@@ -40,6 +39,7 @@ import java.util.stream.Collectors;
  */
 public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, DisposableBean {
     private static final long DEFAULT_ACQUIRE_TIMEOUT_MS = 30_000L;
+    private static final long DESTROY_DRAIN_TIMEOUT_MS = 5_000L;
 
     private final String tokenizerUri;
     private final String modelUri;
@@ -53,6 +53,7 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
     private final int onnxIntraOpThreads;
     private final Semaphore inferenceBulkhead;
 
+    private volatile boolean closed = false;
     private HuggingFaceTokenizer tokenizer;
     private OrtEnvironment environment;
     private OrtSession session;
@@ -115,35 +116,42 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
 
     @Override
     public void afterPropertiesSet() throws Exception {
-        this.cacheService = new ResourceCacheService();
-        Resource tokenizerResource = cacheService.getCachedResource(
-                new DefaultResourceLoader().getResource(tokenizerUri)
-        );
-        Resource modelResource = cacheService.getCachedResource(
-                new DefaultResourceLoader().getResource(modelUri)
-        );
+        try {
+            this.cacheService = new ResourceCacheService();
+            Resource tokenizerResource = cacheService.getCachedResource(
+                    new DefaultResourceLoader().getResource(tokenizerUri)
+            );
+            Resource modelResource = cacheService.getCachedResource(
+                    new DefaultResourceLoader().getResource(modelUri)
+            );
 
-        byte[] tokenizerBytes = tokenizerResource.getContentAsByteArray();
-        verifySha256("tokenizer", tokenizerBytes, tokenizerSha256);
-        try (InputStream tokenizerStream = new ByteArrayInputStream(tokenizerBytes)) {
-            this.tokenizer = HuggingFaceTokenizer.newInstance(tokenizerStream, tokenizerOptions);
-        }
-
-        byte[] modelBytes = modelResource.getContentAsByteArray();
-        verifySha256("ONNX model", modelBytes, modelSha256);
-        this.environment = OrtEnvironment.getEnvironment();
-        try (OrtSession.SessionOptions sessionOptions = new OrtSession.SessionOptions()) {
-            if (onnxIntraOpThreads > 0) {
-                sessionOptions.setIntraOpNumThreads(onnxIntraOpThreads);
+            byte[] tokenizerBytes = tokenizerResource.getContentAsByteArray();
+            verifySha256("tokenizer", tokenizerBytes, tokenizerSha256);
+            try (InputStream tokenizerStream = new ByteArrayInputStream(tokenizerBytes)) {
+                this.tokenizer = HuggingFaceTokenizer.newInstance(tokenizerStream, tokenizerOptions);
             }
-            this.session = environment.createSession(modelBytes, sessionOptions);
+
+            byte[] modelBytes = modelResource.getContentAsByteArray();
+            verifySha256("ONNX model", modelBytes, modelSha256);
+            this.environment = OrtEnvironment.getEnvironment();
+            try (OrtSession.SessionOptions sessionOptions = new OrtSession.SessionOptions()) {
+                if (onnxIntraOpThreads > 0) {
+                    sessionOptions.setIntraOpNumThreads(onnxIntraOpThreads);
+                }
+                this.session = environment.createSession(modelBytes, sessionOptions);
+            }
+            this.modelInputNames = session.getInputNames();
+            Set<String> outputs = session.getOutputNames();
+            Assert.isTrue(
+                    outputs.contains(modelOutputName),
+                    "ONNX outputs " + outputs + " do not contain expected output: " + modelOutputName
+            );
+            this.closed = false;
+        } catch (Exception | Error failure) {
+            this.closed = true;
+            closeResources();
+            throw failure;
         }
-        this.modelInputNames = session.getInputNames();
-        Set<String> outputs = session.getOutputNames();
-        Assert.isTrue(
-                outputs.contains(modelOutputName),
-                "ONNX outputs " + outputs + " do not contain expected output: " + modelOutputName
-        );
     }
 
     static void verifySha256(String resourceName, byte[] content, String expectedSha256) {
@@ -163,16 +171,49 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
 
     @Override
     public void destroy() {
+        closed = true;
         try {
-            if (session != null) {
-                session.close();
+            if (inferenceBulkhead.tryAcquire(maxConcurrentEmbeddings, DESTROY_DRAIN_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                closeAfterDrain();
+                return;
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
+        // Do not free native resources while any inference still holds a permit.
+        // If draining times out or is interrupted, the last permit holder closes them.
+        closeIfIdle();
+    }
+
+    private void closeIfIdle() {
+        if (inferenceBulkhead.tryAcquire(maxConcurrentEmbeddings)) {
+            closeAfterDrain();
+        }
+    }
+
+    private void closeAfterDrain() {
+        try {
+            closeResources();
+        } finally {
+            inferenceBulkhead.release(maxConcurrentEmbeddings);
+        }
+    }
+
+    private void closeResources() {
+        OrtSession activeSession = this.session;
+        this.session = null;
+        try {
+            if (activeSession != null) {
+                activeSession.close();
             }
         } catch (OrtException ignored) {
             // best effort
         }
+        HuggingFaceTokenizer activeTokenizer = this.tokenizer;
+        this.tokenizer = null;
         try {
-            if (tokenizer != null) {
-                tokenizer.close();
+            if (activeTokenizer != null) {
+                activeTokenizer.close();
             }
         } catch (Exception ignored) {
             // best effort
@@ -202,12 +243,18 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
         if (texts == null || texts.isEmpty()) {
             return new EmbeddingResponse(List.of());
         }
+        if (closed) {
+            throw new IllegalStateException("ONNX embedding model has been closed");
+        }
         boolean acquired = false;
         try {
             acquired = inferenceBulkhead.tryAcquire(acquireTimeoutMs, TimeUnit.MILLISECONDS);
             if (!acquired) {
                 throw new IllegalStateException(
                         "ONNX embedding concurrency bulkhead saturated after " + acquireTimeoutMs + " ms");
+            }
+            if (closed) {
+                throw new IllegalStateException("ONNX embedding model has been closed");
             }
             return runInference(texts);
         } catch (InterruptedException ex) {
@@ -218,6 +265,9 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
         } finally {
             if (acquired) {
                 inferenceBulkhead.release();
+                if (closed) {
+                    closeIfIdle();
+                }
             }
         }
     }
@@ -238,18 +288,10 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
                 OnnxTensor attentionMaskTensor = OnnxTensor.createTensor(environment, attentionMask);
                 OnnxTensor tokenTypeIdsTensor = OnnxTensor.createTensor(environment, tokenTypeIds)
         ) {
-            Map<String, OnnxTensor> feeds = new LinkedHashMap<>();
-            feeds.put("input_ids", inputIdsTensor);
-            feeds.put("attention_mask", attentionMaskTensor);
-            feeds.put("token_type_ids", tokenTypeIdsTensor);
-            feeds = feeds.entrySet().stream()
-                    .filter(entry -> modelInputNames.contains(entry.getKey()))
-                    .collect(Collectors.toMap(
-                            Map.Entry::getKey,
-                            Map.Entry::getValue,
-                            (left, right) -> left,
-                            LinkedHashMap::new
-                    ));
+            Map<String, OnnxTensor> feeds = new LinkedHashMap<>(3);
+            addAcceptedFeed(feeds, "input_ids", inputIdsTensor);
+            addAcceptedFeed(feeds, "attention_mask", attentionMaskTensor);
+            addAcceptedFeed(feeds, "token_type_ids", tokenTypeIdsTensor);
 
             try (OrtSession.Result results = session.run(feeds)) {
                 OnnxValue hidden = results.get(modelOutputName)
@@ -278,7 +320,16 @@ public class ClsOnnxEmbeddingModel implements EmbeddingModel, InitializingBean, 
         return embeddingDimensions;
     }
 
+    private void addAcceptedFeed(Map<String, OnnxTensor> feeds, String name, OnnxTensor tensor) {
+        if (modelInputNames != null && modelInputNames.contains(name)) {
+            feeds.put(name, tensor);
+        }
+    }
+
     static List<float[]> extractClsEmbeddings(Object onnxValue) {
+        if (onnxValue == null) {
+            throw new IllegalStateException("ONNX embedding output value is null");
+        }
         if (onnxValue instanceof float[][][] tokenEmbeddings) {
             // [batch, seq, dim] -> take first token (CLS)
             List<float[]> result = new ArrayList<>(tokenEmbeddings.length);

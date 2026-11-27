@@ -261,9 +261,14 @@
 
   return {
     SELECTORS,
+    attribute,
     canonicalizeUrl,
     extract,
+    inferEmploymentType,
+    nodeText,
     normalizeText,
+    safeQuery,
+    safeQueryAll,
     sourceJobIdFromUrl,
     stableHash,
   };

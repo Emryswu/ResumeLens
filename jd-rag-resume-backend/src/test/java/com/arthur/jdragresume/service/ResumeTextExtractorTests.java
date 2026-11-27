@@ -107,6 +107,26 @@ class ResumeTextExtractorTests {
     }
 
     @Test
+    void acceptsPlainTextExactlyAtWriteLimitAndRejectsOneCharOver() {
+        String prefix = "Java Spring Boot MySQL Redis. ";
+        String atLimit = prefix + "a".repeat(ResumeTextExtractor.MAX_RAW_TEXT_CHARS - prefix.length());
+        ResumeTextExtractor extractor = new ResumeTextExtractor(new ResumeTextQualityValidator());
+
+        String extracted = extractor.extract(new MockMultipartFile(
+                "file", "exact.txt", "text/plain", atLimit.getBytes(StandardCharsets.UTF_8)));
+        org.junit.jupiter.api.Assertions.assertEquals(ResumeTextExtractor.MAX_RAW_TEXT_CHARS, extracted.length());
+
+        String overLimit = atLimit + "x";
+        com.arthur.jdragresume.exception.BusinessException exception =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        com.arthur.jdragresume.exception.BusinessException.class,
+                        () -> extractor.extract(new MockMultipartFile(
+                                "file", "over.txt", "text/plain", overLimit.getBytes(StandardCharsets.UTF_8)))
+                );
+        org.junit.jupiter.api.Assertions.assertEquals("RESUME_TEXT_TOO_LONG", exception.getCode());
+    }
+
+    @Test
     void rejectsZipArchivePresentedAsPdfWithoutParsingNestedEntries() throws Exception {
         java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
         try (java.util.zip.ZipOutputStream zip = new java.util.zip.ZipOutputStream(buffer)) {

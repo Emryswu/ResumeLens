@@ -75,8 +75,10 @@ test("换号后旧会话的详情和错误都不再生效", async () => {
 });
 
 test("分析记录行点开时不得直接把列表项当报告渲染", () => {
-  const page = readFileSync(new URL("../app/workspace/page.tsx", import.meta.url), "utf8");
-  const row = page.slice(page.indexOf("<HistoryRow"), page.indexOf("</div>", page.indexOf("<HistoryRow")));
+  const section = readFileSync(new URL("../app/components/workspace/HistorySection.tsx", import.meta.url), "utf8");
+  const start = section.indexOf("<HistoryRow");
+  assert.ok(start >= 0);
+  const row = section.slice(start, section.indexOf("/>", start));
   assert.match(row, /openHistoryReport\(item\.id\)/);
   assert.doesNotMatch(row, /setAnalysis\(item\)/);
 });

@@ -56,6 +56,7 @@ public class LuceneVectorIndex implements ResumeVectorStore, AutoCloseable {
     private final IndexWriter writer;
     private final SearcherManager searcherManager;
     private final Object writeLock = new Object();
+    private volatile boolean closed = false;
 
     @Autowired
     public LuceneVectorIndex(
@@ -83,6 +84,7 @@ public class LuceneVectorIndex implements ResumeVectorStore, AutoCloseable {
 
     @Override
     public boolean isCurrent(Long resumeId, String sourceHash, int expectedChunks) throws IOException {
+        ensureOpen();
         IndexSearcher searcher = searcherManager.acquire();
         try {
             BooleanQuery query = new BooleanQuery.Builder()
@@ -97,33 +99,32 @@ public class LuceneVectorIndex implements ResumeVectorStore, AutoCloseable {
 
     @Override
     public void replace(Long resumeId, List<ResumeChunk> chunks) throws IOException {
+        ensureOpen();
+        // Parse and validate every chunk before touching IndexWriter so a bad payload never
+        // leaves uncommitted deletions or partial documents in the shared writer buffer.
+        List<Document> documents = buildDocuments(resumeId, chunks);
         synchronized (writeLock) {
+            ensureOpen();
             writer.deleteDocuments(new Term(RESUME_ID, resumeId.toString()));
-            for (ResumeChunk chunk : chunks) {
-                float[] vector = objectMapper.readValue(chunk.getEmbedding(), float[].class);
-                Document document = new Document();
-                document.add(new StringField(RESUME_ID, resumeId.toString(), Field.Store.NO));
-                document.add(new StringField(SOURCE_HASH, chunk.getSourceHash(), Field.Store.NO));
-                document.add(new StoredField(CHUNK_INDEX, chunk.getChunkIndex()));
-                document.add(new KnnFloatVectorField(VECTOR, vector, VectorSimilarityFunction.COSINE));
+            for (Document document : documents) {
                 writer.addDocument(document);
             }
-            writer.commit();
-            searcherManager.maybeRefreshBlocking();
+            commitAndRefresh();
         }
     }
 
     @Override
     public void delete(Long resumeId) throws IOException {
         synchronized (writeLock) {
+            ensureOpen();
             writer.deleteDocuments(new Term(RESUME_ID, resumeId.toString()));
-            writer.commit();
-            searcherManager.maybeRefreshBlocking();
+            commitAndRefresh();
         }
     }
 
     @Override
     public Set<Long> indexedResumeIds() throws IOException {
+        ensureOpen();
         Set<Long> result = new HashSet<>();
         IndexSearcher searcher = searcherManager.acquire();
         try {
@@ -165,9 +166,9 @@ public class LuceneVectorIndex implements ResumeVectorStore, AutoCloseable {
             return 0;
         }
         synchronized (writeLock) {
+            ensureOpen();
             writer.deleteDocuments(terms);
-            writer.commit();
-            searcherManager.maybeRefreshBlocking();
+            commitAndRefresh();
         }
         return terms.length;
     }
@@ -176,6 +177,7 @@ public class LuceneVectorIndex implements ResumeVectorStore, AutoCloseable {
     public int retainOnly(Set<Long> activeResumeIds) throws IOException {
         Set<Long> active = activeResumeIds == null ? Set.of() : activeResumeIds;
         synchronized (writeLock) {
+            ensureOpen();
             List<Term> orphanTerms = new ArrayList<>();
             Set<String> seenIds = new HashSet<>();
             IndexSearcher searcher = searcherManager.acquire();
@@ -213,8 +215,7 @@ public class LuceneVectorIndex implements ResumeVectorStore, AutoCloseable {
                 return 0;
             }
             writer.deleteDocuments(orphanTerms.toArray(Term[]::new));
-            writer.commit();
-            searcherManager.maybeRefreshBlocking();
+            commitAndRefresh();
             return orphanTerms.size();
         }
     }
@@ -238,6 +239,10 @@ public class LuceneVectorIndex implements ResumeVectorStore, AutoCloseable {
 
     @Override
     public List<VectorHit> search(Long resumeId, List<float[]> queries, int limit) throws IOException {
+        ensureOpen();
+        if (queries == null || queries.isEmpty() || limit <= 0) {
+            return List.of();
+        }
         Map<Integer, Float> bestScores = new LinkedHashMap<>();
         IndexSearcher searcher = searcherManager.acquire();
         try {
@@ -258,10 +263,39 @@ public class LuceneVectorIndex implements ResumeVectorStore, AutoCloseable {
         return result.stream().limit(limit).toList();
     }
 
+    private List<Document> buildDocuments(Long resumeId, List<ResumeChunk> chunks) throws IOException {
+        List<Document> documents = new ArrayList<>(chunks.size());
+        for (ResumeChunk chunk : chunks) {
+            float[] vector = objectMapper.readValue(chunk.getEmbedding(), float[].class);
+            Document document = new Document();
+            document.add(new StringField(RESUME_ID, resumeId.toString(), Field.Store.NO));
+            document.add(new StringField(SOURCE_HASH, chunk.getSourceHash(), Field.Store.NO));
+            document.add(new StoredField(CHUNK_INDEX, chunk.getChunkIndex()));
+            document.add(new KnnFloatVectorField(VECTOR, vector, VectorSimilarityFunction.COSINE));
+            documents.add(document);
+        }
+        return documents;
+    }
+
+    private void commitAndRefresh() throws IOException {
+        writer.commit();
+        searcherManager.maybeRefreshBlocking();
+    }
+
+    private void ensureOpen() throws IOException {
+        if (closed) {
+            throw new IOException("Lucene vector index is already closed");
+        }
+    }
+
     @PreDestroy
     @Override
     public void close() throws IOException {
         synchronized (writeLock) {
+            if (closed) {
+                return;
+            }
+            closed = true;
             try (directory; writer; searcherManager) {
                 // Close in reverse order: searcherManager -> writer -> directory.
             }

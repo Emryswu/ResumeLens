@@ -7,7 +7,6 @@ import com.arthur.jdragresume.exception.BusinessException;
 import com.arthur.jdragresume.exception.ResourceNotFoundException;
 
 import java.util.Locale;
-import java.util.Objects;
 import com.arthur.jdragresume.repository.AppUserRepository;
 import com.arthur.jdragresume.security.CurrentUserService;
 import com.arthur.jdragresume.security.SlidingWindowRateLimiter;
@@ -52,7 +51,7 @@ public class AppUserService {
         AppUser user = currentUserService.getCurrentUser();
         boolean passwordChanged = request.password() != null && !request.password().isBlank();
         String email = request.email().trim().toLowerCase(Locale.ROOT);
-        boolean emailChanged = !user.getEmail().equalsIgnoreCase(email);
+        boolean emailChanged = user.getEmail() == null || !user.getEmail().equalsIgnoreCase(email);
         if (emailChanged || passwordChanged) {
             Key ipKey = new Key("profile-password", ip, null);
             Key userKey = new Key("profile-password", null, "user:" + user.getId());
@@ -67,9 +66,7 @@ public class AppUserService {
             rateLimiter.release(userKey);
         }
         String username = request.username().trim();
-        if (!user.getUsername().trim().equalsIgnoreCase(username)
-                && appUserRepository.findByUsername(username)
-                .map(other -> !Objects.equals(user.getId(), other.getId())).orElse(true)) {
+        if (user.getUsername() == null || !user.getUsername().trim().equalsIgnoreCase(username)) {
             throw new BusinessException("USERNAME_IMMUTABLE", "用户名不能修改");
         }
         if (emailChanged && appUserRepository.existsByEmail(email)) {

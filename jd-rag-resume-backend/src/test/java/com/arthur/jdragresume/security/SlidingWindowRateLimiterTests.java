@@ -117,4 +117,22 @@ class SlidingWindowRateLimiterTests {
         assertFalse(limiter.tryAcquire(ip, 1, 900_000L));
     }
 
+    @Test
+    void redundantReleaseAndNullOwnerDoNotThrowDuringUseOrSweep() {
+        AtomicLong now = new AtomicLong(1_000_000L);
+        SlidingWindowRateLimiter limiter = new SlidingWindowRateLimiter(now::get);
+        Key nullOwner = new Key("anon", null, null);
+
+        assertTrue(limiter.tryAcquire(nullOwner, 2, 1_000L));
+        limiter.release(nullOwner);
+        // Repeated release on an already empty/removed bucket must remain a no-op.
+        limiter.release(nullOwner);
+        assertEquals(0, limiter.trackedKeyCount());
+
+        assertTrue(limiter.tryAcquire(nullOwner, 1, 1_000L));
+        now.addAndGet(1_001L);
+        assertTrue(limiter.tryAcquire(new Key("login", "192.0.2.1", "alice"), 1, 1_000L));
+        assertEquals(1, limiter.trackedKeyCount());
+    }
+
 }

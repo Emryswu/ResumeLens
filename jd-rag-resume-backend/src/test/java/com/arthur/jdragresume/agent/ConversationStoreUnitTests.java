@@ -20,6 +20,7 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -296,6 +297,18 @@ class ConversationStoreUnitTests {
         var latest = store.latestEvent(1L, 10L);
         assertTrue(latest.isPresent());
         assertEquals(8L, latest.get().sequence());
+    }
+
+    @Test
+    void isCurrentReturnsFalseWhenConversationRowIsMissing() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        ConversationStore store = new ConversationStore(jdbc, NOOP_TX);
+        when(jdbc.query(
+                eq("SELECT active_run=? AND run_expires_at>? FROM agent_conversation WHERE id=? AND user_id=?"),
+                anyRowMapper(), eq("run-1"), anyLong(), eq(10L), eq(1L)))
+                .thenReturn(List.of());
+
+        assertFalse(store.isCurrent(new ConversationStore.Run(1L, 10L, "turn-1", "run-1", null, null, 0L)));
     }
 
     private static ConversationStore.Header header(String activeRun, Long expiresAt) {

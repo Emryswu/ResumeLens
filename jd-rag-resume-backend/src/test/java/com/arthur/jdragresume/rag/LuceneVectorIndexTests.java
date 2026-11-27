@@ -167,6 +167,32 @@ class LuceneVectorIndexTests {
         }
     }
 
+    @Test
+    void failedReplaceLeavesExistingDocumentsIntactAcrossSubsequentCommitsAndHandlesEmptySearchBounds() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        try (LuceneVectorIndex index = new LuceneVectorIndex(mapper, tempDir.toString())) {
+            index.replace(10L, List.of(chunk(0, "hash-ok", new float[]{1, 0, 0}, mapper)));
+
+            ResumeChunk malformed = new ResumeChunk();
+            malformed.setChunkIndex(1);
+            malformed.setSourceHash("hash-bad");
+            malformed.setContent("broken");
+            malformed.setEmbedding("{not-a-float-array");
+
+            assertThrows(IOException.class, () -> index.replace(10L, List.of(
+                    chunk(0, "hash-bad", new float[]{0, 1, 0}, mapper),
+                    malformed
+            )));
+
+            // An unrelated commit on resume 20 must not persist a partial deletion/write from failed resume 10 replace.
+            index.replace(20L, List.of(chunk(0, "hash-20", new float[]{0, 0, 1}, mapper)));
+            assertTrue(index.isCurrent(10L, "hash-ok", 1));
+            assertFalse(index.isCurrent(10L, "hash-bad", 1));
+            assertTrue(index.search(10L, List.of(), 3).isEmpty());
+            assertTrue(index.search(10L, List.of(new float[]{1, 0, 0}), 0).isEmpty());
+        }
+    }
+
     private ResumeChunk chunk(int index, String hash, float[] vector, ObjectMapper mapper) throws Exception {
         ResumeChunk chunk = new ResumeChunk();
         chunk.setChunkIndex(index);

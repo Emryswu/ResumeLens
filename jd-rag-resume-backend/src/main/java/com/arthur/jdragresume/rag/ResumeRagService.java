@@ -151,15 +151,16 @@ public class ResumeRagService {
         );
         List<ResumeChunk> existing = findCurrentIndex(resume.getId(), sourceHash);
         if (!existing.isEmpty()) {
-            ensureVectorIndex(resume.getId(), sourceHash, existing);
-            return existing;
+            return ensureVectorIndex(resume.getId(), sourceHash, existing);
         }
 
-        Object lock = indexLocks[Math.floorMod(resume.getId().hashCode(), indexLocks.length)];
+        Object lock = indexLock(resume.getId());
         synchronized (lock) {
             existing = findCurrentIndex(resume.getId(), sourceHash);
             if (!existing.isEmpty()) {
-                ensureVectorIndex(resume.getId(), sourceHash, existing);
+                if (!vectorIndex.isCurrent(resume.getId(), sourceHash, existing.size())) {
+                    vectorIndex.replace(resume.getId(), existing);
+                }
                 return existing;
             }
             return buildAndReplaceIndex(user, resume, sourceHash);
@@ -203,10 +204,24 @@ public class ResumeRagService {
         return saved;
     }
 
-    private void ensureVectorIndex(Long resumeId, String sourceHash, List<ResumeChunk> chunks) throws Exception {
-        if (!vectorIndex.isCurrent(resumeId, sourceHash, chunks.size())) {
-            vectorIndex.replace(resumeId, chunks);
+    private List<ResumeChunk> ensureVectorIndex(Long resumeId, String sourceHash, List<ResumeChunk> chunks) throws Exception {
+        if (vectorIndex.isCurrent(resumeId, sourceHash, chunks.size())) {
+            return chunks;
         }
+        synchronized (indexLock(resumeId)) {
+            List<ResumeChunk> latest = findCurrentIndex(resumeId, sourceHash);
+            if (!latest.isEmpty()) {
+                if (!vectorIndex.isCurrent(resumeId, sourceHash, latest.size())) {
+                    vectorIndex.replace(resumeId, latest);
+                }
+                return latest;
+            }
+            return chunks;
+        }
+    }
+
+    private Object indexLock(Long resumeId) {
+        return indexLocks[Math.floorMod(resumeId.hashCode(), indexLocks.length)];
     }
 
     private static Object[] createIndexLocks(int count) {

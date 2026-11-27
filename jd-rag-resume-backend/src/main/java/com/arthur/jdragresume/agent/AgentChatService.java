@@ -100,14 +100,21 @@ public class AgentChatService {
             throw new BusinessException("PAYLOAD_TOO_LARGE", "browser result is too large");
         }
         agentLoop.requireModelReady();
-        if (!rateLimiter.tryAcquire(SlidingWindowRateLimiter.Key.agent(user.getId()), properties.getMaxTurnsPerWindow(),
+        SlidingWindowRateLimiter.Key rateLimitKey = SlidingWindowRateLimiter.Key.agent(user.getId());
+        if (!rateLimiter.tryAcquire(rateLimitKey, properties.getMaxTurnsPerWindow(),
                 properties.getWindowMinutes() * 60_000)) {
             throw new BusinessException("AGENT_RATE_LIMITED", "too many assistant turns, please retry later");
         }
         String resumed = approval != null ? approval.toolCallId() : browserReport != null ? browserReport.toolCallId() : null;
-        var run = conversations.accept(user.getId(), conversationId, question, approval, browserReport,
-                properties.getTurnTimeoutSeconds() * 1000,
-                messages -> transcriptPolicy.normalize(messages, resumed, call -> ToolEnvelope.error(call.name(), TranscriptPolicy.DID_NOT_CONFIRM, "操作未确认")));
+        ConversationStore.Run run;
+        try {
+            run = conversations.accept(user.getId(), conversationId, question, approval, browserReport,
+                    properties.getTurnTimeoutSeconds() * 1000,
+                    messages -> transcriptPolicy.normalize(messages, resumed, call -> ToolEnvelope.error(call.name(), TranscriptPolicy.DID_NOT_CONFIRM, "操作未确认")));
+        } catch (RuntimeException | Error ex) {
+            rateLimiter.release(rateLimitKey);
+            throw ex;
+        }
         SseEmitter emitter = new SseEmitter(properties.getEmitterTimeoutMs());
         AtomicBoolean disconnected = new AtomicBoolean();
         emitter.onCompletion(() -> disconnected.set(true));
@@ -117,8 +124,13 @@ public class AgentChatService {
             agentTaskExecutor.execute(() -> runTurn(emitter, disconnected, run, approval, browserReport,
                     new AgentToolContext(user, run, collectorMode), includeTrace, reasoningEffort));
         } catch (TaskRejectedException ex) {
+            rateLimiter.release(rateLimitKey);
             conversations.fail(run, "AGENT_BUSY", "助手队列已满，本轮未执行");
             throw new BusinessException("AGENT_BUSY", "assistant is busy, please retry shortly");
+        } catch (RuntimeException | Error ex) {
+            rateLimiter.release(rateLimitKey);
+            conversations.fail(run, "AGENT_INTERNAL_ERROR", "助手执行失败，可以继续提问");
+            throw ex;
         }
         return emitter;
     }
@@ -159,20 +171,32 @@ public class AgentChatService {
             if (acceptedEvent != null) {
                 send(emitter, disconnected, acceptedEvent);
             }
-            String question = run.input().messages().stream().filter(message -> AgentMessage.USER.equals(message.role()))
-                    .reduce((first, second) -> second).orElseThrow().content();
+            String question = latestUserQuestion(run.input().messages());
             var memories = memoryService.rememberAndRecall(question, approval == null && browserReport == null);
             agentLoop.run(run.input(), approval, context, sink, () -> !conversations.isCurrent(run), run.acceptedAt(),
                     new AgentLoop.TurnOptions(run.summary(), memories, includeTrace, browserReport, reasoningEffort));
         } catch (AgentEventSink.ClientGoneException ex) {
             log.info("agent run {} no longer owns its lease", run.runId());
-        } catch (RuntimeException ex) {
+        } catch (Throwable ex) {
             log.error("agent run {} failed {}", run.runId(), LogSafe.describe(ex));
             conversations.fail(run, "AGENT_INTERNAL_ERROR", "助手执行失败，可以继续提问");
+            if (ex instanceof Error error) {
+                throw error;
+            }
         } finally {
             conversations.fail(run, "AGENT_INTERRUPTED", "助手执行已中断，可以继续提问");
             emitter.complete();
         }
+    }
+
+    private static String latestUserQuestion(List<AgentMessage> messages) {
+        for (int index = messages.size() - 1; index >= 0; index--) {
+            AgentMessage message = messages.get(index);
+            if (AgentMessage.USER.equals(message.role())) {
+                return message.content();
+            }
+        }
+        throw new IllegalStateException("conversation turn has no user message");
     }
 
     /** A failed delivery detaches this subscriber; it never cancels the durable run. */

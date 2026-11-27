@@ -64,3 +64,18 @@ test("unexpected server browser phases cannot render inherited Object methods", 
     assert.match(html, /正在联系浏览器/, phase);
   }
 });
+
+test("completed collection cards tolerate malformed or non-object step arguments", () => {
+  for (const rawArgs of ["{broken", "null", "[]", "\"plain\""]) {
+    const html = renderToStaticMarkup(React.createElement(exports.CompletedCollectionCards, {
+      turn: {
+        steps: [{
+          tool: "collect_boss_jobs", ok: true, toolCallId: "bad-1",
+          arguments: rawArgs,
+          facts: { pagesRead: 1, pageLog: [{ page: 1, api: 1, dom: 0 }], finishReason: "MAX_PAGES" },
+        }],
+      },
+    }));
+    assert.match(html, /采集操作日志/, rawArgs);
+  }
+});
