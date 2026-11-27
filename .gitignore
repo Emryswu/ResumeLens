@@ -46,3 +46,7 @@ models/
 jd-rag-resume-frontend/output/
 jd-rag-resume-frontend/test-results/
 jd-rag-resume-frontend/playwright-report/
+
+# Local ChatGPT OAuth helper
+.venv-chatgpt/
+**/__pycache__/
