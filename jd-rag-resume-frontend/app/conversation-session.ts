@@ -192,7 +192,7 @@ export class ConversationSession {
     this.update({ chat: agentChatReducer(this.snapshot.chat, event) });
   };
 
-  send = async (input: Input, reasoningEffort: ReasoningEffort, collectorMode?: CollectorMode) => {
+  send = async (input: Input, reasoningEffort: ReasoningEffort, collectorMode?: CollectorMode, chatGptModel?: string) => {
     const detail = this.snapshot.detail;
     if (!detail || this.posting || this.snapshot.chat.busy) return;
     const generation = this.generation;
@@ -205,7 +205,7 @@ export class ConversationSession {
     let pausedForBrowser = false;
     try {
       const stream = await this.io.stream("/api/agent/chat", { ...input, conversationId: detail.conversation.id, reasoningEffort,
-        ...(collectorMode ? { collectorMode } : {}) }, controller.signal);
+        ...(collectorMode ? { collectorMode } : {}), ...(chatGptModel ? { chatGptModel } : {}) }, controller.signal);
       if (!this.owns(generation)) { await stream.cancel(); return; }
       let chat = { ...this.snapshot.chat, busy: false };
       if ("question" in input) chat = agentChatReducer(chat, { type: "ask", question: input.question });
